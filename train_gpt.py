@@ -30,12 +30,12 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
-# Default RLMA-everywhere config:
-# - 32 transformer blocks at width 512; ALL linear projections (attn Q/K/V/proj + MLP gate/up/down)
-#   are RandomLinearAdapters (fixed R + learnable low-rank AB). Only adapter A/B are stored.
+# Default config (RLMA-MLP + full-rank attention):
+# - 16 transformer blocks at width 512; MLP projections use RLMA (fixed R + rank-16 AB adapters);
+#   attention uses full-rank CastedLinear trained with Muon — much faster learning than RLMA-attn.
 # - 8 attention heads / 4 KV heads (GQA), vocab size 1024, sequence length 1024, tied embeddings
-# - 65,536 train tokens per step; at ~30ms/step on H100 → ~20k steps in 10 min (~1.3B tokens)
-# - Submission size: ~6-8 MB int8+zlib (well under 16 MB), down from 27 MB with full-rank attn
+# - 65,536 train tokens/step; ~17ms/step on single H100 (GRAD_ACCUM_STEPS=1)
+# - Submission size: ~14 MB int8+zlib (16-layer attn ~12.6 MB + RLMA-MLP ~1.97 MB)
 
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
@@ -64,9 +64,9 @@ class Hyperparameters:
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
     # Model shape.
-    # num_layers=32: RLMA adapter compression enables much deeper models within the size budget.
+    # num_layers=16: half the original 32-layer depth; full-rank attn still fits in 16 MB at this depth.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 32))
+    num_layers = int(os.environ.get("NUM_LAYERS", 16))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -77,21 +77,21 @@ class Hyperparameters:
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     leaky_relu_slope = float(os.environ.get("LEAKY_RELU_SLOPE", 0.5))
 
-    # RLMA adapter hyperparameters.
-    # adapter_rank: rank of the A, B low-rank matrices in each MLP RandomLinearAdapter.
+    # RLMA adapter hyperparameters (MLP only — attention uses full-rank CastedLinear + Muon).
     adapter_rank = int(os.environ.get("ADAPTER_RANK", 16))
-    # adapter_lr: AdamW LR for the A, B adapter matrices. Higher than standard because
-    # adapters do all the learning (no pretrained base to fine-tune from).
     adapter_lr = float(os.environ.get("ADAPTER_LR", 0.008))
 
     # Optimizer hyperparameters.
-    # NOTE: Muon is removed — with RLMA on all projections, every 2D block param is an
-    # adapter_A or adapter_B matrix. matrix_lr is kept for reference but unused.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
     head_lr = float(os.environ.get("HEAD_LR", 0.008))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
@@ -579,8 +579,6 @@ class CausalSelfAttention(nn.Module):
         num_kv_heads: int,
         rope_base: float,
         qk_gain_init: float,
-        adapter_rank: int,
-        layer_idx: int,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -594,13 +592,11 @@ class CausalSelfAttention(nn.Module):
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
         kv_dim = self.num_kv_heads * self.head_dim
-        # All four attention projections are now RandomLinearAdapters:
-        # only adapter_A and adapter_B are stored; R is regenerated from seed.
-        # adapter_A is zero-init (RLMA default) → proj_out starts near-zero, same as _zero_init.
-        self.c_q    = RandomLinearAdapter(dim,    dim,    adapter_rank, _rlma_seed(layer_idx, "attn_q"))
-        self.c_k    = RandomLinearAdapter(dim,    kv_dim, adapter_rank, _rlma_seed(layer_idx, "attn_k"))
-        self.c_v    = RandomLinearAdapter(dim,    kv_dim, adapter_rank, _rlma_seed(layer_idx, "attn_v"))
-        self.proj   = RandomLinearAdapter(dim,    dim,    adapter_rank, _rlma_seed(layer_idx, "attn_proj"))
+        self.c_q = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = CastedLinear(dim, kv_dim, bias=False)
+        self.proj = CastedLinear(dim, dim, bias=False)
+        self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
@@ -726,10 +722,7 @@ class Block(nn.Module):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(
-            dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
-            adapter_rank=adapter_rank, layer_idx=layer_idx,
-        )
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
         self.mlp = RandomMLP(dim, mlp_mult, adapter_rank, layer_idx, leaky_slope)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -965,24 +958,33 @@ def main() -> None:
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
-    # Optimizer split (full-RLMA architecture — Muon removed, no full-rank 2D matrices remain):
+    # Optimizer split (RLMA-MLP + full-rank attention):
     # - token embedding (Adam)      uses TIED_EMBED_LR / EMBED_LR
     # - untied lm_head (Adam)       uses HEAD_LR
-    # - adapter A, B matrices       via AdamW (ADAPTER_LR) — all attn + MLP RLMA projections
+    # - attention 2D matrices       via Muon (MATRIX_LR) — fully learned, full-rank CastedLinear
+    # - MLP adapter A, B matrices   via AdamW (ADAPTER_LR) — excluded from Muon (low-rank)
     # - scalars/norms/gains         via Adam (SCALAR_LR)
     block_named_params = list(base_model.blocks.named_parameters())
 
-    # Adapter params: every adapter_A / adapter_B in the model (attn q/k/v/proj + MLP gate/up/down).
+    # Adapter params: MLP adapter_A / adapter_B matrices.
     adapter_params = [
         p
         for name, p in block_named_params
         if any(pat in name for pat in ADAPTER_PARAM_PATTERNS)
     ]
-    # Everything else in blocks: 1D params, scalars, control tensors (q_gain, norms, scales, etc.).
+    # Attention params: full-rank 2D CastedLinear weights — handled by Muon.
+    matrix_params = [
+        p
+        for name, p in block_named_params
+        if p.ndim == 2
+        and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        and not any(pat in name for pat in ADAPTER_PARAM_PATTERNS)
+    ]
+    # Everything else: 1D params, scalars, control tensors (q_gain, norms, scales, etc.).
     scalar_params = [
         p
         for name, p in block_named_params
-        if not any(pat in name for pat in ADAPTER_PARAM_PATTERNS)
+        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
@@ -993,7 +995,15 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     )
-    # AdamW for adapter A/B — weight decay helps prevent adapter collapse.
+    optimizer_muon = Muon(
+        matrix_params,
+        lr=args.matrix_lr,
+        momentum=args.muon_momentum,
+        backend_steps=args.muon_backend_steps,
+    )
+    for group in optimizer_muon.param_groups:
+        group["base_lr"] = args.matrix_lr
+    # AdamW for MLP adapter A/B — weight decay helps prevent adapter collapse.
     optimizer_adapter = torch.optim.AdamW(
         [{"params": adapter_params, "lr": args.adapter_lr, "base_lr": args.adapter_lr}],
         betas=(args.beta1, args.beta2),
@@ -1007,7 +1017,7 @@ def main() -> None:
         eps=args.adam_eps,
         fused=True,
     )
-    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_adapter, optimizer_scalar]
+    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_adapter, optimizer_scalar]
     if base_model.lm_head is not None:
         optimizer_head = torch.optim.Adam(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
@@ -1019,15 +1029,16 @@ def main() -> None:
 
     n_params = sum(p.numel() for p in base_model.parameters())
     n_adapter_params = sum(p.numel() for p in adapter_params)
-    log0(f"model_params:{n_params} (adapter_AB:{n_adapter_params} scalar_other:{n_params - n_adapter_params})")
-    log0(f"rlma_everywhere:num_layers:{args.num_layers} adapter_rank:{args.adapter_rank} mlp_mult:{args.mlp_mult}")
+    n_attn_params = sum(p.numel() for p in matrix_params)
+    log0(f"model_params:{n_params} (adapter_AB:{n_adapter_params} attn_matrices:{n_attn_params})")
+    log0(f"rlma_mlp:num_layers:{args.num_layers} adapter_rank:{args.adapter_rank} mlp_mult:{args.mlp_mult}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
-        f"adapter_lr:{args.adapter_lr} scalar_lr:{args.scalar_lr}"
+        f"matrix_lr:{args.matrix_lr} adapter_lr:{args.adapter_lr} scalar_lr:{args.scalar_lr}"
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
@@ -1145,6 +1156,10 @@ def main() -> None:
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
 
+        frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+        for group in optimizer_muon.param_groups:
+            group["momentum"] = muon_momentum
 
         for opt in optimizers:
             for group in opt.param_groups:
