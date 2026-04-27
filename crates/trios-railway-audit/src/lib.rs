@@ -7,10 +7,12 @@
 //!   - `Severity`
 //!   - in-memory `detect()` over typed inputs
 //!
-//! The Neon writer (issue #6/#8) consumes `DriftEvent` rows and inserts
-//! them via `tri railway audit run`. Cron + GitHub Actions integration
+//! AU-02 (issue #8): `event` module adds the Neon writer.
+//! The Neon writer consumes `DriftEvent` rows and inserts
+//! them via `tri railway audit run --neon`. Cron + GitHub Actions integration
 //! lives behind issue #16.
 
+pub mod event;
 pub mod migrations;
 
 use serde::{Deserialize, Serialize};
