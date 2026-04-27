@@ -1,0 +1,96 @@
+[HDC] Logging to /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-04-26_HDC_1_Step_Grad_Spiral/2026-04-26_HDC_1_Step_Grad_DSV_Radial_Slyvester_Hadamard_Matrix_Symmetry/train_20260427T012652.log
+[HashGrad] Pre-allocated 1,000,000,000 token buffer (1.86 GiB)
+[HashGrad] Loaded 100,000,000 tokens from fineweb_train_000050.bin
+[HashGrad] Loaded 200,000,000 tokens from fineweb_train_000051.bin
+[HashGrad] Loaded 300,000,000 tokens from fineweb_train_000052.bin
+[HashGrad] Loaded 400,000,000 tokens from fineweb_train_000053.bin
+[HashGrad] Loaded 500,000,000 tokens from fineweb_train_000054.bin
+[HashGrad] Loaded 600,000,000 tokens from fineweb_train_000055.bin
+[HashGrad] Loaded 700,000,000 tokens from fineweb_train_000056.bin
+[HashGrad] Loaded 800,000,000 tokens from fineweb_train_000057.bin
+[HashGrad] Loaded 900,000,000 tokens from fineweb_train_000058.bin
+[HashGrad] Loaded 1,000,000,000 tokens from fineweb_train_000059.bin
+[HashGrad FreqTab rank=5] Shard [625,000,000, 750,000,001) — 125,000,001 tokens
+[HashGrad FreqTab_r5 GPU] Uploaded 2.00 GB in 0.45s — processing 125,000,000 tokens…
+[HashGrad FreqTab_r5 GPU] 100,000,000/125,000,000 tokens (80.0%) — 2317.2M tok/s
+[HashGrad FreqTab_r5 GPU] 125,000,000/125,000,000 tokens (100.0%) — 2886.0M tok/s
+[HashGrad FreqTab_r5 GPU] Done in 4.0s — filled 524,288/524,288 buckets (100.0%)
+)
+bin
+[HashGrad] Loaded 1,000,000,000 tokens from fineweb_train_000009.bin
+[HashGrad] Precomputing G[p] states...
+
+============================================================
+[HashGrad] Enhanced Hash-Addressed Gradient Training
+[HashGrad] TABLE_BITS=19 → TABLE_SIZE=524,288
+[HashGrad] EMBED_DIM=16, Seed=1337
+[HashGrad] Budget: 16.0 MB
+[HashGrad] Distributed: 8 ranks
+============================================================
+
+[HashGrad Prior] Building frozen prior from first 2,000,000 tokens...
+[HashGrad Prior GPU] Uploaded 0.03 GB in 0.01s — processing 2,000,000 tokens…
+[HashGrad Prior GPU] 2,000,000/2,000,000 tokens (100.0%) — 33.3M tok/s
+[HashGrad Prior GPU] Done in 5.7s — filled 512,689/524,288 buckets (97.8%)
+[HashGrad Prior] Done — 512,689/524,288 buckets filled
+[HashGrad FreqTab rank=0] Shard [0, 125,000,001) — 125,000,001 tokens
+[HashGrad FreqTab_r0 GPU] Uploaded 2.00 GB in 0.51s — processing 125,000,000 tokens…
+[HashGrad FreqTab_r0 GPU] 100,000,000/125,000,000 tokens (80.0%) — 58262.3M tok/s
+[HashGrad FreqTab_r0 GPU] 125,000,000/125,000,000 tokens (100.0%) — 67078.8M tok/s
+[HashGrad FreqTab_r0 GPU] Done in 5.5s — filled 524,288/524,288 buckets (100.0%)
+[HashGrad FreqTab dist] All-reduce complete — 524,288/524,288 buckets filled across 8 ranks
+[HashGrad XORReg] No sparse buckets (count < 5) — skipping
+[HashGrad NMF GPU] Active buckets: 524,288/524,288 (min_count=1)
+[HashGrad NMF GPU] iter    0/1 | KL: 6.931473 | 3.61s
+[HashGrad NMF GPU] Done — best KL: 6.931473 in 3.61s
+
+[HashGrad] Training complete — 524,288/524,288 buckets, 16.03 MB
+
+[HashGrad-DSV-r0] Building directional semantic vectors (vocab=1024, W=16, ctx_len=4)
+[HashGrad-DSV-r0] c=1/4  pairs=124,999,999  elapsed=38.9s
+[HashGrad-DSV-r0] c=2/4  pairs=249,999,997  elapsed=77.5s
+[HashGrad-DSV-r0] c=3/4  pairs=374,999,994  elapsed=116.1s
+[HashGrad-DSV-r0] c=4/4  pairs=499,999,990  elapsed=154.5s
+[HashGrad-DSV-r0] Done. 499,999,990 A→B pairs recorded in 154.5s
+[HashGrad-DSV dist] all-gather XOR done across 8 ranks
+
+[HashGrad-SkipBigram-r0] Building GoldenAxisShift skip-bigram lags 2..5 (N=125,000,000, vocab=1024, W=16, phi_offset=39)
+[HashGrad-SkipBigram-r0] lag=2 done in 38.75s
+[HashGrad-SkipBigram-r0] lag=3 done in 77.43s
+[HashGrad-SkipBigram-r0] lag=4 done in 116.13s
+[HashGrad-SkipBigram-r0] lag=5 done in 155.05s
+[HashGrad-SkipBigram-r0] All lags built in 155.05s | 512 KB total
+[HashGrad-SkipBigram dist] all-gather XOR done for lags [2, 3, 4, 5]
+[HashGrad Phase6] DSV sem_fwd=128KB
+[HashGrad Phase6] Skip-bigram lags: [2, 3, 4, 5]
+
+[HashGrad-Phase7] Building suffix grammar table (N=1,000,000,000, suffix_len=3)
+[HashGrad-Phase7] Time budget reached at 14,000,000
+[HashGrad-Phase7] Done. 14,000,000 tokens processed in 31.73s | 883/1024 suffix slots filled
+[HashGrad] Phase 7: Suffix grammar built
+[HashGrad] Artifact saved → /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-04-26_HDC_1_Step_Grad_Spiral/2026-04-26_HDC_1_Step_Grad_DSV_Radial_Slyvester_Hadamard_Matrix_Symmetry/hdc_hashgrad_seed1337.hgz | raw=16.53 MB → lzma9=14.96 MB (9.5% reduction) [+fingerprint]
+
+[TensorCore] Training phase complete: 491.9s (✅ under 10-min training limit)
+
+[HashGrad] Running BPB evaluation on validation set...
+[ValEval] Pre-allocated 62,021,846 token buffer (0.12 GiB)
+[ValEval] Loaded 62,021,846 tokens from fineweb_val_000000.bin
+[HashGrad BPB audit]
+  total_tokens   : 62,021,845
+  total_utf8_bytes: 151,130,330
+  avg bytes/token : 2.4367  (explains why BPB << bits/token)
+  bits/token      : 0.9911
+  nats/token (loss): 0.6870
+  BPB = bits/token / bytes/token = 0.9911 / 2.4367 = 0.4067
+  (same formula as reference train_gpt.py: bits_per_token * tokens_per_byte)
+
+============================================================
+[TensorCore] FINAL RESULTS
+BPB: 0.4067  |  Val Loss: 0.6870
+Training time : 491.9s  (PASS ✅ ≤600s training limit)
+Eval time     : 58.5s    (PASS ✅ ≤600s eval limit)
+Total time    : 550.4s
+Code size: 250,360 bytes  |  Total artifact: 15,941,500 bytes
+Artifact size check: PASS (limit: 16,000,000 bytes)
+============================================================
+[TensorCore] Submission saved → /workspace/parameter-golf-hdc/records/track_10min_16mb/2026-04-26_HDC_1_Step_Grad_Spiral/2026-04-26_HDC_1_Step_Grad_DSV_Radial_Slyvester_Hadamard_Matrix_Symmetry/submission.json

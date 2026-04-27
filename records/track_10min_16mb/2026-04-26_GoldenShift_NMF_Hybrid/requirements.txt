@@ -1,6 +1,0 @@
-numpy>=1.24
-torch>=2.1          # Required for float16 tensor-core matmul (HGEMM)
-sentencepiece
-zstandard
-huggingface_hub     # Required for the dataset download
-# cupy-cuda12x removed: all GPU ops use torch (scatter_add_, HGEMM via gpu_matmul_f16)

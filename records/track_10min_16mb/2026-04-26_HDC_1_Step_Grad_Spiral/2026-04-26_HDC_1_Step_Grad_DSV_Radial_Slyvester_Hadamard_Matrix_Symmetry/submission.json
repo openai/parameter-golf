@@ -1,0 +1,23 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-26",
+  "name": "HDC Zero Track 5Mb TensorCore",
+  "author": "Ashley Klimpel",
+  "github_id": "viasky657",
+  "val_loss": 0.6869815181176585,
+  "val_bpb": 0.4067360302017812,
+  "artifact_bytes": 15941500,
+  "code_bytes": 250360,
+  "world_size": 8,
+  "table_bits": 19,
+  "embed_dim": 16,
+  "seeds": [
+    1337
+  ],
+  "training_elapsed_s": 491.9,
+  "eval_elapsed_s": 58.5,
+  "total_elapsed_s": 550.4,
+  "training_time_pass": true,
+  "eval_time_pass": true,
+  "elapsed_s": 550.4
+}
