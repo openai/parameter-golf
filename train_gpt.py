@@ -55,7 +55,9 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 50000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    # 7500 warmdown = 15% of 50k — enough for the LR to converge into a sharp minimum.
+    # 1200 (2.4%) is too short; the model never enters the low-LR convergence phase.
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 7500))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     # 65k tokens/step: ~30ms/step on 8×H100 → ~20k steps in 10 min wall-clock.
     # For competitive runs scale up: TRAIN_BATCH_TOKENS=524288.
@@ -85,7 +87,9 @@ class Hyperparameters:
     leaky_relu_slope = float(os.environ.get("LEAKY_RELU_SLOPE", 0.5))
 
     # RLMA adapter hyperparameters (MLP only — attention uses full-rank CastedLinear + Muon).
-    adapter_rank = int(os.environ.get("ADAPTER_RANK", 16))
+    # rank=32: doubles expressiveness vs 16, adds ~4 MB int8 pre-LZMA but still fits safely at 16L.
+    # At 50k steps rank-16 adapters tend to saturate; rank-32 avoids the mid-training plateau.
+    adapter_rank = int(os.environ.get("ADAPTER_RANK", 32))
     adapter_lr = float(os.environ.get("ADAPTER_LR", 0.008))
 
     # Optimizer hyperparameters.
@@ -108,6 +112,12 @@ class Hyperparameters:
     # EMA decay for weight averaging. 0.9965 ≈ worth 0.003 BPB on 50k-step runs.
     # Set to 0.0 to disable EMA.
     ema_decay = float(os.environ.get("EMA_DECAY", 0.9965))
+    # EMA delayed start: skip first 30% of training when model is near-random.
+    # EMA from step 0 dilutes shadow weights with garbage; starting later is strictly better.
+    ema_start_frac = float(os.environ.get("EMA_START_FRAC", 0.3))
+    # Sliding window eval stride. 512 = 2x cost vs non-overlapping, gives context to all tokens.
+    # Match competition evaluator; set to train_seq_len to reproduce old non-overlapping behaviour.
+    sliding_eval_stride = int(os.environ.get("SLIDING_EVAL_STRIDE", 512))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -239,6 +249,80 @@ def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
     return tokens[: usable + 1]
 
 
+def eval_val_sliding(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    """
+    Sliding-window BPB evaluation.
+
+    Uses a stride-sized step between windows; only the LAST `stride` tokens of each
+    window contribute to the loss and byte counts.  This gives every token a full
+    (seq_len - stride) tokens of context, matching the competition evaluator more
+    closely than non-overlapping batches and avoiding the cold-start penalty on the
+    first tokens of each chunk.
+    """
+    stride = args.sliding_eval_stride
+    seq_len = args.train_seq_len
+    total_tokens = val_tokens.numel() - 1   # last token has no target
+    # Total number of windows that fit; each window covers [start, start+seq_len).
+    total_windows = max((total_tokens - seq_len) // stride + 1, 0)
+    if total_windows == 0:
+        # Fallback: val set too small for sliding window
+        total_windows = 1
+        stride = total_tokens
+
+    # Distribute windows round-robin across ranks.
+    window_start_rank = (total_windows * rank) // world_size
+    window_end_rank = (total_windows * (rank + 1)) // world_size
+
+    # Accumulators tracked only over the novel (stride) tokens per window.
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.inference_mode():
+        for w in range(window_start_rank, window_end_rank):
+            start = w * stride
+            end = start + seq_len
+            if end >= val_tokens.numel():
+                break
+            local = val_tokens[start : end + 1].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].unsqueeze(0)           # (1, seq_len)
+            y = local[1:].unsqueeze(0)            # (1, seq_len)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                # Per-token losses shape (1 * seq_len,) = (seq_len,)
+                per_tok_loss = model(x, y, return_per_token=True).detach()
+            # Only count the last `stride` tokens — novel tokens not counted in the prior window.
+            novel_loss = per_tok_loss[-stride:]          # (stride,)
+            novel_tgt = y[0, -stride:]                   # (stride,)
+            novel_prev = x[0, -stride:]                  # (stride,) context preceding targets
+            val_loss_sum += novel_loss.to(torch.float64).sum()
+            val_token_count += float(stride)
+            token_bytes = base_bytes_lut[novel_tgt].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[novel_tgt] & ~is_boundary_token_lut[novel_prev]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = (val_loss_sum / val_token_count).item()
+    bits_per_token = val_loss / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / max(val_byte_count.item(), 1.0)
+    model.train()
+    return float(val_loss), float(bits_per_token * tokens_per_byte)
+
+# Keep a non-sliding version available for the roundtrip quantised eval at end of training.
 def eval_val(
     args: Hyperparameters,
     model: nn.Module,
@@ -251,9 +335,7 @@ def eval_val(
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
 ) -> tuple[float, float]:
-    # Validation computes two metrics:
-    # - val_loss: token cross-entropy (natural log)
-    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    # Non-overlapping eval: used only for the post-quantisation roundtrip check.
     local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
     if local_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -806,7 +888,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor, return_per_token: bool = False) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -835,6 +917,9 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        if return_per_token:
+            # Return per-token loss; shape (batch * seq_len,). Used by sliding-window eval.
+            return F.cross_entropy(logits.float(), targets, reduction="none")
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
@@ -1155,19 +1240,22 @@ def main() -> None:
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
 
-        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+        should_validate = last_step or (
+            args.val_loss_every > 0
+            and step % args.val_loss_every == 0
+            and step >= args.val_loss_every  # skip step-0: model is random, wastes time
+        )
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             # Evaluate using EMA weights for a cleaner signal.
             _orig = _ema_swap_in()
-            val_loss, val_bpb = eval_val(
+            val_loss, val_bpb = eval_val_sliding(
                 args,
                 model,
                 rank,
                 world_size,
                 device,
-                grad_accum_steps,
                 val_tokens,
                 base_bytes_lut,
                 has_leading_space_lut,
@@ -1219,7 +1307,10 @@ def main() -> None:
         zero_grad_all()
 
         # Update EMA shadow weights (on GPU, no CPU transfer).
-        if ema_params is not None:
+        # Delayed start: skip first ema_start_frac of training so random-init weights
+        # don't dilute the shadow copy. EMA from a trained state is strictly better.
+        ema_start_step = int(args.ema_start_frac * args.iterations)
+        if ema_params is not None and step >= ema_start_step:
             with torch.no_grad():
                 for name, param in base_model.named_parameters():
                     ema_params[name].lerp_(param.detach().float(), 1.0 - args.ema_decay)
@@ -1295,7 +1386,7 @@ def main() -> None:
 
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(lzma.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(lzma.decompress(quant_blob_disk)), map_location="cpu", weights_only=False)
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
