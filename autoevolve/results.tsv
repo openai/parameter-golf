@@ -1,0 +1,1 @@
+iteration	timestamp	proposal_family	mode	status	val_bpb	artifact_bytes	total_bytes	description	reasoning	llm_seconds	prompt_tokens	completion_tokens	timeout_stage	last_step	last_train_time_ms	last_eval_time_ms	parse_status	commit_sha

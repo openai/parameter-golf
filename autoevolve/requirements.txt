@@ -1,0 +1,16 @@
+# Core dependencies from the challenge
+numpy
+tqdm
+torch
+huggingface-hub
+kernels
+setuptools
+typing-extensions==4.15.0
+datasets
+tiktoken
+sentencepiece
+
+# Auto-evolve agent dependencies
+openai
+python-dotenv
+zstandard
