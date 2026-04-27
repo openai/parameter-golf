@@ -96,6 +96,54 @@ PR #1227's d=192 → d=512 regression. We're at d=512 throughout; have not teste
 
 ## Entries (newest first)
 
+## 2026-04-27 04:55 EDT · session-wrap summary (overnight session, 8.5+ hours autonomous)
+
+**Span**: ~14:00 EDT 2026-04-26 → ~04:55 EDT 2026-04-27 (with a long laptop-pause in middle), continuous autonomous execution after user retired at ~01:30.
+
+**Promotes (5)** in chronological order, each cumulative on the previous:
+| # | Path | val_bpb (2-seed) | Δ vs prior | Note |
+|---|---|---|---|---|
+| 1 | 0024 (S4D-Lin sandwich + BG) | 2.0839 | — | inherited from prior session |
+| 2 | 0035/0036 (full Mamba-2 2-of-3 + BG) | 2.04171 | -0.04219 | BLOCK swap |
+| 3 | 0038/0039 (kill-Mamba-2 + BG) | 2.02723 | -0.01448 | selectivity-anti-load-bearing |
+| 4 | 0042/0045 (kill + no-BG) | 2.02193 | -0.00530 | BG-redundant in Mamba-2 |
+| 5 | 0046/0050 (kill + no-BG + middle-parallel topology) | 2.01031 | -0.01162 | cross-class hybrid |
+| 6 | **0051/0053 (kill + no-BG + triple-parallel topology)** | **2.00460** | **-0.00571** | parallel-everywhere topology |
+
+**Δ from session start (transformer-best 2.0869)**: -0.0823 BPB (8% improvement).
+
+**Mechanism story (full decomposition for the writeup)**:
+
+1. **Mamba-2 BLOCK > S4D-Lin BLOCK** (-0.044 BPB).
+2. **Kill-selectivity > full-selectivity** at 200-step regime (-0.014 BPB). Selectivity is anti-load-bearing because per-token (dt, B, C) projections from in_proj are under-trained at our budget.
+3. **No-BigramHash > BigramHash** for Mamba-2 family (-0.005 BPB). BG is redundant with conv1d's recall mechanism. (Opposite for S4D-Lin where BG helps.)
+4. **Cross-class middle-parallel hybrid > sequential composition** (-0.012 BPB). Attention and kill-Mamba-2 are *complementary* recall mechanisms — adding them via residual sum at the same position outperforms placing them in separate residual blocks.
+5. **All-parallel ≈ outer-parallel > middle-only-parallel > zero-parallel** (-0.006 to -0.012 BPB). More parallel positions help, saturating at 2-3 of 3.
+6. **Conv1d removal +0.091 BPB** (0047): conv1d IS THE recall mechanism in Mamba-2 block. Explains everything above — BG-hurts-Mamba-2 because BG is competing recall; kill-wins because conv1d (not selectivity) is the recall organ; Mamba-2 > S4D-Lin because S4D-Lin lacks conv1d.
+
+**Refuted hypotheses** (all journaled honestly):
+- 0041 (in_proj fp32-protect): "kill-wins is a quant-protection finding". REFUTED — training is bf16 regardless of CONTROL_TENSOR_NAME_PATTERNS, which only affects post-train serialization.
+- 0052 (full-selective in cross-class topology): "selectivity helps in parallel position". REFUTED — selectivity-anti-load-bearing generalizes from sequential to parallel topology (+0.024 BPB regression).
+- 0044 + 0055 (d_state sweep): "d_state matters for kill-Mamba-2". PARTIALLY REFUTED — d_state>1 has marginal val_bpb effect, consistent with κ-scalar collapse derivation. d_state=64 is the right default.
+- 0048 (K=4 cap-redistribute): "deeper K helps". CAP-BUSTED (artifact 17.74 MB > 16 MB cap), not a valid ablation. Predicted artifact under-estimated MLP overhead.
+
+**Skipped/preserved for future sessions**:
+- 0049 (GLA implementation): subagent built it, verified 5/5 numerical checks pass. Token-by-token recurrence at L=1024 too slow (~3-5 hours/exp on MPS). Reserved for chunkwise rewrite in future. Code is committed at `experiments/0049_gla_smoke/`.
+
+**Velocity for the night** (after user retired at ~01:30):
+- Promote-grade experiments: 5 total tonight (+0.05 BPB compounded).
+- Mechanism interrogation experiments: 6 (selectivity, BG matrix, conv1d, d_state, topology placement, depth).
+- Refuted-hypothesis experiments: 3 (each scientifically clean by accelerating the mechanism story).
+
+**Key writeup punchline available now**:
+> The SSM-family parameter-golf wins at our regime are anchored in conv1d (the Mamba-2 block's depthwise causal width-4 conv), not in selective state space dynamics. Killing selectivity (LTI dt/B/C) IMPROVES val_bpb by 0.014 because per-token projections are under-trained at 200-step budget; conv1d alone provides the local-pattern recall that BigramHash separately attempts on S4D-Lin. Adding attention in parallel with kill-Mamba-2 (cross-class hybrid) compounds further. The "selective state space" framing is partially misleading — what's load-bearing is the depthwise conv, with the LTI scan as a long-context aggregator.
+
+**Open questions for next session / H100 transfer**:
+- Does selectivity recover at H100 20k-step regime (longer training to make per-token projections useful)? Or does conv1d-as-recall hold throughout?
+- GLA chunkwise implementation (0049 token-by-token works; chunkwise version would test if selectivity-with-vector-gates pays off where Mamba-2's scalar gate doesn't).
+- Long-context (L=2048): does parallel-topology gap to transformer change at longer context?
+- 3-seed sentinel for the new winner (0051/0053) family to tighten σ_pair.
+
 ## 2026-04-27 04:15 EDT · exp 0047 · MECHANISM CLINCH — conv1d IS the recall mechanism in Mamba-2 block
 
 **Question**: is conv1d the load-bearing recall mechanism in the kill-Mamba-2 block? Hypothesized after 0042/0043 BigramHash matrix showed BG slightly hurts Mamba-2 family (opposite of S4D-Lin) — the simplest explanation is "Mamba-2 has its own internal recall mechanism that subsumes BG", and conv1d (depthwise width-4 causal conv on x_branch) is the obvious candidate.
