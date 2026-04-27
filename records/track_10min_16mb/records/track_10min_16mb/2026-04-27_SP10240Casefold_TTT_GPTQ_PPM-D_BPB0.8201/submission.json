@@ -1,0 +1,11 @@
+{
+  "name": "schattenjuwel",
+  "github_id": "schattenjuwel",
+  "val_bpb": 0.82005771,
+  "val_bpb_seeds": [0.81998601, 0.81999601, 0.82019110],
+  "seeds": [123, 999, 42],
+  "artifact_size_bytes": [15991001, 15989954, 15984783],
+  "train_time_seconds": 590,
+  "hardware": "8x H100 80GB SXM",
+  "description": "SP10240 Casefold + TTT + GPTQ + Byte-level PPM-D Mixture. BPB 0.82005771 (3-seed mean)"
+}
