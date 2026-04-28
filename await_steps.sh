@@ -16,9 +16,12 @@
 #     (step:M/M train_loss:...) has been logged, the stale-mtime check is
 #     suppressed because eval_val runs as a single computation that doesn't
 #     log incrementally — minutes of legitimate silence then.
-#   - Hard ceiling of MAX_WAIT_SECONDS (default 600) so the script never hangs
+#   - Hard ceiling of MAX_WAIT_SECONDS (default 1800) so the script never hangs
 #     a Bash background task forever. Override if you need to wait through a
-#     full-val eval (which can take >10 min on MPS).
+#     full-val eval (which can take >10 min on MPS), or shorten for an early
+#     trajectory-gate call. The two real "stuck" signals (python gone, log
+#     idle >LOG_STALE_SECONDS during training) fire well before the ceiling,
+#     so a long ceiling mostly removes "had to call await twice" friction.
 #
 # Override defaults via env vars: MAX_WAIT_SECONDS, LOG_STALE_SECONDS.
 
@@ -26,7 +29,7 @@ set -uo pipefail
 
 EXP_DIR="${1:-}"
 N="${2:-10}"
-MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-600}"
+MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-1800}"
 LOG_STALE_SECONDS="${LOG_STALE_SECONDS:-60}"
 
 if [[ -z "$EXP_DIR" || "$EXP_DIR" == "-h" || "$EXP_DIR" == "--help" ]]; then
@@ -43,8 +46,9 @@ Exits early on:
   - log mtime stale > LOG_STALE_SECONDS (default 60) — handles hung Python.
     Suppressed once the final training step has been logged, because eval_val
     is a single long computation that doesn't log incrementally.
-  - hard timeout > MAX_WAIT_SECONDS (default 600). Bump this if you're
-    waiting through a full-val eval (>10 min on MPS).
+  - hard timeout > MAX_WAIT_SECONDS (default 1800). The two stuck-signals
+    above usually fire well before this; the ceiling exists so the bash
+    background task never hangs forever. Shorten for trajectory-gate calls.
 
 Env overrides: MAX_WAIT_SECONDS, LOG_STALE_SECONDS.
 EOF

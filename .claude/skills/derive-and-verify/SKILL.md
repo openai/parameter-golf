@@ -1,6 +1,6 @@
 ---
 name: derive-and-verify
-description: Invoke when about to derive an SSM equation, kernel formula, discretization, or non-default initialization in scratch/ — before writing the train_gpt.py implementation. Carries the patterns for math-heavy research code (worked tiny example, cite reference formula, recurrence-vs-convolution as free oracle, init invariants, degenerate cases, print spectra) so silent bugs surface upstream rather than as a step-50 NaN. Especially apt for SSMs where representations mix and the recurrence amplifies errors. Distinct from pull-out (which is mode-shift, not how-to-math).
+description: Invoke when about to derive an SSM equation, kernel formula, discretization, or non-default initialization in scratch/ — before writing the train_gpt.py implementation. ALSO invoke when an experiment's *interpretation* depends on a specific harness/code mechanism (e.g. quantization protection, tensor-name patterns, gradient masking) — read the relevant code path end-to-end before launching, because the discipline ("does the math/code I'm assuming actually exist?") is the same. Carries the patterns for math-heavy research code (worked tiny example, cite reference formula, recurrence-vs-convolution as free oracle, init invariants, degenerate cases, print spectra) so silent bugs surface upstream rather than as a step-50 NaN. Especially apt for SSMs where representations mix and the recurrence amplifies errors. Distinct from pull-out (which is mode-shift, not how-to-math).
 ---
 
 # Derive and Verify
@@ -14,6 +14,7 @@ The SSM literature mixes representations (continuous vs discrete, real vs comple
 - Before writing a custom selective-scan, kernel constructor, or non-default initialization
 - Before initializing parameters with a specific formula (HiPPO-LegS, A_log, dt_bias) where getting the formula wrong is a silent failure
 - After reading a primer section that introduces a new equation you'll implement
+- **Before any experiment whose *interpretation* depends on a specific harness or code path** — e.g. "split in_proj for fp32 protection" presumes `CONTROL_TENSOR_NAME_PATTERNS` affects training (it doesn't — it's serialization-only); "freeze the BG path" presumes a particular gradient mask exists. Five minutes of reading the code path beats running an experiment whose result you can't interpret. The discipline is the same as for math: confirm the mechanism you're assuming actually exists before leaning on it.
 
 ## When NOT to invoke
 - Routine env-var tweaks

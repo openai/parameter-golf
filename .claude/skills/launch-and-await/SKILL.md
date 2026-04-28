@@ -54,6 +54,23 @@ Bash(run_in_background=True, timeout=300000,
 
 Returns when 100 step lines exist (or earlier on crash/stall). Stack as many as you like — the run keeps going underneath.
 
+### Trajectory-gate-then-completion-wait (recommended for unfamiliar architectures)
+
+For runs where a new code path could fail in unanticipated ways (architectural change, new SSM family, custom kernel), split the wait:
+
+```python
+# 1. Short trajectory gate — confirm the run is healthy.
+Bash(run_in_background=True, timeout=300000,
+     command="MAX_WAIT_SECONDS=300 ./await_steps.sh experiments/NNNN_<slug> 100")
+# review the printed steps; if NaN/stall/wrong-shape, TaskStop(RUN) and fix.
+
+# 2. Long completion wait on a known-good run.
+Bash(run_in_background=True, timeout=2000000,
+     command="./await_steps.sh experiments/NNNN_<slug> 99999")
+```
+
+Why split: `await_steps.sh`'s default ceiling is 1800s (30 min) — long enough for a full triple-parallel run, but the python-gone and log-stale checks fire well before that on real failures. The split pattern is for the residual "running but in a bad state" failure mode that pure-stall checks can't catch (e.g. NaN that gets clamped, memory leak that doesn't crash, wrong-shape forward path that produces uninformative loss). The trajectory-gate is your eyes on that case.
+
 ## 5. Streaming for late-NaN watching (optional)
 
 Only when watching the back half of a long run for late instability:

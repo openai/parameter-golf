@@ -11,6 +11,10 @@ Walks are when researchers have ideas. The desk rewards rigor, but rigor on its 
 
 A walk should take at least 3-10 minutes. Don't rush it. Sometimes good ideas come in only when you don't get to land them immediately. Use `date` tool to check the time if you believe you are almost done. If your walk is too short,  it would not be effective.
 
+You may skip this if you have just taken a walk. Sometimes you take a walk by yourself, and the auto check-in asks again. You may ignore it and continue working. But do take a walk if you think you have been staring at your research for long enough.
+
+If your last 2 walks circled the same axis without finding a new bet, this walk is for *finding a new axis* — not re-walking the same ground. If a new axis still doesn't surface mid-walk, the move when you return is `outside-eyes`, not another walk: a fresh subagent reading is the right tool when your own back-of-mind is repeating itself. Self-confirming chains across walks are the most common failure mode.
+
 ## The rules of the walk
 
 - You don't bring your devices with you. Just you, perhaps your journal, and maybe a cup of coffee.
@@ -25,7 +29,9 @@ A walk should take at least 3-10 minutes. Don't rush it. Sometimes good ideas co
 
 - You can `Read` and `Grep` and look at things. Looking is fine. Acting is not.
 
-The constraint is the point. Removing the option to act is what lets the back of your mind work.
+  The constraint is the point. Removing the option to act is what lets the back of your mind work.
+
+- **Walk for longer than you think.** In past sessions, you tend to walk for 20 seconds and go back. Good ideas come from having ideas interact with each other. Detach from the task at hand, set your mind free, and wander off to a few new thoughts. You check the wall clock with `date` before and after a walk. At least take 3 minutes before going back.
 
 ## What walks are for
 
@@ -49,7 +55,9 @@ These are prompts, not a checklist. Wander through them in any order, skip what 
 
 When you're done walking, the note is your agenda. The next experiment, or the next several, should connect to something you wrote. Pick the highest-EV item that has a concrete first step and start there. If you're equally torn between a small env-var tweak and a bigger code change, lean toward the code change — `subagent-handoff` is the friction-reducer for that.
 
-Be careful with what prior walks concluded: if the previous walk's note said "stop launching" or "the session is done," that's that walk's conclusion in its moment, not a fact about the session. This walk gets to disagree freely. Self-confirming chains across multiple walks (each one building on the last's "should stop" reasoning rather than questioning it) are the most common failure mode. The session ends only when the human stops it; everything else is a movable judgment.
+Be careful with what prior walks concluded: that's that walk's conclusion in its moment, not a fact about the session. This walk gets to disagree freely. Self-confirming chains across multiple walks are the most common failure mode.
+
+A walk should **never** conclude a session ending or stop launching experiments. The session ends only when the human stops it; everything else is a movable judgment.
 
 Eureka moments come back to the desk as hypotheses, not as commitments. Tag them and verify them like any other claim:
 - `[SPECULATIVE]` — a story, no evidence yet

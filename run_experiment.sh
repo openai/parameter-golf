@@ -108,10 +108,18 @@ fi
 
 SIZE_VIOLATION="false"
 ARTIFACT_MB=""
+PREDICTION_DELTA_MB=""
 if [[ -n "$ARTIFACT_BYTES" ]]; then
   ARTIFACT_MB=$(python3 -c "print(round(${ARTIFACT_BYTES} / 1_000_000, 3))")
   if (( ARTIFACT_BYTES > 16000000 )); then
     SIZE_VIOLATION="true"
+  fi
+  # Optional: if the experiment's env.sh exported PREDICTED_ARTIFACT_MB, log
+  # the delta. No threshold flag — visibility is the point. Mis-predicting
+  # size is how cap-busts happen (each K=N adds an MLP, not just an
+  # SSM/attn block; 0048_k4_cap_redistribute predicted 14.9 MB, got 17.74).
+  if [[ -n "${PREDICTED_ARTIFACT_MB:-}" ]]; then
+    PREDICTION_DELTA_MB=$(python3 -c "print(round(${ARTIFACT_MB} - ${PREDICTED_ARTIFACT_MB}, 3))")
   fi
 fi
 
@@ -171,7 +179,7 @@ cat <<EOF
   quant_tax:          ${QUANT_TAX:-null}
   step_avg_ms:        ${STEP_AVG_MS:-null}
   num_steps:          ${NUM_STEPS:-null}
-  artifact_mb:        ${ARTIFACT_MB:-null}
+  artifact_mb:        ${ARTIFACT_MB:-null}${PREDICTED_ARTIFACT_MB:+ (predicted ${PREDICTED_ARTIFACT_MB}, delta ${PREDICTION_DELTA_MB})}
   crashed:            ${CRASHED}
   has_nan:            ${HAS_NAN}
   size_violation:     ${SIZE_VIOLATION}

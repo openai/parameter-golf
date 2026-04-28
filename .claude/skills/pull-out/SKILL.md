@@ -38,6 +38,7 @@ A quick meta-check on process, not content.
 - Am I anchored on a single axis when the data says move on?
 - Am I rationalizing skipping careful planning for "just one more env-var"?
 - Am I direct-promoting single-seed wins past their error bars?
+- **Have I labeled any claim as load-bearing for the writeup without the seed-count to back it?** Mechanism findings I'd put in the paper deserve the same honesty as a promote: name the seed count *in the claim itself* (`mechanism finding [n=1]`, `mechanism confirmed [n=2 cross-seed]`). Single-seed mechanism work is fine — surfacing it is what pulls the program forward — but the *label* should match the evidence so future-you and the reviewer don't mistake exploration for confirmation.
 
 Note any malpractice and correct it forward. If reflection alone isn't unblocking the feeling that you're in the wrong place entirely, invoke `take-a-walk` — that's what the walk is for.
 
