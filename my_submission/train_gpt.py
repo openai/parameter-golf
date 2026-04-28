@@ -1,7 +1,7 @@
 """
 The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
 
-Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+Hard stop: `train_gpt.py` and `train_gpt_mlx.py` must never be longer than 1500 lines.
 """
 
 from __future__ import annotations
@@ -17,9 +17,8 @@ import sys
 import time
 import uuid
 import zlib
-from contextlib import nullcontext
 from pathlib import Path
-
+from enum import Enum, auto
 import numpy as np
 import sentencepiece as spm
 import torch
@@ -27,6 +26,23 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
+
+from liger_kernel.transformers import LigerFusedLinearCrossEntropyLoss
+
+fused_loss_fn = LigerFusedLinearCrossEntropyLoss(softcap=float(os.environ.get("LOGIT_SOFTCAP", 30.0)))
+
+torch._dynamo.config.capture_scalar_outputs = True
+
+
+def run_fused_loss(projection_weight, hidden_states, target_ids):
+    return fused_loss_fn(projection_weight.float(), hidden_states.float(), target_ids.reshape(-1))
+
+
+
+class GptModes(Enum):
+    TRAIN = auto()
+    EVAL = auto()
+
 
 # -----------------------------
 # HYPERPARAMETERS
@@ -248,11 +264,6 @@ def eval_val(
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     model.eval()
-    autocast_ctx = (
-        lambda: torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True)
-        if device.type == "cuda"
-        else nullcontext()
-    )
     with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
@@ -261,8 +272,8 @@ def eval_val(
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
             x = local[:-1].reshape(-1, args.train_seq_len)
             y = local[1:].reshape(-1, args.train_seq_len)
-            with autocast_ctx():
-                batch_loss = model(x, y).detach()
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                batch_loss = model(GptModes.EVAL, x, y).detach()
             batch_token_count = float(y.numel())
             val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
@@ -577,20 +588,26 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
-        kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = CastedLinear(dim, kv_dim, bias=False)
+        self.q_dim = dim
+        self.kv_dim = self.num_kv_heads * self.head_dim
+        self.c_qkv = CastedLinear(dim, self.q_dim + 2 * self.kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, base=rope_base)
 
+    def project_qkv(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        bsz, seqlen, dim = x.shape
+        qkv = self.c_qkv(x)
+        q, k, v = qkv.split((self.q_dim, self.kv_dim, self.kv_dim), dim=-1)
+        q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        return q, k, v
+
     def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q, k, v = self.project_qkv(x)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -645,9 +662,14 @@ class Block(nn.Module):
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
+        
+        attn_normed = self.attn_norm(x)
+        attn_out = self.attn(attn_normed)
         x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+
+        mlp_normed = self.mlp_norm(x)
+        mlp_out = self.mlp(mlp_normed)
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
         return x
 
 
@@ -694,6 +716,7 @@ class GPT(nn.Module):
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+        
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -703,7 +726,25 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def _forward_training(self, input_ids: Tensor):
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+
+        # First half stores skips; second half reuses them in reverse order.
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+
+        x = self.final_norm(x).reshape(-1, x.size(-1))
+        return x
+
+    def _forward_eval(self, input_ids, target_ids):
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -729,6 +770,14 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
+    def forward(self, mode: GptModes, input_ids: Tensor, target_ids=None) -> Tensor:
+        if mode == GptModes.TRAIN:
+            return self._forward_training(input_ids)
+        elif mode == GptModes.EVAL:
+            return self._forward_eval(input_ids, target_ids)
+        else:
+            raise ValueError(f"received unexpected {mode=}")
+        
 
 # -----------------------------
 # TRAINING
@@ -739,13 +788,10 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    try:
-        zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
-    except Exception:
-        pass
+    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
-    # DISTRIBUTED + DEVICE SETUP
+    # DISTRIBUTED + CUDA SETUP
     # -----------------------------
 
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
@@ -758,37 +804,24 @@ def main() -> None:
         raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
     grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
-    use_cuda = torch.cuda.is_available()
-    if distributed and not use_cuda:
-        raise RuntimeError("Distributed training requires CUDA in train_gpt.py")
-    device = torch.device("cuda", local_rank) if use_cuda else torch.device("cpu")
-    compute_dtype = torch.bfloat16 if use_cuda else torch.float32
-    if use_cuda:
-        torch.cuda.set_device(device)
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required")
+    device = torch.device("cuda", local_rank)
+    torch.cuda.set_device(device)
     if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
     master_process = rank == 0
-    autocast_ctx = (
-        lambda: torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True)
-        if use_cuda
-        else nullcontext()
-    )
-
-    def device_synchronize() -> None:
-        if use_cuda:
-            torch.cuda.synchronize()
 
     # Fast math knobs
-    if use_cuda:
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
-        from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
 
-        enable_cudnn_sdp(False)
-        enable_flash_sdp(True)
-        enable_mem_efficient_sdp(False)
-        enable_math_sdp(False)
+    enable_cudnn_sdp(False)
+    enable_flash_sdp(True)
+    enable_mem_efficient_sdp(False)
+    enable_math_sdp(False)
 
     logfile = None
     if master_process:
@@ -809,12 +842,10 @@ def main() -> None:
     log0("=" * 100, console=False)
     log0(f"Running Python {sys.version}", console=False)
     log0(f"Running PyTorch {torch.__version__}", console=False)
-    log0(f"device:{device} compute_dtype:{compute_dtype}", console=False)
-    if use_cuda:
-        log0(
-            subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
-            console=False,
-        )
+    log0(
+        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
+        console=False,
+    )
     log0("=" * 100, console=False)
 
     # -----------------------------
@@ -824,8 +855,7 @@ def main() -> None:
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if use_cuda:
-        torch.cuda.manual_seed_all(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
 
     if not args.tokenizer_path.endswith(".model"):
         raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
@@ -860,15 +890,12 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
-    ).to(device=device, dtype=compute_dtype)
+    ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    if use_cuda:
-        compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    else:
-        compiled_model = base_model
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
@@ -894,7 +921,7 @@ def main() -> None:
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
-        fused=use_cuda,
+        fused=True,
     )
     optimizer_muon = Muon(
         matrix_params,
@@ -908,7 +935,7 @@ def main() -> None:
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
-        fused=use_cuda,
+        fused=True,
     )
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
     if base_model.lm_head is not None:
@@ -916,18 +943,14 @@ def main() -> None:
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
             betas=(args.beta1, args.beta2),
             eps=args.adam_eps,
-            fused=use_cuda,
+            fused=True,
         )
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0(
-        "sdp_backends:cudnn=False flash=True mem_efficient=False math=False"
-        if use_cuda
-        else "sdp_backends:cpu"
-    )
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -976,8 +999,17 @@ def main() -> None:
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-                with autocast_ctx():
-                    warmup_loss = model(x, y)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    # 1. Forward pass (only calculates hidden states, handled by torch.compile)
+                    hidden_states = model(GptModes.TRAIN, x) 
+
+                    # 2. Get the weights for projection (handle DDP wrapper if necessary)
+                    raw_model = model.module if hasattr(model, 'module') else model
+                    projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
+
+                    # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
+                    warmup_loss = run_fused_loss(projection_weight, hidden_states, y)
+
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -998,7 +1030,7 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
-    device_synchronize()
+    torch.cuda.synchronize()
     t0 = time.perf_counter()
 
     step = 0
@@ -1007,7 +1039,7 @@ def main() -> None:
 
         should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
         if should_validate:
-            device_synchronize()
+            torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
             val_loss, val_bpb = eval_val(
                 args,
@@ -1025,7 +1057,7 @@ def main() -> None:
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
-            device_synchronize()
+            torch.cuda.synchronize()
             t0 = time.perf_counter()
 
         if last_step:
@@ -1044,8 +1076,17 @@ def main() -> None:
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
-            with autocast_ctx():
-                loss = model(x, y)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                # 1. Forward pass (only calculates hidden states, handled by torch.compile)
+                hidden_states = model(GptModes.TRAIN, x) 
+
+                # 2. Get the weights for projection (handle DDP wrapper if necessary)
+                raw_model = model.module if hasattr(model, 'module') else model
+                projection_weight = raw_model.tok_emb.weight if raw_model.tie_embeddings else raw_model.lm_head.weight
+
+                # 3. Calculate Loss (runs in Eager mode using Liger's optimized Triton kernel)
+                loss = run_fused_loss(projection_weight, hidden_states, y)
+
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
@@ -1086,11 +1127,10 @@ def main() -> None:
         if stop_after_step is None and reached_cap:
             stop_after_step = step
 
-    if use_cuda:
-        log0(
-            f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
-            f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
-        )
+    log0(
+        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+    )
 
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
@@ -1130,7 +1170,7 @@ def main() -> None:
         quant_blob_disk = f.read()
     quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
-    device_synchronize()
+    torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
         args,
@@ -1144,7 +1184,7 @@ def main() -> None:
         has_leading_space_lut,
         is_boundary_token_lut,
     )
-    device_synchronize()
+    torch.cuda.synchronize()
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
