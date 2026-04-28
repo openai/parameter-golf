@@ -68,41 +68,67 @@ Implementation: `GLOBAL_TTT_OPTIMIZER=muon` routes global TTT through a lightwei
 
 Env var: `GLOBAL_TTT_OPTIMIZER=muon`
 
-## Run command
+## Quantization enhancements (beyond PR #1797 base)
+
+Two additional improvements applied on top of the base #1797 LQER settings:
+
+**LQER rank 4→6, top-K 3→5:** The base #1797 corrects the top-3 matrices at rank=4 (~2.1 KB per factor pair post-brotli). Expanding to rank=6, top-K=5 corrects two more tensors and recovers a larger fraction of each residual. Artifact cost: ~9 KB additional raw (brotli-compressed to ~7 KB), well within the ~200 KB artifact headroom. The SVD path in `gptq_mixed_quantize()` supports arbitrary rank; asymmetric packing requires B.numel() % group=64 == 0, which holds for all (rank, 512) matrices.
+
+**TTT LoRA rank 96→128:** The `BatchedLinearLoRA._scale = alpha/rank` normalization keeps effective LR constant at rank changes (alpha=144, scale drops from 1.5 to 1.125). A 33% rank increase adds ~7% to TTT compute per document (two smaller matmuls dominate); dexhunter's 3-phase eval at 450–494 s leaves room. Expected: better per-document adaptation quality.
+
+**GPTQ calibration batches 16→32:** Halves Hessian estimation variance for no artifact cost. GPTQ runs in <1 s at RESERVE_SECONDS=0.5 even with 2× calibration batches.
+
+## Run command (8×H100 SXM, 3-seed)
+
+```bash
+for SEED in 314 42 1234; do
+  NCCL_NET=Socket \
+  DATA_DIR=./data \
+  CASEOPS_ENABLED=1 \
+  PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
+  MATRIX_CLIP_SIGMAS=12.85 ATTN_CLIP_SIGMAS=13.0 MLP_CLIP_SIGMAS=12.0 \
+  EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
+  MATRIX_LR=0.026 MIN_LR=0.1 \
+  FUSED_CE_ENABLED=1 SPARSE_ATTN_GATE_ENABLED=1 \
+  SMEAR_GATE_ENABLED=1 GATE_WINDOW=12 \
+  LQER_ENABLED=1 LQER_RANK=6 LQER_TOP_K=5 LQER_FACTOR_BITS=4 \
+  LQER_ASYM_ENABLED=1 LQER_ASYM_GROUP=64 \
+  TTT_WARM_START_A=1 TTT_LORA_RANK=128 \
+  GPTQ_RESERVE_SECONDS=0.5 GPTQ_CALIBRATION_BATCHES=32 \
+  QK_GAIN_INIT_SCHEDULE="2.0,2.5,3.0,3.5,4.0,4.5,4.5,4.0,3.5,3.0,2.5" \
+  OPTROT_ENABLED=1 \
+  MUON_HUBER_WD=1 MUON_HUBER_DELTA=0.1 \
+  GLOBAL_TTT_OPTIMIZER=muon \
+  SEED=$SEED \
+  torchrun --standalone --nproc_per_node=8 train_gpt_human.py \
+      > train_seed${SEED}.log 2>&1
+done
+```
+
+### Single-seed quick test (1×H100, seed 42)
 
 ```bash
 DATA_DIR=./data \
 CASEOPS_ENABLED=1 \
-PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=3 \
+PHASED_TTT_PREFIX_DOCS=2000 PHASED_TTT_NUM_PHASES=1 \
 MATRIX_CLIP_SIGMAS=12.85 ATTN_CLIP_SIGMAS=13.0 MLP_CLIP_SIGMAS=12.0 \
 EMBED_BITS=7 EMBED_CLIP_SIGMAS=15.0 \
 MATRIX_LR=0.026 MIN_LR=0.1 \
 FUSED_CE_ENABLED=1 SPARSE_ATTN_GATE_ENABLED=1 \
 SMEAR_GATE_ENABLED=1 GATE_WINDOW=12 \
-LQER_ENABLED=1 LQER_RANK=4 LQER_TOP_K=3 LQER_FACTOR_BITS=4 \
+LQER_ENABLED=1 LQER_RANK=6 LQER_TOP_K=5 LQER_FACTOR_BITS=4 \
 LQER_ASYM_ENABLED=1 LQER_ASYM_GROUP=64 \
-TTT_WARM_START_A=1 \
-GPTQ_RESERVE_SECONDS=0.5 GPTQ_CALIBRATION_BATCHES=16 \
+TTT_WARM_START_A=1 TTT_LORA_RANK=128 \
+GPTQ_RESERVE_SECONDS=0.5 GPTQ_CALIBRATION_BATCHES=32 \
 QK_GAIN_INIT_SCHEDULE="2.0,2.5,3.0,3.5,4.0,4.5,4.5,4.0,3.5,3.0,2.5" \
 OPTROT_ENABLED=1 \
 MUON_HUBER_WD=1 MUON_HUBER_DELTA=0.1 \
 GLOBAL_TTT_OPTIMIZER=muon \
-SEED=314 \
-torchrun --standalone --nproc_per_node=8 train_gpt_human.py
+SEED=42 \
+torchrun --standalone --nproc_per_node=1 train_gpt_human.py
 ```
 
-## Incremental ablation plan (Task 5, 7, 9, 11 from PRD)
-
-Each layer is tested incrementally on 1×H100 (seed 42, grad_accum=8) against the #1797 1×H100 baseline established in Task 3:
-
-| Test | Stack | Expected cumulative gain vs #1797 |
-|---|---|---|
-| Task 5 | #1797 + Layer 1 | -0.001 to -0.003 |
-| Task 7 | #1797 + L1 + L2 | -0.003 to -0.008 |
-| Task 9 | #1797 + L1+L2+L3 | -0.005 to -0.013 |
-| Task 11 | Full stack | -0.008 to -0.023 |
-
-Abort thresholds per PRD: drop any layer that is neutral or negative on its single-seed test.
+Note: 1×H100 single-seed uses PHASED_TTT_NUM_PHASES=1 (3-phase eval exceeds 600 s budget on 1 GPU). Result is pessimistic vs 8×H100 (more data cycling, fewer TTT phases).
 
 ## Lineage
 
