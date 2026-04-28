@@ -1,0 +1,18 @@
+{
+  "author": "Peyton Tolbert",
+  "github_id": "peytontolbert",
+  "name": "Model Stack BitNet MLP2304 + Overtone Embeddings, SP1024",
+  "blurb": "Best Model Stack BitNet-compatible Parameter Golf run so far: runtime-row packed BitNet QAT, fused QKV FlashAttention, parallel Muon, dense training backward, 2304-wide ReLU2 MLP, and overtone spectral embedding initialization. Fits the 16MB budget as a Model Stack BitNet bundle plus code.",
+  "date": "2026-04-28T03:50:00Z",
+  "track": "non_record_16mb",
+  "val_loss": 2.0607,
+  "val_bpb": 1.2205,
+  "standard_val_loss": 2.0805,
+  "standard_val_bpb": 1.2322,
+  "bytes_total": 15693288,
+  "bytes_bundle": 15612895,
+  "bytes_code": 80393,
+  "hardware": "8xH100 80GB HBM3",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Model Stack TrainableBitNetLinear QAT + runtime-row packed export + MLP_HIDDEN_DIM=2304 + overtone spectral embedding init + fused QKV + FlashAttention + parallel Muon"
+}
