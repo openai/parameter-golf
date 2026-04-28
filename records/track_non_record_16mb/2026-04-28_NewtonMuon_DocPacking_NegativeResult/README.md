@@ -87,6 +87,78 @@ The diff between the two runs is exactly one env var.
 - `train_nm_default.log` — full Newton-Muon run, val_bpb 1.10705
 - `train_nm_smoke.log` — short capture run that surfaces the dynamo recompile diagnostics in detail
 - `train_baseline_seed42.log` — PR #1874 baseline (NM disabled), val_bpb 1.06928. Identical seed and data — direct A/B comparison.
+- `models/` — pre-trained `.int6.ptz` artifacts so a reviewer can eval-only without retraining (see "Eval-only verification" below).
+
+### `models/` directory
+
+| File | What it is | Size | Reported val_bpb |
+|------|-----------|-----:|-----------------:|
+| `models/nm_default.int6.ptz`              | Newton-Muon enabled, full 600s training, seed=42 | 15,928,150 B | 1.10705 |
+| `models/nm_smoke.int6.ptz`                | Newton-Muon enabled, short 180s smoke run        | 15,943,987 B | (smoke; not the headline number) |
+| `models/baseline_pr1874_seed42.int6.ptz`  | PR #1874 baseline, NM disabled, seed=42 (the A/B comparison artifact) | 15,921,161 B | 1.06928 |
+
+These are checked into the submission so any reviewer can inspect the trained artifacts directly without having to retrain. Including model artifacts is not standard practice on this leaderboard; we're including them here because the value of a negative-result submission is "anyone can verify the failure mode," and shipping the artifacts gives the reviewer two independent ways to do that (re-run the script, or eval the shipped weights).
+
+### How to use the shipped artifacts
+
+The included `train_gpt.py` does **not** ship with an explicit `EVAL_ONLY` flag — its pipeline is `train → quantize → eval` end-to-end (the int6 artifact is written to `final_model.int6.ptz` near the bottom of training, then loaded and eval'd by the same process). To eval one of the shipped `.int6.ptz` artifacts without retraining, point the script at it via the `final_model.int6.ptz` filename it expects, and use the existing `deserialize(h, device)` helper at `train_gpt.py:2139`. A minimal harness looks like:
+
+```python
+# eval_shipped_artifact.py — sketch, not shipped
+import shutil, train_gpt as TG
+shutil.copy("models/nm_default.int6.ptz", "final_model.int6.ptz")
+h = TG.Hyperparameters()  # same env-var-driven config as training
+TG.set_logging_hparams(h)
+device = TG.setup_distributed()
+eval_model = TG.deserialize(h, device)
+TG.run_sliding_eval(eval_model, h, device)         # sliding-window eval
+TG.run_phased_ttt_eval(eval_model, h, device)      # phased TTT eval
+```
+
+(Function names follow PR #1874's structure; exact entrypoints may need adjusting against the source.) For most reviewers, **re-running `train_gpt.py` from scratch on a fresh seed=42 is the simpler verification path**, since the script is already wired end-to-end and the regression is large (+0.0378 nat) and stable. The artifacts in `models/` are primarily archival evidence of the runs that produced the reported logs.
+
+### Direct inspection without GPUs (verified)
+
+The `.int6.ptz` files are produced by PR #1874's `serialize()` (in `train_gpt.py`): a torch-saved `{"w": <quant_result>, "m": <quant_meta>}` dict, byte-shuffled with stride 2, then brotli-compressed. To read on CPU you need to undo those two steps in reverse:
+
+```python
+# verified on 2026-04-28 against models/nm_default.int6.ptz
+import brotli, io, torch, numpy as np
+
+_BSHF_MAGIC = b"BSHF"
+
+def _byte_unshuffle(data):  # mirrors train_gpt.py:_byte_unshuffle
+    if len(data) < 5 or data[:4] != _BSHF_MAGIC:
+        return data
+    stride = data[4]
+    if stride < 2:
+        return data[5:]
+    payload = np.frombuffer(data, dtype=np.uint8, offset=5)
+    n = len(payload)
+    out = np.empty(n, dtype=np.uint8)
+    src_off = 0
+    for pos in range(stride):
+        chunk_len = (n - pos + stride - 1) // stride
+        out[pos::stride] = payload[src_off:src_off + chunk_len]
+        src_off += chunk_len
+    return out.tobytes()
+
+with open("models/nm_default.int6.ptz", "rb") as f:
+    raw = brotli.decompress(f.read())
+state = torch.load(io.BytesIO(_byte_unshuffle(raw)), map_location="cpu", weights_only=False)
+
+print(list(state.keys()))                          # ['w', 'm']
+print(len(state["w"]), "quantized tensor entries") # 207
+print(list(state["w"].keys())[:4])
+# ['blocks.0.attn.c_q.weight.q',
+#  'blocks.0.attn.c_q.weight.scale',
+#  'blocks.0.attn.proj.weight.q',
+#  'blocks.0.attn.proj.weight.scale']
+print(list(state["m"].items())[:1])
+# [('blocks.0.attn.c_q.weight', 'gptq (int6)')]
+```
+
+This is enough to confirm the artifacts are well-formed int6 GPTQ-quantized models with the expected layer structure on a laptop, no GPU required. The byte-shuffle step (`_byte_shuffle`/`_byte_unshuffle` at `train_gpt.py:1976-2002`) is part of PR #1874's compression pipeline, not something we added.
 
 ---
 
