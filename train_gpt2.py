@@ -30,12 +30,6 @@ from torch import Tensor, nn
 
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
 
-try:
-    import brotli
-    _HAS_BROTLI = True
-except ImportError:
-    _HAS_BROTLI = False
-
 # ----------------------------------------
 # Hyperparameters
 # ----------------------------------------
