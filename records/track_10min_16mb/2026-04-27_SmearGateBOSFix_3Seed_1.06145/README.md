@@ -115,3 +115,22 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - **@cocohearts** — BOS document boundary bug identification
 - **@abaybektursun** — PR #549 (score-first TTT)
 - **@clarkkev** — PR #1394 (GPTQ + SP8192)
+
+### Experimental train-only logit calibration variant
+
+This branch adds an optional post-GPTQ, train-only logit calibration pass for testing on top of the reproduced #1851/#1868 stack. It fits a fixed global temperature plus coarse token-group bias using only training tokens, then applies the frozen affine correction before softmax in both the quantized diagnostic eval and the phased score-first TTT loss.
+
+Default controls:
+
+```bash
+LOGIT_CALIB_ENABLED=1
+LOGIT_CALIB_TOKENS=100000
+LOGIT_CALIB_STRIDE=64
+LOGIT_CALIB_BATCH_SEQS=8
+LOGIT_CALIB_LR=0.003
+LOGIT_CALIB_L2=0.01
+LOGIT_CALIB_EPOCHS=1
+LOGIT_CALIB_APPLY_TTT_UPDATE=1
+```
+
+Set `LOGIT_CALIB_ENABLED=0` to recover the byte-identical #1868 behavior. The calibration pass does not read validation targets or build validation-derived state; rank 0 fits on train shard tokens and broadcasts the frozen scale/bias to all ranks before eval.

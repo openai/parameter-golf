@@ -315,6 +315,14 @@ class Hyperparameters:
     global_ttt_warmup_chunks = int(os.environ.get("GLOBAL_TTT_WARMUP_CHUNKS", 0))
     global_ttt_grad_clip = float(os.environ.get("GLOBAL_TTT_GRAD_CLIP", 1.0))
     global_ttt_respect_doc_boundaries = bool(int(os.environ.get("GLOBAL_TTT_RESPECT_DOC_BOUNDARIES", "1")))
+    logit_calib_enabled = bool(int(os.environ.get("LOGIT_CALIB_ENABLED", "1")))
+    logit_calib_tokens = int(os.environ.get("LOGIT_CALIB_TOKENS", 100000))
+    logit_calib_stride = int(os.environ.get("LOGIT_CALIB_STRIDE", 64))
+    logit_calib_batch_seqs = int(os.environ.get("LOGIT_CALIB_BATCH_SEQS", 8))
+    logit_calib_lr = float(os.environ.get("LOGIT_CALIB_LR", 0.003))
+    logit_calib_l2 = float(os.environ.get("LOGIT_CALIB_L2", 0.01))
+    logit_calib_epochs = int(os.environ.get("LOGIT_CALIB_EPOCHS", 1))
+    logit_calib_apply_ttt_update = bool(int(os.environ.get("LOGIT_CALIB_APPLY_TTT_UPDATE", "1")))
     matrix_bits = int(os.environ.get("MATRIX_BITS", 6))
     embed_bits = int(os.environ.get("EMBED_BITS", 8))
     matrix_clip_sigmas = float(os.environ.get("MATRIX_CLIP_SIGMAS", 12.85))
@@ -499,6 +507,67 @@ def build_sentencepiece_luts(sp, vocab_size, device):
     )
 
 
+def build_logit_calib_features(sp, vocab_size, device):
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
+    texts = [""] * table_size
+    has_space = np.zeros(table_size, dtype=np.bool_)
+    lens = np.zeros(table_size, dtype=np.int32)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        if sp.is_byte(token_id):
+            piece = sp.id_to_piece(token_id)
+            try:
+                bs = bytes([int(piece[3:-1], 16)])
+            except Exception:
+                bs = b""
+            texts[token_id] = bs.decode("latin1", errors="ignore")
+            lens[token_id] = len(bs)
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("▁"):
+            has_space[token_id] = True
+            piece = piece[1:]
+        texts[token_id] = piece
+        lens[token_id] = len(piece.encode("utf-8"))
+
+    cols = []
+    names = []
+
+    def add(name, mask):
+        names.append(name)
+        cols.append(mask.astype(np.float32))
+
+    add("len1", lens == 1)
+    add("len2", lens == 2)
+    add("len3", lens == 3)
+    add("len4", lens == 4)
+    add("len5_8", (lens >= 5) & (lens <= 8))
+    add("len9p", lens >= 9)
+    add("starts_space", has_space)
+    add("newline", np.array([("\n" in s or "\r" in s) for s in texts]))
+    add("contains_digit", np.array([any(ch.isdigit() for ch in s) for s in texts]))
+    add(
+        "punct_only",
+        np.array(
+            [
+                (len(s) > 0 and all((not ch.isalnum()) and (not ch.isspace()) for ch in s))
+                for s in texts
+            ]
+        ),
+    )
+    add("alpha", np.array([any(ch.isalpha() for ch in s) for s in texts]))
+    add("lower", np.array([(len(s) > 0 and s.islower()) for s in texts]))
+    add("upper", np.array([(len(s) > 0 and s.isupper()) for s in texts]))
+    add(
+        "capitalized",
+        np.array([(len(s) > 0 and s[:1].isupper() and s[1:].islower()) for s in texts]),
+    )
+    features = np.stack(cols, axis=1)[:vocab_size]
+    return names, torch.tensor(features, dtype=torch.float32, device=device)
+
+
 def load_validation_tokens(pattern, seq_len):
     # Filter out CaseOps byte sidecar shards which share the val_*.bin glob.
     files = [
@@ -549,6 +618,110 @@ def load_data_shard(file):
     if tokens_np.size != num_tokens:
         raise ValueError(f"Short read for {file}")
     return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
+
+
+def _logit_calib_windows(tokens, seq_len, stride, max_targets):
+    total = min(int(tokens.numel()) - 1, int(max_targets))
+    if total <= 0:
+        return []
+    context = seq_len - stride
+    windows = []
+    cur = 1
+    while cur <= total:
+        ws = max(0, cur - context - 1)
+        we = min(ws + seq_len + 1, int(tokens.numel()))
+        j0 = max(0, cur - ws - 1)
+        j1 = min(we - ws - 1, cur + stride - ws - 1, total - ws)
+        if j1 <= j0:
+            break
+        windows.append((ws, we, j0, j1 - j0))
+        cur += j1 - j0
+    return windows
+
+
+def fit_logit_calibration(h, device, model, val_data):
+    scale = torch.ones((), device=device, dtype=torch.float32)
+    bias = torch.zeros(h.vocab_size, device=device, dtype=torch.float32)
+    if not h.logit_calib_enabled:
+        return scale, bias
+
+    group_names, features = build_logit_calib_features(val_data.sp, h.vocab_size, device)
+    raw_scale = torch.zeros((), device=device, dtype=torch.float32, requires_grad=True)
+    group_w = torch.zeros(len(group_names), device=device, dtype=torch.float32, requires_grad=True)
+    if h.rank == 0:
+        train_files = [Path(p) for p in sorted(glob.glob(h.train_files)) if "_bytes_" not in Path(p).name]
+        if not train_files:
+            raise FileNotFoundError(f"No train files found for pattern: {h.train_files}")
+        train_tokens = load_data_shard(train_files[0]).to(torch.int64)
+        usable = min(h.logit_calib_tokens, int(train_tokens.numel()) - 1)
+        windows = _logit_calib_windows(
+            train_tokens, h.eval_seq_len, h.logit_calib_stride, usable
+        )
+        log(
+            "logit_calib:start "
+            f"tokens:{usable} windows:{len(windows)} groups:{len(group_names)} "
+            f"stride:{h.logit_calib_stride} batch_seqs:{h.logit_calib_batch_seqs}"
+        )
+        opt = torch.optim.AdamW([raw_scale, group_w], lr=h.logit_calib_lr, weight_decay=0.0)
+        t0 = time.perf_counter()
+        model.eval()
+        for ep in range(h.logit_calib_epochs):
+            total_loss = 0.0
+            total_tokens = 0
+            for bi in range(0, len(windows), h.logit_calib_batch_seqs):
+                batch = windows[bi : bi + h.logit_calib_batch_seqs]
+                bsz = len(batch)
+                x_batch = torch.zeros(bsz, h.eval_seq_len, dtype=torch.int64, device=device)
+                y_parts = []
+                for i, (ws, we, off, nscore) in enumerate(batch):
+                    local = train_tokens[ws:we].to(device=device, dtype=torch.int64)
+                    x_batch[i, : local.numel() - 1] = local[:-1]
+                    y_parts.append(local[1:][off : off + nscore])
+                with torch.no_grad():
+                    with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                        full_logits = model.forward_logits(x_batch)
+                        logits = torch.cat(
+                            [
+                                full_logits[i, off : off + nscore]
+                                for i, (_, _, off, nscore) in enumerate(batch)
+                            ],
+                            dim=0,
+                        ).float()
+                targets = torch.cat(y_parts).to(device=device, dtype=torch.int64)
+                cur_scale = 0.9 + 0.2 * torch.sigmoid(raw_scale)
+                cur_bias = features @ group_w
+                ce = F.cross_entropy(cur_scale * logits + cur_bias, targets)
+                reg = h.logit_calib_l2 * (
+                    group_w.square().mean() + (cur_scale - 1.0).square()
+                )
+                loss = ce + reg
+                opt.zero_grad(set_to_none=True)
+                loss.backward()
+                opt.step()
+                with torch.no_grad():
+                    group_w.clamp_(-0.5, 0.5)
+                total_loss += float(ce.detach().cpu()) * int(targets.numel())
+                total_tokens += int(targets.numel())
+            cur_scale_val = float((0.9 + 0.2 * torch.sigmoid(raw_scale)).detach().cpu())
+            log(
+                f"logit_calib:epoch {ep+1}/{h.logit_calib_epochs} "
+                f"ce:{total_loss/max(total_tokens,1):.6f} scale:{cur_scale_val:.6f}"
+            )
+        with torch.no_grad():
+            scale.copy_(0.9 + 0.2 * torch.sigmoid(raw_scale))
+            bias.copy_(features @ group_w)
+        elapsed = time.perf_counter() - t0
+        gw = group_w.detach().cpu().numpy()
+        top = sorted(zip(group_names, gw), key=lambda x: -abs(x[1]))[:8]
+        log(
+            "logit_calib:done "
+            f"scale:{float(scale.detach().cpu()):.8f} elapsed:{elapsed:.1f}s "
+            + " ".join(f"{n}:{v:+.4f}" for n, v in top)
+        )
+    if dist.is_available() and dist.is_initialized():
+        dist.broadcast(scale, src=0)
+        dist.broadcast(bias, src=0)
+    return scale.detach(), bias.detach()
 
 
 _SHARD_HEADER_BYTES = 256 * np.dtype("<i4").itemsize
@@ -1424,7 +1597,7 @@ class GPT(nn.Module):
             reduction="mean",
         )
 
-    def forward_ttt(self, input_ids, target_ids, lora):
+    def forward_ttt(self, input_ids, target_ids, lora, logit_calib_scale=None, logit_calib_bias=None):
         x = self.tok_emb(input_ids)
         # SmearGate on the TTT path — same inline compute as forward_logits.
         if self.smear_gate_enabled:
@@ -1501,6 +1674,8 @@ class GPT(nn.Module):
             logits = self.lm_head(x)
         logits = logits + lora.lm_head_lora(x)
         logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        if logit_calib_scale is not None and logit_calib_bias is not None:
+            logits = logit_calib_scale.to(dtype=logits.dtype) * logits + logit_calib_bias.to(dtype=logits.dtype)
         bsz, sl, V = logits.shape
         return F.cross_entropy(
             logits.float().reshape(-1, V), target_ids.reshape(-1), reduction="none"
@@ -2530,7 +2705,7 @@ def _loss_bpb(loss_sum, token_count, byte_count):
     return val_loss, val_bpb
 
 
-def eval_val(h, device, val_data, model, forward_logits_fn=None):
+def eval_val(h, device, val_data, model, forward_logits_fn=None, logit_calib=None):
     seq_len = h.eval_seq_len
     local_batch_tokens = h.val_batch_tokens // (h.world_size * h.grad_accum_steps)
     if local_batch_tokens < seq_len:
@@ -2575,6 +2750,9 @@ def eval_val(h, device, val_data, model, forward_logits_fn=None):
                 logits = run_forward_logits(
                     x[None], cu_seqlens=cu_seqlens, max_seqlen=max_seqlen
                 ).detach()
+            if logit_calib is not None:
+                scale, bias = logit_calib
+                logits = scale.to(dtype=logits.dtype) * logits + bias.to(dtype=logits.dtype)
             per_token_loss = F.cross_entropy(
                 logits.reshape(-1, logits.size(-1)).float(),
                 y.reshape(-1),
@@ -3396,6 +3574,7 @@ def train_and_eval(h, device):
     eval_model = deserialize(h, device)
     if h.num_loops > 0:
         eval_model.looping_active = True
+    logit_calib = fit_logit_calibration(h, device, eval_model, val_data)
     if not ttt_eval_only:
         compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
         compiled_forward_logits = torch.compile(
@@ -3410,6 +3589,17 @@ def train_and_eval(h, device):
             compiled_model,
             compiled_forward_logits,
         )
+        if h.logit_calib_enabled:
+            timed_eval(
+                "diagnostic quantized_calibrated",
+                eval_val,
+                h,
+                device,
+                val_data,
+                compiled_model,
+                compiled_forward_logits,
+                logit_calib,
+            )
         del eval_model
     if h.ttt_enabled:
         if not ttt_eval_only:
@@ -3436,6 +3626,14 @@ def train_and_eval(h, device):
                 block.attn.rotary(h.ttt_eval_seq_len, device, torch.bfloat16)
 
         def _fwd_ttt_inner(input_ids, target_ids, lora):
+            if h.logit_calib_enabled and h.logit_calib_apply_ttt_update:
+                return ttt_model.forward_ttt(
+                    input_ids,
+                    target_ids,
+                    lora=lora,
+                    logit_calib_scale=logit_calib[0],
+                    logit_calib_bias=logit_calib[1],
+                )
             return ttt_model.forward_ttt(input_ids, target_ids, lora=lora)
 
         _fwd_ttt_compiled_inner = None
