@@ -81,3 +81,17 @@ Parked sub-bets (not the current arc, but worth keeping on radar):
 
 ## Entries (newest first)
 
+## 2026-04-28 · 0081 (AR self-gen GPTQ int6) · SMOKE OK, ready to launch — handoff to next session
+
+Subagent completed in 25 min. New module `experiments/0081_ar_gptq_int6/modules/gptq_int6.py` (~340 lines): pack_int6/unpack_int6 (4 vals → 3 bytes), GPTQ Cholesky-blocked weight quant (percdamp=0.01, block_size=64), AR self-gen calibration tokens (greedy, no KV cache), mixed-format serialization extending parent int8.
+
+**Smoke at production shape on MPS** (avoiding 0071 trap):
+- pack/unpack exact round-trip
+- GPTQ (2048×512) takes 155 ms
+- fp32 vs int6 forward rel err **3.32%** (under 5% bar)
+- size ratio **0.7520** (matches predicted 75% / -25% saving)
+- mixed serialize/deserialize round-trip OK
+
+**Status**: ready to launch. Did NOT run `run_experiment.sh` per spec — subagent dispatched at session-end, only smoke validated. **Next session step 1**: launch 0081, observe `final_int8_zlib_roundtrip val_bpb` and artifact bytes. Predicted post-quant val ~1.948 (similar to 0076) with artifact ≥1.5 MB smaller — that freed cap can grow K=4 contexts in 0082 for an additional -0.005 BPB.
+
+
