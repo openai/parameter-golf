@@ -2,7 +2,7 @@
 
 **val_bpb (mix): 0.901886** (3-seed mean, std 0.000803, PPM_SUBSET_TOKENS=8,000,000) | **val_bpb (neural-only quantized_ttt_phased): 1.062106** (3-seed mean, std 0.001166, full 47.85M val) | **~15.95 MB** | 8×H100 SXM | 599.6s train / 576.7s eval
 
-This is the v2 of our PR #1854 with the data-coverage correction described below. It pairs a PPM-D byte mixture (port from anmarhindi PR #1835) on top of the dexhunter PR #1797 verbatim base. The headline `mix_bpb` is comparable to PR #1854 (both use the 8M PPM subset); the neural-only `quantized_ttt_phased` now sits on full-val parity with dexhunter PR #1797.
+This is the v2 of our PR #1854 with the data-coverage correction described below. It pairs a byte-level PPM-D mixture (technique class first introduced in PR #1795 on 2026-04-23; ported here from anmarhindi PR #1835 on 2026-04-25) on top of the dexhunter PR #1797 verbatim base. The headline `mix_bpb` is comparable to PR #1854 (both use the 8M PPM subset); the neural-only `quantized_ttt_phased` now sits on full-val parity with dexhunter PR #1797.
 
 ## Why a v2 — explicit data-coverage correction vs PR #1854
 
@@ -68,7 +68,7 @@ Our third seed (1337) replaces dexhunter's (1234). Across the 2 shared seeds, ou
 | LQER asymmetric rank-4 correction | PR #1797 (dexhunter) | post-GPTQ int6 residual recovery |
 | Phased TTT (score-first, 3 phases, 2000-doc prefix) | PR #1394 / PR #549 / PR #1413 lineage | per-document LoRA adapter, score-before-update |
 | Int6 GPTQ + Brotli compressor | PR #1019 / PR #1530 | fits int6 model + factors + code under 16,000,000 bytes |
-| **PPM-D byte mixture (this addition)** | PR #1835 (anmarhindi) port | order-5 PPM-D, binary-lambda gate `(λ_lo=0.05 when conf≥0.9 else λ_hi=0.9)`, mixed in probability space, counts updated AFTER scoring (legality pending Issue #1872) |
+| **Byte-level PPM-D mixture (this addition)** | Class introduced in PR #1795 (2026-04-23); ported here from anmarhindi PR #1835 (2026-04-25) | order-5 PPM-D, binary-lambda gate `(λ_lo=0.05 when conf≥0.9 else λ_hi=0.9)`, mixed in probability space, counts updated AFTER scoring (legality pending Issue #1872) |
 
 ## PPM coverage disclosure (what dexhunter flagged on PR #1858)
 
@@ -177,7 +177,10 @@ Numbers reproducible to ±0.001 BPB across CUDA non-determinism (verified across
 
 ## Acknowledgements
 
+- **PR #1795** (2026-04-23) — earliest reference of the byte-level PPM-D mixture technique class.
+- **anmarhindi** / PR #1835 (2026-04-25) — the specific implementation we ported from.
 - **dexhunter** for the PR #1797 base stack and the PR #1858 methodology comment that motivated this v2.
-- **anmarhindi** for the PR #1835 PPM-D byte-mixture port.
 - **romeerp** / **PR #1729** lineage for the CaseOps bijective tokenizer.
-- All authors in the PPM-D byte-mixture cluster (#1835, #1850, #1854, #1858, #1862, #1865, #1871, #1873) for collectively elaborating the technique while Issue #1872 awaits a ruling.
+- All authors in the byte-level PPM-D mixture cluster (#1795, #1835, #1850, #1854, #1858, #1862, #1865, #1871, #1873) for collectively elaborating the technique while Issue #1872 awaits a ruling.
+
+Lineage correction prompted by @OE-GOD's review note on this PR.
