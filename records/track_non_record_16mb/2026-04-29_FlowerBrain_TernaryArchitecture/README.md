@@ -50,7 +50,7 @@ Pre-quant val_bpb of **1.1155** is competitive with main-leaderboard entries. Po
 - **BitLinear layers:** Ternary weights {-1, 0, +1} with per-element STE. Threshold: sign(w) * (|w| > mean(|w|)).
 - **512-dim model, 12 layers:** Scaled from original 384-dim/8-layer to improve capacity.
 - **Depth recurrence:** Layers 3-5 re-executed (2 loops), providing 17 virtual layers from 12 physical layers.
-- **Mixed compression:** Ternary packing (2 bits/weight) for MLP layers + int6 GPTQ for attention weights + LZMA compression.
+- **Mixed compression:** Ternary packing (2 bits/weight) for MLP layers + int6 GPTQ for attention weights + brotli compression.
 
 ---
 
@@ -84,7 +84,7 @@ Three training configurations tested on the same architecture:
 | Mixed ternary + GPTQ | **10.4 MB** | 1.7996 |
 | Standard GPTQ int6 (baseline) | ~16 MB | ~1.12 |
 
-Ternary weights at 2 bits/weight + LZMA compression achieve 12x compression over fp32. The tradeoff is a 0.68 BPB gap — the key research frontier for ternary architectures.
+Ternary weights at 2 bits/weight + brotli compression achieve 12x compression over fp32. The tradeoff is a 0.68 BPB gap — the key research frontier for ternary architectures.
 
 ---
 
