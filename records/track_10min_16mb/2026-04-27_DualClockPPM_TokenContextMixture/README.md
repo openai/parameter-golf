@@ -64,29 +64,46 @@ This bounds the cumulative log-loss against the best switching expert across
 chunks, which matters when the dominant expert changes across documents or
 phases of a document.
 
-## GPU implementation
+## Implementation
 
-A pure-Python reference is too slow for 40M validation tokens. The
-implementation is fully vectorized on GPU:
+At evaluation time, every chunk is scored under `torch.no_grad()` before any
+TTT update on that chunk. As each chunk is scored, the per-token neural NLL
+is gathered across DDP ranks via `all_reduce(MIN)` on a buffer initialized to
+`+∞`, since each rank scores a disjoint window subset and the score buffer is
+later consumed by a single deterministic mixture pass that runs on every rank.
 
-- **Per-position context hashes**: for each chunk position, FNV-style rolling
-  hash over the last `k` tokens, computed in a vectorized loop over the order.
-  Hash modulo `B` gives the bucket id (B=2048 here).
-- **Hash-bucketed count tables**: `cnt[k]` of shape `(B*V,)` int32 holds
-  continuation counts; `tot[k]` of shape `(B,)` holds context-mass counts.
-  Writes are GPU `index_add_`.
-- **Prefix-rank counters** (`_dc_prank`): for the `n` token positions in the
-  chunk, returns for each position the count of identical earlier-position
-  keys. This is the chunk-local correction that makes scoring strictly causal
-  without requiring a single-stream loop.
-- **Smoothing chain**: `q_k = (cnt + α · q_{k-1}) / (tot + α)`, vectorized
-  across all scored positions.
-- **Mixer**: chunk log-loss per expert → softmax-with-temperature → fixed-share blend.
+Per chunk, we construct two causal PPM experts. Each expert maintains, for
+every order `k = 1..K`, a hash-bucketed count table `cnt[k]` of shape `(B·V,)`
+(int32) holding continuation counts and a context-mass table `tot[k]` of
+shape `(B,)`. The order-`k` context for a target at chunk position `i` is the
+FNV-rolling hash of the last `k` source tokens, computed in a vectorized loop
+over `k`. The hash modulo `B` gives the bucket id; the resulting
+`(ctx_hash, target_token)` pair indexes into `cnt[k]`. Predictions are
+produced by the recursive Dirichlet-backoff smoothing chain
+`q_k(a) = (cnt_k(a) + α·q_{k-1}(a)) / (tot_k + α)` where `q_0` is a causal
+running unigram prior over the full SP8192 vocabulary, so each expert is by
+construction a fully normalized distribution over the official token alphabet.
 
-The neural NLL per chunk is gathered across DDP ranks via `all_reduce(MIN)` on
-a buffer initialized to `+∞`, since each rank scores a disjoint window subset.
-PPM updates run after the chunk is fully scored, preserving the
-score-before-update legality.
+Within a chunk, the strictly causal contribution from already-seen positions
+is enforced by a vectorized prefix-rank counter (`_dc_prank`): for the `n`
+positions in the chunk it returns, for each position, the count of identical
+earlier-position keys, which is the chunk-local correction that lets us score
+the entire chunk in parallel without ever leaking a token's identity into
+its own predicted probability. After the chunk's score is finalized, the
+count tables and the unigram base prior are updated with that chunk's tokens
+via GPU `index_add_`. The global expert never resets; the document-local
+expert resets at chunk boundaries as a doc-boundary proxy.
+
+The three experts (neural, global PPM, local PPM) are blended through a
+fixed-share Bayesian mixer. Each chunk yields a per-expert mean log-loss
+`L_i`; the chunk-end posterior is `post_i ∝ w_i · exp(-(L_i - L_min))`, then
+`w_new = (1 - share) · post + share · prior` with prior `(0.90, 0.07, 0.03)`
+and `share = 0.005`. This bounds cumulative log-loss against the best
+switching expert across chunks while keeping a small floor of probability on
+the slower-moving experts so they can re-engage if the dominant expert ever
+changes. Mixture weights for chunk `c+1` are a deterministic function of
+chunks `0..c`'s losses, which is the same legality property the neural TTT
+update path relies on.
 
 ## Hyperparameters
 
