@@ -87,7 +87,6 @@ class Hyperparameters:
     #   24 layers: 4.2 + 18.9 + 3.0 = 26.1 MB int8
     #              LZMA at 2× → 13.1 MB ✔  |  at 1.6× → 16.3 MB ✗  (risky)
     # Start at 16; bump to 24 only after validating actual LZMA compression on a test run.
-    vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
     num_layers = int(os.environ.get("NUM_LAYERS", 16))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
