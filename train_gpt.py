@@ -40,11 +40,24 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    # SP8192: competition uses 8192-token SentencePiece vocab, not the SP1024 baseline.
-    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp8192")
-    train_files = os.path.join(data_path, "fineweb_train_*.bin")
-    val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_8192_bpe.model")
+    # Prefers SP8192 (competition default); falls back to SP1024 if not present.
+    _sp8192_tok  = "./data/tokenizers/fineweb_8192_bpe.model"
+    _sp1024_tok  = "./data/tokenizers/fineweb_1024_bpe.model"
+    _sp8192_data = "./data/datasets/fineweb10B_sp8192"
+    _sp1024_data = "./data/datasets/fineweb10B_sp1024"
+    # True when SP8192 assets are present AND no TOKENIZER_PATH override set.
+    # Falls back to SP1024 for local dev environments missing the SP8192 files.
+    _use_sp8192 = (
+        "TOKENIZER_PATH" not in os.environ
+        and os.path.exists(_sp8192_tok)
+    )
+    data_path      = os.environ.get("DATA_PATH",      _sp8192_data if _use_sp8192 else _sp1024_data)
+    train_files    = os.path.join(data_path, "fineweb_train_*.bin")
+    val_files      = os.path.join(data_path, "fineweb_val_*.bin")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", _sp8192_tok  if _use_sp8192 else _sp1024_tok)
+    # vocab_size follows the active tokenizer; override via VOCAB_SIZE env var.
+    vocab_size = int(os.environ.get("VOCAB_SIZE", 8192 if _use_sp8192 else 1024))
+
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
 
@@ -91,6 +104,9 @@ class Hyperparameters:
     # At 50k steps rank-16 adapters tend to saturate; rank-32 avoids the mid-training plateau.
     adapter_rank = int(os.environ.get("ADAPTER_RANK", 32))
     adapter_lr = float(os.environ.get("ADAPTER_LR", 0.008))
+    # SmearGate: causal temporal blend of embeddings (source: MarioPaerle PR #1667, based on
+    # @KellerJordan modded-nanogpt). Zero-init → identity at start; -0.007 BPB on competition runs.
+    use_smear_gate = bool(int(os.environ.get("SMEAR_GATE", "1")))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -606,6 +622,46 @@ class DistributedTokenLoader:
         y = local[1:].reshape(-1, seq_len)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
+
+# -----------------------------
+# SMEARGATE (TEMPORAL EMBEDDING BLEND)
+# -----------------------------
+
+class SmearGate(nn.Module):
+    """
+    SmearGate: causal temporal blending of token embeddings.
+
+    Each position's normalized embedding is additively blended with the previous
+    position's embedding using a learned per-dimension gate vector:
+
+        x_out = x + gate * (prev_x - x)
+
+    Zero-initialized → identity at start (gate=0, x_out=x).  Gradient descent
+    learns which embedding dimensions benefit from carrying previous-token context,
+    injecting bigram information directly into the embedding stream with no extra
+    attention cost.  Causal: position 0 is padded with zeros (BOS has no prior).
+
+    Contributes approximately -0.007 BPB on competition-length runs.
+    Parameters: model_dim float32 scalars (≤ 65536 numel → stored as fp16 passthrough).
+
+    Citation: MarioPaerle, PR #1667, openai/parameter-golf (April 2026).
+    Original concept: @KellerJordan, modded-nanogpt.
+    """
+
+    def __init__(self, model_dim: int) -> None:
+        super().__init__()
+        # Zero-init: gate=0 → no blending → pure identity at start of training.
+        self.gate = nn.Parameter(torch.zeros(model_dim, dtype=torch.float32))
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Shift embeddings one step right (causal: use the PREVIOUS token's embedding).
+        # Position 0 is padded with zeros — no previous token for BOS.
+        prev_x = F.pad(x[:, :-1, :], (0, 0, 1, 0))      # (B, T, D)
+        gate = self.gate.to(dtype=x.dtype)                # (D,)
+        # Additive gate: gate=0 → x_out=x (identity). As gate grows, more prev_x leaks in.
+        return x + gate[None, None, :] * (prev_x - x)
+
+
 # -----------------------------
 # TRANSFORMER MODULES
 # -----------------------------
@@ -847,6 +903,7 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        use_smear_gate: bool = True,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
@@ -855,6 +912,7 @@ class GPT(nn.Module):
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.smear_gate: SmearGate | None = SmearGate(model_dim) if use_smear_gate else None
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
@@ -891,6 +949,8 @@ class GPT(nn.Module):
     def forward(self, input_ids: Tensor, target_ids: Tensor, return_per_token: bool = False) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
+        if self.smear_gate is not None:
+            x = self.smear_gate(x)   # causal bigram context injection
         x0 = x
 
         # U-Net skip connections. Use a fixed-size pre-allocated list so torch.compile
@@ -1048,6 +1108,7 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        use_smear_gate=args.use_smear_gate,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -1089,6 +1150,8 @@ def main() -> None:
     ]
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
+    if base_model.smear_gate is not None:
+        scalar_params.append(base_model.smear_gate.gate)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
