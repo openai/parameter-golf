@@ -75,7 +75,8 @@ class Hyperparameters:
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 2))
-    depth_recurrence = int(os.environ.get("DEPTH_RECURRENCE", 1))
+    depth_recurrence = int(os.environ.get("DEPTH_RECURRENCE", 2))
+    parallel_residual_start = int(os.environ.get("PARALLEL_RESIDUAL_START", 4))
     warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.2))
     use_flash_attn_interface = bool(
         int(os.environ.get("USE_FLASH_ATTN_INTERFACE", "1"))
@@ -529,7 +530,7 @@ INT6_NAME_PATTERNS = tuple(
         pattern
         for pattern in os.environ.get(
             "INT6_NAME_PATTERNS",
-            "blocks.0.attn.,blocks.1.attn.",
+            "blocks.0.attn.,blocks.1.attn.,blocks.2.attn.",
         ).split(",")
         if pattern
     )
@@ -1128,15 +1129,24 @@ class Block(nn.Module):
         self.resid_mix = nn.Parameter(
             torch.stack((torch.ones(dim), torch.zeros(dim))).float()
         )
+        self.parallel = False
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(
-            self.mlp_norm(x)
-        )
+        if self.parallel:
+            mlp_out = self.mlp(self.mlp_norm(x))
+            x = (
+                x
+                + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+                + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
+            )
+        else:
+            x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(
+                self.mlp_norm(x)
+            )
         return x
 
 
@@ -1157,6 +1167,7 @@ class GPT(nn.Module):
         qk_gain_init: float,
         xsa_last_n: int = 0,
         depth_recurrence: int = 1,
+        parallel_residual_start: int = -1,
     ):
         super().__init__()
         self.depth_recurrence = depth_recurrence
@@ -1195,6 +1206,9 @@ class GPT(nn.Module):
         if xsa_last_n > 0:
             for i in range(max(0, num_layers - xsa_last_n), num_layers):
                 self.blocks[i].attn.use_xsa = True
+        if parallel_residual_start >= 0:
+            for i in range(parallel_residual_start, num_layers):
+                self.blocks[i].parallel = True
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -1356,6 +1370,7 @@ def main() -> None:
             qk_gain_init=args.qk_gain_init,
             xsa_last_n=args.xsa_last_n,
             depth_recurrence=args.depth_recurrence,
+            parallel_residual_start=args.parallel_residual_start,
         )
         .to(device)
         .bfloat16()
@@ -1449,6 +1464,9 @@ def main() -> None:
         f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}"
     )
     log0(f"xsa_last_n:{args.xsa_last_n}")
+    log0(
+        f"depth_recurrence:{args.depth_recurrence} parallel_residual_start:{args.parallel_residual_start}"
+    )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} head_lr:{(args.head_lr if base_model.lm_head is not None else 0.0)} matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} adam_wd:{args.adam_wd} muon_wd:{args.muon_wd}"
     )
@@ -1768,6 +1786,8 @@ def main() -> None:
                 rope_base=args.rope_base,
                 qk_gain_init=args.qk_gain_init,
                 xsa_last_n=args.xsa_last_n,
+                depth_recurrence=args.depth_recurrence,
+                parallel_residual_start=args.parallel_residual_start,
             )
             .to(device)
             .bfloat16()
