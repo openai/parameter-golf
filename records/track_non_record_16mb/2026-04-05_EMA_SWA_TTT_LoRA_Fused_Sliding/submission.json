@@ -1,0 +1,17 @@
+{
+  "author": "Andrey Yunoshev",
+  "github_id": "ayunoshev",
+  "name": "EMA+SWA Tight Averaging with Fused TTT LoRA + Sliding Window",
+  "blurb": "EMA (0.997) + SWA tight averaging (no qgrid), fused TTT LoRA + sliding window eval, Muon 0.99, full GPTQ Hessians. Training: 5922 steps in 600s on 8xH100. Score at 600s eval mark: 1.1371 BPB.",
+  "date": "2026-04-05T00:08:30Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.905159,
+  "val_bpb": 1.1371,
+  "pre_quant_val_loss": 2.2876,
+  "pre_quant_val_bpb": 1.3548,
+  "step_stop": 5922,
+  "wallclock_seconds": 600.132,
+  "bytes_total": 15876912,
+  "bytes_model_int8_zlib": 15763428,
+  "bytes_code": 113484
+}
