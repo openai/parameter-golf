@@ -1,0 +1,11 @@
+{
+    "author": "GrishaKhumaryan",
+    "github_id": "GrishaKhumaryan",
+    "name": "GrishaKhumaryan - BigramHash4096 MuonEqR SDClip ScoreFirstTTT 3LayerRecurrence (Mean of 3 Seeds)",
+    "blurb": "Mean of 3 seeds (1337, 42, 2025). BigramHash(4096,32) skip, 3-Layer Progressive Recurrence [0,1,2,3,4,5,3,4,5], MuonEq-R Riemannian optimizer, STD-based Hessian-Aware SDClip INT6, legal Score-First TTT 2-pass, parallel residuals, QKGain=5.25, PartialRoPE=32, LeakyReLU(0.5)^2 SwiGLU, vocab=8192",
+    "date": "2026-04-28T22:21:00Z",
+    "val_loss": 0.652821,
+    "val_bpb": 0.941822,
+    "bytes_total": 26697000,
+    "bytes_code": 50523
+}
