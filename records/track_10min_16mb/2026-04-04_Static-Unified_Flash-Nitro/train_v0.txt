@@ -1,0 +1,62 @@
+logs/h100_final_victory_fast_val.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:524288
+model_params:26959441
+world_size:8 grad_accum_phase1:1 grad_accum_phase2:1 phase1_steps:520 stab_end:572 qat_start_step:572
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:False head_lr:0.008 matrix_lr:0.02 scalar_lr:0.04 weight_decay:0.04
+train_batch_tokens:1048576 phase1_seq:1024 phase2_content:1016 iterations:2600 warmup_steps:20 max_wallclock_seconds:550.000
+seed:1337
+bigram_vocab_size:1024 bigram_dim:128 mixed_quant_enabled:True ema_enabled:True qat_enabled:False qat_start_step:572 (phase2 only)
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/2600 val_loss:6.9315 val_bpb:4.1720 train_time:0ms step_avg:0.02ms
+step:1/2600 phase:p1 train_loss:6.9315 train_time:182ms step_avg:182.44ms
+step:2/2600 phase:p1 train_loss:6.9315 train_time:324ms step_avg:162.07ms
+step:3/2600 phase:p1 train_loss:6.9189 train_time:471ms step_avg:156.97ms
+step:4/2600 phase:p1 train_loss:6.8262 train_time:618ms step_avg:154.38ms
+step:5/2600 phase:p1 train_loss:6.4830 train_time:765ms step_avg:153.01ms
+step:6/2600 phase:p1 train_loss:6.1805 train_time:912ms step_avg:151.99ms
+step:7/2600 phase:p1 train_loss:6.0925 train_time:1060ms step_avg:151.41ms
+step:8/2600 phase:p1 train_loss:6.1319 train_time:1207ms step_avg:150.82ms
+step:9/2600 phase:p1 train_loss:6.1609 train_time:1353ms step_avg:150.36ms
+step:10/2600 phase:p1 train_loss:6.0829 train_time:1514ms step_avg:151.40ms
+step:200/2600 phase:p1 train_loss:4.4691 train_time:30168ms step_avg:150.84ms
+step:400/2600 phase:p1 train_loss:4.0094 train_time:60367ms step_avg:150.92ms
+=== TRANSITION: WEIGHT INHERITANCE ===
+=== TRANSITION: weight inheritance done; phase 2 stabilization (layers 10-12 only, gradient zeroing) ===
+=== PHASE 2 TRAINING: all layers unfrozen (gradient zeroing) ===
+step:600/2600 phase:p2 train_loss:5.4864 train_time:117698ms step_avg:196.16ms
+step:800/2600 phase:p2 train_loss:4.9567 train_time:156161ms step_avg:195.20ms
+step:1000/2600 phase:p2 train_loss:4.7187 train_time:193509ms step_avg:193.51ms
+step:1200/2600 phase:p2 train_loss:4.6376 train_time:230913ms step_avg:192.43ms
+step:1300/2600 val_loss:4.5090 val_bpb:2.7137 train_time:249610ms step_avg:192.01ms
+step:1400/2600 phase:p2 train_loss:4.6057 train_time:273451ms step_avg:195.32ms
+step:1600/2600 phase:p2 train_loss:4.4482 train_time:321110ms step_avg:200.69ms
+step:1800/2600 phase:p2 train_loss:4.2861 train_time:369079ms step_avg:205.04ms
+step:2000/2600 phase:p2 train_loss:4.3032 train_time:416965ms step_avg:208.48ms
+step:2200/2600 phase:p2 train_loss:3.9958 train_time:465023ms step_avg:211.37ms
+step:2400/2600 phase:p2 train_loss:4.3020 train_time:512927ms step_avg:213.72ms
+step:2556/2600 val_loss:4.1915 val_bpb:2.5226 train_time:550247ms step_avg:215.28ms
+stopping_early: wallclock_cap train_time:550247ms step:2556/2600
+peak memory allocated: 34182 MiB reserved: 52914 MiB
