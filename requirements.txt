@@ -8,3 +8,5 @@ typing-extensions==4.15.0
 datasets
 tiktoken
 sentencepiece
+einops
+comet-ml

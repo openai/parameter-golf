@@ -1,0 +1,11 @@
+{
+  "name": "PTQ int6-attn + int5-mlp, L=20, mlp=5",
+  "val_loss": 1.3286,
+  "val_bpb_full_precision": 1.2827,
+  "val_bpb_quantized": 1.3286,
+  "bytes_total": 15416793,
+  "blurb": "20 layers, model_dim=256, MLP mult=5, GQA 8/4 heads. PTQ with int6 attention weights and int5 MLP weights. Muon+Adam optimizer with trapezoid LR schedule. Int8+zlib compressed checkpoint at 15MB. Trained ~4500 steps in 10 minutes",
+  "author": "vasilievpavel",
+  "github_id": "vasilievpavel",
+  "date": "2026-04-11"
+}
