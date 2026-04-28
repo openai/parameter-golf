@@ -1,0 +1,11 @@
+{
+  "author": "Aldo Giambuzzi",
+  "github_id": "Heron4gf",
+  "name": "Masked Text Diffusion (Unlimited Compute)",
+  "blurb": "Experimental 20-minute 8xH100 run for discrete text diffusion. Uses bidirectional attention, dynamic noise scaling (t), and INT6 quantization with selective pruning to hit 16MB. Evaluated via a custom 1/t-weighted Masked Reconstruction Score rather than standard causal BPB.",
+  "date": "2026-04-12T00:00:00Z",
+  "val_loss": 5.05955591,
+  "val_bpb": 2.99655400,
+  "bytes_total": 16671343,
+  "bytes_code": 87571
+}
