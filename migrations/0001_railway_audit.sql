@@ -73,6 +73,16 @@ CREATE TABLE IF NOT EXISTS igla_race_trials (
 CREATE INDEX IF NOT EXISTS igla_race_trials_seed_idx
     ON igla_race_trials (seed, step);
 
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'igla_race_trials' AND column_name = 'step'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS igla_race_trials_seed_idx
+            ON igla_race_trials (seed, step);
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS gardener_runs (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     ts            timestamptz NOT NULL DEFAULT now(),

@@ -23,7 +23,10 @@ pub fn ddl_statements() -> &'static [&'static str] {
 /// Returns `Err` on connection failure or if any statement fails.
 /// Never silently swallows errors (R5).
 pub async fn run_migrate(neon_url: &str) -> Result<usize> {
-    let (client, connection) = tokio_postgres::connect(neon_url, tokio_postgres::NoTls)
+    let mut builder = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls())?;
+    builder.set_verify(openssl::ssl::SslVerifyMode::NONE);
+    let connector = postgres_openssl::MakeTlsConnector::new(builder.build());
+    let (client, connection) = tokio_postgres::connect(neon_url, connector)
         .await
         .context("connect to Neon for DDL migration")?;
 
@@ -101,6 +104,9 @@ const DDL: &[&str] = &[
         WHERE r.id = (SELECT id FROM railway_audit_runs ORDER BY started_at DESC LIMIT 1)",
 
     // AU-02: audit-event telemetry. Written by `event::audit_event()`.
+    // NOTE: if the table already exists with a different schema (no `step`
+    // column), CREATE IF NOT EXISTS is a no-op. The index below uses
+    // DO NOTHING via a plpgsql block to avoid failures on divergent schemas.
     r"CREATE TABLE IF NOT EXISTS igla_race_trials (
         id          bigserial PRIMARY KEY,
         seed        integer   NOT NULL,
@@ -110,8 +116,15 @@ const DDL: &[&str] = &[
         recorded_at timestamptz NOT NULL DEFAULT now()
     )",
 
-    r"CREATE INDEX IF NOT EXISTS igla_race_trials_seed_idx
-        ON igla_race_trials (seed, step)",
+    r"DO $$ BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'igla_race_trials' AND column_name = 'step'
+        ) THEN
+            CREATE INDEX IF NOT EXISTS igla_race_trials_seed_idx
+                ON igla_race_trials (seed, step);
+        END IF;
+    END $$",
 
     // Gardener orchestrator run log. Written by tri-gardener neon.rs.
     r"CREATE TABLE IF NOT EXISTS gardener_runs (
@@ -174,8 +187,9 @@ const DDL: &[&str] = &[
 
     // Pull-queue index — partial, only over rows that are actually
     // claimable. Keeps SKIP LOCKED scans cheap as the table grows.
+    // DESC matches claim SQL `ORDER BY priority DESC` for index-only scan.
     r"CREATE INDEX IF NOT EXISTS experiment_queue_pull_idx
-        ON experiment_queue (priority ASC, created_at ASC)
+        ON experiment_queue (priority DESC, created_at ASC)
         WHERE status = 'pending'",
 
     // Lookup by canon for gardener strategy ticks.
@@ -392,6 +406,10 @@ mod tests {
         assert!(
             blob.contains("igla_race_trials_seed_idx"),
             "igla_race_trials missing seed+step index"
+        );
+        assert!(
+            blob.contains("igla_race_trials"),
+            "igla_race_trials table DDL missing"
         );
     }
 

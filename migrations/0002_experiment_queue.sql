@@ -43,8 +43,9 @@ CREATE TABLE IF NOT EXISTS experiment_queue (
 
 -- Pull-queue index — partial, only over rows that are actually
 -- claimable. Keeps SKIP LOCKED scans cheap as the table grows.
+-- DESC matches claim SQL `ORDER BY priority DESC` for index-only scan.
 CREATE INDEX IF NOT EXISTS experiment_queue_pull_idx
-    ON experiment_queue (priority ASC, created_at ASC)
+    ON experiment_queue (priority DESC, created_at ASC)
     WHERE status = 'pending';
 
 -- Lookup by canon for gardener strategy ticks.
