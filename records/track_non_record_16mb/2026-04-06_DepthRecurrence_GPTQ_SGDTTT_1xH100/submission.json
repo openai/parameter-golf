@@ -1,0 +1,17 @@
+{
+  "name": "7-Block Depth Recurrence + GPTQ + SGD All-Weights TTT (1xH100)",
+  "author": "swapp1990",
+  "github_id": "swapp1990",
+  "date": "2026-04-06",
+  "val_bpb": 1.1172,
+  "val_loss": 1.905,
+  "pre_quant_val_bpb": 1.129,
+  "step_stop": 7926,
+  "wallclock_seconds": 4850,
+  "gpu": "1xH100 PCIe (RunPod)",
+  "track": "non-record-16mb",
+  "bytes_total": 15380366,
+  "bytes_model": 15380366,
+  "bytes_code": 0,
+  "blurb": "7 unique transformer blocks (dim=624, 8 heads, 4 KV heads) with depth recurrence (middle 3 shared 3x = 13 effective layers), XSA on all layers, SwiGLU 3x MLP, SmearGate, U-Net skips, Muon optimizer. GPTQ post-training quantization with Hessian-compensated rounding (int5 MLP, int6 attn, int8 embed, zstd-22). SGD all-weights TTT at eval (lr=0.005, momentum=0.9, chunk=2048, score_cap=2048). 46 experiments over 2 weeks. Progression: 1.2987 -> 1.1573 -> 1.1290 -> 1.1172."
+}
