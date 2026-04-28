@@ -1,0 +1,11 @@
+{
+  "author": "aravhawk",
+  "github_id": "aravhawk",
+  "name": "13L Int4-Packed MLP GPTQ + XSA-all + BigramHash 3072x112",
+  "blurb": "13 layers (first beyond 11) funded by true int4 bit-packing for MLP (2 values per byte, halving raw storage before LZMA). Full Hessian GPTQ with AR self-generated calibration, int4 for MLP (clip_range=7), int6 for attention (clip_range=31). XSA on all 13 layers, LeakyReLU(0.5)^2, BigramHash(3072,112), Parallel Muon, EMA(0.997), LZMA preset=9. NUM_LAYERS=14 for stretch goal. Built on abaybektursun SOTA (1.1147 bpb at 11L).",
+  "date": "2026-04-06",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null
+}
