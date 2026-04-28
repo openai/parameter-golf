@@ -159,6 +159,10 @@ enum ServiceCmd {
 enum AuditCmd {
     /// Print idempotent DDL for the Neon schema (issue #6).
     MigrateSql,
+    /// Apply idempotent DDL directly to Neon via `NEON_DATABASE_URL`.
+    /// Every statement is CREATE IF NOT EXISTS / CREATE OR REPLACE, so
+    /// re-running is always safe.
+    Migrate,
     /// Run an online audit pass: list services, detect drift, compute Gate-2
     /// verdict, seal an R7 triplet to the experience log. Exit codes:
     /// 0 = Gate-2 PASS, 1 = drift detected (error severity), 2 = NOT YET.
@@ -260,6 +264,14 @@ async fn main() -> Result<()> {
             for stmt in migrations::ddl_statements() {
                 println!("{stmt};");
             }
+        }
+        Cmd::Audit {
+            sub: AuditCmd::Migrate,
+        } => {
+            let neon_url = std::env::var("NEON_DATABASE_URL")
+                .map_err(|_| anyhow::anyhow!("NEON_DATABASE_URL not set"))?;
+            let count = migrations::run_migrate(&neon_url).await?;
+            println!("applied {count} DDL statements to Neon");
         }
         Cmd::Audit {
             sub:
