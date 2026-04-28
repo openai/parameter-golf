@@ -14,6 +14,7 @@ Tests:
 The tests here use a tiny synthetic vocab so they run on CPU in seconds.
 """
 import sys
+import math
 import importlib.util
 from pathlib import Path
 
@@ -33,6 +34,8 @@ ns = {"torch": torch, "F": F, "math": __import__("math")}
 exec(src[start:end], ns)
 NGramMixer = ns["NGramMixer"]
 BatchUnigramMixer = ns["BatchUnigramMixer"]
+TokenPPMMixer = ns["TokenPPMMixer"]
+_PPMContext = ns["_PPMContext"]
 TemperatureScaler = ns["TemperatureScaler"]
 
 
@@ -338,6 +341,153 @@ def test_temp_c4_monotonic():
     return True, "C4 TemperatureScaler state monotonically grows"
 
 
+# ---------------- TokenPPMMixer (V2 PPM-D) tests ----------------
+
+def _fresh_ppm(V=64, K=2, lo=0.05, hi=0.9, conf=0.9):
+    return TokenPPMMixer(vocab_size=V, max_order=K, device=torch.device("cpu"),
+                         lambda_lo=lo, lambda_hi=hi, conf_threshold=conf)
+
+
+def _ppm_warm(m, T=500, seed=0):
+    """Stream T tokens with some embedded repetition motifs to populate ctx tables."""
+    torch.manual_seed(seed)
+    motif_a = [3, 7, 11, 13]  # short repeating phrase
+    out = []
+    while len(out) < T:
+        if len(out) % 17 == 0:
+            out.extend(motif_a)
+        else:
+            out.append(int(torch.randint(0, m.V, (1,)).item()))
+    out = out[:T + 1]
+    x = torch.tensor(out[:-1], dtype=torch.int64)
+    y = torch.tensor(out[1:], dtype=torch.int64)
+    m.update_stream(x, y)
+    return x, y
+
+
+def test_ppm_c1_future_invariance():
+    """Position t score must not change when y[>t] is permuted."""
+    V = 32
+    m = _fresh_ppm(V=V)
+    _ppm_warm(m, T=200)
+    x = torch.randint(0, V, (64,), dtype=torch.int64)
+    y = torch.randint(0, V, (64,), dtype=torch.int64)
+    nll_nn = torch.rand(64) * 5
+    s_a = m.mix_nll(x, y, nll_nn).clone()
+    y_b = y.clone(); y_b[32:] = y[32:].flip(dims=[0])
+    s_b = m.mix_nll(x, y_b, nll_nn)
+    ok = torch.allclose(s_a[:32], s_b[:32], atol=0, rtol=0)
+    return ok, "PPM C1: positions 0..31 unchanged when y[32:] permuted"
+
+
+def test_ppm_c2_full_normalized():
+    """Build P_K(·|prev) over all V symbols; must sum to 1."""
+    V = 16
+    m = _fresh_ppm(V=V, K=2)
+    _ppm_warm(m, T=200)
+    prev = [3, 7]
+    nll_nn = torch.zeros(1)
+    s = 0.0
+    for sym in range(V):
+        p, _ = m._predict(prev, sym)
+        s += p
+    ok = abs(s - 1.0) < 1e-6
+    return ok, f"PPM C2: sum_x P_K(x|prev) = {s:.10f} (must be 1.0)"
+
+
+def test_ppm_c3_target_independence_of_lambda():
+    """The binary-lambda gate is determined by confidence at the deepest matched
+    context — depends only on prev, not on the realized target."""
+    V = 32
+    m = _fresh_ppm(V=V)
+    _ppm_warm(m, T=200)
+    prev = [11, 7, 3]  # arbitrary
+    # Re-derive the gate twice for two different targets — should be the same.
+    _, conf_a = m._predict(prev, 0)
+    _, conf_b = m._predict(prev, V - 1)
+    ok = (conf_a == conf_b)  # should be bitwise equal
+    return ok, "PPM C3: lambda-gate confidence is identical for any target choice"
+
+
+def test_ppm_c3_no_mutation_in_mix():
+    """mix_nll must not modify ctx tables."""
+    V = 32
+    m = _fresh_ppm(V=V)
+    _ppm_warm(m, T=100)
+    snap = [{k: (e.total, e.unique, dict(e.counts)) for k, e in tbl.items()}
+            for tbl in m.ctx]
+    x = torch.randint(0, V, (32,), dtype=torch.int64)
+    y = torch.randint(0, V, (32,), dtype=torch.int64)
+    nll_nn = torch.rand(32) * 3
+    _ = m.mix_nll(x, y, nll_nn)
+    after = [{k: (e.total, e.unique, dict(e.counts)) for k, e in tbl.items()}
+             for tbl in m.ctx]
+    ok = (snap == after)
+    return ok, "PPM C3: mix_nll does not mutate ctx tables"
+
+
+def test_ppm_c4_monotonic_state():
+    """ctx total counts strictly grow across update_stream calls."""
+    V = 32
+    m = _fresh_ppm(V=V)
+    totals_seen = []
+    for step in range(5):
+        torch.manual_seed(step)
+        x = torch.randint(0, V, (40,), dtype=torch.int64)
+        y = torch.randint(0, V, (40,), dtype=torch.int64)
+        m.update_stream(x, y)
+        # uni table = ctx[0][()].total
+        uni_total = m.ctx[0].get((), _PPMContext()).total
+        totals_seen.append(uni_total)
+    ok = all(totals_seen[i] >= totals_seen[i - 1] for i in range(1, len(totals_seen)))
+    return ok, f"PPM C4: monotonic uni totals {totals_seen}"
+
+
+def test_ppm_lambda_extremes():
+    """Sanity: with lambda_hi=lambda_lo=1.0, mixture reduces to NN exactly."""
+    V = 32
+    m = _fresh_ppm(V=V, lo=1.0, hi=1.0, conf=0.9)
+    _ppm_warm(m, T=80)
+    x = torch.randint(0, V, (16,), dtype=torch.int64)
+    y = torch.randint(0, V, (16,), dtype=torch.int64)
+    nll_nn = torch.rand(16) * 3
+    out = m.mix_nll(x, y, nll_nn)
+    ok = torch.allclose(out, nll_nn, atol=1e-4)
+    return ok, "PPM sanity: lambda=1 collapses to NN nll exactly"
+
+
+def test_ppm_helps_on_repetition():
+    """End-to-end functional test: on a stream with strong repetition motifs,
+    PPM mixture should reduce NLL vs the NN-only baseline.
+
+    Setup: NN gives ~uniform predictions; stream has strong bigram/trigram
+    repetition. PPM-D order=2 should pick up the repetition and beat
+    baseline. Chunked processing (W=32) mirrors real eval batch boundaries
+    so the mixer's state actually accumulates between chunks."""
+    V = 32
+    W = 32  # chunk size — mimics real eval batch granularity
+    m = _fresh_ppm(V=V, K=2, lo=0.05, hi=0.9, conf=0.5)
+    motif = [5, 11, 17] * 100 + [3, 7, 13] * 60
+    stream = motif + motif
+    x = torch.tensor(stream[:-1], dtype=torch.int64)
+    y = torch.tensor(stream[1:], dtype=torch.int64)
+    nll_nn = torch.full_like(x, math.log(V), dtype=torch.float32)
+
+    # Process in W-sized chunks: score, then update state, then move on.
+    T = x.shape[0]
+    out = torch.zeros_like(nll_nn)
+    for s in range(0, T, W):
+        e = min(s + W, T)
+        out[s:e] = m.mix_nll(x[s:e], y[s:e], nll_nn[s:e])
+        m.update_stream(x[s:e], y[s:e])
+
+    base_total = float(nll_nn.sum().item())
+    mix_total = float(out.sum().item())
+    improvement = base_total - mix_total
+    ok = improvement > 200.0  # ~0.4 nats/token on a strongly repetitive stream
+    return ok, f"PPM helps on repetition: NN_nll={base_total:.1f} mix_nll={mix_total:.1f} (improvement {improvement:.1f} nats over {T} tokens, {improvement/T:.3f} nats/tok)"
+
+
 def main():
     tests = [
         test_c1_future_invariance,
@@ -356,6 +506,13 @@ def main():
         test_temp_c3_no_update_during_apply,
         test_temp_identity_at_one,
         test_temp_c4_monotonic,
+        test_ppm_c1_future_invariance,
+        test_ppm_c2_full_normalized,
+        test_ppm_c3_target_independence_of_lambda,
+        test_ppm_c3_no_mutation_in_mix,
+        test_ppm_c4_monotonic_state,
+        test_ppm_lambda_extremes,
+        test_ppm_helps_on_repetition,
     ]
     all_ok = True
     for t in tests:

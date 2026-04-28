@@ -330,6 +330,17 @@ class Hyperparameters:
     # Unigram-prior weight inside the Dirichlet smoothing (q_bi prior = q_uni).
     # Disabled for V1 (uniform prior). Re-enable if warmup cost is hurting.
     ngram_mix_use_uni_prior = bool(int(os.environ.get("NGRAM_MIX_USE_UNI_PRIOR", "1")))
+    # Token-level PPM-D mixture (V2 of n-gram mixer). Same Cleary-Witten 1984
+    # escape mechanism as the byte-level PPM cluster (PR #1835/#1850/#1854),
+    # but the distribution lives on the SP token alphabet — clean C2 vs the
+    # contested byte-level cluster (Issue #1872).
+    ppm_mix_enabled = bool(int(os.environ.get("PPM_MIX_ENABLED", "0")))
+    ppm_max_order = int(os.environ.get("PPM_MAX_ORDER", "2"))
+    # Binary-lambda gate: if PPM confidence at deepest matched context >= threshold,
+    # use lambda_lo (mostly trust PPM); otherwise use lambda_hi (mostly trust NN).
+    ppm_lambda_lo = float(os.environ.get("PPM_LAMBDA_LO", "0.05"))
+    ppm_lambda_hi = float(os.environ.get("PPM_LAMBDA_HI", "0.9"))
+    ppm_conf_threshold = float(os.environ.get("PPM_CONF_THRESHOLD", "0.9"))
     # Prefix-only running-NLL conditional temperature scaling (V2 knob, eval-only).
     # T_t = T_base * exp(beta * (running_NLL_avg - REF_NLL)).  Disabled at T_BASE=1
     # & BETA=0 (math identity).  See class TemperatureScaler for legality proof.
@@ -702,6 +713,219 @@ class TemperatureScaler:
         """Accumulate already-scored NLLs into the running stat."""
         self.nll_sum += float(nll_batch.sum().item())
         self.count += int(nll_batch.numel())
+
+
+class _PPMContext:
+    """Lightweight context entry with cached totals for token-level PPM-D.
+
+    Tracks per-context: counts dict (sym -> int), running total, # unique
+    symbols, and current max count (for the PPM-D confidence gate).
+    """
+    __slots__ = ("counts", "total", "unique", "max_count")
+
+    def __init__(self):
+        self.counts = {}
+        self.total = 0
+        self.unique = 0
+        self.max_count = 0
+
+    def add(self, sym):
+        c = self.counts.get(sym, 0) + 1
+        self.counts[sym] = c
+        self.total += 1
+        if c == 1:
+            self.unique += 1
+        if c > self.max_count:
+            self.max_count = c
+
+
+class TokenPPMMixer:
+    """Token-level PPM-D mixture over SP token alphabet (clean C2).
+
+    Reproduces the Cleary-Witten 1984 PPM-D escape mechanism that drives the
+    byte-level PPM cluster (PR #1835/#1850/#1854), but defines the distribution
+    on Σ token (the SP8192 vocab) rather than the 256-byte alphabet.
+
+    Why this is the V2 of NGramMixer:
+      - V1 (NGramMixer above) was a fixed-order bigram with Dirichlet smoothing
+        toward a UNIFORM prior. Cold-start q_bi was uniform → mixing it with
+        the NN added noise. The Day-3 sweep showed every config hurt by
+        +0.058 to +1.27 BPB. Root cause: no backoff.
+      - V2 (this class) uses PPM-D escape between orders K..0..(-1). At any
+        position, q_ppm is well-defined and concentrates on already-seen
+        continuations of the longest matching context. Backoff to shorter
+        contexts whenever a context is unseen, terminating at uniform 1/V
+        only when the order-0 unigram is empty (which is essentially never
+        after the first few tokens).
+
+    Legality (Issue #1017 four conditions):
+
+      C1 (causal): ctx[k][..] only contains counts from tokens already scored.
+         update_stream(...) is called after mix_nll(...) returns.
+
+      C2 (full normalized): For each prefix, the PPM-D recurrence
+            P_o(x) = emit_o(x) + escape_o · P_{o-1}(x)
+         with P_{-1}(x) = 1/V is a normalized distribution over Σ. Convex
+         combination with NN softmax (also over Σ) is normalized. Contrast
+         with the byte-level cluster (#1872) where the alphabet doesn't
+         match the contest's BPB token-LUT.
+
+      C3 (score-before-update): The mixture λ is a binary function of PPM
+         confidence at the deepest matched context, computed BEFORE the
+         realized symbol is observed. q_ppm at the realized symbol is
+         scalar, target-conditioned only on the lookup, not on any future
+         token.
+
+      C4 (single pass): ctx tables grow monotonically; reset() only at BOS.
+
+    See test_ngram_legality.py for unit tests.
+    """
+
+    def __init__(self, vocab_size, max_order, device,
+                 lambda_lo=0.05, lambda_hi=0.9, conf_threshold=0.9):
+        self.V = int(vocab_size)
+        self.K = int(max_order)
+        self.device = device
+        self.lambda_lo = float(lambda_lo)
+        self.lambda_hi = float(lambda_hi)
+        self.conf_threshold = float(conf_threshold)
+        # ctx[k] is dict[ctx_key] -> _PPMContext.
+        # ctx_key for order k is a tuple of length k of the previous k tokens,
+        # except ctx[0] uses the empty tuple () as its single key (unigram).
+        self.ctx = [dict() for _ in range(self.K + 1)]
+
+    def reset(self):
+        for c in self.ctx:
+            c.clear()
+
+    def _ctx_key(self, prev, order):
+        # prev is a tuple of length >= order of the most recent tokens, in
+        # natural (chronological) order. ctx_key is the LAST `order` of them.
+        if order == 0:
+            return ()
+        if len(prev) < order:
+            return None  # not enough history; skip this order
+        return tuple(int(t) for t in prev[-order:])
+
+    def _predict(self, prev, target):
+        """Compute (p_ppm(target), confidence) for one position.
+
+        prev: tuple/list of recent tokens (any length >= 0).
+        target: int in [0, V).
+
+        Returns: (p, confidence) — both python floats.
+          p = P_K(target | prev) by PPM-D recurrence
+          confidence = max-symbol probability at the deepest matched context
+                       (uniform 1/V if no context matched yet)
+        """
+        V = self.V
+        # P_{-1} = uniform
+        p = 1.0 / V
+        conf = 1.0 / V
+        deepest_set = False
+        # Bottom-up recurrence: P_o = emit_o + escape_o * P_{o-1}.
+        # Confidence is the max-symbol probability at the DEEPEST matched
+        # context, so we walk top-down once for confidence, then bottom-up
+        # for the recurrence.
+
+        # Confidence pass: top-down to find deepest match.
+        for order in range(self.K, -1, -1):
+            ck = self._ctx_key(prev, order)
+            if ck is None:
+                continue
+            entry = self.ctx[order].get(ck)
+            if entry is not None and entry.total > 0:
+                conf = entry.max_count / (entry.total + entry.unique)
+                deepest_set = True
+                break
+
+        # Recurrence pass: bottom-up (order 0 -> K).
+        for order in range(0, self.K + 1):
+            ck = self._ctx_key(prev, order)
+            if ck is None:
+                continue
+            entry = self.ctx[order].get(ck)
+            if entry is None or entry.total == 0:
+                # No data at this order -> P_o = P_{o-1} (full escape).
+                continue
+            denom = entry.total + entry.unique
+            tgt_count = entry.counts.get(target, 0)
+            emit = tgt_count / denom
+            escape = entry.unique / denom
+            p = emit + escape * p
+        return p, conf
+
+    def _update_one(self, prev, target):
+        """Insert (prev, target) into all order tables 0..K. Caller must
+        ensure this happens AFTER scoring (C3)."""
+        for order in range(0, self.K + 1):
+            ck = self._ctx_key(prev, order)
+            if ck is None:
+                continue
+            e = self.ctx[order].get(ck)
+            if e is None:
+                e = _PPMContext()
+                self.ctx[order][ck] = e
+            e.add(target)
+
+    @torch.no_grad()
+    def mix_nll(self, x, y, nll_nn):
+        """Compute mixed NLL for a flat sequence.
+
+        x: (T,) int64 — context tokens; x[t] is the immediate prev (= y[t-1])
+        y: (T,) int64 — realized targets
+        nll_nn: (T,) float — -log p_NN(y[t])
+
+        Returns: (T,) float, mixed NLL with same dtype as nll_nn.
+        State NOT updated; caller must call update_stream after.
+        """
+        T = int(x.shape[0])
+        # Move to CPU lists once to avoid per-token GPU sync.
+        x_cpu = x.detach().cpu().tolist()
+        y_cpu = y.detach().cpu().tolist()
+        nll_nn_f = nll_nn.detach().cpu().to(torch.float32).numpy()
+
+        # Recent-prev ring of length K. Initialized empty so first K positions
+        # use whatever shorter-order match they can.
+        # We score using the K tokens preceding position t in the natural stream.
+        # Pos t's "prev" is x[t] (most recent), x[t-1], ..., x[t-K+1].
+        # If t < K, only the available ones are used.
+
+        out = nll_nn.detach().clone().to(torch.float32)
+        out_cpu = out.cpu().numpy()
+
+        for t in range(T):
+            # Build prev tuple of length K (most recent K tokens before y[t])
+            lo = max(0, t + 1 - self.K)
+            prev = x_cpu[lo:t + 1]  # x[lo..t] inclusive; length up to K
+            target = y_cpu[t]
+            p_ppm, conf = self._predict(prev, target)
+            # Binary-lambda gate
+            if conf >= self.conf_threshold:
+                lam = self.lambda_lo
+            else:
+                lam = self.lambda_hi
+            # log p_NN(target) = -nll_nn[t]
+            log_p_nn = -float(nll_nn_f[t])
+            p_nn = math.exp(log_p_nn) if log_p_nn > -700 else 0.0
+            p_mix = lam * p_nn + (1.0 - lam) * p_ppm
+            if p_mix <= 0.0:
+                p_mix = 1e-30
+            out_cpu[t] = -math.log(p_mix)
+
+        return torch.from_numpy(out_cpu).to(nll_nn.dtype).to(nll_nn.device)
+
+    @torch.no_grad()
+    def update_stream(self, x, y):
+        """Insert (prev, target) pairs into ctx tables in stream order.
+        Call AFTER mix_nll. Updates respect natural-stream causality."""
+        T = int(x.shape[0])
+        x_cpu = x.detach().cpu().tolist()
+        y_cpu = y.detach().cpu().tolist()
+        for t in range(T):
+            lo = max(0, t + 1 - self.K)
+            prev = x_cpu[lo:t + 1]
+            self._update_one(prev, y_cpu[t])
 
 
 class BatchUnigramMixer:
@@ -2878,6 +3102,19 @@ def _maybe_build_ngram_mixer(h, device):
     )
 
 
+def _maybe_build_ppm_mixer(h, device):
+    if not getattr(h, "ppm_mix_enabled", False):
+        return None
+    return TokenPPMMixer(
+        vocab_size=h.vocab_size,
+        max_order=h.ppm_max_order,
+        device=device,
+        lambda_lo=h.ppm_lambda_lo,
+        lambda_hi=h.ppm_lambda_hi,
+        conf_threshold=h.ppm_conf_threshold,
+    )
+
+
 def _maybe_build_temp_scaler(h):
     if not getattr(h, "temp_scale_enabled", False):
         return None
@@ -2921,6 +3158,14 @@ def eval_val(h, device, val_data, model, forward_logits_fn=None):
     ngram_mixer = _maybe_build_ngram_mixer(h, device)
     # V2 temperature scaler: per-rank prefix-only NLL gate. Identity at T=1, beta=0.
     temp_scaler = _maybe_build_temp_scaler(h)
+    # V3 token-level PPM-D mixer: per-rank PPM-D over token alphabet. Backoff
+    # via Cleary-Witten escape — fixes V1 NGramMixer's cold-start failure mode.
+    # Distribution lives on Σ_token (clean C2 vs the byte-level cluster).
+    ppm_mixer = _maybe_build_ppm_mixer(h, device)
+    # PPM chunk size: state updates every PPM_CHUNK_TOKENS within a batch, so
+    # within-batch repetition can be captured. Default 128 = ~26 sub-chunks
+    # for a 2048-token batch — fast enough in pure Python.
+    ppm_chunk = int(os.environ.get("PPM_CHUNK_TOKENS", "128"))
     with torch.no_grad():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
@@ -2960,6 +3205,17 @@ def eval_val(h, device, val_data, model, forward_logits_fn=None):
                 # state from prior batches), then extend state with this batch.
                 per_token_loss = ngram_mixer.mix_nll(x, y, per_token_loss)
                 ngram_mixer.update_stream(x, y)
+            if ppm_mixer is not None:
+                # PPM-D score-then-update in W-sized sub-chunks so within-batch
+                # repetition is captured. State carries across batches via the
+                # mixer object.
+                T_local = int(x.shape[0])
+                merged = per_token_loss.detach().clone().to(torch.float32)
+                for s in range(0, T_local, ppm_chunk):
+                    e = min(s + ppm_chunk, T_local)
+                    merged[s:e] = ppm_mixer.mix_nll(x[s:e], y[s:e], merged[s:e])
+                    ppm_mixer.update_stream(x[s:e], y[s:e])
+                per_token_loss = merged
             val_loss_sum += per_token_loss.to(torch.float64).sum()
             val_token_count += float(y.numel())
             prev_ids = x
