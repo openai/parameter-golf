@@ -12,7 +12,6 @@ The four phases below are roughly sequential. Keep it light when the moment is l
 ## 1. Assess — where am I?
 
 - **What did I just learn?** One sentence on the result. If "nothing surprising happened," say that — surprise is the signal.
-- **Re-read the session plan.** If `scratch/YYYY-MM-DD_session_planning.md` exists, open it now — especially after finishing the first major chunk the session targeted. The plan was written when context was fresh; rereading it after working through part of it restores the framing the chunk-execution may have eroded. Check: am I still on the plan's main thread, or have I drifted into a side path? If drifted, was the drift earned by what I learned, or am I just doing the obvious-next-thing? Plans are revisable, but only deliberately.
 - **What thread am I on?** Where does this sit in the bigger arc? Is the thread still worth pursuing, or has it played out?
 - **Time and budget.** Glance at wall-clock. Recent rate (experiments per hour, gains per experiment) vs what's left.
 - **Last 5–10 experiments — pattern check.** All same axis? Mostly noise? When was the last clear signal? "More than 5 ago" is a flag.
