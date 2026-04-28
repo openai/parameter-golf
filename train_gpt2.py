@@ -4,10 +4,19 @@ import io
 import lzma
 import math
 import os
-from pathlib import Path
-import random
 import subprocess
 import sys
+
+# Tự động cài đặt thư viện brotli nếu chưa có
+try:
+    import brotli
+except ImportError:
+    print("Installing brotli...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "brotli"])
+    import brotli
+
+from pathlib import Path
+import random
 import time
 import uuid
 
