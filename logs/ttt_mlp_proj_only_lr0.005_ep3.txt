@@ -1,0 +1,5 @@
+=== TTT Variant Eval ===
+param_mode=mlp_proj_only lr=0.005 epochs=3 momentum=0.9 chunk=32768
+val_tokens: 40540160
+ttt_variant: mode=mlp_proj_only params=11534336/35944536 (32.1%) lr=0.005 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=mlp_proj_only lr=0.005 epochs=3 val_bpb=1.08146763 eval_time=288301ms

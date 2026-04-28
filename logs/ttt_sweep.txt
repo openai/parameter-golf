@@ -1,0 +1,141 @@
+========================================
+  TTT Variant Sweep — Tue Apr 28 11:27:25 UTC 2026
+========================================
+
+=== PHASE 1: all params, LR sweep ===
+
+--- all_lr0.003_ep3 ---
+ttt_variant: mode=all params=35944536/35944536 (100.0%) lr=0.003 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=all lr=0.003 epochs=3 val_bpb=1.08124901 eval_time=316828ms
+
+--- all_lr0.005_ep3 ---
+ttt_variant: mode=all params=35944536/35944536 (100.0%) lr=0.005 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=all lr=0.005 epochs=3 val_bpb=1.08103306 eval_time=321859ms
+
+--- all_lr0.007_ep3 ---
+ttt_variant: mode=all params=35944536/35944536 (100.0%) lr=0.007 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=all lr=0.007 epochs=3 val_bpb=1.08091201 eval_time=318346ms
+
+--- all_lr0.005_ep2 ---
+ttt_variant: mode=all params=35944536/35944536 (100.0%) lr=0.005 epochs=2 momentum=0.9 adaptive=False
+RESULT: mode=all lr=0.005 epochs=2 val_bpb=1.08120936 eval_time=248898ms
+
+--- all_lr0.005_ep4 ---
+ttt_variant: mode=all params=35944536/35944536 (100.0%) lr=0.005 epochs=4 momentum=0.9 adaptive=False
+RESULT: mode=all lr=0.005 epochs=4 val_bpb=1.08091854 eval_time=391987ms
+
+=== PHASE 2: late_blocks (L7-10) ===
+
+--- late_blocks_lr0.005_ep3 ---
+ttt_variant: mode=late_blocks params=11550752/35944536 (32.1%) lr=0.005 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks lr=0.005 epochs=3 val_bpb=1.08147132 eval_time=279236ms
+
+--- late_blocks_lr0.01_ep3 ---
+ttt_variant: mode=late_blocks params=11550752/35944536 (32.1%) lr=0.01 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks lr=0.01 epochs=3 val_bpb=1.08125661 eval_time=265839ms
+
+--- late_blocks_lr0.005_ep4 ---
+ttt_variant: mode=late_blocks params=11550752/35944536 (32.1%) lr=0.005 epochs=4 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks lr=0.005 epochs=4 val_bpb=1.08137582 eval_time=316598ms
+
+--- late_blocks_lr0.01_ep4 ---
+ttt_variant: mode=late_blocks params=11550752/35944536 (32.1%) lr=0.01 epochs=4 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks lr=0.01 epochs=4 val_bpb=1.08118376 eval_time=315862ms
+
+=== PHASE 3: no_embeddings ===
+
+--- no_embeddings_lr0.005_ep3 ---
+ttt_variant: mode=no_embeddings params=31750232/35944536 (88.3%) lr=0.005 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=no_embeddings lr=0.005 epochs=3 val_bpb=1.08104054 eval_time=330275ms
+
+--- no_embeddings_lr0.003_ep3 ---
+ttt_variant: mode=no_embeddings params=31750232/35944536 (88.3%) lr=0.003 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=no_embeddings lr=0.003 epochs=3 val_bpb=1.08125064 eval_time=311296ms
+
+=== PHASE 4: loop_blocks (L3-5) ===
+
+--- loop_blocks_lr0.002_ep3 ---
+ttt_variant: mode=loop_blocks params=8656920/35944536 (24.1%) lr=0.002 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=loop_blocks lr=0.002 epochs=3 val_bpb=1.08273013 eval_time=291625ms
+
+--- loop_blocks_lr0.005_ep3 ---
+ttt_variant: mode=loop_blocks params=8656920/35944536 (24.1%) lr=0.005 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=loop_blocks lr=0.005 epochs=3 val_bpb=1.08250082 eval_time=287407ms
+
+=== PHASE 5: control_only ===
+
+--- control_only_lr0.02_ep3 ---
+ttt_variant: mode=control_only params=30808/35944536 (0.1%) lr=0.02 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=control_only lr=0.02 epochs=3 val_bpb=1.08255418 eval_time=311311ms
+
+--- control_only_lr0.05_ep3 ---
+ttt_variant: mode=control_only params=30808/35944536 (0.1%) lr=0.05 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=control_only lr=0.05 epochs=3 val_bpb=1.08264511 eval_time=297031ms
+
+--- control_only_lr0.02_ep5 ---
+
+========================================
+  TTT Sweep Part 2 — Tue Apr 28 12:50:12 UTC 2026
+========================================
+
+=== PHASE 8: late_blocks_6 (L6-10) ===
+
+--- late_blocks_6_lr0.005_ep3 ---
+ttt_variant: mode=late_blocks_6 params=14436392/35944536 (40.2%) lr=0.005 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks_6 lr=0.005 epochs=3 val_bpb=1.08139676 eval_time=284880ms
+
+--- late_blocks_6_lr0.007_ep3 ---
+ttt_variant: mode=late_blocks_6 params=14436392/35944536 (40.2%) lr=0.007 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks_6 lr=0.007 epochs=3 val_bpb=1.08128037 eval_time=268040ms
+
+--- late_blocks_6_lr0.01_ep3 ---
+
+=== PHASE 8 (resumed): late_blocks_6 ===
+
+--- late_blocks_6_lr0.01_ep3 ---
+ttt_variant: mode=late_blocks_6 params=14436392/35944536 (40.2%) lr=0.01 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks_6 lr=0.01 epochs=3 val_bpb=1.08116304 eval_time=270552ms
+
+--- late_blocks_6_lr0.007_ep4 ---
+ttt_variant: mode=late_blocks_6 params=14436392/35944536 (40.2%) lr=0.007 epochs=4 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks_6 lr=0.007 epochs=4 val_bpb=1.08118384 eval_time=329247ms
+
+=== PHASE 9: mlp_proj_only (ByteDance In-Place TTT) ===
+
+--- mlp_proj_only_lr0.005_ep3 ---
+ttt_variant: mode=mlp_proj_only params=11534336/35944536 (32.1%) lr=0.005 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=mlp_proj_only lr=0.005 epochs=3 val_bpb=1.08146763 eval_time=288301ms
+
+--- mlp_proj_only_lr0.007_ep3 ---
+ttt_variant: mode=mlp_proj_only params=11534336/35944536 (32.1%) lr=0.007 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=mlp_proj_only lr=0.007 epochs=3 val_bpb=1.08131109 eval_time=272713ms
+
+--- mlp_proj_only_lr0.01_ep3 ---
+ttt_variant: mode=mlp_proj_only params=11534336/35944536 (32.1%) lr=0.01 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=mlp_proj_only lr=0.01 epochs=3 val_bpb=1.08115352 eval_time=292496ms
+
+--- mlp_proj_only_lr0.005_ep4 ---
+ttt_variant: mode=mlp_proj_only params=11534336/35944536 (32.1%) lr=0.005 epochs=4 momentum=0.9 adaptive=False
+RESULT: mode=mlp_proj_only lr=0.005 epochs=4 val_bpb=1.08133123 eval_time=329076ms
+
+--- mlp_proj_only_lr0.01_ep4 ---
+ttt_variant: mode=mlp_proj_only params=11534336/35944536 (32.1%) lr=0.01 epochs=4 momentum=0.9 adaptive=False
+RESULT: mode=mlp_proj_only lr=0.01 epochs=4 val_bpb=1.08102625 eval_time=329074ms
+
+=== PHASE 10: all lr=0.007 ep=4/5 (combined best) ===
+
+--- all_lr0.007_ep4 ---
+ttt_variant: mode=all params=35944536/35944536 (100.0%) lr=0.007 epochs=4 momentum=0.9 adaptive=False
+RESULT: mode=all lr=0.007 epochs=4 val_bpb=1.08082512 eval_time=396923ms
+
+--- all_lr0.007_ep5 ---
+ttt_variant: mode=all params=35944536/35944536 (100.0%) lr=0.007 epochs=5 momentum=0.9 adaptive=False
+RESULT: mode=all lr=0.007 epochs=5 val_bpb=1.08079274 eval_time=469670ms
+
+--- all_lr0.01_ep3 ---
+ttt_variant: mode=all params=35944536/35944536 (100.0%) lr=0.01 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=all lr=0.01 epochs=3 val_bpb=1.08082014 eval_time=325059ms
+
+========================================
+  Sweep 2 complete — Tue Apr 28 14:22:30 UTC 2026
+========================================

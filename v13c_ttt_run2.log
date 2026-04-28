@@ -1,0 +1,473 @@
+========================================
+  v13c: TTT on bankless (first test)
+  TTT_ENABLED=1, VE stripped
+  TTT params filtered to large matrices only
+========================================
+W0427 22:21:17.538000 110549 torch/distributed/run.py:803] 
+W0427 22:21:17.538000 110549 torch/distributed/run.py:803] *****************************************
+W0427 22:21:17.538000 110549 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0427 22:21:17.538000 110549 torch/distributed/run.py:803] *****************************************
+logs/v13c_ttt.txt
+val_bpb:enabled tokenizer_kind=sentencepiece vocab_size=8192 meta_path=None
+train_loader:dataset:fineweb10B_sp8192 train_shards:128
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40538112
+model_params:36341337
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+sliding_window_attn:layers=[0, 1, 2, 3, 4, 5] window_size=256 full_attn_layers=5
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:4096 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:8.9999 val_bpb:3.4841 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:9.0023 train_time:122ms step_avg:122.44ms
+step:2/20000 train_loss:9.7058 train_time:223ms step_avg:111.53ms
+step:3/20000 train_loss:9.9587 train_time:329ms step_avg:109.58ms
+step:4/20000 train_loss:9.6502 train_time:434ms step_avg:108.60ms
+step:5/20000 train_loss:9.2525 train_time:541ms step_avg:108.10ms
+step:6/20000 train_loss:8.9311 train_time:647ms step_avg:107.76ms
+step:7/20000 train_loss:8.4644 train_time:753ms step_avg:107.59ms
+step:8/20000 train_loss:7.9046 train_time:860ms step_avg:107.53ms
+step:9/20000 train_loss:7.8301 train_time:966ms step_avg:107.38ms
+step:10/20000 train_loss:7.5896 train_time:1076ms step_avg:107.58ms
+step:500/20000 train_loss:3.2961 train_time:54025ms step_avg:108.05ms
+step:1000/20000 train_loss:3.0157 train_time:108368ms step_avg:108.37ms
+step:1500/20000 train_loss:3.2439 train_time:162667ms step_avg:108.44ms
+step:2000/20000 train_loss:3.0725 train_time:216937ms step_avg:108.47ms
+step:2500/20000 train_loss:3.2067 train_time:271151ms step_avg:108.46ms
+looping:activated step:2767 time:300053ms encoder:[0, 1, 2, 3, 4, 5] decoder:[4, 5, 6, 7, 8, 9, 10]
+step:3000/20000 train_loss:2.9057 train_time:341706ms step_avg:113.90ms
+step:3500/20000 train_loss:3.0366 train_time:403259ms step_avg:115.22ms
+step:4000/20000 train_loss:2.9280 train_time:464806ms step_avg:116.20ms
+step:4000/20000 val_loss:2.9239 val_bpb:1.1319 train_time:464810ms step_avg:116.20ms
+swa:start step:4350
+step:4500/20000 train_loss:2.9504 train_time:526368ms step_avg:116.97ms
+late_qat:enabled step:4528 scale:0.1499
+step:5000/20000 train_loss:2.7714 train_time:588335ms step_avg:117.67ms
+step:5094/20000 val_loss:2.8177 val_bpb:1.0908 train_time:600043ms step_avg:117.79ms
+stopping_early: wallclock_cap train_time:600043ms step:5094/20000
+peak memory allocated: 29529 MiB reserved: 30430 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.8152 val_bpb:1.0898 eval_time:1944ms
+Serialized model: 136325631 bytes
+Code size: 108460 bytes
+gptq:looping_active=True for calibration (recur_layers=4,5)
+gptq:registered embedding Hessian hook on final_norm
+gptq:collecting hessians from training data (256 batches)...
+gptq:collected hessians for 67 layers in 59.7s
+gptq:collected embedding Hessian from 256 batches
+prune: 25778119 candidates of 31719424 total weights, unpruned=15.11MB target=15.2MB
+prune: already fits, no pruning needed
+Serialized model int6+brotli: 15737268 bytes
+Total submission size int6+brotli: 15845728 bytes
+eval: looping_active=True (recur_layers=4,5)
+final_int6_roundtrip val_loss:2.8558 val_bpb:1.1056 eval_time:8878ms
+final_int6_roundtrip_exact val_loss:2.85577599 val_bpb:1.10555604
+ttt:starting lr=0.005 epochs=3 chunk=32768 momentum=0.9
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/train_v13.py", line 2209, in <module>
+[rank5]:     main()
+[rank5]:   File "/workspace/parameter-golf/train_v13.py", line 2171, in main
+[rank5]:     ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+[rank5]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_v13.py", line 1292, in eval_val_sliding_ttt
+[rank5]:     loss = base_model(x, y)
+[rank5]:            ^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_v13.py", line 1064, in forward
+[rank5]:     x = self._run_blocks(x, x0, input_ids, ve_cache)
+[rank5]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_v13.py", line 1040, in _run_blocks
+[rank5]:     x, raw_v = self.blocks[bi](x, x0, v_embed=ve, v0=v0, attn_input_override=attn_override)
+[rank5]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_v13.py", line 870, in forward
+[rank5]:     attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, v_embed=v_embed, v0=v0)
+[rank5]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_v13.py", line 745, in forward
+[rank5]:     q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+[rank5]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_v13.py", line 673, in apply_rotary_emb
+[rank5]:     x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+[rank5]:                         ~~~^~~~~
+[rank5]: RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/train_v13.py", line 2209, in <module>
+[rank3]:     main()
+[rank3]:   File "/workspace/parameter-golf/train_v13.py", line 2171, in main
+[rank3]:     ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+[rank3]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_v13.py", line 1292, in eval_val_sliding_ttt
+[rank3]:     loss = base_model(x, y)
+[rank3]:            ^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_v13.py", line 1064, in forward
+[rank3]:     x = self._run_blocks(x, x0, input_ids, ve_cache)
+[rank3]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_v13.py", line 1040, in _run_blocks
+[rank3]:     x, raw_v = self.blocks[bi](x, x0, v_embed=ve, v0=v0, attn_input_override=attn_override)
+[rank3]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_v13.py", line 870, in forward
+[rank3]:     attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, v_embed=v_embed, v0=v0)
+[rank3]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_v13.py", line 745, in forward
+[rank3]:     q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+[rank3]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_v13.py", line 673, in apply_rotary_emb
+[rank3]:     x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+[rank3]:                         ~~~^~~~~
+[rank3]: RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/train_v13.py", line 2209, in <module>
+[rank7]:     main()
+[rank7]:   File "/workspace/parameter-golf/train_v13.py", line 2171, in main
+[rank7]:     ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+[rank7]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_v13.py", line 1292, in eval_val_sliding_ttt
+[rank7]:     loss = base_model(x, y)
+[rank7]:            ^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_v13.py", line 1064, in forward
+[rank7]:     x = self._run_blocks(x, x0, input_ids, ve_cache)
+[rank7]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_v13.py", line 1040, in _run_blocks
+[rank7]:     x, raw_v = self.blocks[bi](x, x0, v_embed=ve, v0=v0, attn_input_override=attn_override)
+[rank7]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_v13.py", line 870, in forward
+[rank7]:     attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, v_embed=v_embed, v0=v0)
+[rank7]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_v13.py", line 745, in forward
+[rank7]:     q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+[rank7]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_v13.py", line 673, in apply_rotary_emb
+[rank7]:     x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+[rank7]:                         ~~~^~~~~
+[rank7]: RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/train_v13.py", line 2209, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/train_v13.py", line 2171, in main
+[rank1]:     ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+[rank1]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_v13.py", line 1292, in eval_val_sliding_ttt
+[rank1]:     loss = base_model(x, y)
+[rank1]:            ^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_v13.py", line 1064, in forward
+[rank1]:     x = self._run_blocks(x, x0, input_ids, ve_cache)
+[rank1]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_v13.py", line 1040, in _run_blocks
+[rank1]:     x, raw_v = self.blocks[bi](x, x0, v_embed=ve, v0=v0, attn_input_override=attn_override)
+[rank1]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_v13.py", line 870, in forward
+[rank1]:     attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, v_embed=v_embed, v0=v0)
+[rank1]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_v13.py", line 745, in forward
+[rank1]:     q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+[rank1]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_v13.py", line 673, in apply_rotary_emb
+[rank1]:     x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+[rank1]:                         ~~~^~~~~
+[rank1]: RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/train_v13.py", line 2209, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/train_v13.py", line 2171, in main
+[rank2]:     ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+[rank2]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_v13.py", line 1292, in eval_val_sliding_ttt
+[rank2]:     loss = base_model(x, y)
+[rank2]:            ^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_v13.py", line 1064, in forward
+[rank2]:     x = self._run_blocks(x, x0, input_ids, ve_cache)
+[rank2]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_v13.py", line 1040, in _run_blocks
+[rank2]:     x, raw_v = self.blocks[bi](x, x0, v_embed=ve, v0=v0, attn_input_override=attn_override)
+[rank2]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_v13.py", line 870, in forward
+[rank2]:     attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, v_embed=v_embed, v0=v0)
+[rank2]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_v13.py", line 745, in forward
+[rank2]:     q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+[rank2]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_v13.py", line 673, in apply_rotary_emb
+[rank2]:     x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+[rank2]:                         ~~~^~~~~
+[rank2]: RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/train_v13.py", line 2209, in <module>
+[rank4]:     main()
+[rank4]:   File "/workspace/parameter-golf/train_v13.py", line 2171, in main
+[rank4]:     ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+[rank4]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_v13.py", line 1292, in eval_val_sliding_ttt
+[rank4]:     loss = base_model(x, y)
+[rank4]:            ^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_v13.py", line 1064, in forward
+[rank4]:     x = self._run_blocks(x, x0, input_ids, ve_cache)
+[rank4]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_v13.py", line 1040, in _run_blocks
+[rank4]:     x, raw_v = self.blocks[bi](x, x0, v_embed=ve, v0=v0, attn_input_override=attn_override)
+[rank4]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_v13.py", line 870, in forward
+[rank4]:     attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, v_embed=v_embed, v0=v0)
+[rank4]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_v13.py", line 745, in forward
+[rank4]:     q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+[rank4]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_v13.py", line 673, in apply_rotary_emb
+[rank4]:     x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+[rank4]:                         ~~~^~~~~
+[rank4]: RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/train_v13.py", line 2209, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/parameter-golf/train_v13.py", line 2171, in main
+[rank6]:     ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+[rank6]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_v13.py", line 1292, in eval_val_sliding_ttt
+[rank6]:     loss = base_model(x, y)
+[rank6]:            ^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_v13.py", line 1064, in forward
+[rank6]:     x = self._run_blocks(x, x0, input_ids, ve_cache)
+[rank6]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_v13.py", line 1040, in _run_blocks
+[rank6]:     x, raw_v = self.blocks[bi](x, x0, v_embed=ve, v0=v0, attn_input_override=attn_override)
+[rank6]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_v13.py", line 870, in forward
+[rank6]:     attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, v_embed=v_embed, v0=v0)
+[rank6]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_v13.py", line 745, in forward
+[rank6]:     q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+[rank6]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_v13.py", line 673, in apply_rotary_emb
+[rank6]:     x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+[rank6]:                         ~~~^~~~~
+[rank6]: RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/train_v13.py", line 2209, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/train_v13.py", line 2171, in main
+[rank0]:     ttt_val_loss, ttt_val_bpb = eval_val_sliding_ttt(
+[rank0]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_v13.py", line 1292, in eval_val_sliding_ttt
+[rank0]:     loss = base_model(x, y)
+[rank0]:            ^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_v13.py", line 1064, in forward
+[rank0]:     x = self._run_blocks(x, x0, input_ids, ve_cache)
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_v13.py", line 1040, in _run_blocks
+[rank0]:     x, raw_v = self.blocks[bi](x, x0, v_embed=ve, v0=v0, attn_input_override=attn_override)
+[rank0]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_v13.py", line 870, in forward
+[rank0]:     attn_out, raw_v = self.attn(self.attn_norm(attn_src) * self.ln_scale_factor, v_embed=v_embed, v0=v0)
+[rank0]:                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_v13.py", line 745, in forward
+[rank0]:     q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+[rank0]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_v13.py", line 673, in apply_rotary_emb
+[rank0]:     x_rope = torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+[rank0]:                         ~~~^~~~~
+[rank0]: RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.
+[rank0]:[W427 22:36:57.213110753 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0427 22:36:58.221000 110549 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 110620 closing signal SIGTERM
+W0427 22:36:58.224000 110549 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 110622 closing signal SIGTERM
+W0427 22:36:58.225000 110549 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 110623 closing signal SIGTERM
+W0427 22:36:58.226000 110549 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 110624 closing signal SIGTERM
+W0427 22:36:58.228000 110549 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 110625 closing signal SIGTERM
+W0427 22:36:58.229000 110549 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 110626 closing signal SIGTERM
+W0427 22:36:58.230000 110549 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 110627 closing signal SIGTERM
+E0427 22:36:59.273000 110549 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 1 (pid: 110621) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_v13.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-27_22:36:58
+  host      : 88b16af2e394
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 110621)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

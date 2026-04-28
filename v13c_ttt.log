@@ -1,0 +1,213 @@
+W0427 22:45:45.293000 113334 torch/distributed/run.py:803] 
+W0427 22:45:45.293000 113334 torch/distributed/run.py:803] *****************************************
+W0427 22:45:45.293000 113334 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0427 22:45:45.293000 113334 torch/distributed/run.py:803] *****************************************
+logs/v13c_ttt.txt
+val_bpb:enabled tokenizer_kind=sentencepiece vocab_size=8192 meta_path=None
+train_loader:dataset:fineweb10B_sp8192 train_shards:128
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40538112
+model_params:36341337
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+sliding_window_attn:layers=[0, 1, 2, 3, 4, 5] window_size=256 full_attn_layers=5
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:4096 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:8.9999 val_bpb:3.4841 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:9.0023 train_time:123ms step_avg:122.77ms
+step:2/20000 train_loss:9.7058 train_time:223ms step_avg:111.64ms
+step:3/20000 train_loss:9.9587 train_time:329ms step_avg:109.70ms
+step:4/20000 train_loss:9.6503 train_time:435ms step_avg:108.87ms
+step:5/20000 train_loss:9.2527 train_time:541ms step_avg:108.29ms
+step:6/20000 train_loss:8.9310 train_time:648ms step_avg:107.94ms
+step:7/20000 train_loss:8.4644 train_time:754ms step_avg:107.70ms
+step:8/20000 train_loss:7.9047 train_time:861ms step_avg:107.64ms
+step:9/20000 train_loss:7.8300 train_time:968ms step_avg:107.56ms
+step:10/20000 train_loss:7.5897 train_time:1078ms step_avg:107.78ms
+step:500/20000 train_loss:3.3009 train_time:54189ms step_avg:108.38ms
+step:1000/20000 train_loss:3.0133 train_time:108639ms step_avg:108.64ms
+step:1500/20000 train_loss:3.2391 train_time:163016ms step_avg:108.68ms
+step:2000/20000 train_loss:3.0692 train_time:217434ms step_avg:108.72ms
+step:2500/20000 train_loss:3.2005 train_time:271684ms step_avg:108.67ms
+looping:activated step:2762 time:300068ms encoder:[0, 1, 2, 3, 4, 5] decoder:[4, 5, 6, 7, 8, 9, 10]
+step:3000/20000 train_loss:2.9040 train_time:341865ms step_avg:113.95ms
+step:3500/20000 train_loss:3.0385 train_time:403466ms step_avg:115.28ms
+step:4000/20000 train_loss:2.9260 train_time:465039ms step_avg:116.26ms
+step:4000/20000 val_loss:2.9234 val_bpb:1.1317 train_time:465044ms step_avg:116.26ms
+swa:start step:4350
+step:4500/20000 train_loss:2.9503 train_time:526673ms step_avg:117.04ms
+late_qat:enabled step:4525 scale:0.1500
+step:5000/20000 train_loss:2.7714 train_time:588658ms step_avg:117.73ms
+step:5092/20000 val_loss:2.8174 val_bpb:1.0907 train_time:600077ms step_avg:117.85ms
+stopping_early: wallclock_cap train_time:600077ms step:5092/20000
+peak memory allocated: 29529 MiB reserved: 30430 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.8149 val_bpb:1.0897 eval_time:1947ms
+Serialized model: 136325631 bytes
+Code size: 108645 bytes
+gptq:looping_active=True for calibration (recur_layers=4,5)
+gptq:registered embedding Hessian hook on final_norm
+gptq:collecting hessians from training data (256 batches)...
+gptq:collected hessians for 67 layers in 58.1s
+gptq:collected embedding Hessian from 256 batches
+prune: 25777942 candidates of 31719424 total weights, unpruned=15.11MB target=15.2MB
+prune: already fits, no pruning needed
+Serialized model int6+brotli: 15734966 bytes
+Total submission size int6+brotli: 15843611 bytes
+eval: looping_active=True (recur_layers=4,5)
+final_int6_roundtrip val_loss:2.8586 val_bpb:1.1067 eval_time:8827ms
+final_int6_roundtrip_exact val_loss:2.85863178 val_bpb:1.10666160
+ttt:starting lr=0.005 epochs=3 chunk=32768 momentum=0.9
+  ttt:chunk 0/1238 lr=0.005000
+  ttt:chunk 10/1238 lr=0.004999
+  ttt:chunk 20/1238 lr=0.004997
+  ttt:chunk 30/1238 lr=0.004993
+  ttt:chunk 40/1238 lr=0.004987
+  ttt:chunk 50/1238 lr=0.004980
+  ttt:chunk 60/1238 lr=0.004971
+  ttt:chunk 70/1238 lr=0.004961
+  ttt:chunk 80/1238 lr=0.004949
+  ttt:chunk 90/1238 lr=0.004935
+  ttt:chunk 100/1238 lr=0.004920
+  ttt:chunk 110/1238 lr=0.004903
+  ttt:chunk 120/1238 lr=0.004885
+  ttt:chunk 130/1238 lr=0.004865
+  ttt:chunk 140/1238 lr=0.004844
+  ttt:chunk 150/1238 lr=0.004821
+  ttt:chunk 160/1238 lr=0.004796
+  ttt:chunk 170/1238 lr=0.004771
+  ttt:chunk 180/1238 lr=0.004743
+  ttt:chunk 190/1238 lr=0.004715
+  ttt:chunk 200/1238 lr=0.004684
+  ttt:chunk 210/1238 lr=0.004653
+  ttt:chunk 220/1238 lr=0.004620
+  ttt:chunk 230/1238 lr=0.004585
+  ttt:chunk 240/1238 lr=0.004550
+  ttt:chunk 250/1238 lr=0.004513
+  ttt:chunk 260/1238 lr=0.004474
+  ttt:chunk 270/1238 lr=0.004435
+  ttt:chunk 280/1238 lr=0.004394
+  ttt:chunk 290/1238 lr=0.004352
+  ttt:chunk 300/1238 lr=0.004309
+  ttt:chunk 310/1238 lr=0.004264
+  ttt:chunk 320/1238 lr=0.004219
+  ttt:chunk 330/1238 lr=0.004172
+  ttt:chunk 340/1238 lr=0.004124
+  ttt:chunk 350/1238 lr=0.004076
+  ttt:chunk 360/1238 lr=0.004026
+  ttt:chunk 370/1238 lr=0.003975
+  ttt:chunk 380/1238 lr=0.003923
+  ttt:chunk 390/1238 lr=0.003871
+  ttt:chunk 400/1238 lr=0.003817
+  ttt:chunk 410/1238 lr=0.003763
+  ttt:chunk 420/1238 lr=0.003708
+  ttt:chunk 430/1238 lr=0.003652
+  ttt:chunk 440/1238 lr=0.003595
+  ttt:chunk 450/1238 lr=0.003537
+  ttt:chunk 460/1238 lr=0.003479
+  ttt:chunk 470/1238 lr=0.003421
+  ttt:chunk 480/1238 lr=0.003361
+  ttt:chunk 490/1238 lr=0.003301
+  ttt:chunk 500/1238 lr=0.003241
+  ttt:chunk 510/1238 lr=0.003180
+  ttt:chunk 520/1238 lr=0.003119
+  ttt:chunk 530/1238 lr=0.003057
+  ttt:chunk 540/1238 lr=0.002995
+  ttt:chunk 550/1238 lr=0.002933
+  ttt:chunk 560/1238 lr=0.002870
+  ttt:chunk 570/1238 lr=0.002807
+  ttt:chunk 580/1238 lr=0.002744
+  ttt:chunk 590/1238 lr=0.002681
+  ttt:chunk 600/1238 lr=0.002617
+  ttt:chunk 610/1238 lr=0.002554
+  ttt:chunk 620/1238 lr=0.002490
+  ttt:chunk 630/1238 lr=0.002427
+  ttt:chunk 640/1238 lr=0.002364
+  ttt:chunk 650/1238 lr=0.002300
+  ttt:chunk 660/1238 lr=0.002237
+  ttt:chunk 670/1238 lr=0.002174
+  ttt:chunk 680/1238 lr=0.002111
+  ttt:chunk 690/1238 lr=0.002049
+  ttt:chunk 700/1238 lr=0.001986
+  ttt:chunk 710/1238 lr=0.001924
+  ttt:chunk 720/1238 lr=0.001863
+  ttt:chunk 730/1238 lr=0.001801
+  ttt:chunk 740/1238 lr=0.001741
+  ttt:chunk 750/1238 lr=0.001681
+  ttt:chunk 760/1238 lr=0.001621
+  ttt:chunk 770/1238 lr=0.001562
+  ttt:chunk 780/1238 lr=0.001503
+  ttt:chunk 790/1238 lr=0.001445
+  ttt:chunk 800/1238 lr=0.001388
+  ttt:chunk 810/1238 lr=0.001331
+  ttt:chunk 820/1238 lr=0.001276
+  ttt:chunk 830/1238 lr=0.001221
+  ttt:chunk 840/1238 lr=0.001167
+  ttt:chunk 850/1238 lr=0.001113
+  ttt:chunk 860/1238 lr=0.001061
+  ttt:chunk 870/1238 lr=0.001010
+  ttt:chunk 880/1238 lr=0.000959
+  ttt:chunk 890/1238 lr=0.000910
+  ttt:chunk 900/1238 lr=0.000861
+  ttt:chunk 910/1238 lr=0.000814
+  ttt:chunk 920/1238 lr=0.000767
+  ttt:chunk 930/1238 lr=0.000722
+  ttt:chunk 940/1238 lr=0.000678
+  ttt:chunk 950/1238 lr=0.000635
+  ttt:chunk 960/1238 lr=0.000594
+  ttt:chunk 970/1238 lr=0.000553
+  ttt:chunk 980/1238 lr=0.000514
+  ttt:chunk 990/1238 lr=0.000476
+  ttt:chunk 1000/1238 lr=0.000439
+  ttt:chunk 1010/1238 lr=0.000404
+  ttt:chunk 1020/1238 lr=0.000370
+  ttt:chunk 1030/1238 lr=0.000338
+  ttt:chunk 1040/1238 lr=0.000306
+  ttt:chunk 1050/1238 lr=0.000277
+  ttt:chunk 1060/1238 lr=0.000248
+  ttt:chunk 1070/1238 lr=0.000222
+  ttt:chunk 1080/1238 lr=0.000196
+  ttt:chunk 1090/1238 lr=0.000172
+  ttt:chunk 1100/1238 lr=0.000150
+  ttt:chunk 1110/1238 lr=0.000129
+  ttt:chunk 1120/1238 lr=0.000110
+  ttt:chunk 1130/1238 lr=0.000092
+  ttt:chunk 1140/1238 lr=0.000075
+  ttt:chunk 1150/1238 lr=0.000061
+  ttt:chunk 1160/1238 lr=0.000048
+  ttt:chunk 1170/1238 lr=0.000036
+  ttt:chunk 1180/1238 lr=0.000026
+  ttt:chunk 1190/1238 lr=0.000018
+  ttt:chunk 1200/1238 lr=0.000011
+  ttt:chunk 1210/1238 lr=0.000006
+  ttt:chunk 1220/1238 lr=0.000002
+  ttt:chunk 1230/1238 lr=0.000000
+final_int6_ttt val_loss:4.5252 val_bpb:1.7519 stride:64 eval_time:570688ms
+final_int6_ttt_exact val_loss:4.52521245 val_bpb:1.75191883
+hf_upload:failed Client error '401 Unauthorized' for url 'https://huggingface.co/api/repos/create' (Request ID: Root=1-69efecfa-56b782234467a16611ff5ab0;fcd5c0f1-bf60-4076-8c6d-b20837f76566)
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+Invalid username or password.

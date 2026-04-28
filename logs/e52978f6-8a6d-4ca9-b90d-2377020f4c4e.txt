@@ -1,0 +1,8 @@
+=== Baseline (no PKO) ===
+Baseline sliding: val_bpb=1.10265756 time=95.3s
+
+=== PKO all layers ===
+PKO all layers sliding: val_bpb=1.67607264 time=139.7s
+
+=== PKO encoder layers only ===
+PKO encoder-only sliding: val_bpb=1.33918085 time=137.5s

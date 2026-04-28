@@ -1,0 +1,86 @@
+Packed code size estimate: 16600 bytes
+Cap: 16,000,000 bytes
+Available for model: 15,983,400 bytes
+Loaded final_model.pt
+Quantizable matrices: 66
+  blocks.0.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.0.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.0.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.0.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.0.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.0.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.1.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.1.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.1.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.1.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.1.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.1.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.2.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.2.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.2.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.2.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.2.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.2.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.3.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.3.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.3.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.3.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.3.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.3.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.4.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.4.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.4.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.4.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.4.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.4.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.5.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.5.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.5.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.5.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.5.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.5.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.6.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.6.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.6.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.6.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.6.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.6.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.7.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.7.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.7.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.7.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.7.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.7.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.8.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.8.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.8.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.8.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.8.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.8.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.9.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.9.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.9.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.9.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.9.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.9.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+  blocks.10.attn.c_q.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.10.attn.c_k.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.10.attn.c_v.weight: torch.Size([256, 512]) (131,072 params)
+  blocks.10.attn.proj.weight: torch.Size([512, 512]) (262,144 params)
+  blocks.10.mlp.fc.weight: torch.Size([2048, 512]) (1,048,576 params)
+  blocks.10.mlp.proj.weight: torch.Size([512, 2048]) (1,048,576 params)
+
+Collecting Hessians...
+Hessians collected in 8.7s
+
+===== PHASE 1: BASELINE (all int6) =====
+Baseline: model=15,976,953 total=15,993,553 margin=+6,447
+Baseline BPB (sliding): 1.08673217
+
+===== PHASE 2: SENSITIVITY SCAN (int6 -> int7) =====
+matrix                                       params  extra_bytes          bpb       gain          eff
+----------------------------------------------------------------------------------------------------
+blocks.0.attn.c_q.weight                    262,144      +32,964         OVER         --           --
+blocks.0.attn.c_k.weight                    131,072      +16,536         OVER         --           --
+blocks.0.attn.c_v.weight                    131,072      +16,568         OVER         --           --
+blocks.0.attn.proj.weight                   262,144      +33,178         OVER         --           --

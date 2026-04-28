@@ -1,0 +1,655 @@
+W0428 16:51:22.856000 332334 torch/distributed/run.py:803] 
+W0428 16:51:22.856000 332334 torch/distributed/run.py:803] *****************************************
+W0428 16:51:22.856000 332334 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0428 16:51:22.856000 332334 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/qat_run1.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  qat_enabled: True
+  qat_start_frac: 0.28
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: qat_run1
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 100
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 3
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 2000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 128
+val_tokens: 40540160
+model_params:35944536
+gptq:reserving 12s, effective=588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0090 val_bpb: 3.4877
+1/20000 train_loss: 9.0111 train_time: 0.0m tok/s: 8344832
+2/20000 train_loss: 12.3695 train_time: 0.0m tok/s: 8152986
+3/20000 train_loss: 11.1355 train_time: 0.0m tok/s: 8050982
+4/20000 train_loss: 9.4130 train_time: 0.0m tok/s: 7987425
+5/20000 train_loss: 8.3273 train_time: 0.0m tok/s: 7963848
+100/20000 train_loss: 4.4966 train_time: 0.2m tok/s: 7738310
+200/20000 train_loss: 3.7121 train_time: 0.3m tok/s: 7728165
+300/20000 train_loss: 3.5293 train_time: 0.5m tok/s: 7730067
+400/20000 train_loss: 3.4114 train_time: 0.7m tok/s: 7726873
+500/20000 train_loss: 3.3324 train_time: 0.8m tok/s: 7723015
+600/20000 train_loss: 3.2599 train_time: 1.0m tok/s: 7720315
+700/20000 train_loss: 3.3140 train_time: 1.2m tok/s: 7718138
+800/20000 train_loss: 3.3088 train_time: 1.4m tok/s: 7716472
+900/20000 train_loss: 3.2451 train_time: 1.5m tok/s: 7715767
+1000/20000 train_loss: 3.1956 train_time: 1.7m tok/s: 7715337
+1100/20000 train_loss: 3.2323 train_time: 1.9m tok/s: 7714924
+1200/20000 train_loss: 3.1697 train_time: 2.0m tok/s: 7715351
+1300/20000 train_loss: 3.1605 train_time: 2.2m tok/s: 7715758
+1400/20000 train_loss: 3.2150 train_time: 2.4m tok/s: 7716073
+1500/20000 train_loss: 3.1038 train_time: 2.5m tok/s: 7716300
+1600/20000 train_loss: 3.0928 train_time: 2.7m tok/s: 7717116
+qat:enabled step:1616 frac:0.280 matrix_clip=12.85/31 embed_clip=20.0/127
+1700/20000 train_loss: 3.2441 train_time: 3.4m tok/s: 6515713
+layer_loop:enabled step:1707 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+1800/20000 train_loss: 3.0946 train_time: 4.4m tok/s: 5345573
+1900/20000 train_loss: 3.0495 train_time: 4.7m tok/s: 5340964
+2000/20000 train_loss: 3.0768 train_time: 4.9m tok/s: 5335760
+[rank4]:W0428 16:57:50.753000 332409 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank4]:W0428 16:57:50.753000 332409 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_qat.py:175)
+[rank4]:W0428 16:57:50.753000 332409 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank4]:W0428 16:57:50.753000 332409 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank4]:W0428 16:57:50.753000 332409 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/train_qat.py", line 489, in <module>
+[rank4]:     if __name__=='__main__':main()
+[rank4]:                             ^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_qat.py", line 487, in main
+[rank4]:     train_and_eval(h,device)
+[rank4]:   File "/workspace/parameter-golf/train_qat.py", line 459, in train_and_eval
+[rank4]:     random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+[rank4]:                                                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_qat.py", line 440, in train_model
+[rank4]:     if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
+[rank4]:                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_qat.py", line 340, in eval_val
+[rank4]:     with torch.autocast(device_type='cuda',dtype=torch.bfloat16,enabled=True):batch_loss=model(x,y).detach()
+[rank4]:                                                                                          ^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank4]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank4]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank4]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank4]:     return super().__call__(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank4]:     result = self._torchdynamo_orig_backend(
+[rank4]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank4]:     result = _compile(
+[rank4]:              ^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank4]:     raise FailOnRecompileLimitHit(
+[rank4]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank2]:W0428 16:57:51.329000 332407 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank2]:W0428 16:57:51.329000 332407 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_qat.py:175)
+[rank2]:W0428 16:57:51.329000 332407 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 11
+[rank2]:W0428 16:57:51.329000 332407 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank2]:W0428 16:57:51.329000 332407 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/train_qat.py", line 489, in <module>
+[rank2]:     if __name__=='__main__':main()
+[rank2]:                             ^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_qat.py", line 487, in main
+[rank2]:     train_and_eval(h,device)
+[rank2]:   File "/workspace/parameter-golf/train_qat.py", line 459, in train_and_eval
+[rank2]:     random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+[rank2]:                                                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_qat.py", line 440, in train_model
+[rank2]:     if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
+[rank2]:                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_qat.py", line 340, in eval_val
+[rank2]:     with torch.autocast(device_type='cuda',dtype=torch.bfloat16,enabled=True):batch_loss=model(x,y).detach()
+[rank2]:                                                                                          ^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank2]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank2]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank2]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank2]:     return super().__call__(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank2]:     result = self._torchdynamo_orig_backend(
+[rank2]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank2]:     result = _compile(
+[rank2]:              ^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank2]:     raise FailOnRecompileLimitHit(
+[rank2]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank1]:W0428 16:57:51.351000 332406 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank1]:W0428 16:57:51.351000 332406 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_qat.py:175)
+[rank1]:W0428 16:57:51.351000 332406 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank1]:W0428 16:57:51.351000 332406 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank1]:W0428 16:57:51.351000 332406 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/train_qat.py", line 489, in <module>
+[rank1]:     if __name__=='__main__':main()
+[rank1]:                             ^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_qat.py", line 487, in main
+[rank1]:     train_and_eval(h,device)
+[rank1]:   File "/workspace/parameter-golf/train_qat.py", line 459, in train_and_eval
+[rank1]:     random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+[rank1]:                                                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_qat.py", line 440, in train_model
+[rank1]:     if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
+[rank1]:                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_qat.py", line 340, in eval_val
+[rank1]:     with torch.autocast(device_type='cuda',dtype=torch.bfloat16,enabled=True):batch_loss=model(x,y).detach()
+[rank1]:                                                                                          ^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank1]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank1]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank1]:     return super().__call__(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank1]:     result = self._torchdynamo_orig_backend(
+[rank1]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank1]:     result = _compile(
+[rank1]:              ^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank1]:     raise FailOnRecompileLimitHit(
+[rank1]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank6]:W0428 16:57:51.454000 332411 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank6]:W0428 16:57:51.454000 332411 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_qat.py:175)
+[rank6]:W0428 16:57:51.454000 332411 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank6]:W0428 16:57:51.454000 332411 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank6]:W0428 16:57:51.454000 332411 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/train_qat.py", line 489, in <module>
+[rank6]:     if __name__=='__main__':main()
+[rank6]:                             ^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_qat.py", line 487, in main
+[rank6]:     train_and_eval(h,device)
+[rank6]:   File "/workspace/parameter-golf/train_qat.py", line 459, in train_and_eval
+[rank6]:     random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+[rank6]:                                                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_qat.py", line 440, in train_model
+[rank6]:     if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
+[rank6]:                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_qat.py", line 340, in eval_val
+[rank6]:     with torch.autocast(device_type='cuda',dtype=torch.bfloat16,enabled=True):batch_loss=model(x,y).detach()
+[rank6]:                                                                                          ^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank6]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank6]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank6]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank6]:     return super().__call__(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank6]:     result = self._torchdynamo_orig_backend(
+[rank6]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank6]:     result = _compile(
+[rank6]:              ^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank6]:     raise FailOnRecompileLimitHit(
+[rank6]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank7]:W0428 16:57:51.937000 332412 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank7]:W0428 16:57:51.937000 332412 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_qat.py:175)
+[rank7]:W0428 16:57:51.937000 332412 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 11
+[rank7]:W0428 16:57:51.937000 332412 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank7]:W0428 16:57:51.937000 332412 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/train_qat.py", line 489, in <module>
+[rank7]:     if __name__=='__main__':main()
+[rank7]:                             ^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_qat.py", line 487, in main
+[rank7]:     train_and_eval(h,device)
+[rank7]:   File "/workspace/parameter-golf/train_qat.py", line 459, in train_and_eval
+[rank7]:     random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+[rank7]:                                                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_qat.py", line 440, in train_model
+[rank7]:     if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
+[rank7]:                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_qat.py", line 340, in eval_val
+[rank7]:     with torch.autocast(device_type='cuda',dtype=torch.bfloat16,enabled=True):batch_loss=model(x,y).detach()
+[rank7]:                                                                                          ^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank7]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank7]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank7]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank7]:     return super().__call__(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank7]:     result = self._torchdynamo_orig_backend(
+[rank7]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank7]:     result = _compile(
+[rank7]:              ^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank7]:     raise FailOnRecompileLimitHit(
+[rank7]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank3]:W0428 16:57:51.990000 332408 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank3]:W0428 16:57:51.990000 332408 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_qat.py:175)
+[rank3]:W0428 16:57:51.990000 332408 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank3]:W0428 16:57:51.990000 332408 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank3]:W0428 16:57:51.990000 332408 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/train_qat.py", line 489, in <module>
+[rank3]:     if __name__=='__main__':main()
+[rank3]:                             ^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_qat.py", line 487, in main
+[rank3]:     train_and_eval(h,device)
+[rank3]:   File "/workspace/parameter-golf/train_qat.py", line 459, in train_and_eval
+[rank3]:     random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+[rank3]:                                                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_qat.py", line 440, in train_model
+[rank3]:     if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
+[rank3]:                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_qat.py", line 340, in eval_val
+[rank3]:     with torch.autocast(device_type='cuda',dtype=torch.bfloat16,enabled=True):batch_loss=model(x,y).detach()
+[rank3]:                                                                                          ^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank3]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank3]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank3]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank3]:     return super().__call__(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank3]:     result = self._torchdynamo_orig_backend(
+[rank3]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank3]:     result = _compile(
+[rank3]:              ^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank3]:     raise FailOnRecompileLimitHit(
+[rank3]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank0]:W0428 16:57:52.105000 332405 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0428 16:57:52.105000 332405 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_qat.py:175)
+[rank0]:W0428 16:57:52.105000 332405 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank0]:W0428 16:57:52.105000 332405 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0428 16:57:52.105000 332405 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/train_qat.py", line 489, in <module>
+[rank0]:     if __name__=='__main__':main()
+[rank0]:                             ^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_qat.py", line 487, in main
+[rank0]:     train_and_eval(h,device)
+[rank0]:   File "/workspace/parameter-golf/train_qat.py", line 459, in train_and_eval
+[rank0]:     random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+[rank0]:                                                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_qat.py", line 440, in train_model
+[rank0]:     if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
+[rank0]:                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_qat.py", line 340, in eval_val
+[rank0]:     with torch.autocast(device_type='cuda',dtype=torch.bfloat16,enabled=True):batch_loss=model(x,y).detach()
+[rank0]:                                                                                          ^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank0]:     return super().__call__(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank0]:     result = self._torchdynamo_orig_backend(
+[rank0]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank0]:     result = _compile(
+[rank0]:              ^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank0]:     raise FailOnRecompileLimitHit(
+[rank0]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank5]:W0428 16:57:53.163000 332410 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank5]:W0428 16:57:53.163000 332410 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_qat.py:175)
+[rank5]:W0428 16:57:53.163000 332410 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 11
+[rank5]:W0428 16:57:53.163000 332410 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank5]:W0428 16:57:53.163000 332410 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/train_qat.py", line 489, in <module>
+[rank5]:     if __name__=='__main__':main()
+[rank5]:                             ^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_qat.py", line 487, in main
+[rank5]:     train_and_eval(h,device)
+[rank5]:   File "/workspace/parameter-golf/train_qat.py", line 459, in train_and_eval
+[rank5]:     random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+[rank5]:                                                                                                                                                                                                                                                                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_qat.py", line 440, in train_model
+[rank5]:     if should_validate:torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0);val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
+[rank5]:                                                                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_qat.py", line 340, in eval_val
+[rank5]:     with torch.autocast(device_type='cuda',dtype=torch.bfloat16,enabled=True):batch_loss=model(x,y).detach()
+[rank5]:                                                                                          ^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank5]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank5]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank5]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank5]:     return super().__call__(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1875, in __call__
+[rank5]:     result = self._torchdynamo_orig_backend(
+[rank5]:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank5]:     result = _compile(
+[rank5]:              ^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank5]:     raise FailOnRecompileLimitHit(
+[rank5]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank0]:[W428 16:57:54.588578963 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0428 16:57:55.961000 332334 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 332405 closing signal SIGTERM
+W0428 16:57:55.964000 332334 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 332406 closing signal SIGTERM
+W0428 16:57:55.965000 332334 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 332407 closing signal SIGTERM
+W0428 16:57:55.966000 332334 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 332408 closing signal SIGTERM
+W0428 16:57:55.968000 332334 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 332410 closing signal SIGTERM
+W0428 16:57:55.969000 332334 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 332411 closing signal SIGTERM
+W0428 16:57:55.970000 332334 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 332412 closing signal SIGTERM
+E0428 16:57:57.265000 332334 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 4 (pid: 332409) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_qat.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-28_16:57:55
+  host      : 9640b796624c
+  rank      : 4 (local_rank: 4)
+  exitcode  : 1 (pid: 332409)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

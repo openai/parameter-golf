@@ -1,0 +1,5 @@
+warmup done, starting 3 profiled steps
+profile step 0 done, loss=12.2650
+profile step 1 done, loss=9.2507
+profile step 2 done, loss=8.2819
+profiling done: 3 steps in 95.78s, 24633 tok/s

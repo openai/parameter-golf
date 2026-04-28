@@ -1,0 +1,42 @@
+Packed code size estimate: 16600 bytes
+matrix_clip_sigmas=12.85, embed_clip_sigmas=20.0
+Loaded final_model.pt
+Collecting Hessians...
+Hessians collected in 8.7s
+
+===== PHASE 1: SIZE + BASELINE =====
+  lambda  model_bytes  total_bytes     margin
+--------------------------------------------------
+    0.00   15,976,903   15,993,503     +6,497  OK
+
+--- Evaluating lam0.00 ---
+RESULT: lambda=0.00 val_bpb=1.08697604 total_bytes=15993503 margin=+6497 eval_time=94.4s
+    0.05   15,977,197   15,993,797     +6,203  OK
+
+--- Evaluating lam0.05 ---
+RESULT: lambda=0.05 val_bpb=1.08687918 total_bytes=15993797 margin=+6203 eval_time=94.6s
+    0.10   15,978,085   15,994,685     +5,315  OK
+
+--- Evaluating lam0.10 ---
+RESULT: lambda=0.10 val_bpb=1.08680511 total_bytes=15994685 margin=+5315 eval_time=95.5s
+    0.15   15,979,785   15,996,385     +3,615  OK
+
+--- Evaluating lam0.15 ---
+RESULT: lambda=0.15 val_bpb=1.08676405 total_bytes=15996385 margin=+3615 eval_time=93.9s
+    0.20   15,982,289   15,998,889     +1,111  OK
+
+--- Evaluating lam0.20 ---
+RESULT: lambda=0.20 val_bpb=1.08663881 total_bytes=15998889 margin=+1111 eval_time=93.7s
+    0.30   15,987,921   16,004,521     -4,521  OVER
+  lam0.30: OVER cap, skipping eval
+
+===== SUMMARY =====
+  lambda      val_bpb  total_bytes     margin
+--------------------------------------------------
+    0.20   1.08663881   15,998,889     +1,111
+    0.15   1.08676405   15,996,385     +3,615
+    0.10   1.08680511   15,994,685     +5,315
+    0.05   1.08687918   15,993,797     +6,203
+    0.00   1.08697604   15,993,503     +6,497
+
+Best: lambda=0.20 val_bpb=1.08663881 (+1,111 margin)

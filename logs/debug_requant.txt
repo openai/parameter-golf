@@ -1,0 +1,14 @@
+=== Test 1: original deserialize() ===
+Original deserialize: val_bpb=1.27385398
+
+=== Test 2: manual requant (same sigmas 12.85/20.0) ===
+Collecting hessians...
+Collected 67 hessians
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Manual requant (gptq_mixed_quantize): val_bpb=1.27234193
+
+=== Test 3: brotli roundtrip ===
+Compressed size: 15,976,903 bytes

@@ -1,0 +1,5 @@
+=== TTT Variant Eval ===
+param_mode=late_blocks lr=0.01 epochs=4 momentum=0.9 chunk=32768
+val_tokens: 40540160
+ttt_variant: mode=late_blocks params=11550752/35944536 (32.1%) lr=0.01 epochs=4 momentum=0.9 adaptive=False
+RESULT: mode=late_blocks lr=0.01 epochs=4 val_bpb=1.08118376 eval_time=315862ms

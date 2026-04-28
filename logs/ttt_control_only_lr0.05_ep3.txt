@@ -1,0 +1,5 @@
+=== TTT Variant Eval ===
+param_mode=control_only lr=0.05 epochs=3 momentum=0.9 chunk=32768
+val_tokens: 40540160
+ttt_variant: mode=control_only params=30808/35944536 (0.1%) lr=0.05 epochs=3 momentum=0.9 adaptive=False
+RESULT: mode=control_only lr=0.05 epochs=3 val_bpb=1.08264511 eval_time=297031ms
