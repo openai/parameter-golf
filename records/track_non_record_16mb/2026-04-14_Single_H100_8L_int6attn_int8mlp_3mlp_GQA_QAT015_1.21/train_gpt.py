@@ -45,7 +45,7 @@ class Hyperparameters:
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 4))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5))
     vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
     num_layers = int(os.environ.get("NUM_LAYERS", 7))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
@@ -74,17 +74,18 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.02))
     adam_wd = float(os.environ.get("ADAM_WD", 0.04))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 7))
+    xsa_last_n = int(os.environ.get("XSA_LAST_N", 2))
+    depth_recurrence = int(os.environ.get("DEPTH_RECURRENCE", 1))
     warmdown_last_frac = float(os.environ.get("WARMDOWN_LAST_FRAC", 0.2))
     use_flash_attn_interface = bool(
         int(os.environ.get("USE_FLASH_ATTN_INTERFACE", "1"))
     )
-    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.15))
+    qat_last_frac = float(os.environ.get("QAT_LAST_FRAC", 0.05))
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.005))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 1))
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
-    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 0))
+    ttt_freeze_blocks = int(os.environ.get("TTT_FREEZE_BLOCKS", 4))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
     ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
     ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
@@ -528,7 +529,7 @@ INT6_NAME_PATTERNS = tuple(
         pattern
         for pattern in os.environ.get(
             "INT6_NAME_PATTERNS",
-            "blocks.0.attn.,blocks.1.attn.,blocks.2.attn.",
+            "blocks.0.attn.",
         ).split(",")
         if pattern
     )
@@ -1155,8 +1156,10 @@ class GPT(nn.Module):
         rope_base: float,
         qk_gain_init: float,
         xsa_last_n: int = 0,
+        depth_recurrence: int = 1,
     ):
         super().__init__()
+        self.depth_recurrence = depth_recurrence
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.tie_embeddings = tie_embeddings
@@ -1218,7 +1221,8 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            for _ in range(self.depth_recurrence):
+                x = self.blocks[i](x, x0)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
@@ -1227,7 +1231,8 @@ class GPT(nn.Module):
                     + self.skip_weights[i].to(dtype=x.dtype)[None, None, :]
                     * skips.pop()
                 )
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            for _ in range(self.depth_recurrence):
+                x = self.blocks[self.num_encoder_layers + i](x, x0)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -1350,6 +1355,7 @@ def main() -> None:
             rope_base=args.rope_base,
             qk_gain_init=args.qk_gain_init,
             xsa_last_n=args.xsa_last_n,
+            depth_recurrence=args.depth_recurrence,
         )
         .to(device)
         .bfloat16()
