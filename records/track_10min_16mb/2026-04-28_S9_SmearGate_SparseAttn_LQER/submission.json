@@ -1,0 +1,35 @@
+{
+  "author": "billyli",
+  "github_id": "lijuncheng16",
+  "name": "S9 + SmearGate + Sparse Attention Gate + LQER + Embed7 + Legal Phased TTT",
+  "date": "2026-04-28",
+  "track": "10min_16mb",
+  "val_bpb": 1.07049,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_bpb": 1.07049, "artifact_bytes": 15918882}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "S9 stack + SmearGate + Sparse Attention Gate + LQER (rank-4 int4 asymmetric) + Embed int7 + QK-Gain 5.0 + EMA 0.9965 + WD 0.095 + Phased TTT (Adam, 3-phase cosine) + GPTQ SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false
+  },
+  "attribution": {
+    "base_pr": "PR #1867 (train-gpt-0427 stack)",
+    "s9_base_stack": "S9 leaderboard stack (PR #1493 and ancestors)",
+    "smear_gate": "SmearGate (@aquariouseworkman, PR #1019 ancestors)",
+    "sparse_attn_gate": "Sparse attention gating",
+    "lqer": "LQER asymmetric quantization (rank-4, int4 factors)",
+    "phased_ttt": "Phased TTT with Adam optimizer"
+  }
+}
