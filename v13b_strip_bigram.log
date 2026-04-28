@@ -1,0 +1,89 @@
+W0428 07:54:41.371000 113421 torch/distributed/run.py:803] 
+W0428 07:54:41.371000 113421 torch/distributed/run.py:803] *****************************************
+W0428 07:54:41.371000 113421 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0428 07:54:41.371000 113421 torch/distributed/run.py:803] *****************************************
+logs/v13b_strip_bigram.txt
+val_bpb:enabled tokenizer_kind=sentencepiece vocab_size=8192 meta_path=None
+train_loader:dataset:fineweb10B_sp8192 train_shards:128
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40538112
+model_params:37021275
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+sliding_window_attn:layers=[0, 1, 2, 3, 4, 5] window_size=256 full_attn_layers=5
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:4096 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.0012 val_bpb:3.4846 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:9.0021 train_time:124ms step_avg:123.54ms
+step:2/20000 train_loss:9.7027 train_time:225ms step_avg:112.26ms
+step:3/20000 train_loss:9.9921 train_time:330ms step_avg:110.13ms
+step:4/20000 train_loss:9.5143 train_time:436ms step_avg:109.11ms
+step:5/20000 train_loss:8.9172 train_time:542ms step_avg:108.46ms
+step:6/20000 train_loss:8.6665 train_time:649ms step_avg:108.18ms
+step:7/20000 train_loss:8.3213 train_time:755ms step_avg:107.84ms
+step:8/20000 train_loss:7.8365 train_time:861ms step_avg:107.59ms
+step:9/20000 train_loss:7.8219 train_time:968ms step_avg:107.51ms
+step:10/20000 train_loss:7.5865 train_time:1078ms step_avg:107.77ms
+step:500/20000 train_loss:3.3014 train_time:54147ms step_avg:108.29ms
+step:1000/20000 train_loss:3.0068 train_time:108563ms step_avg:108.56ms
+step:1500/20000 train_loss:3.2384 train_time:162876ms step_avg:108.58ms
+step:2000/20000 train_loss:3.0687 train_time:217092ms step_avg:108.55ms
+step:2500/20000 train_loss:3.1969 train_time:271340ms step_avg:108.54ms
+looping:activated step:2765 time:300033ms encoder:[0, 1, 2, 3, 4, 5] decoder:[4, 5, 6, 7, 8, 9, 10]
+step:3000/20000 train_loss:2.8931 train_time:350251ms step_avg:116.75ms
+step:3500/20000 train_loss:3.0347 train_time:411816ms step_avg:117.66ms
+step:4000/20000 train_loss:2.9201 train_time:473428ms step_avg:118.36ms
+step:4000/20000 val_loss:2.9158 val_bpb:1.1288 train_time:473432ms step_avg:118.36ms
+swa:start step:4300
+late_qat:enabled step:4449 scale:0.1498
+step:4500/20000 train_loss:2.9413 train_time:535161ms step_avg:118.92ms
+step:5000/20000 train_loss:2.7684 train_time:597163ms step_avg:119.43ms
+step:5023/20000 val_loss:2.8172 val_bpb:1.0906 train_time:600028ms step_avg:119.46ms
+stopping_early: wallclock_cap train_time:600028ms step:5023/20000
+peak memory allocated: 29489 MiB reserved: 30412 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.8144 val_bpb:1.0895 eval_time:1944ms
+Serialized model: 137636931 bytes
+Code size: 108645 bytes
+gptq:looping_active=True for calibration (recur_layers=4,5)
+gptq:registered embedding Hessian hook on final_norm
+gptq:collecting hessians from training data (256 batches)...
+gptq:collected hessians for 67 layers in 60.9s
+gptq:collected embedding Hessian from 256 batches
+prune: 25778414 candidates of 31719424 total weights, unpruned=15.47MB target=15.2MB
+prune: zeroing 917238/31719424 weights (2.9%) to fit 15.2MB
+Serialized model int6+brotli: 15829709 bytes
+Total submission size int6+brotli: 15938354 bytes
+eval: looping_active=True (recur_layers=4,5)
+final_int6_roundtrip val_loss:2.8861 val_bpb:1.1173 eval_time:52202ms
+final_int6_roundtrip_exact val_loss:2.88611866 val_bpb:1.11730260
+final_int6_sliding_window val_loss:2.8607 val_bpb:1.1075 stride:64 eval_time:176727ms
+final_int6_sliding_window_exact val_loss:2.86065938 val_bpb:1.10749343
+final_int8_zlib_roundtrip_exact val_loss:2.86065938 val_bpb:1.10749343
+hf_upload:failed Client error '401 Unauthorized' for url 'https://huggingface.co/api/repos/create' (Request ID: Root=1-69f0757f-7db91a2f2334fb9770629353;1a4665bd-72fd-4445-a12c-c0b51a48842e)
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+
+Invalid username or password.
