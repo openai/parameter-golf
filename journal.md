@@ -72,6 +72,20 @@ Parked sub-bets (not the current arc, but worth keeping on radar):
 
 ## Entries (newest first)
 
+## 2026-04-28 · 0080 (dense-attention HSM) · neutral — same training-time bottleneck as 0073
+
+The reviewer's bold-axis pivot, executed: 16 learnable keys × d_model with softmax attention readout, added as residual after the last block. UU#4 PR=5.4 said the natural rank is small; 16 keys should saturate.
+
+**Result**: val 1.95042. vs 0076 single 1.94834 = +0.002 (NEUTRAL within MPS noise). vs 2-seed mean 1.9514 = -0.001 (neutral).
+
+**Why neutral**: same conclusion as 0073's hash-based HSM. 200-step training is insufficient for the value vectors to learn meaningful corrections on top of an already-strong static side memory. The dense attention DOES fix 0073's gradient-sparsity problem (every key gets gradient on every token via softmax mixing — values.grad max abs = 3.4e-04 healthy at step 0), but the bottleneck is TRAINING DURATION, not gradient flow.
+
+This is actually a cleaner negative result than 0073 — it isolates "the side-memory mechanism is BPB-saturated by static information at this regime." Adding ANY learnable structure on top doesn't help because the residual signal the model+static-memory misses requires more than 200 steps to learn.
+
+**For future sessions**: dense-attention HSM is the right design for the (d) candidate, but it needs longer training to manifest. Revisit at H100 20k-step (100× more updates). At that scale the value bank should learn meaningful representations, and the BPB gain estimated from the bandwidth math would be ~-0.005 BPB.
+
+[transfer:low at 200-step; transfer:medium expected at H100]
+
 ## 2026-04-28 · OUTSIDE-EYES CRITIQUE · session drifted from thread-2 exploration to N-gram-axis polish
 
 Reviewer subagent (uncontaminated by my anchoring) flagged:
