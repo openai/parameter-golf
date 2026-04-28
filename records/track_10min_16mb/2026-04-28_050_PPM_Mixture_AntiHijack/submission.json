@@ -1,0 +1,32 @@
+{
+  "author": "leon",
+  "github_id": "leon2k2k2k",
+  "name": "PR #1850 PPM-D Byte Mixture + Anti-Hijack Gate (full val)",
+  "blurb": "Anti-hijack guard on top of PR #1850's PPM-D byte-mixture: high-lambda branch is suppressed when the NN is already confident on the actual byte (-log p_NN < 0.40 bits). Same scoring scheme as #1850, full-val measurement (no subsetting), single-pass scoring with file-based 8-rank gather. Stackable with #1881 / #1877.",
+  "date": "2026-04-28",
+  "track": "10min_16mb",
+  "val_loss": 2.33395,
+  "val_bpb": 0.99445,
+  "val_bpb_std": 0.00141,
+  "val_loss_std": 0.00390,
+  "headline_metric": "ppm_native_submission_val_bpb (PPM-D mixture, anti-hijack gated, full 47.85M val)",
+  "seeds": [42, 7, 1337],
+  "seed_results": {
+    "42":   {"val_loss": 2.32956, "val_bpb": 0.99291, "artifact_bytes": 15917572, "steps": 4952, "gate_high_frac": 0.16384},
+    "7":    {"val_loss": 2.33497, "val_bpb": 0.99471, "artifact_bytes": 15914567, "steps": 4898, "gate_high_frac": 0.16405},
+    "1337": {"val_loss": 2.33733, "val_bpb": 0.99572, "artifact_bytes": 15914752, "steps": 4920, "gate_high_frac": 0.16426}
+  },
+  "artifact_bytes_mean": 15915630,
+  "train_time_s_mean": 596.04,
+  "eval_time_s_mean": 188.0,
+  "hardware": "8xH100 80GB SXM",
+  "ppm_hyperparameters": {
+    "PPM_ORDER": 4,
+    "PPM_LAMBDA_HI": 0.9,
+    "PPM_LAMBDA_LO": 0.05,
+    "PPM_CONF_THRESHOLD": 0.76,
+    "PPM_NN_SKIP_THR_NATS": 0.277,
+    "PPM_OMP_CHUNK_TOKENS": 0
+  },
+  "reproducibility_notes": "CaseOps tokenizer + data prep are unchanged from 2026-04-27_050_PR1797_Base_BOS_Fix. Set PPM_NATIVE_ENABLED=1 plus the hyperparameters above and run train_gpt.py per seed."
+}
