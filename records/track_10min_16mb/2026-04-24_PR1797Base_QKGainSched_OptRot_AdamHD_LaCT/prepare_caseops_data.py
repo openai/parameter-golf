@@ -79,12 +79,21 @@ def _write_shard(out_path: pathlib.Path, arr: np.ndarray) -> None:
         fh.write(arr.tobytes())
 
 
-def _iter_docs(docs_path: pathlib.Path):
-    """Yield doc strings from a jsonl file (one json object per line)."""
+def _iter_docs(docs_path: pathlib.Path, skip: int = 0):
+    """Yield doc strings from a jsonl file (one json object per line).
+
+    If skip > 0, the first ``skip`` non-empty lines are discarded before
+    yielding begins. Use this to continue a prep run from a known offset
+    (e.g. after already writing N shards from the first M docs).
+    """
     with docs_path.open("r", encoding="utf-8") as fh:
+        skipped = 0
         for line in fh:
             line = line.strip()
             if not line:
+                continue
+            if skipped < skip:
+                skipped += 1
                 continue
             obj = json.loads(line)
             # Support both {"text": ...} and raw strings.
@@ -117,6 +126,12 @@ def main() -> None:
     ap.add_argument("--out",  required=True, type=pathlib.Path, help="Output datasets dir")
     ap.add_argument("--sp",   required=True, type=pathlib.Path, help="Path to CaseOps SP model")
     ap.add_argument("--val-docs", type=int, default=10_000, help="Validation docs count")
+    ap.add_argument("--skip-docs", type=int, default=0,
+                    help="Skip first N docs before processing (use to continue a partial run)")
+    ap.add_argument("--start-shard-train", type=int, default=0,
+                    help="Start train shard numbering from this index (use to append to existing shards)")
+    ap.add_argument("--max-docs", type=int, default=0,
+                    help="Stop after processing this many docs (0 = no limit)")
     args = ap.parse_args()
 
     sp = spm.SentencePieceProcessor(model_file=str(args.sp))
@@ -129,10 +144,10 @@ def main() -> None:
     val_buf_bytes: list[int] = []
     train_buf: list[int] = []
     val_written = 0
-    train_written = 0
+    train_written = args.start_shard_train
     n_docs = 0
 
-    for text in _iter_docs(args.docs):
+    for text in _iter_docs(args.docs, skip=args.skip_docs):
         transformed = encode_lossless_caps_v2(text)
         token_ids = [BOS_ID] + sp.encode(transformed, out_type=int)
         if n_docs < args.val_docs:
@@ -159,6 +174,8 @@ def main() -> None:
         n_docs += 1
         if n_docs % 10_000 == 0:
             print(f"  processed {n_docs} docs  train_shards={train_written}  val_shards={val_written}", flush=True)
+        if args.max_docs > 0 and n_docs >= args.max_docs:
+            break
 
     # Flush tail buffers into final (possibly short) shards.
     if val_buf_tokens:
