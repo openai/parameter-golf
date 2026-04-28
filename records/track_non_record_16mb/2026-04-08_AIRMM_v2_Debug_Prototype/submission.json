@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-08",
+  "name": "AIR-MM v2 Debug Prototype",
+  "author": "John McCray",
+  "github_id": "Jmccrayiii",
+  "blurb": "Experimental non-record submission exploring Adaptive Importance Routing Memory Model (AIR-MM). Combines a learned token-importance gate with a positional recency signal through a lightweight combiner to selectively scale residual updates per token. Local fast-debug results (CPU, 128-dim, 4-layer, 10 steps) show stable training and small directional improvements; GPU-scale validation pending. val_bpb below is from FAST_DEBUG only and is not comparable to leaderboard scores.",
+  "val_bpb": 4.0254,
+  "val_loss": 6.8782,
+  "bytes_code": 56994
+}
