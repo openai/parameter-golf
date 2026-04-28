@@ -1,0 +1,43 @@
+{
+  "track": "track_10min_16mb",
+  "date": "2026-04-04",
+  "author": "yahya010",
+  "title": "SLOT-48 + VRL + QK-Gain 4.0 + XSA-11",
+  "val_bpb_mean": 0.7271,
+  "val_bpb_std": 0.0011,
+  "seeds": {
+    "1337": {
+      "val_bpb": 0.7270,
+      "sliding_bpb": 1.1248,
+      "steps": 5698,
+      "artifact_bytes": 15649297
+    },
+    "42": {
+      "val_bpb": 0.7260,
+      "sliding_bpb": 1.1248,
+      "steps": 5701,
+      "artifact_bytes": 15747713
+    },
+    "2025": {
+      "val_bpb": 0.7282,
+      "sliding_bpb": 1.1247,
+      "steps": 5700,
+      "artifact_bytes": 15658677
+    }
+  },
+  "techniques": [
+    "SLOT-48 (48 AdamW steps, lr=0.012->0.001, stride=96)",
+    "VRL (Value Residual Learning, sigmoid-gated interpolation, init=-1.5)",
+    "QK-Gain 4.0 (per-head learnable query scaling)",
+    "XSA all 11 layers",
+    "Hessian GPTQ int6 + LZMA-9",
+    "AR self-gen calibration (64 seqs, temp=0.8)",
+    "EMA(0.997) + SWA + Late QAT",
+    "BigramHash(1024x128)",
+    "U-Net skip connections",
+    "Partial RoPE (16/64 dims)"
+  ],
+  "hardware": "8xH100 SXM 80GB",
+  "train_time_seconds": 600,
+  "eval_time_seconds": 508
+}
