@@ -1,0 +1,11 @@
+{
+  "author": "Artem Buldin",
+  "github_id": "Buld1n",
+  "name": "11L XSA4 + EMA + BigramHash3072 + LZMA",
+  "blurb": "11-layer 512d SP-1024 stack with XSA on the last 4 layers, lrelu2 MLP3x, BigramHash(3072,112), partial RoPE(16), LN scale, VE128, EMA(0.997)+SWA, late QAT@0.15, and int6+lzma export. Canonical 8xH100 SXM run is valid at 15,616,435 bytes and 1.14523122 val_bpb.",
+  "date": "2026-04-05",
+  "val_loss": 1.93366982,
+  "val_bpb": 1.14523122,
+  "bytes_total": 15616435,
+  "bytes_code": 73983
+}
