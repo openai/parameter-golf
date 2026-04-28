@@ -1,12 +1,17 @@
 use pg_model::backward::GradBuffers;
 #[cfg(feature = "cuda")]
 use pg_model::backward::backward_output_loss;
-use pg_model::{ExecutionPlan, ForwardBuffer, GptModel, RunSpec, TrainBackend, VariantFamily};
+use pg_model::{
+    ExecutionPlan, ForwardBuffer, GptModel, ModelComputePrecision, RunSpec, TrainBackend,
+    VariantFamily,
+};
 
 const GRAD_ABS_TOL: f64 = 2e-5;
 const GRAD_REL_TOL: f64 = 5e-2;
 #[cfg(feature = "cuda")]
 const GPU_SLICE_ABS_TOL: f64 = 1e-4;
+#[cfg(feature = "cuda")]
+const GPU_BF16_SLICE_ABS_TOL: f64 = 1e-3;
 
 #[derive(Clone, Copy)]
 enum ParamCheck {
@@ -64,9 +69,11 @@ fn main() {
     let mut backend = TrainBackend::Cpu;
     let mut tokens_override = None;
     let mut eps = 1e-2f32;
+    let mut use_spec_precision = false;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--spec" => spec = args.next(),
+            "--use-spec-precision" => use_spec_precision = true,
             "--builtin" => {
                 if let Some(name) = args.next() {
                     builtin = match name.as_str() {
@@ -93,10 +100,13 @@ fn main() {
         }
     }
 
-    let run_spec = spec
+    let mut run_spec = spec
         .map(std::path::PathBuf::from)
         .map(|p| RunSpec::load(&p).expect("failed to load spec"))
         .unwrap_or_else(|| RunSpec::for_family(builtin));
+    if !use_spec_precision {
+        run_spec.model.compute_precision = ModelComputePrecision::F32Tf32;
+    }
     let plan = ExecutionPlan::from_run_spec(&run_spec).expect("failed to build execution plan");
     let config = run_spec.model.to_model_config();
     let tokens = tokens_override.unwrap_or_else(|| config.train_seq_len.min(8));
@@ -546,7 +556,8 @@ fn run_cuda_output_backward_parity(
     let (x_max_abs_diff, x_mean_abs_diff) = diff_stats_f32(&cpu_grad_pre_norm, &gpu_grad_pre_norm);
     let (tok_emb_max_abs_diff, tok_emb_mean_abs_diff) =
         diff_stats_f32(&cpu_grads.tok_emb, &gpu_tok_emb);
-    let passed = x_max_abs_diff <= GPU_SLICE_ABS_TOL && tok_emb_max_abs_diff <= GPU_SLICE_ABS_TOL;
+    let abs_tol = gpu_slice_abs_tolerance(plan);
+    let passed = x_max_abs_diff <= abs_tol && tok_emb_max_abs_diff <= abs_tol;
 
     Ok(OutputBackwardSummary {
         x_max_abs_diff,
@@ -555,6 +566,15 @@ fn run_cuda_output_backward_parity(
         tok_emb_mean_abs_diff,
         passed,
     })
+}
+
+#[cfg(feature = "cuda")]
+fn gpu_slice_abs_tolerance(plan: &ExecutionPlan) -> f64 {
+    if plan.run_spec.model.compute_precision == ModelComputePrecision::Bf16TensorCore {
+        GPU_BF16_SLICE_ABS_TOL
+    } else {
+        GPU_SLICE_ABS_TOL
+    }
 }
 
 #[cfg(feature = "cuda")]

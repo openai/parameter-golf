@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use cudarc::cublas::CudaBlas;
 use cudarc::cublas::sys::{
@@ -11,6 +11,93 @@ use pg_core::error::{PgError, PgResult};
 pub struct GemmEngine {
     blas: CudaBlas,
     stream: Arc<CudaStream>,
+}
+
+pub fn fast_tf32_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        matches!(
+            std::env::var("PG_CUBLAS_FAST_TF32")
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
+}
+
+pub fn f32_compute_mode_label() -> &'static str {
+    if fast_tf32_enabled() {
+        if force_tensor_op_algo_enabled() {
+            "fast_tf32_tensor_op"
+        } else {
+            "fast_tf32"
+        }
+    } else {
+        "pedantic_f32"
+    }
+}
+
+fn f32_compute_type() -> cublasComputeType_t {
+    if fast_tf32_enabled() {
+        cublasComputeType_t::CUBLAS_COMPUTE_32F_FAST_TF32
+    } else {
+        cublasComputeType_t::CUBLAS_COMPUTE_32F
+    }
+}
+
+fn f32_gemm_algo() -> cublasGemmAlgo_t {
+    if fast_tf32_enabled() && force_tensor_op_algo_enabled() {
+        cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT_TENSOR_OP
+    } else {
+        cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT
+    }
+}
+
+fn bf16_compute_type() -> cublasComputeType_t {
+    if bf16_pedantic_enabled() {
+        cublasComputeType_t::CUBLAS_COMPUTE_32F
+    } else {
+        cublasComputeType_t::CUBLAS_COMPUTE_32F_FAST_16BF
+    }
+}
+
+pub fn bf16_compute_mode_label() -> &'static str {
+    if bf16_pedantic_enabled() {
+        "bf16_pedantic_32f"
+    } else {
+        "fast_16bf_tensor_op"
+    }
+}
+
+fn bf16_gemm_algo() -> cublasGemmAlgo_t {
+    cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT_TENSOR_OP
+}
+
+fn bf16_pedantic_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        matches!(
+            std::env::var("PG_CUBLAS_BF16_PEDANTIC")
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
+}
+
+fn force_tensor_op_algo_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        matches!(
+            std::env::var("PG_CUBLAS_FORCE_TENSOR_OP_ALGO")
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
 }
 
 impl GemmEngine {
@@ -85,8 +172,8 @@ impl GemmEngine {
                 n as i32,
                 stride_c,
                 batch as i32,
-                cublasComputeType_t::CUBLAS_COMPUTE_32F,
-                cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT,
+                f32_compute_type(),
+                f32_gemm_algo(),
             )
             .map_err(|e| PgError::CuBlas(format!("gemm_strided_batched_ex failed: {:?}", e)))?;
         }
@@ -123,8 +210,8 @@ impl GemmEngine {
                 c as *mut _,
                 cudaDataType_t::CUDA_R_32F,
                 n as i32,
-                cublasComputeType_t::CUBLAS_COMPUTE_32F,
-                cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT,
+                f32_compute_type(),
+                f32_gemm_algo(),
             )
             .map_err(|e| PgError::CuBlas(format!("gemm_ex failed: {:?}", e)))?;
         }
@@ -167,8 +254,8 @@ impl GemmEngine {
                 c as *mut _,
                 cudaDataType_t::CUDA_R_32F,
                 n as i32,
-                cublasComputeType_t::CUBLAS_COMPUTE_32F,
-                cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT,
+                f32_compute_type(),
+                f32_gemm_algo(),
             )
             .map_err(|e| PgError::CuBlas(format!("gemm_ex nn failed: {:?}", e)))?;
         }
@@ -211,8 +298,8 @@ impl GemmEngine {
                 c as *mut _,
                 cudaDataType_t::CUDA_R_32F,
                 n as i32,
-                cublasComputeType_t::CUBLAS_COMPUTE_32F,
-                cublasGemmAlgo_t::CUBLAS_GEMM_DEFAULT,
+                f32_compute_type(),
+                f32_gemm_algo(),
             )
             .map_err(|e| PgError::CuBlas(format!("gemm_ex tn failed: {:?}", e)))?;
         }
@@ -249,5 +336,246 @@ impl GemmEngine {
         // Forward uses y[t,out] = x[t,in] @ w[out,in]^T.
         // Backward weight is dw[out,in] += dy[t,out]^T @ x[t,in].
         unsafe { self.matmul_f32_tn(dy, x, dw, out_dim, in_dim, tokens, alpha, beta) }
+    }
+
+    pub unsafe fn matmul_bf16_bt(
+        &self,
+        a: u64,
+        b: u64,
+        c: u64,
+        m: usize,
+        n: usize,
+        k: usize,
+        alpha: f32,
+        beta: f32,
+    ) -> PgResult<()> {
+        // Row-major BF16 forward:
+        //   A [m, k], B [n, k], C [m, n], C = A @ B^T.
+        unsafe {
+            cudarc::cublas::result::gemm_ex(
+                *self.blas.handle(),
+                cublasOperation_t::CUBLAS_OP_T,
+                cublasOperation_t::CUBLAS_OP_N,
+                n as i32,
+                m as i32,
+                k as i32,
+                &alpha as *const f32 as *const _,
+                b as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                k as i32,
+                a as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                k as i32,
+                &beta as *const f32 as *const _,
+                c as *mut _,
+                cudaDataType_t::CUDA_R_16BF,
+                n as i32,
+                bf16_compute_type(),
+                bf16_gemm_algo(),
+            )
+            .map_err(|e| PgError::CuBlas(format!("bf16 gemm_ex bt failed: {:?}", e)))?;
+        }
+        Ok(())
+    }
+
+    pub unsafe fn matmul_bf16_bt_to_f32(
+        &self,
+        a: u64,
+        b: u64,
+        c: u64,
+        m: usize,
+        n: usize,
+        k: usize,
+        alpha: f32,
+        beta: f32,
+    ) -> PgResult<()> {
+        // Row-major BF16 inputs, F32 output:
+        //   A [m, k], B [n, k], C [m, n], C = A @ B^T.
+        unsafe {
+            cudarc::cublas::result::gemm_ex(
+                *self.blas.handle(),
+                cublasOperation_t::CUBLAS_OP_T,
+                cublasOperation_t::CUBLAS_OP_N,
+                n as i32,
+                m as i32,
+                k as i32,
+                &alpha as *const f32 as *const _,
+                b as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                k as i32,
+                a as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                k as i32,
+                &beta as *const f32 as *const _,
+                c as *mut _,
+                cudaDataType_t::CUDA_R_32F,
+                n as i32,
+                bf16_compute_type(),
+                bf16_gemm_algo(),
+            )
+            .map_err(|e| PgError::CuBlas(format!("bf16 gemm_ex bt->f32 failed: {:?}", e)))?;
+        }
+        Ok(())
+    }
+
+    pub unsafe fn matmul_bf16_nn(
+        &self,
+        a: u64,
+        b: u64,
+        c: u64,
+        m: usize,
+        n: usize,
+        k: usize,
+        alpha: f32,
+        beta: f32,
+    ) -> PgResult<()> {
+        // Row-major BF16: C [m, n] = A [m, k] @ B [k, n].
+        unsafe {
+            cudarc::cublas::result::gemm_ex(
+                *self.blas.handle(),
+                cublasOperation_t::CUBLAS_OP_N,
+                cublasOperation_t::CUBLAS_OP_N,
+                n as i32,
+                m as i32,
+                k as i32,
+                &alpha as *const f32 as *const _,
+                b as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                n as i32,
+                a as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                k as i32,
+                &beta as *const f32 as *const _,
+                c as *mut _,
+                cudaDataType_t::CUDA_R_16BF,
+                n as i32,
+                bf16_compute_type(),
+                bf16_gemm_algo(),
+            )
+            .map_err(|e| PgError::CuBlas(format!("bf16 gemm_ex nn failed: {:?}", e)))?;
+        }
+        Ok(())
+    }
+
+    pub unsafe fn matmul_bf16_nn_to_f32(
+        &self,
+        a: u64,
+        b: u64,
+        c: u64,
+        m: usize,
+        n: usize,
+        k: usize,
+        alpha: f32,
+        beta: f32,
+    ) -> PgResult<()> {
+        // Row-major BF16 inputs, F32 output:
+        //   C [m, n] = A [m, k] @ B [k, n].
+        unsafe {
+            cudarc::cublas::result::gemm_ex(
+                *self.blas.handle(),
+                cublasOperation_t::CUBLAS_OP_N,
+                cublasOperation_t::CUBLAS_OP_N,
+                n as i32,
+                m as i32,
+                k as i32,
+                &alpha as *const f32 as *const _,
+                b as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                n as i32,
+                a as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                k as i32,
+                &beta as *const f32 as *const _,
+                c as *mut _,
+                cudaDataType_t::CUDA_R_32F,
+                n as i32,
+                bf16_compute_type(),
+                bf16_gemm_algo(),
+            )
+            .map_err(|e| PgError::CuBlas(format!("bf16 gemm_ex nn->f32 failed: {:?}", e)))?;
+        }
+        Ok(())
+    }
+
+    pub unsafe fn matmul_bf16_tn_to_f32(
+        &self,
+        a: u64,
+        b: u64,
+        c: u64,
+        m: usize,
+        n: usize,
+        k: usize,
+        alpha: f32,
+        beta: f32,
+    ) -> PgResult<()> {
+        // Row-major BF16 inputs, F32 accumulation/output:
+        //   A [k, m], B [k, n], C [m, n], C += A^T @ B.
+        unsafe {
+            cudarc::cublas::result::gemm_ex(
+                *self.blas.handle(),
+                cublasOperation_t::CUBLAS_OP_N,
+                cublasOperation_t::CUBLAS_OP_T,
+                n as i32,
+                m as i32,
+                k as i32,
+                &alpha as *const f32 as *const _,
+                b as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                n as i32,
+                a as *const _,
+                cudaDataType_t::CUDA_R_16BF,
+                m as i32,
+                &beta as *const f32 as *const _,
+                c as *mut _,
+                cudaDataType_t::CUDA_R_32F,
+                n as i32,
+                bf16_compute_type(),
+                bf16_gemm_algo(),
+            )
+            .map_err(|e| PgError::CuBlas(format!("bf16 gemm_ex tn->f32 failed: {:?}", e)))?;
+        }
+        Ok(())
+    }
+
+    pub unsafe fn linear_backward_input_bf16(
+        &self,
+        dy: u64,
+        w: u64,
+        dx: u64,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+        alpha: f32,
+        beta: f32,
+    ) -> PgResult<()> {
+        unsafe { self.matmul_bf16_nn(dy, w, dx, tokens, in_dim, out_dim, alpha, beta) }
+    }
+
+    pub unsafe fn linear_backward_input_bf16_to_f32(
+        &self,
+        dy: u64,
+        w: u64,
+        dx: u64,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+        alpha: f32,
+        beta: f32,
+    ) -> PgResult<()> {
+        unsafe { self.matmul_bf16_nn_to_f32(dy, w, dx, tokens, in_dim, out_dim, alpha, beta) }
+    }
+
+    pub unsafe fn linear_backward_weight_bf16_to_f32(
+        &self,
+        dy: u64,
+        x: u64,
+        dw: u64,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+        alpha: f32,
+        beta: f32,
+    ) -> PgResult<()> {
+        unsafe { self.matmul_bf16_tn_to_f32(dy, x, dw, out_dim, in_dim, tokens, alpha, beta) }
     }
 }

@@ -12,6 +12,7 @@ use std::path::Path;
 
 use pg_core::error::{PgError, PgResult};
 use pg_model::model::GptModel;
+use pg_model::spec::LqerSpec;
 use pg_model::{CompressionMode, QuantScheme, QuantSpec};
 
 use crate::compress::compress_zstd;
@@ -59,6 +60,7 @@ pub fn export_model_with_spec(
         d,
         &scheme.attn_q,
         quant_spec.prune_keep_ratio,
+        &quant_spec.lqer,
     );
     push_packed_group(
         &mut tensors,
@@ -68,6 +70,7 @@ pub fn export_model_with_spec(
         d,
         &scheme.attn_o,
         quant_spec.prune_keep_ratio,
+        &quant_spec.lqer,
     );
 
     let kv_split = n * kv * d;
@@ -79,6 +82,7 @@ pub fn export_model_with_spec(
         d,
         &scheme.attn_k,
         quant_spec.prune_keep_ratio,
+        &quant_spec.lqer,
     );
     push_packed_group(
         &mut tensors,
@@ -88,6 +92,7 @@ pub fn export_model_with_spec(
         d,
         &scheme.attn_v,
         quant_spec.prune_keep_ratio,
+        &quant_spec.lqer,
     );
 
     push_packed_group(
@@ -98,6 +103,7 @@ pub fn export_model_with_spec(
         d,
         &scheme.mlp_up,
         quant_spec.prune_keep_ratio,
+        &quant_spec.lqer,
     );
     push_packed_group(
         &mut tensors,
@@ -107,6 +113,7 @@ pub fn export_model_with_spec(
         mlp,
         &scheme.mlp_down,
         quant_spec.prune_keep_ratio,
+        &quant_spec.lqer,
     );
 
     // 2. Embeddings use their own QuantSpec group because tied output quality
@@ -119,6 +126,7 @@ pub fn export_model_with_spec(
         d,
         &scheme.embed,
         None,
+        &quant_spec.lqer,
     );
 
     // 3. Bigram params → f16
@@ -160,6 +168,12 @@ pub fn export_model_with_spec(
             tensors.push(f16_tensor(
                 &format!("blocks.{}.attn_gate_bias", i),
                 &model.blocks[i].attn_gate_bias,
+            ));
+        }
+        if c.sparse_attn_gate_enabled {
+            tensors.push(f16_tensor(
+                &format!("blocks.{}.sparse_attn_gate_weight", i),
+                &model.blocks[i].sparse_attn_gate_weight,
             ));
         }
     }
@@ -251,8 +265,9 @@ fn push_packed_group(
     cols: usize,
     cfg: &GroupConfig,
     prune_keep_ratio: Option<f32>,
+    lqer: &LqerSpec,
 ) {
-    let packed = if let Some(keep_ratio) = prune_keep_ratio {
+    let quant_source = if let Some(keep_ratio) = prune_keep_ratio {
         let mut pruned = weights.to_vec();
         let prune_cfg = PruneConfig {
             strategy: PruneStrategy::TopKPerRow { keep_ratio },
@@ -263,8 +278,54 @@ fn push_packed_group(
         quantize_with(weights, rows, cols, cfg)
     };
 
-    tensors.push(packed_tensor(&format!("{name}.weight"), &packed));
-    tensors.push(packed_scale_tensor(&format!("{name}.scale"), &packed));
+    if lqer.enabled && lqer.rank > 0 {
+        push_lqer_tensors(tensors, name, weights, &quant_source, lqer);
+    }
+
+    tensors.push(packed_tensor(&format!("{name}.weight"), &quant_source));
+    tensors.push(packed_scale_tensor(&format!("{name}.scale"), &quant_source));
+}
+
+fn push_lqer_tensors(
+    tensors: &mut Vec<SerializedTensor>,
+    name: &str,
+    weights: &[f32],
+    packed: &PackedWeight,
+    lqer: &LqerSpec,
+) {
+    let recon = packed.dequantize();
+    let residual: Vec<f32> = weights
+        .iter()
+        .zip(recon.iter())
+        .map(|(&w, &q)| w - q)
+        .collect();
+    let (a, b) = low_rank_residual_factors(&residual, packed.rows, packed.cols, lqer.rank);
+    let (a_q, a_scales) = quantize_lqer_factor(&a, packed.rows, lqer.rank, lqer.a_bits);
+    let (b_q, b_scales) = quantize_lqer_factor(&b, lqer.rank, packed.cols, lqer.b_bits);
+    tensors.push(quantized_lqer_tensor(
+        &format!("{name}.lqer.a.weight"),
+        &a_q,
+        packed.rows,
+        lqer.rank,
+        lqer.a_bits,
+    ));
+    tensors.push(quantized_lqer_scale_tensor(
+        &format!("{name}.lqer.a.scale"),
+        &a_scales,
+        packed.rows,
+    ));
+    tensors.push(quantized_lqer_tensor(
+        &format!("{name}.lqer.b.weight"),
+        &b_q,
+        lqer.rank,
+        packed.cols,
+        lqer.b_bits,
+    ));
+    tensors.push(quantized_lqer_scale_tensor(
+        &format!("{name}.lqer.b.scale"),
+        &b_scales,
+        lqer.rank,
+    ));
 }
 
 fn packed_tensor(name: &str, packed: &PackedWeight) -> SerializedTensor {
@@ -290,9 +351,183 @@ fn packed_scale_tensor(name: &str, packed: &PackedWeight) -> SerializedTensor {
     }
 }
 
+fn quantized_lqer_tensor(
+    name: &str,
+    quantized: &[i8],
+    rows: usize,
+    cols: usize,
+    nbits: u8,
+) -> SerializedTensor {
+    SerializedTensor {
+        name: name.to_string(),
+        shape: vec![rows, cols],
+        dtype: pg_core::DType::I8,
+        data: pack_signed_nbits(quantized, nbits as usize),
+    }
+}
+
+fn quantized_lqer_scale_tensor(name: &str, scales: &[f32], rows: usize) -> SerializedTensor {
+    let data: Vec<u8> = scales
+        .iter()
+        .flat_map(|&s| half::f16::from_f32(s).to_bits().to_le_bytes())
+        .collect();
+    SerializedTensor {
+        name: name.to_string(),
+        shape: vec![rows],
+        dtype: pg_core::DType::F16,
+        data,
+    }
+}
+
+fn quantize_lqer_factor(
+    weights: &[f32],
+    rows: usize,
+    cols: usize,
+    nbits: u8,
+) -> (Vec<i8>, Vec<f32>) {
+    assert_eq!(weights.len(), rows * cols);
+    assert!((2..=8).contains(&nbits), "unsupported LQER bits: {nbits}");
+    let qmax = qmax_for_nbits(nbits);
+    let qmin = qmin_for_nbits(nbits);
+    let mut q = Vec::with_capacity(weights.len());
+    let mut scales = Vec::with_capacity(rows);
+    for r in 0..rows {
+        let row = &weights[r * cols..(r + 1) * cols];
+        let max_abs = row.iter().fold(0.0f32, |acc, &v| acc.max(v.abs()));
+        let scale = (max_abs / qmax.max(1) as f32).max(1e-8);
+        scales.push(scale);
+        for &v in row {
+            q.push((v / scale).round().clamp(qmin as f32, qmax as f32) as i8);
+        }
+    }
+    (q, scales)
+}
+
+fn low_rank_residual_factors(
+    residual: &[f32],
+    rows: usize,
+    cols: usize,
+    rank: usize,
+) -> (Vec<f32>, Vec<f32>) {
+    assert_eq!(residual.len(), rows * cols);
+    let rank = rank.min(rows).min(cols);
+    let mut work = residual.to_vec();
+    let mut a = vec![0.0f32; rows * rank];
+    let mut b = vec![0.0f32; rank * cols];
+
+    for k in 0..rank {
+        let mut v: Vec<f32> = (0..cols)
+            .map(|i| ((i + 1 + k * 17) as f32 * 0.618_033_9).sin())
+            .collect();
+        normalize(&mut v);
+        let mut u = vec![0.0f32; rows];
+
+        for _ in 0..6 {
+            mat_vec_rows(&work, rows, cols, &v, &mut u);
+            if !normalize(&mut u) {
+                break;
+            }
+            mat_t_vec_cols(&work, rows, cols, &u, &mut v);
+            if !normalize(&mut v) {
+                break;
+            }
+        }
+
+        mat_vec_rows(&work, rows, cols, &v, &mut u);
+        let sigma = dot(&u, &u).sqrt();
+        if sigma <= 1e-10 || !sigma.is_finite() {
+            break;
+        }
+        for value in &mut u {
+            *value /= sigma;
+        }
+        mat_t_vec_cols(&work, rows, cols, &u, &mut v);
+        let sigma = normalize_with_norm(&mut v);
+        if sigma <= 1e-10 || !sigma.is_finite() {
+            break;
+        }
+
+        for r in 0..rows {
+            a[r * rank + k] = u[r] * sigma;
+        }
+        for c in 0..cols {
+            b[k * cols + c] = v[c];
+        }
+
+        for r in 0..rows {
+            let ur_sigma = u[r] * sigma;
+            let row = &mut work[r * cols..(r + 1) * cols];
+            for c in 0..cols {
+                row[c] -= ur_sigma * v[c];
+            }
+        }
+    }
+
+    (a, b)
+}
+
+fn mat_vec_rows(matrix: &[f32], rows: usize, cols: usize, v: &[f32], out: &mut [f32]) {
+    assert_eq!(matrix.len(), rows * cols);
+    assert_eq!(v.len(), cols);
+    assert_eq!(out.len(), rows);
+    for r in 0..rows {
+        out[r] = dot(&matrix[r * cols..(r + 1) * cols], v);
+    }
+}
+
+fn mat_t_vec_cols(matrix: &[f32], rows: usize, cols: usize, u: &[f32], out: &mut [f32]) {
+    assert_eq!(matrix.len(), rows * cols);
+    assert_eq!(u.len(), rows);
+    assert_eq!(out.len(), cols);
+    out.fill(0.0);
+    for r in 0..rows {
+        let ur = u[r];
+        for c in 0..cols {
+            out[c] += matrix[r * cols + c] * ur;
+        }
+    }
+}
+
+fn dot(a: &[f32], b: &[f32]) -> f32 {
+    a.iter().zip(b.iter()).map(|(&x, &y)| x * y).sum()
+}
+
+fn normalize(values: &mut [f32]) -> bool {
+    normalize_with_norm(values) > 1e-10
+}
+
+fn normalize_with_norm(values: &mut [f32]) -> f32 {
+    let norm = values.iter().map(|v| v * v).sum::<f32>().sqrt();
+    if norm <= 1e-10 || !norm.is_finite() {
+        return 0.0;
+    }
+    for v in values {
+        *v /= norm;
+    }
+    norm
+}
+
 fn pack_signed_values(values: &[i8], bits: Bits) -> Vec<u8> {
     let nbits = bits.nbits();
     let qmin = bits.qmin();
+    let mut out = vec![0u8; (values.len() * nbits + 7) / 8];
+    let mut bit_pos = 0usize;
+    for &value in values {
+        let encoded = (value as i32 - qmin) as u32;
+        for b in 0..nbits {
+            if ((encoded >> b) & 1) != 0 {
+                let dst = bit_pos + b;
+                out[dst / 8] |= 1u8 << (dst % 8);
+            }
+        }
+        bit_pos += nbits;
+    }
+    out
+}
+
+fn pack_signed_nbits(values: &[i8], nbits: usize) -> Vec<u8> {
+    assert!((2..=8).contains(&nbits));
+    let qmin = qmin_for_nbits(nbits as u8);
     let mut out = vec![0u8; (values.len() * nbits + 7) / 8];
     let mut bit_pos = 0usize;
     for &value in values {
@@ -327,6 +562,34 @@ fn unpack_signed_values(data: &[u8], count: usize, bits: Bits) -> Vec<i8> {
     out
 }
 
+fn unpack_signed_nbits(data: &[u8], count: usize, nbits: u8) -> Vec<i8> {
+    assert!((2..=8).contains(&nbits));
+    let nbits_usize = nbits as usize;
+    let qmin = qmin_for_nbits(nbits);
+    let mut out = Vec::with_capacity(count);
+    let mut bit_pos = 0usize;
+    for _ in 0..count {
+        let mut encoded = 0u32;
+        for b in 0..nbits_usize {
+            let src = bit_pos + b;
+            if src / 8 < data.len() && (data[src / 8] & (1u8 << (src % 8))) != 0 {
+                encoded |= 1u32 << b;
+            }
+        }
+        out.push((encoded as i32 + qmin) as i8);
+        bit_pos += nbits_usize;
+    }
+    out
+}
+
+fn qmax_for_nbits(nbits: u8) -> i32 {
+    (1i32 << (nbits - 1)) - 1
+}
+
+fn qmin_for_nbits(nbits: u8) -> i32 {
+    -(1i32 << (nbits - 1))
+}
+
 fn metadata_json(
     model: &GptModel,
     quant_spec: &QuantSpec,
@@ -342,11 +605,17 @@ fn metadata_json(
         .map(|v| v.to_string())
         .unwrap_or_else(|| "null".to_string());
     format!(
-        r#"{{"format":"pgrs_quant","version":2,"variant_fingerprint":"{}","scheme":"{:?}","compression":"{:?}","prune_keep_ratio":{},"vocab_size":{},"num_layers":{},"model_dim":{},"num_heads":{},"num_kv_heads":{},"head_dim":{},"mlp_dim":{},"attn_out_gate_enabled":{},"attn_out_gate_width":{},"groups":{{"qo_bank.q":{},"qo_bank.o":{},"kv_bank.k":{},"kv_bank.v":{},"mlp_up_bank":{},"mlp_down_bank":{},"tok_emb":{}}}}}"#,
+        r#"{{"format":"pgrs_quant","version":2,"variant_fingerprint":"{}","scheme":"{:?}","compression":"{:?}","prune_keep_ratio":{},"lqer_enabled":{},"lqer_rank":{},"lqer_a_bits":{},"lqer_b_bits":{},"lqer_group_size":{},"lqer_asymmetric":{},"vocab_size":{},"num_layers":{},"model_dim":{},"num_heads":{},"num_kv_heads":{},"head_dim":{},"mlp_dim":{},"attn_out_gate_enabled":{},"attn_out_gate_width":{},"sparse_attn_gate_enabled":{},"sparse_attn_gate_width":{},"groups":{{"qo_bank.q":{},"qo_bank.o":{},"kv_bank.k":{},"kv_bank.v":{},"mlp_up_bank":{},"mlp_down_bank":{},"tok_emb":{}}}}}"#,
         variant_fingerprint,
         quant_spec.scheme,
         quant_spec.compression,
         prune,
+        if quant_spec.lqer.enabled { 1 } else { 0 },
+        quant_spec.lqer.rank,
+        quant_spec.lqer.a_bits,
+        quant_spec.lqer.b_bits,
+        quant_spec.lqer.group_size,
+        if quant_spec.lqer.asymmetric { 1 } else { 0 },
         c.vocab_size,
         n,
         d,
@@ -356,6 +625,8 @@ fn metadata_json(
         mlp,
         if c.attn_out_gate_enabled { 1 } else { 0 },
         c.attn_out_gate_width,
+        if c.sparse_attn_gate_enabled { 1 } else { 0 },
+        c.sparse_attn_gate_width,
         scheme.attn_q.bits.nbits(),
         scheme.attn_o.bits.nbits(),
         scheme.attn_k.bits.nbits(),
@@ -385,6 +656,11 @@ pub fn load_artifact(path: &Path, model: &mut GptModel) -> PgResult<()> {
         for i in 0..n {
             find_tensor_result(&tensors, &format!("blocks.{i}.attn_gate_weight"))?;
             find_tensor_result(&tensors, &format!("blocks.{i}.attn_gate_bias"))?;
+        }
+    }
+    if c.sparse_attn_gate_enabled {
+        for i in 0..n {
+            find_tensor_result(&tensors, &format!("blocks.{i}.sparse_attn_gate_weight"))?;
         }
     }
 
@@ -531,6 +807,9 @@ pub fn load_artifact(path: &Path, model: &mut GptModel) -> PgResult<()> {
                         "attn_gate_bias" => {
                             f16_into(&tensor.data, &mut model.blocks[idx].attn_gate_bias)
                         }
+                        "sparse_attn_gate_weight" => {
+                            f16_into(&tensor.data, &mut model.blocks[idx].sparse_attn_gate_weight)
+                        }
                         _ => {}
                     }
                 }
@@ -556,7 +835,93 @@ fn dequant_packed_group(
     let scale = find_tensor_result(tensors, &format!("{name}.scale"))?;
     let bits = bits_from_nbits(metadata_group_bits(metadata, name)?);
     dequant_packed_into(&weight.data, &scale.data, rows, cols, bits, dest);
+    apply_lqer_if_present(tensors, metadata, name, rows, cols, dest)?;
     Ok(())
+}
+
+fn apply_lqer_if_present(
+    tensors: &[SerializedTensor],
+    metadata: &str,
+    name: &str,
+    rows: usize,
+    cols: usize,
+    dest: &mut [f32],
+) -> PgResult<()> {
+    let Some(a_weight) = find_tensor_opt(tensors, &format!("{name}.lqer.a.weight")) else {
+        if metadata_usize(metadata, "lqer_enabled").unwrap_or(0) != 0 {
+            return Err(PgError::DataFormat(format!(
+                "artifact metadata enables LQER but tensor {name}.lqer.a.weight is missing"
+            )));
+        }
+        return Ok(());
+    };
+    let a_scale = find_tensor_result(tensors, &format!("{name}.lqer.a.scale"))?;
+    let b_weight = find_tensor_result(tensors, &format!("{name}.lqer.b.weight"))?;
+    let b_scale = find_tensor_result(tensors, &format!("{name}.lqer.b.scale"))?;
+
+    let rank = metadata_usize(metadata, "lqer_rank").unwrap_or(0);
+    if rank == 0 {
+        return Ok(());
+    }
+    if a_weight.shape != vec![rows, rank] {
+        return Err(PgError::DataFormat(format!(
+            "invalid LQER A shape for {name}: expected [{rows}, {rank}], got {:?}",
+            a_weight.shape
+        )));
+    }
+    if b_weight.shape != vec![rank, cols] {
+        return Err(PgError::DataFormat(format!(
+            "invalid LQER B shape for {name}: expected [{rank}, {cols}], got {:?}",
+            b_weight.shape
+        )));
+    }
+
+    let a_bits = metadata_usize(metadata, "lqer_a_bits").unwrap_or(2) as u8;
+    let b_bits = metadata_usize(metadata, "lqer_b_bits").unwrap_or(4) as u8;
+    let a = dequant_lqer_factor(&a_weight.data, &a_scale.data, rows, rank, a_bits)?;
+    let b = dequant_lqer_factor(&b_weight.data, &b_scale.data, rank, cols, b_bits)?;
+
+    for r in 0..rows {
+        for c in 0..cols {
+            let mut correction = 0.0f32;
+            for k in 0..rank {
+                correction += a[r * rank + k] * b[k * cols + c];
+            }
+            dest[r * cols + c] += correction;
+        }
+    }
+    Ok(())
+}
+
+fn dequant_lqer_factor(
+    data: &[u8],
+    scale_data: &[u8],
+    rows: usize,
+    cols: usize,
+    nbits: u8,
+) -> PgResult<Vec<f32>> {
+    if !(2..=8).contains(&nbits) {
+        return Err(PgError::DataFormat(format!(
+            "unsupported LQER bit width: {nbits}"
+        )));
+    }
+    if scale_data.len() != rows * 2 {
+        return Err(PgError::DataFormat(format!(
+            "invalid LQER scale length: expected {}, got {}",
+            rows * 2,
+            scale_data.len()
+        )));
+    }
+    let q = unpack_signed_nbits(data, rows * cols, nbits);
+    let mut out = vec![0.0f32; rows * cols];
+    for r in 0..rows {
+        let scale_bits = u16::from_le_bytes([scale_data[r * 2], scale_data[r * 2 + 1]]);
+        let scale = half::f16::from_bits(scale_bits).to_f32();
+        for c in 0..cols {
+            out[r * cols + c] = q[r * cols + c] as f32 * scale;
+        }
+    }
+    Ok(out)
 }
 
 fn dequant_packed_into(
@@ -622,6 +987,11 @@ fn validate_artifact_metadata(metadata: &str, model: &GptModel) -> PgResult<()> 
                 if c.attn_out_gate_enabled { 1 } else { 0 },
             ),
             ("attn_out_gate_width", c.attn_out_gate_width),
+            (
+                "sparse_attn_gate_enabled",
+                if c.sparse_attn_gate_enabled { 1 } else { 0 },
+            ),
+            ("sparse_attn_gate_width", c.sparse_attn_gate_width),
         ] {
             if let Some(got) = metadata_usize(metadata, key) {
                 if got != expected {
@@ -803,6 +1173,66 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_export_roundtrip_with_lqer_enabled() {
+        let config = small_config();
+        let model = GptModel::new(config.clone());
+        let spec = QuantSpec {
+            scheme: QuantScheme::Aggressive,
+            lqer: LqerSpec {
+                enabled: true,
+                rank: 2,
+                a_bits: 2,
+                b_bits: 4,
+                group_size: 64,
+                asymmetric: true,
+            },
+            ..QuantSpec::default()
+        };
+        let tmp = std::env::temp_dir().join("pg_test_artifact_lqer.pgrs");
+        export_model_with_spec(&model, &spec, "test_lqer", &tmp).unwrap();
+
+        let mut loaded = GptModel::new(config);
+        load_artifact(&tmp, &mut loaded).unwrap();
+        assert_eq!(loaded.qo_bank.len(), model.qo_bank.len());
+        assert!(loaded.qo_bank.iter().all(|v| v.is_finite()));
+        assert!(loaded.mlp_up_bank.iter().all(|v| v.is_finite()));
+        std::fs::remove_file(&tmp).ok();
+    }
+
+    #[test]
+    fn lqer_low_rank_residual_reduces_reconstruction_error() {
+        let rows = 12;
+        let cols = 10;
+        let rank = 2;
+        let weights: Vec<f32> = (0..rows * cols)
+            .map(|i| {
+                let r = i / cols;
+                let c = i % cols;
+                ((r as f32 * 0.37).sin() * (c as f32 * 0.19).cos())
+                    + ((r as f32 * 0.11).cos() * (c as f32 * 0.41).sin() * 0.25)
+            })
+            .collect();
+        let cfg = GroupConfig::new(Bits::B4, Block::PerRow);
+        let packed = quantize_with(&weights, rows, cols, &cfg);
+        let base = packed.dequantize();
+        let residual: Vec<f32> = weights
+            .iter()
+            .zip(base.iter())
+            .map(|(&w, &q)| w - q)
+            .collect();
+        let (a, b) = low_rank_residual_factors(&residual, rows, cols, rank);
+        let mut corrected = base;
+        for r in 0..rows {
+            for c in 0..cols {
+                for k in 0..rank {
+                    corrected[r * cols + c] += a[r * rank + k] * b[k * cols + c];
+                }
+            }
+        }
+        assert!(mse(&weights, &corrected) < mse(&weights, &packed.dequantize()));
+    }
+
     fn small_config() -> ModelConfig {
         let model_dim = 16;
         let num_heads = 4;
@@ -829,6 +1259,9 @@ mod tests {
             parallel_residual: false,
             attn_out_gate_enabled: false,
             attn_out_gate_width: 24,
+            sparse_attn_gate_enabled: false,
+            sparse_attn_gate_width: 12,
+            sparse_attn_gate_scale: 1.0,
             vrl_enabled: false,
             ve_enabled: true,
             ve_dim: 8,

@@ -30,6 +30,11 @@ path = "src/bin/gemm_bench.rs"
 required-features = ["cuda"]
 
 [[bin]]
+name = "attention-bench"
+path = "src/bin/attention_bench.rs"
+required-features = ["cuda"]
+
+[[bin]]
 name = "nccl-bench"
 path = "src/bin/nccl_bench.rs"
 required-features = ["cuda"]

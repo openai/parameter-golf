@@ -1,13 +1,18 @@
-use pg_model::{ExecutionPlan, ForwardBuffer, GptModel, RunSpec, TrainBackend, VariantFamily};
+use pg_model::{
+    ExecutionPlan, ForwardBuffer, GptModel, ModelComputePrecision, RunSpec, TrainBackend,
+    VariantFamily,
+};
 
 fn main() {
     let mut args = std::env::args().skip(1);
     let mut spec = None;
     let mut builtin = VariantFamily::BaselineSp8192;
     let mut backend = TrainBackend::Cpu;
+    let mut use_spec_precision = false;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--spec" => spec = args.next(),
+            "--use-spec-precision" => use_spec_precision = true,
             "--backend" => {
                 if let Some(raw) = args.next() {
                     backend = parse_backend(&raw).unwrap_or(backend);
@@ -28,10 +33,13 @@ fn main() {
         }
     }
 
-    let run_spec = spec
+    let mut run_spec = spec
         .map(std::path::PathBuf::from)
         .map(|p| RunSpec::load(&p).expect("failed to load spec"))
         .unwrap_or_else(|| RunSpec::for_family(builtin));
+    if !use_spec_precision {
+        run_spec.model.compute_precision = ModelComputePrecision::F32Tf32;
+    }
     let plan = ExecutionPlan::from_run_spec(&run_spec).expect("failed to build execution plan");
     let config = run_spec.model.to_model_config();
     let mut model = GptModel::new(config.clone());

@@ -10,15 +10,28 @@
 
 /// Compute LR for any parameter group at a given step.
 pub fn wsd_lr(step: usize, base_lr: f32, warmup: usize, total: usize, warmdown: usize) -> f32 {
-    let warmdown_start = total.saturating_sub(warmdown);
     if step < warmup {
         base_lr * (step as f32 / warmup as f32)
-    } else if step < warmdown_start {
-        base_lr
     } else if step < total {
-        base_lr * ((total - step) as f32 / warmdown as f32).max(0.0)
+        base_lr * lr_scale(step, warmup, total, warmdown)
     } else {
         0.0
+    }
+}
+
+/// Compute WSD LR with a floor applied after warmup.
+pub fn wsd_lr_with_floor(
+    step: usize,
+    base_lr: f32,
+    warmup: usize,
+    total: usize,
+    warmdown: usize,
+    min_scale: f32,
+) -> f32 {
+    if step < warmup {
+        base_lr * (step as f32 / warmup as f32)
+    } else {
+        base_lr * lr_scale_with_floor(step, warmup, total, warmdown, min_scale)
     }
 }
 
@@ -33,6 +46,22 @@ pub fn lr_scale(step: usize, warmup: usize, total: usize, warmdown: usize) -> f3
         ((total - step) as f32 / warmdown as f32).max(0.0)
     } else {
         0.0
+    }
+}
+
+/// LR scale with a nonzero floor after warmup. This matches late-frontier
+/// MIN_LR schedules while preserving a true zero-start warmup.
+pub fn lr_scale_with_floor(
+    step: usize,
+    warmup: usize,
+    total: usize,
+    warmdown: usize,
+    min_scale: f32,
+) -> f32 {
+    if step < warmup {
+        lr_scale(step, warmup, total, warmdown)
+    } else {
+        lr_scale(step, warmup, total, warmdown).max(min_scale)
     }
 }
 
@@ -64,5 +93,9 @@ mod tests {
         assert_eq!(lr_scale(0, warmup, total, warmdown), 0.0);
         assert_eq!(lr_scale(100, warmup, total, warmdown), 1.0);
         assert_eq!(lr_scale(9000, warmup, total, warmdown), 0.0);
+
+        assert_eq!(lr_scale_with_floor(0, warmup, total, warmdown, 0.1), 0.0);
+        assert_eq!(lr_scale_with_floor(100, warmup, total, warmdown, 0.1), 1.0);
+        assert_eq!(lr_scale_with_floor(9000, warmup, total, warmdown, 0.1), 0.1);
     }
 }

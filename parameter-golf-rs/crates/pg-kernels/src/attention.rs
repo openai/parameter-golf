@@ -236,7 +236,7 @@ mod tests {
         let head_dim = 4;
 
         // Deterministic pseudo-random inputs
-        let make_val = |i: usize| ((i as f32 * 0.37 + 0.13).sin() * 0.5);
+        let make_val = |i: usize| (i as f32 * 0.37 + 0.13).sin() * 0.5;
         let q: Vec<f32> = (0..tokens * num_heads * head_dim).map(make_val).collect();
         let k: Vec<f32> = (0..tokens * num_kv_heads * head_dim)
             .map(|i| make_val(i + 100))

@@ -48,8 +48,8 @@ fn experiment_1_quant_sweep() {
 
     // Split into groups
     let (attn_w, rest) = synthetic_weights.split_at(attn_qkvo_elems);
-    let (mlp_up_w, rest) = rest.split_at(mlp_up_elems);
-    let (mlp_down_w, embed_w) = rest.split_at(mlp_down_elems);
+    let (_mlp_up_w, rest) = rest.split_at(mlp_up_elems);
+    let (_mlp_down_w, _embed_w) = rest.split_at(mlp_down_elems);
 
     // Define schemes to sweep
     let schemes: Vec<(&str, Scheme)> = vec![
@@ -125,8 +125,6 @@ fn experiment_1_quant_sweep() {
         );
 
         // Actually quantize the attention weights and measure MSE
-        let rows = 2 * n; // qo_bank batch dim
-        let cols = d * d / (2 * n); // per-slice
         // Use a representative sub-matrix for MSE
         let test_rows = 32;
         let test_cols = 512;

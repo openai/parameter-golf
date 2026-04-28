@@ -1,5 +1,5 @@
 use cudarc::driver::{CudaContext, sys as driver_sys};
-use cudarc::nccl::{Comm, Id, ReduceOp};
+use cudarc::nccl::{Comm, ReduceOp};
 use half::bf16;
 use std::sync::Arc;
 
@@ -67,7 +67,7 @@ fn bench_all_reduce(comms: &[Comm], streams: &[Arc<cudarc::driver::CudaStream>],
 
     for &(n_elems, label) in SIZES {
         // Allocate per-device
-        let mut send_bufs: Vec<_> = streams
+        let send_bufs: Vec<_> = streams
             .iter()
             .map(|s| s.alloc_zeros::<bf16>(n_elems).expect("alloc failed"))
             .collect();

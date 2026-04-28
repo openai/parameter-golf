@@ -30,7 +30,9 @@ fn main() {
             let mut seq_len: Option<usize> = None;
             let mut total_iterations: Option<usize> = None;
             let mut max_wallclock_seconds: Option<f32> = None;
+            let mut min_lr_scale: Option<f32> = None;
             let mut tokenizer_vocab_path: Option<String> = None;
+            let mut caseops_byte_sidecar_pattern: Option<String> = None;
             let mut eval_max_tokens: Option<usize> = None;
             let mut eval_stride: Option<usize> = None;
             let mut attention_backend: Option<AttentionBackend> = None;
@@ -66,13 +68,17 @@ fn main() {
                         batch_tokens = args.next().and_then(|v| v.parse::<usize>().ok())
                     }
                     "--seq-len" => seq_len = args.next().and_then(|v| v.parse::<usize>().ok()),
-                    "--total-iterations" => {
+                    "--total-iterations" | "--max-steps" => {
                         total_iterations = args.next().and_then(|v| v.parse::<usize>().ok())
                     }
                     "--max-wallclock-seconds" => {
                         max_wallclock_seconds = args.next().and_then(|v| v.parse::<f32>().ok())
                     }
+                    "--min-lr-scale" => {
+                        min_lr_scale = args.next().and_then(|v| v.parse::<f32>().ok())
+                    }
                     "--tokenizer-vocab" => tokenizer_vocab_path = args.next(),
+                    "--caseops-byte-sidecar" => caseops_byte_sidecar_pattern = args.next(),
                     "--eval-max-tokens" => {
                         eval_max_tokens = args.next().and_then(|v| v.parse::<usize>().ok())
                     }
@@ -149,8 +155,14 @@ fn main() {
             if let Some(value) = max_wallclock_seconds {
                 run_spec.train.max_wallclock_seconds = value;
             }
+            if let Some(value) = min_lr_scale {
+                run_spec.train.min_lr_scale = value;
+            }
             if let Some(path) = tokenizer_vocab_path {
                 run_spec.eval.tokenizer_vocab_path = Some(path);
+            }
+            if let Some(pattern) = caseops_byte_sidecar_pattern {
+                run_spec.eval.caseops_byte_sidecar_pattern = Some(pattern);
             }
             if let Some(value) = eval_max_tokens {
                 run_spec.eval.max_tokens = Some(value);
@@ -201,8 +213,14 @@ fn main() {
             println!("variant_fingerprint={}", result.variant_fingerprint);
             println!("steps_completed={}", result.steps_completed);
             println!("train_loss={:.6}", result.train_loss);
+            println!("train_loss_source={}", result.train_loss_source);
             println!("ms_per_step={:.3}", result.ms_per_step);
             println!("wallclock_seconds={:.3}", result.wallclock_seconds);
+            println!("timing_steps={}", result.timing_steps);
+            println!(
+                "timing_measured_ms_per_step={:.3}",
+                result.timing_measured_ms_per_step
+            );
             println!("rank={}", result.rank);
             println!("world_size={}", result.world_size);
             println!("seq_len={}", result.seq_len);
@@ -220,9 +238,132 @@ fn main() {
             );
             println!("eval_adaptation_backend={}", result.eval_adaptation_backend);
             println!("frontier_record_ready={}", result.frontier_record_ready);
+            println!(
+                "leaderboard_algorithm_ready={}",
+                result.leaderboard_algorithm_ready
+            );
+            println!("record_shape={}", result.record_shape);
+            println!("record_attention_grade={}", result.record_attention_grade);
+            println!("microbatch_serial_loop={}", result.microbatch_serial_loop);
             println!("bank_update_backend={}", result.bank_update_backend);
             println!("train_data_source={}", result.train_data_source);
             println!("bpb_byte_source={}", result.bpb_byte_source);
+            println!("timing_backend={}", result.timing_backend);
+            println!(
+                "timing_data_sampling_ms={:.3}",
+                result.timing_data_sampling_ms
+            );
+            println!("timing_train_step_ms={:.3}", result.timing_train_step_ms);
+            println!(
+                "timing_cuda_zero_grads_ms={:.3}",
+                result.timing_cuda_zero_grads_ms
+            );
+            println!("timing_cuda_h2d_ms={:.3}", result.timing_cuda_h2d_ms);
+            println!(
+                "timing_cuda_backward_ms={:.3}",
+                result.timing_cuda_backward_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_ms={:.3}",
+                result.timing_cuda_backward_forward_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_embed_ms={:.3}",
+                result.timing_cuda_backward_forward_embed_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_encoder_ms={:.3}",
+                result.timing_cuda_backward_forward_encoder_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_encoder_layer_max_ms={:.3}",
+                result.timing_cuda_backward_forward_encoder_layer_max_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_decoder_ms={:.3}",
+                result.timing_cuda_backward_forward_decoder_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_decoder_layer_max_ms={:.3}",
+                result.timing_cuda_backward_forward_decoder_layer_max_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_logits_ms={:.3}",
+                result.timing_cuda_backward_forward_logits_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_block_pre_attn_ms={:.3}",
+                result.timing_cuda_backward_forward_block_pre_attn_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_block_attention_ms={:.3}",
+                result.timing_cuda_backward_forward_block_attention_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_block_post_attn_ms={:.3}",
+                result.timing_cuda_backward_forward_block_post_attn_ms
+            );
+            println!(
+                "timing_cuda_backward_forward_block_mlp_ms={:.3}",
+                result.timing_cuda_backward_forward_block_mlp_ms
+            );
+            println!(
+                "timing_cuda_backward_block_recompute_ms={:.3}",
+                result.timing_cuda_backward_block_recompute_ms
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_ms={:.3}",
+                result.timing_cuda_backward_block_mlp_ms
+            );
+            println!(
+                "timing_cuda_backward_block_attn_out_ms={:.3}",
+                result.timing_cuda_backward_block_attn_out_ms
+            );
+            println!(
+                "timing_cuda_backward_block_attention_ms={:.3}",
+                result.timing_cuda_backward_block_attention_ms
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_ms={:.3}",
+                result.timing_cuda_backward_block_qkv_ms
+            );
+            println!(
+                "timing_cuda_backward_output_ms={:.3}",
+                result.timing_cuda_backward_output_ms
+            );
+            println!(
+                "timing_cuda_backward_decoder_ms={:.3}",
+                result.timing_cuda_backward_decoder_ms
+            );
+            println!(
+                "timing_cuda_backward_encoder_ms={:.3}",
+                result.timing_cuda_backward_encoder_ms
+            );
+            println!(
+                "timing_cuda_backward_tail_ms={:.3}",
+                result.timing_cuda_backward_tail_ms
+            );
+            println!(
+                "timing_cuda_non_bank_sync_ms={:.3}",
+                result.timing_cuda_non_bank_sync_ms
+            );
+            println!(
+                "timing_cuda_bank_update_ms={:.3}",
+                result.timing_cuda_bank_update_ms
+            );
+            println!(
+                "timing_cuda_non_bank_update_ms={:.3}",
+                result.timing_cuda_non_bank_update_ms
+            );
+            println!(
+                "timing_post_train_sync_ms={:.3}",
+                result.timing_post_train_sync_ms
+            );
+            println!(
+                "timing_artifact_export_ms={:.3}",
+                result.timing_artifact_export_ms
+            );
+            println!("timing_eval_ms={:.3}", result.timing_eval_ms);
             if let Some(bytes) = result.artifact_bytes {
                 println!("artifact_bytes={bytes}");
             }
@@ -262,7 +403,9 @@ fn main() {
             let mut seq_len: Option<usize> = None;
             let mut total_iterations: Option<usize> = None;
             let mut max_wallclock_seconds: Option<f32> = None;
+            let mut min_lr_scale: Option<f32> = None;
             let mut tokenizer_vocab_path: Option<String> = None;
+            let mut caseops_byte_sidecar_pattern: Option<String> = None;
             let mut eval_max_tokens: Option<usize> = None;
             let mut eval_stride: Option<usize> = None;
             let mut attention_backend: Option<AttentionBackend> = None;
@@ -292,13 +435,17 @@ fn main() {
                         batch_tokens = args.next().and_then(|v| v.parse::<usize>().ok())
                     }
                     "--seq-len" => seq_len = args.next().and_then(|v| v.parse::<usize>().ok()),
-                    "--total-iterations" => {
+                    "--total-iterations" | "--max-steps" => {
                         total_iterations = args.next().and_then(|v| v.parse::<usize>().ok())
                     }
                     "--max-wallclock-seconds" => {
                         max_wallclock_seconds = args.next().and_then(|v| v.parse::<f32>().ok())
                     }
+                    "--min-lr-scale" => {
+                        min_lr_scale = args.next().and_then(|v| v.parse::<f32>().ok())
+                    }
                     "--tokenizer-vocab" => tokenizer_vocab_path = args.next(),
+                    "--caseops-byte-sidecar" => caseops_byte_sidecar_pattern = args.next(),
                     "--eval-max-tokens" => {
                         eval_max_tokens = args.next().and_then(|v| v.parse::<usize>().ok())
                     }
@@ -384,8 +531,14 @@ fn main() {
                 if let Some(value) = max_wallclock_seconds {
                     run_spec.train.max_wallclock_seconds = value;
                 }
+                if let Some(value) = min_lr_scale {
+                    run_spec.train.min_lr_scale = value;
+                }
                 if let Some(path) = tokenizer_vocab_path.clone() {
                     run_spec.eval.tokenizer_vocab_path = Some(path);
+                }
+                if let Some(pattern) = caseops_byte_sidecar_pattern.clone() {
+                    run_spec.eval.caseops_byte_sidecar_pattern = Some(pattern);
                 }
                 if let Some(value) = eval_max_tokens {
                     run_spec.eval.max_tokens = Some(value);
@@ -421,13 +574,16 @@ fn main() {
                 match VariantRunner::new(run_spec.clone()).and_then(|runner| runner.run(mode)) {
                     Ok(result) => {
                         println!(
-                            "variant={:?} status=ok backend={:?} fingerprint={} steps={} loss={:.6} ms_per_step={:.3} rank={} world_size={} seq_len={} global_batch_tokens={} local_microbatches_per_step={} tokens_seen_global={} distributed_sync={} attention_backend={} distributed_optimizer_backend={} eval_adaptation_backend={} frontier_record_ready={} bank_update_backend={} train_data_source={} bpb_byte_source={} proxy_bpb={} proxy_metric_source={} final_bpb={} artifact_bytes={} submission_total_bytes={} artifact_budget_ok={}",
+                            "variant={:?} status=ok backend={:?} fingerprint={} steps={} loss={:.6} train_loss_source={} ms_per_step={:.3} timing_steps={} timing_measured_ms_per_step={:.3} rank={} world_size={} seq_len={} global_batch_tokens={} local_microbatches_per_step={} tokens_seen_global={} distributed_sync={} attention_backend={} distributed_optimizer_backend={} eval_adaptation_backend={} frontier_record_ready={} leaderboard_algorithm_ready={} record_shape={} record_attention_grade={} microbatch_serial_loop={} bank_update_backend={} train_data_source={} bpb_byte_source={} timing_backend={} timing_data_sampling_ms={:.3} timing_train_step_ms={:.3} timing_cuda_zero_grads_ms={:.3} timing_cuda_h2d_ms={:.3} timing_cuda_backward_ms={:.3} timing_cuda_backward_forward_ms={:.3} timing_cuda_backward_forward_embed_ms={:.3} timing_cuda_backward_forward_encoder_ms={:.3} timing_cuda_backward_forward_encoder_layer_max_ms={:.3} timing_cuda_backward_forward_decoder_ms={:.3} timing_cuda_backward_forward_decoder_layer_max_ms={:.3} timing_cuda_backward_forward_logits_ms={:.3} timing_cuda_backward_forward_block_pre_attn_ms={:.3} timing_cuda_backward_forward_block_attention_ms={:.3} timing_cuda_backward_forward_block_post_attn_ms={:.3} timing_cuda_backward_forward_block_mlp_ms={:.3} timing_cuda_backward_block_recompute_ms={:.3} timing_cuda_backward_block_mlp_ms={:.3} timing_cuda_backward_block_attn_out_ms={:.3} timing_cuda_backward_block_attention_ms={:.3} timing_cuda_backward_block_qkv_ms={:.3} timing_cuda_backward_output_ms={:.3} timing_cuda_backward_decoder_ms={:.3} timing_cuda_backward_encoder_ms={:.3} timing_cuda_backward_tail_ms={:.3} timing_cuda_non_bank_sync_ms={:.3} timing_cuda_bank_update_ms={:.3} timing_cuda_non_bank_update_ms={:.3} timing_post_train_sync_ms={:.3} timing_artifact_export_ms={:.3} timing_eval_ms={:.3} proxy_bpb={} proxy_metric_source={} final_bpb={} artifact_bytes={} submission_total_bytes={} artifact_budget_ok={}",
                             family,
                             result.train_backend,
                             result.variant_fingerprint,
                             result.steps_completed,
                             result.train_loss,
+                            result.train_loss_source,
                             result.ms_per_step,
+                            result.timing_steps,
+                            result.timing_measured_ms_per_step,
                             result.rank,
                             result.world_size,
                             result.seq_len,
@@ -439,9 +595,45 @@ fn main() {
                             result.distributed_optimizer_backend,
                             result.eval_adaptation_backend,
                             result.frontier_record_ready,
+                            result.leaderboard_algorithm_ready,
+                            result.record_shape,
+                            result.record_attention_grade,
+                            result.microbatch_serial_loop,
                             result.bank_update_backend,
                             result.train_data_source,
                             result.bpb_byte_source,
+                            result.timing_backend,
+                            result.timing_data_sampling_ms,
+                            result.timing_train_step_ms,
+                            result.timing_cuda_zero_grads_ms,
+                            result.timing_cuda_h2d_ms,
+                            result.timing_cuda_backward_ms,
+                            result.timing_cuda_backward_forward_ms,
+                            result.timing_cuda_backward_forward_embed_ms,
+                            result.timing_cuda_backward_forward_encoder_ms,
+                            result.timing_cuda_backward_forward_encoder_layer_max_ms,
+                            result.timing_cuda_backward_forward_decoder_ms,
+                            result.timing_cuda_backward_forward_decoder_layer_max_ms,
+                            result.timing_cuda_backward_forward_logits_ms,
+                            result.timing_cuda_backward_forward_block_pre_attn_ms,
+                            result.timing_cuda_backward_forward_block_attention_ms,
+                            result.timing_cuda_backward_forward_block_post_attn_ms,
+                            result.timing_cuda_backward_forward_block_mlp_ms,
+                            result.timing_cuda_backward_block_recompute_ms,
+                            result.timing_cuda_backward_block_mlp_ms,
+                            result.timing_cuda_backward_block_attn_out_ms,
+                            result.timing_cuda_backward_block_attention_ms,
+                            result.timing_cuda_backward_block_qkv_ms,
+                            result.timing_cuda_backward_output_ms,
+                            result.timing_cuda_backward_decoder_ms,
+                            result.timing_cuda_backward_encoder_ms,
+                            result.timing_cuda_backward_tail_ms,
+                            result.timing_cuda_non_bank_sync_ms,
+                            result.timing_cuda_bank_update_ms,
+                            result.timing_cuda_non_bank_update_ms,
+                            result.timing_post_train_sync_ms,
+                            result.timing_artifact_export_ms,
+                            result.timing_eval_ms,
                             result
                                 .proxy_bpb
                                 .map(|v| format!("{v:.6}"))
@@ -484,12 +676,14 @@ fn main() {
 fn print_usage() {
     eprintln!("usage:");
     eprintln!(
-        "  pg-train run [--spec spec.toml] [--builtin baseline_sp8192] [--mode smoke|proxy|record]"
+        "  pg-train run [--spec spec.toml] [--builtin baseline_sp8192] [--mode smoke|proxy|record-shaped-proxy|record]"
     );
     eprintln!("               [--backend cpu|cuda-single|cuda-single-parity|cuda-distributed]");
     eprintln!("               [--train-data glob] [--val-data glob] [--artifact path]");
     eprintln!("               [--rank n] [--world-size n] [--batch-tokens n] [--seq-len n]");
-    eprintln!("               [--total-iterations n] [--max-wallclock-seconds n]");
+    eprintln!(
+        "               [--total-iterations n|--max-steps n] [--max-wallclock-seconds n] [--min-lr-scale f]"
+    );
     eprintln!("               [--tokenizer-vocab path] [--eval-max-tokens n] [--eval-stride n]");
     eprintln!("               [--attention-backend naive_f32|flash_f32|cudnn_sdpa_bf16]");
     eprintln!(
@@ -503,11 +697,13 @@ fn print_usage() {
     eprintln!("               [--prune-keep-ratio f]");
     eprintln!("               [--fast-bank-updates] [--allow-unsupported-variants]");
     eprintln!("               record requires --backend cuda-distributed and real --train-data");
-    eprintln!("  pg-train sweep [--mode smoke|proxy]");
+    eprintln!("  pg-train sweep [--mode smoke|proxy|record-shaped-proxy]");
     eprintln!("                 [--backend cpu|cuda-single|cuda-single-parity|cuda-distributed]");
     eprintln!("                 [--train-data glob] [--val-data glob]");
     eprintln!("                 [--rank n] [--world-size n] [--batch-tokens n] [--seq-len n]");
-    eprintln!("                 [--total-iterations n] [--max-wallclock-seconds n]");
+    eprintln!(
+        "                 [--total-iterations n|--max-steps n] [--max-wallclock-seconds n] [--min-lr-scale f]"
+    );
     eprintln!("                 [--tokenizer-vocab path] [--eval-max-tokens n] [--eval-stride n]");
     eprintln!("                 [--attention-backend naive_f32|flash_f32|cudnn_sdpa_bf16]");
     eprintln!(
@@ -527,6 +723,7 @@ fn parse_mode(raw: &str) -> Option<RunMode> {
     match raw {
         "smoke" => Some(RunMode::Smoke),
         "proxy" => Some(RunMode::Proxy),
+        "record-shaped-proxy" | "record_shaped_proxy" => Some(RunMode::RecordShapedProxy),
         "record" => Some(RunMode::Record),
         _ => None,
     }

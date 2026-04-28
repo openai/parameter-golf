@@ -18,31 +18,41 @@ use std::sync::Arc;
 use cudarc::driver::{CudaContext, CudaStream};
 
 #[cfg(feature = "cuda")]
-use pg_core::{DType, GpuTensor, PgResult};
+use pg_core::{DType, GpuTensor, PgError, PgResult};
 
 use crate::config::ModelConfig;
 #[cfg(feature = "cuda")]
-use crate::{ExecutionPlan, GptModel};
+use crate::{AttentionBackend, ExecutionPlan, GptModel, ModelComputePrecision};
 
 /// GPU weight storage — all parameters resident on a single device.
 #[cfg(feature = "cuda")]
 pub struct GpuWeights {
-    // Parameter banks — contiguous BF16
-    pub qo_bank: GpuTensor,       // [2*n, d, d]
-    pub kv_bank: GpuTensor,       // [2*n, kv, d]
-    pub mlp_up_bank: GpuTensor,   // [n, mlp, d]
-    pub mlp_down_bank: GpuTensor, // [n, d, mlp]
+    // Parameter banks — F32 is still the authoritative storage. BF16 shadows
+    // are refreshed after optimizer updates and used only by gated tensor-core
+    // forward GEMMs.
+    pub qo_bank: GpuTensor,            // [2*n, d, d]
+    pub qo_bank_bf16: GpuTensor,       // [2*n, d, d]
+    pub kv_bank: GpuTensor,            // [2*n, kv, d]
+    pub kv_bank_bf16: GpuTensor,       // [2*n, kv, d]
+    pub qkv_bank: GpuTensor,           // [n, d + 2*kv, d], derived hot-path shadow
+    pub qkv_bank_bf16: GpuTensor,      // [n, d + 2*kv, d], derived hot-path shadow
+    pub mlp_up_bank: GpuTensor,        // [n, mlp, d]
+    pub mlp_up_bank_bf16: GpuTensor,   // [n, mlp, d]
+    pub mlp_down_bank: GpuTensor,      // [n, d, mlp]
+    pub mlp_down_bank_bf16: GpuTensor, // [n, d, mlp]
 
-    // Embeddings — BF16
-    pub tok_emb: GpuTensor, // [vocab, d]
+    // Embeddings — F32 today.
+    pub tok_emb: GpuTensor,      // [vocab, d]
+    pub tok_emb_bf16: GpuTensor, // [vocab, d] shadow for tensor-core output projection
 
     // Scalar params — F32 (small, precision-sensitive)
-    pub attn_scales: Vec<GpuTensor>,       // per-layer [d]
-    pub mlp_scales: Vec<GpuTensor>,        // per-layer [d]
-    pub resid_mix: Vec<GpuTensor>,         // per-layer [2, d]
-    pub q_gains: Vec<GpuTensor>,           // per-layer [h]
-    pub attn_gate_weights: Vec<GpuTensor>, // per-layer [h, gate_width]
-    pub attn_gate_biases: Vec<GpuTensor>,  // per-layer [h]
+    pub attn_scales: Vec<GpuTensor>,              // per-layer [d]
+    pub mlp_scales: Vec<GpuTensor>,               // per-layer [d]
+    pub resid_mix: Vec<GpuTensor>,                // per-layer [2, d]
+    pub q_gains: Vec<GpuTensor>,                  // per-layer [h]
+    pub attn_gate_weights: Vec<GpuTensor>,        // per-layer [h, gate_width]
+    pub attn_gate_biases: Vec<GpuTensor>,         // per-layer [h]
+    pub sparse_attn_gate_weights: Vec<GpuTensor>, // per-layer [h, sparse_gate_width]
 
     // Misc
     pub bigram_embed: GpuTensor,
@@ -77,12 +87,17 @@ impl GpuWeights {
             GpuTensor::from_host_data_gpu(s.clone(), bytes, shape, DType::F32)
         }
 
+        fn to_gpu_bf16(s: &Arc<CudaStream>, data: &[f32], shape: &[usize]) -> PgResult<GpuTensor> {
+            GpuTensor::from_host_data_gpu(s.clone(), &f32_to_bf16_bytes(data), shape, DType::BF16)
+        }
+
         let mut attn_scales = Vec::new();
         let mut mlp_scales = Vec::new();
         let mut resid_mix = Vec::new();
         let mut q_gains = Vec::new();
         let mut attn_gate_weights = Vec::new();
         let mut attn_gate_biases = Vec::new();
+        let mut sparse_attn_gate_weights = Vec::new();
 
         for i in 0..l {
             let b = &cpu.blocks[i];
@@ -97,20 +112,36 @@ impl GpuWeights {
                 &[c.num_heads, gate_width],
             )?);
             attn_gate_biases.push(to_gpu(&stream, &b.attn_gate_bias, &[c.num_heads])?);
+            let sparse_gate_width = c.sparse_attn_gate_width.max(1);
+            sparse_attn_gate_weights.push(to_gpu(
+                &stream,
+                &b.sparse_attn_gate_weight,
+                &[c.num_heads, sparse_gate_width],
+            )?);
         }
+
+        let qkv_host = pack_qkv_bank_host(&cpu.qo_bank, &cpu.kv_bank, l, d, kv);
 
         Ok(Self {
             qo_bank: to_gpu(&stream, &cpu.qo_bank, &[2 * l, d, d])?,
+            qo_bank_bf16: to_gpu_bf16(&stream, &cpu.qo_bank, &[2 * l, d, d])?,
             kv_bank: to_gpu(&stream, &cpu.kv_bank, &[2 * l, kv, d])?,
+            kv_bank_bf16: to_gpu_bf16(&stream, &cpu.kv_bank, &[2 * l, kv, d])?,
+            qkv_bank: to_gpu(&stream, &qkv_host, &[l, d + 2 * kv, d])?,
+            qkv_bank_bf16: to_gpu_bf16(&stream, &qkv_host, &[l, d + 2 * kv, d])?,
             mlp_up_bank: to_gpu(&stream, &cpu.mlp_up_bank, &[l, md, d])?,
+            mlp_up_bank_bf16: to_gpu_bf16(&stream, &cpu.mlp_up_bank, &[l, md, d])?,
             mlp_down_bank: to_gpu(&stream, &cpu.mlp_down_bank, &[l, d, md])?,
+            mlp_down_bank_bf16: to_gpu_bf16(&stream, &cpu.mlp_down_bank, &[l, d, md])?,
             tok_emb: to_gpu(&stream, &cpu.tok_emb, &[c.vocab_size, d])?,
+            tok_emb_bf16: to_gpu_bf16(&stream, &cpu.tok_emb, &[c.vocab_size, d])?,
             attn_scales,
             mlp_scales,
             resid_mix,
             q_gains,
             attn_gate_weights,
             attn_gate_biases,
+            sparse_attn_gate_weights,
             bigram_embed: to_gpu(
                 &stream,
                 &cpu.bigram_embed,
@@ -143,6 +174,7 @@ impl GpuWeights {
             || self.q_gains.len() != l
             || self.attn_gate_weights.len() != l
             || self.attn_gate_biases.len() != l
+            || self.sparse_attn_gate_weights.len() != l
         {
             return Err(pg_core::PgError::InvalidOp(
                 "GPU weight layout no longer matches CPU model layer count".into(),
@@ -150,10 +182,24 @@ impl GpuWeights {
         }
 
         sync_f32(&mut self.qo_bank, &cpu.qo_bank)?;
+        self.qo_bank_bf16
+            .copy_from_host_bytes(&f32_to_bf16_bytes(&cpu.qo_bank))?;
         sync_f32(&mut self.kv_bank, &cpu.kv_bank)?;
+        self.kv_bank_bf16
+            .copy_from_host_bytes(&f32_to_bf16_bytes(&cpu.kv_bank))?;
+        let qkv_host = pack_qkv_bank_host(&cpu.qo_bank, &cpu.kv_bank, l, c.model_dim, c.kv_dim());
+        sync_f32(&mut self.qkv_bank, &qkv_host)?;
+        self.qkv_bank_bf16
+            .copy_from_host_bytes(&f32_to_bf16_bytes(&qkv_host))?;
         sync_f32(&mut self.mlp_up_bank, &cpu.mlp_up_bank)?;
+        self.mlp_up_bank_bf16
+            .copy_from_host_bytes(&f32_to_bf16_bytes(&cpu.mlp_up_bank))?;
         sync_f32(&mut self.mlp_down_bank, &cpu.mlp_down_bank)?;
+        self.mlp_down_bank_bf16
+            .copy_from_host_bytes(&f32_to_bf16_bytes(&cpu.mlp_down_bank))?;
         sync_f32(&mut self.tok_emb, &cpu.tok_emb)?;
+        self.tok_emb_bf16
+            .copy_from_host_bytes(&f32_to_bf16_bytes(&cpu.tok_emb))?;
         for i in 0..l {
             let b = &cpu.blocks[i];
             sync_f32(&mut self.attn_scales[i], &b.attn_scale)?;
@@ -162,6 +208,10 @@ impl GpuWeights {
             sync_f32(&mut self.q_gains[i], &b.q_gain)?;
             sync_f32(&mut self.attn_gate_weights[i], &b.attn_gate_weight)?;
             sync_f32(&mut self.attn_gate_biases[i], &b.attn_gate_bias)?;
+            sync_f32(
+                &mut self.sparse_attn_gate_weights[i],
+                &b.sparse_attn_gate_weight,
+            )?;
         }
         sync_f32(&mut self.bigram_embed, &cpu.bigram_embed)?;
         sync_f32(&mut self.bigram_proj, &cpu.bigram_proj)?;
@@ -190,6 +240,7 @@ impl GpuWeights {
             || self.q_gains.len() != l
             || self.attn_gate_weights.len() != l
             || self.attn_gate_biases.len() != l
+            || self.sparse_attn_gate_weights.len() != l
         {
             return Err(pg_core::PgError::InvalidOp(
                 "GPU weight layout no longer matches CPU model layer count".into(),
@@ -208,6 +259,8 @@ impl GpuWeights {
             cpu.blocks[i].q_gain = download_f32(&self.q_gains[i])?;
             cpu.blocks[i].attn_gate_weight = download_f32(&self.attn_gate_weights[i])?;
             cpu.blocks[i].attn_gate_bias = download_f32(&self.attn_gate_biases[i])?;
+            cpu.blocks[i].sparse_attn_gate_weight =
+                download_f32(&self.sparse_attn_gate_weights[i])?;
         }
         cpu.bigram_embed = download_f32(&self.bigram_embed)?;
         cpu.bigram_proj = download_f32(&self.bigram_proj)?;
@@ -222,6 +275,46 @@ impl GpuWeights {
     }
 }
 
+#[cfg(feature = "cuda")]
+fn f32_to_bf16_bytes(data: &[f32]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len() * 2);
+    for &value in data {
+        let bits = value.to_bits();
+        // Round-to-nearest-even before truncating to BF16.
+        let lsb = (bits >> 16) & 1;
+        let rounded = bits.wrapping_add(0x7fff + lsb);
+        let bf16 = (rounded >> 16) as u16;
+        out.extend_from_slice(&bf16.to_le_bytes());
+    }
+    out
+}
+
+#[cfg(feature = "cuda")]
+fn pack_qkv_bank_host(
+    qo_bank: &[f32],
+    kv_bank: &[f32],
+    layers: usize,
+    d: usize,
+    kv: usize,
+) -> Vec<f32> {
+    let qkv = d + 2 * kv;
+    let mut out = vec![0.0f32; layers * qkv * d];
+    for layer in 0..layers {
+        let dst_layer = layer * qkv * d;
+        let q_src = layer * d * d;
+        out[dst_layer..dst_layer + d * d].copy_from_slice(&qo_bank[q_src..q_src + d * d]);
+
+        let k_src = layer * kv * d;
+        let k_dst = dst_layer + d * d;
+        out[k_dst..k_dst + kv * d].copy_from_slice(&kv_bank[k_src..k_src + kv * d]);
+
+        let v_src = (layers + layer) * kv * d;
+        let v_dst = dst_layer + (d + kv) * d;
+        out[v_dst..v_dst + kv * d].copy_from_slice(&kv_bank[v_src..v_src + kv * d]);
+    }
+    out
+}
+
 /// GPU activation buffers — pre-allocated from pool.
 #[cfg(feature = "cuda")]
 pub struct GpuActivations {
@@ -233,6 +326,8 @@ pub struct GpuActivations {
     pub q: GpuTensor,
     pub k: GpuTensor,
     pub v: GpuTensor,
+    pub qkv_out: GpuTensor,
+    pub qkv_aux_bf16: GpuTensor,
     pub ve_out: GpuTensor,
     pub ve_embed_out: GpuTensor,
     pub attn_out: GpuTensor,
@@ -249,6 +344,9 @@ pub struct GpuActivations {
     pub lora_tmp: GpuTensor,
     pub lora_delta: GpuTensor,
     pub lora_grad_tmp: GpuTensor,
+    pub x_in_bf16: GpuTensor,
+    pub x_aux_bf16: GpuTensor,
+    pub wide_bf16: GpuTensor,
     pub logits: GpuTensor,
 
     pub encoder_skips: Vec<GpuTensor>,
@@ -280,6 +378,8 @@ impl GpuActivations {
             q: zeros(&[tokens, config.num_heads, config.head_dim])?,
             k: zeros(&[tokens, config.num_kv_heads, config.head_dim])?,
             v: zeros(&[tokens, config.num_kv_heads, config.head_dim])?,
+            qkv_out: zeros(&[tokens, d + 2 * kv])?,
+            qkv_aux_bf16: GpuTensor::zeros_gpu(stream.clone(), &[tokens, d + 2 * kv], DType::BF16)?,
             ve_out: zeros(&[tokens, kv])?,
             ve_embed_out: zeros(&[tokens, ve_dim])?,
             attn_out: zeros(&[tokens, config.num_heads, config.head_dim])?,
@@ -296,6 +396,9 @@ impl GpuActivations {
             lora_tmp: zeros(&[tokens, d])?,
             lora_delta: zeros(&[tokens, d])?,
             lora_grad_tmp: zeros(&[tokens, d])?,
+            x_in_bf16: GpuTensor::zeros_gpu(stream.clone(), &[tokens, d], DType::BF16)?,
+            x_aux_bf16: GpuTensor::zeros_gpu(stream.clone(), &[tokens, d], DType::BF16)?,
+            wide_bf16: GpuTensor::zeros_gpu(stream.clone(), &[tokens, mlp], DType::BF16)?,
             logits: zeros(&[tokens, vocab])?,
             encoder_skips,
         })
@@ -313,8 +416,9 @@ impl GpuActivations {
 
 /// GPU gradient buffers matching the CPU `GradBuffers` parameter layout.
 ///
-/// This is intentionally allocation-only today. The record path must not use
-/// it until `GpuModel::backward` writes these tensors with real CUDA kernels.
+/// These buffers are preallocated once per runtime and filled by the CUDA
+/// backward path. Record-shaped modes must reuse them rather than allocating
+/// gradient storage inside the steady-state step.
 #[cfg(feature = "cuda")]
 pub struct GpuGradBuffers {
     pub tok_emb: GpuTensor,
@@ -333,6 +437,7 @@ pub struct GpuGradBuffers {
     pub block_q_gain: Vec<GpuTensor>,
     pub block_attn_gate_weight: Vec<GpuTensor>,
     pub block_attn_gate_bias: Vec<GpuTensor>,
+    pub block_sparse_attn_gate_weight: Vec<GpuTensor>,
     pub ve_embed: GpuTensor,
     pub ve_proj: GpuTensor,
     pub ve_scale: GpuTensor,
@@ -370,6 +475,9 @@ impl GpuGradBuffers {
                 .collect::<PgResult<_>>()?,
             block_attn_gate_bias: (0..n)
                 .map(|_| zeros(&[config.num_heads]))
+                .collect::<PgResult<_>>()?,
+            block_sparse_attn_gate_weight: (0..n)
+                .map(|_| zeros(&[config.num_heads, config.sparse_attn_gate_width.max(1)]))
                 .collect::<PgResult<_>>()?,
             ve_embed: zeros(&[config.vocab_size, config.ve_dim.max(1)])?,
             ve_proj: zeros(&[kv, config.ve_dim.max(1)])?,
@@ -417,6 +525,9 @@ impl GpuGradBuffers {
         for tensor in &self.block_attn_gate_bias {
             zero(tensor)?;
         }
+        for tensor in &self.block_sparse_attn_gate_weight {
+            zero(tensor)?;
+        }
         zero(&self.ve_embed)?;
         zero(&self.ve_proj)?;
         zero(&self.ve_scale)?;
@@ -437,13 +548,105 @@ pub struct GpuForwardCache {
     pub skips: Vec<GpuTensor>,
     pub x_post_embed: GpuTensor,
     pub x_post_norm: GpuTensor,
+    saved_layers: Vec<Option<GpuLayerForwardCache>>,
+}
+
+#[cfg(feature = "cuda")]
+struct GpuLayerForwardCache {
+    x_in: GpuTensor,
+    attn_norm: GpuTensor,
+    q_pre_norm: GpuTensor,
+    k_pre_norm: GpuTensor,
+    q_post_rope: GpuTensor,
+    q: GpuTensor,
+    k: GpuTensor,
+    v: GpuTensor,
+    ve_embed_out: GpuTensor,
+    ve_out: GpuTensor,
+    attn_out: GpuTensor,
+    attn_stats: GpuTensor,
+    xsa_out: GpuTensor,
+    attn_gated: GpuTensor,
+    attn_gate_values: GpuTensor,
+    proj_out: GpuTensor,
+    x_after_attn: GpuTensor,
+    mlp_norm: GpuTensor,
+    mlp_up: GpuTensor,
+    mlp_act: GpuTensor,
+    mlp_out: GpuTensor,
+}
+
+#[cfg(feature = "cuda")]
+impl GpuLayerForwardCache {
+    fn new(config: &ModelConfig, tokens: usize, stream: Arc<CudaStream>) -> PgResult<Self> {
+        let d = config.model_dim;
+        let h = config.num_heads;
+        let hkv = config.num_kv_heads;
+        let hd = config.head_dim;
+        let kv = config.kv_dim();
+        let mlp = config.mlp_dim;
+        let ve_dim = config.ve_dim.max(1);
+        let zeros = |shape: &[usize]| GpuTensor::zeros_gpu(stream.clone(), shape, DType::F32);
+        Ok(Self {
+            x_in: zeros(&[tokens, d])?,
+            attn_norm: zeros(&[tokens, d])?,
+            q_pre_norm: zeros(&[tokens, h, hd])?,
+            k_pre_norm: zeros(&[tokens, hkv, hd])?,
+            q_post_rope: zeros(&[tokens, h, hd])?,
+            q: zeros(&[tokens, h, hd])?,
+            k: zeros(&[tokens, hkv, hd])?,
+            v: zeros(&[tokens, hkv, hd])?,
+            ve_embed_out: zeros(&[tokens, ve_dim])?,
+            ve_out: zeros(&[tokens, kv])?,
+            attn_out: zeros(&[tokens, h, hd])?,
+            attn_stats: zeros(&[tokens, h])?,
+            xsa_out: zeros(&[tokens, h, hd])?,
+            attn_gated: zeros(&[tokens, h, hd])?,
+            attn_gate_values: zeros(&[tokens, h])?,
+            proj_out: zeros(&[tokens, d])?,
+            x_after_attn: zeros(&[tokens, d])?,
+            mlp_norm: zeros(&[tokens, d])?,
+            mlp_up: zeros(&[tokens, mlp])?,
+            mlp_act: zeros(&[tokens, mlp])?,
+            mlp_out: zeros(&[tokens, d])?,
+        })
+    }
 }
 
 #[cfg(feature = "cuda")]
 impl GpuForwardCache {
     pub fn new(config: &ModelConfig, tokens: usize, stream: Arc<CudaStream>) -> PgResult<Self> {
+        Self::new_with_saved_layer_mask(config, tokens, stream, None)
+    }
+
+    fn new_with_saved_layer_mask(
+        config: &ModelConfig,
+        tokens: usize,
+        stream: Arc<CudaStream>,
+        save_layer_mask: Option<Vec<bool>>,
+    ) -> PgResult<Self> {
         let d = config.model_dim;
         let zeros = |shape: &[usize]| GpuTensor::zeros_gpu(stream.clone(), shape, DType::F32);
+        let saved_layers = if let Some(mask) = save_layer_mask {
+            if mask.len() != config.num_layers {
+                return Err(pg_core::PgError::InvalidOp(format!(
+                    "saved layer mask has {} entries for {} layers",
+                    mask.len(),
+                    config.num_layers
+                )));
+            }
+            mask.into_iter()
+                .map(|save| {
+                    if save {
+                        GpuLayerForwardCache::new(config, tokens, stream.clone()).map(Some)
+                    } else {
+                        Ok(None)
+                    }
+                })
+                .collect::<PgResult<Vec<_>>>()?
+        } else {
+            (0..config.num_layers).map(|_| None).collect()
+        };
 
         Ok(Self {
             layer_x: (0..config.num_layers)
@@ -456,6 +659,7 @@ impl GpuForwardCache {
                 .collect::<PgResult<_>>()?,
             x_post_embed: zeros(&[tokens, d])?,
             x_post_norm: zeros(&[tokens, d])?,
+            saved_layers,
         })
     }
 
@@ -465,8 +669,163 @@ impl GpuForwardCache {
         stream: Arc<CudaStream>,
     ) -> PgResult<Self> {
         let config = plan.run_spec.model.to_model_config();
-        Self::new(&config, tokens, stream)
+        let save_layer_mask = if matches!(
+            plan.run_spec.train.backend,
+            crate::TrainBackend::CudaSingle | crate::TrainBackend::CudaDistributed
+        ) {
+            gpu_saved_layer_mask(&config)
+        } else {
+            None
+        };
+        Self::new_with_saved_layer_mask(&config, tokens, stream, save_layer_mask)
     }
+}
+
+#[cfg(feature = "cuda")]
+fn gpu_saved_layer_mask(config: &ModelConfig) -> Option<Vec<bool>> {
+    let raw = std::env::var("PG_GPU_SAVE_LAYER_ACTS").ok()?;
+    let mode = raw.to_ascii_lowercase();
+    if matches!(mode.as_str(), "0" | "false" | "no" | "off") {
+        return None;
+    }
+
+    let mut mask = match mode.as_str() {
+        // Save all non-recurrent blocks. Recurrent blocks still need the
+        // two-pass backward path and are intentionally recomputed.
+        "1" | "true" | "yes" | "on" | "checkpoint" | "edges" => checkpoint_layers(config)
+            .into_iter()
+            .enumerate()
+            .map(|(layer, checkpoint)| !checkpoint && !config.is_recurrent_layer(layer))
+            .collect::<Vec<_>>(),
+        "all" => (0..config.num_layers)
+            .map(|layer| !config.is_recurrent_layer(layer))
+            .collect::<Vec<_>>(),
+        other => {
+            eprintln!(
+                "PG_GPU_SAVE_LAYER_ACTS={other:?} is not recognized; using no saved layer activations"
+            );
+            return None;
+        }
+    };
+
+    // Avoid allocating empty saved-layer vectors for tiny or fully recurrent
+    // configurations.
+    if mask.iter().any(|&save| save) {
+        Some(std::mem::take(&mut mask))
+    } else {
+        None
+    }
+}
+
+#[cfg(feature = "cuda")]
+fn gpu_backward_stage_timing_enabled() -> bool {
+    matches!(
+        std::env::var("PG_GPU_BACKWARD_STAGE_TIMING")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+#[cfg(feature = "cuda")]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GpuBackwardStageTiming {
+    pub forward_ms: f64,
+    pub forward_embed_ms: f64,
+    pub forward_encoder_ms: f64,
+    pub forward_encoder_layer_max_ms: f64,
+    pub forward_decoder_ms: f64,
+    pub forward_decoder_layer_max_ms: f64,
+    pub forward_logits_ms: f64,
+    pub forward_block_pre_attn_ms: f64,
+    pub forward_block_attention_ms: f64,
+    pub forward_block_post_attn_ms: f64,
+    pub forward_block_mlp_ms: f64,
+    pub backward_block_recompute_ms: f64,
+    pub backward_block_mlp_ms: f64,
+    pub backward_block_attn_out_ms: f64,
+    pub backward_block_attention_ms: f64,
+    pub backward_block_qkv_ms: f64,
+    pub output_ms: f64,
+    pub decoder_ms: f64,
+    pub encoder_ms: f64,
+    pub tail_ms: f64,
+}
+
+#[cfg(feature = "cuda")]
+fn record_stage_event(stream: &Arc<CudaStream>) -> PgResult<Option<cudarc::driver::CudaEvent>> {
+    record_stage_event_if(stream, true)
+}
+
+#[cfg(feature = "cuda")]
+fn record_stage_event_if(
+    stream: &Arc<CudaStream>,
+    enabled: bool,
+) -> PgResult<Option<cudarc::driver::CudaEvent>> {
+    if !enabled || !gpu_backward_stage_timing_enabled() {
+        return Ok(None);
+    }
+    stream
+        .record_event(Some(cudarc::driver::sys::CUevent_flags::CU_EVENT_DEFAULT))
+        .map(Some)
+        .map_err(|e| pg_core::PgError::InvalidOp(format!("cuda stage event record failed: {e:?}")))
+}
+
+#[cfg(feature = "cuda")]
+fn finish_stage_event(
+    stream: &Arc<CudaStream>,
+    start: Option<cudarc::driver::CudaEvent>,
+    slot: &mut f64,
+) -> PgResult<()> {
+    let Some(start) = start else {
+        return Ok(());
+    };
+    let end = stream
+        .record_event(Some(cudarc::driver::sys::CUevent_flags::CU_EVENT_DEFAULT))
+        .map_err(|e| {
+            pg_core::PgError::InvalidOp(format!("cuda stage event record failed: {e:?}"))
+        })?;
+    *slot += start.elapsed_ms(&end).map_err(|e| {
+        pg_core::PgError::InvalidOp(format!("cuda stage event elapsed failed: {e:?}"))
+    })? as f64;
+    Ok(())
+}
+
+#[cfg(feature = "cuda")]
+fn finish_stage_event_optional(
+    stream: &Arc<CudaStream>,
+    start: Option<cudarc::driver::CudaEvent>,
+    slot: Option<&mut f64>,
+) -> PgResult<()> {
+    let Some(slot) = slot else {
+        return Ok(());
+    };
+    finish_stage_event(stream, start, slot)
+}
+
+#[cfg(feature = "cuda")]
+fn finish_stage_event_optional_max(
+    stream: &Arc<CudaStream>,
+    start: Option<cudarc::driver::CudaEvent>,
+    slot: Option<&mut f64>,
+) -> PgResult<()> {
+    let Some(slot) = slot else {
+        return Ok(());
+    };
+    let Some(start) = start else {
+        return Ok(());
+    };
+    let end = stream
+        .record_event(Some(cudarc::driver::sys::CUevent_flags::CU_EVENT_DEFAULT))
+        .map_err(|e| {
+            pg_core::PgError::InvalidOp(format!("cuda stage event record failed: {e:?}"))
+        })?;
+    let elapsed_ms = start.elapsed_ms(&end).map_err(|e| {
+        pg_core::PgError::InvalidOp(format!("cuda stage event elapsed failed: {e:?}"))
+    })? as f64;
+    *slot = (*slot).max(elapsed_ms);
+    Ok(())
 }
 
 /// Block-local recompute cache for GPU backward.
@@ -475,18 +834,83 @@ struct GpuBlockBackwardCache {
     q_pre_norm: GpuTensor,
     k_pre_norm: GpuTensor,
     q_post_rope: GpuTensor,
+    attn_stats: GpuTensor,
     x_after_attn: GpuTensor,
+    pass1_out: GpuTensor,
+    grad_mid: GpuTensor,
+    grad_x_after_attn: GpuTensor,
+    grad_mlp_out: GpuTensor,
+    grad_mlp_act: GpuTensor,
+    grad_mlp_up: GpuTensor,
+    grad_mlp_norm: GpuTensor,
+    grad_x_pre_mlp_norm: GpuTensor,
+    grad_x_in: GpuTensor,
+    grad_x_in_from_norm: GpuTensor,
+    grad_proj_out: GpuTensor,
+    grad_attn_result: GpuTensor,
+    grad_raw: GpuTensor,
+    grad_attn_out: GpuTensor,
+    grad_v_xsa: GpuTensor,
+    grad_q_post_gain: GpuTensor,
+    grad_k_attn: GpuTensor,
+    grad_v_projection: GpuTensor,
+    grad_q_post_rope: GpuTensor,
+    grad_q_proj: GpuTensor,
+    grad_k_proj: GpuTensor,
+    grad_qkv_proj: GpuTensor,
+    grad_qkv_weight: GpuTensor,
+    grad_attn_norm: GpuTensor,
+    grad_attn_norm_k: GpuTensor,
+    grad_attn_norm_v: GpuTensor,
+    grad_projected: GpuTensor,
+    grad_ve_embed_out: GpuTensor,
 }
 
 #[cfg(feature = "cuda")]
 impl GpuBlockBackwardCache {
     fn new(config: &ModelConfig, tokens: usize, stream: Arc<CudaStream>) -> PgResult<Self> {
+        let d = config.model_dim;
+        let h = config.num_heads;
+        let hkv = config.num_kv_heads;
+        let hd = config.head_dim;
+        let kv = config.kv_dim();
+        let mlp = config.mlp_dim;
+        let ve_dim = config.ve_dim.max(1);
         let zeros = |shape: &[usize]| GpuTensor::zeros_gpu(stream.clone(), shape, DType::F32);
         Ok(Self {
-            q_pre_norm: zeros(&[tokens, config.num_heads, config.head_dim])?,
-            k_pre_norm: zeros(&[tokens, config.num_kv_heads, config.head_dim])?,
-            q_post_rope: zeros(&[tokens, config.num_heads, config.head_dim])?,
-            x_after_attn: zeros(&[tokens, config.model_dim])?,
+            q_pre_norm: zeros(&[tokens, h, hd])?,
+            k_pre_norm: zeros(&[tokens, hkv, hd])?,
+            q_post_rope: zeros(&[tokens, h, hd])?,
+            attn_stats: zeros(&[tokens, h])?,
+            x_after_attn: zeros(&[tokens, d])?,
+            pass1_out: zeros(&[tokens, d])?,
+            grad_mid: zeros(&[tokens, d])?,
+            grad_x_after_attn: zeros(&[tokens, d])?,
+            grad_mlp_out: zeros(&[tokens, d])?,
+            grad_mlp_act: zeros(&[tokens, mlp])?,
+            grad_mlp_up: zeros(&[tokens, mlp])?,
+            grad_mlp_norm: zeros(&[tokens, d])?,
+            grad_x_pre_mlp_norm: zeros(&[tokens, d])?,
+            grad_x_in: zeros(&[tokens, d])?,
+            grad_x_in_from_norm: zeros(&[tokens, d])?,
+            grad_proj_out: zeros(&[tokens, d])?,
+            grad_attn_result: zeros(&[tokens, h, hd])?,
+            grad_raw: zeros(&[tokens, h, hd])?,
+            grad_attn_out: zeros(&[tokens, h, hd])?,
+            grad_v_xsa: zeros(&[tokens, hkv, hd])?,
+            grad_q_post_gain: zeros(&[tokens, h, hd])?,
+            grad_k_attn: zeros(&[tokens, hkv, hd])?,
+            grad_v_projection: zeros(&[tokens, hkv, hd])?,
+            grad_q_post_rope: zeros(&[tokens, h, hd])?,
+            grad_q_proj: zeros(&[tokens, h, hd])?,
+            grad_k_proj: zeros(&[tokens, hkv, hd])?,
+            grad_qkv_proj: zeros(&[tokens, d + 2 * kv])?,
+            grad_qkv_weight: zeros(&[d + 2 * kv, d])?,
+            grad_attn_norm: zeros(&[tokens, d])?,
+            grad_attn_norm_k: zeros(&[tokens, d])?,
+            grad_attn_norm_v: zeros(&[tokens, d])?,
+            grad_projected: zeros(&[tokens, kv])?,
+            grad_ve_embed_out: zeros(&[tokens, ve_dim])?,
         })
     }
 }
@@ -496,14 +920,67 @@ impl GpuBlockBackwardCache {
 pub struct GpuBackwardState {
     cache: GpuForwardCache,
     block_cache: GpuBlockBackwardCache,
+    pub stage_timing: GpuBackwardStageTiming,
+    losses: GpuTensor,
+    grad_logits: GpuTensor,
+    grad_logits_bf16: GpuTensor,
+    grad_output_x: GpuTensor,
+    grad_output_pre_norm: GpuTensor,
+    grad_ping: GpuTensor,
+    grad_pong: GpuTensor,
+    grad_x0: GpuTensor,
+    grad_encoder_skips: Vec<GpuTensor>,
+    grad_x_post_skip: GpuTensor,
+    grad_x_smear: GpuTensor,
+    grad_x_prev: GpuTensor,
+    grad_x_post_norm: GpuTensor,
+    grad_x_post_embed: GpuTensor,
+    grad_bigram_proj_out: GpuTensor,
+    grad_bigram_out: GpuTensor,
 }
 
 #[cfg(feature = "cuda")]
 impl GpuBackwardState {
     pub fn new(config: &ModelConfig, tokens: usize, stream: Arc<CudaStream>) -> PgResult<Self> {
+        let cache = GpuForwardCache::new(config, tokens, stream.clone())?;
+        Self::new_with_cache(config, tokens, stream, cache)
+    }
+
+    fn new_with_cache(
+        config: &ModelConfig,
+        tokens: usize,
+        stream: Arc<CudaStream>,
+        cache: GpuForwardCache,
+    ) -> PgResult<Self> {
+        let d = config.model_dim;
+        let bigram_dim = config.bigram_dim.max(1);
+        let zeros = |shape: &[usize]| GpuTensor::zeros_gpu(stream.clone(), shape, DType::F32);
         Ok(Self {
-            cache: GpuForwardCache::new(config, tokens, stream.clone())?,
-            block_cache: GpuBlockBackwardCache::new(config, tokens, stream)?,
+            cache,
+            block_cache: GpuBlockBackwardCache::new(config, tokens, stream.clone())?,
+            stage_timing: GpuBackwardStageTiming::default(),
+            losses: zeros(&[tokens])?,
+            grad_logits: zeros(&[tokens, config.vocab_size])?,
+            grad_logits_bf16: GpuTensor::zeros_gpu(
+                stream.clone(),
+                &[tokens, config.vocab_size],
+                DType::BF16,
+            )?,
+            grad_output_x: zeros(&[tokens, d])?,
+            grad_output_pre_norm: zeros(&[tokens, d])?,
+            grad_ping: zeros(&[tokens, d])?,
+            grad_pong: zeros(&[tokens, d])?,
+            grad_x0: zeros(&[tokens, d])?,
+            grad_encoder_skips: (0..config.num_skip_weights())
+                .map(|_| zeros(&[tokens, d]))
+                .collect::<PgResult<_>>()?,
+            grad_x_post_skip: zeros(&[tokens, d])?,
+            grad_x_smear: zeros(&[tokens, d])?,
+            grad_x_prev: zeros(&[tokens, d])?,
+            grad_x_post_norm: zeros(&[tokens, d])?,
+            grad_x_post_embed: zeros(&[tokens, d])?,
+            grad_bigram_proj_out: zeros(&[tokens, d])?,
+            grad_bigram_out: zeros(&[tokens, bigram_dim])?,
         })
     }
 
@@ -513,7 +990,8 @@ impl GpuBackwardState {
         stream: Arc<CudaStream>,
     ) -> PgResult<Self> {
         let config = plan.run_spec.model.to_model_config();
-        Self::new(&config, tokens, stream)
+        let cache = GpuForwardCache::new_for_plan(plan, tokens, stream.clone())?;
+        Self::new_with_cache(&config, tokens, stream, cache)
     }
 }
 
@@ -722,10 +1200,13 @@ impl GpuQProjectionLora {
 #[cfg(feature = "cuda")]
 pub struct GpuModel {
     pub config: ModelConfig,
+    pub attention_backend: AttentionBackend,
+    pub compute_precision: ModelComputePrecision,
     pub weights: GpuWeights,
     pub gemm: pg_kernels::gemm::GemmEngine,
     pub kernels: pg_kernels::gpu_kernels::GpuKernels,
     pub cuda_cpp_attention: Option<pg_kernels::flash_attn::CudaCppAttention>,
+    pub cudnn_frontend_attention: Option<pg_kernels::flash_attn::CudnnFrontendAttention>,
     pub q_lora: Option<GpuQProjectionLora>,
     pub _ctx: Arc<CudaContext>,
 }
@@ -744,12 +1225,17 @@ impl GpuModel {
         let kernels = pg_kernels::gpu_kernels::GpuKernels::new(ctx.clone(), stream)?;
         let cuda_cpp_attention =
             pg_kernels::flash_attn::CudaCppAttention::new(gemm.stream().clone()).ok();
+        let cudnn_frontend_attention =
+            pg_kernels::flash_attn::CudnnFrontendAttention::new(gemm.stream().clone()).ok();
         Ok(Self {
             config: cpu.config.clone(),
+            attention_backend: plan.run_spec.model.attention_backend,
+            compute_precision: plan.run_spec.model.compute_precision,
             weights,
             gemm,
             kernels,
             cuda_cpp_attention,
+            cudnn_frontend_attention,
             q_lora: None,
             _ctx: ctx,
         })
@@ -761,12 +1247,632 @@ impl GpuModel {
         plan: &ExecutionPlan,
     ) -> PgResult<()> {
         plan.validate_model_config(&cpu.config)?;
+        self.attention_backend = plan.run_spec.model.attention_backend;
+        self.compute_precision = plan.run_spec.model.compute_precision;
         self.weights.sync_from_cpu(cpu)
     }
 
     pub fn sync_to_cpu_reference(&self, cpu: &mut GptModel, plan: &ExecutionPlan) -> PgResult<()> {
         plan.validate_model_config(&cpu.config)?;
         self.weights.sync_to_cpu(cpu)
+    }
+
+    pub fn refresh_bf16_shadows(&self) -> PgResult<()> {
+        if self.compute_precision != ModelComputePrecision::Bf16TensorCore {
+            return Ok(());
+        }
+        use pg_kernels::gpu_kernels::CudaPtr;
+        let stream = self.gemm.stream();
+        let convert = |src: &GpuTensor, dst: &GpuTensor| -> PgResult<()> {
+            self.kernels.f32_to_bf16(
+                CudaPtr(src.cu_ptr(stream)?),
+                CudaPtr(dst.cu_ptr(stream)?),
+                src.numel() as u32,
+            )
+        };
+        convert(&self.weights.qo_bank, &self.weights.qo_bank_bf16)?;
+        convert(&self.weights.kv_bank, &self.weights.kv_bank_bf16)?;
+        self.kernels.pack_qkv_weights(
+            CudaPtr(self.weights.qo_bank.cu_ptr(stream)?),
+            CudaPtr(self.weights.kv_bank.cu_ptr(stream)?),
+            CudaPtr(self.weights.qkv_bank.cu_ptr(stream)?),
+            self.config.num_layers as u32,
+            self.config.model_dim as u32,
+            self.config.kv_dim() as u32,
+        )?;
+        convert(&self.weights.qkv_bank, &self.weights.qkv_bank_bf16)?;
+        convert(&self.weights.mlp_up_bank, &self.weights.mlp_up_bank_bf16)?;
+        convert(
+            &self.weights.mlp_down_bank,
+            &self.weights.mlp_down_bank_bf16,
+        )?;
+        self.kernels.f32_to_bf16(
+            CudaPtr(self.weights.tok_emb.cu_ptr(stream)?),
+            CudaPtr(self.weights.tok_emb_bf16.cu_ptr(stream)?),
+            self.weights.tok_emb.numel() as u32,
+        )
+    }
+
+    fn use_bf16_forward_gemm(&self) -> bool {
+        self.compute_precision == ModelComputePrecision::Bf16TensorCore
+            && !matches!(
+                std::env::var("PG_GPU_BF16_FORWARD_GEMM")
+                    .unwrap_or_else(|_| "1".to_string())
+                    .to_ascii_lowercase()
+                    .as_str(),
+                "0" | "false" | "no" | "off"
+            )
+    }
+
+    fn use_bf16_primary_forward_gemm(&self) -> bool {
+        self.compute_precision == ModelComputePrecision::Bf16TensorCore
+            && !matches!(
+                std::env::var("PG_GPU_BF16_PRIMARY_FORWARD_GEMM")
+                    .unwrap_or_else(|_| "1".to_string())
+                    .to_ascii_lowercase()
+                    .as_str(),
+                "0" | "false" | "no" | "off"
+            )
+    }
+
+    fn use_bf16_backward_gemm(&self) -> bool {
+        self.compute_precision == ModelComputePrecision::Bf16TensorCore
+            && !matches!(
+                std::env::var("PG_GPU_BF16_BACKWARD_GEMM")
+                    .unwrap_or_else(|_| "1".to_string())
+                    .to_ascii_lowercase()
+                    .as_str(),
+                "0" | "false" | "no" | "off"
+            )
+    }
+
+    fn use_bf16_output_gemm(&self) -> bool {
+        self.compute_precision == ModelComputePrecision::Bf16TensorCore
+            && !matches!(
+                std::env::var("PG_GPU_BF16_OUTPUT_GEMM")
+                    .unwrap_or_else(|_| "1".to_string())
+                    .to_ascii_lowercase()
+                    .as_str(),
+                "0" | "false" | "no" | "off"
+            )
+    }
+
+    fn use_bf16_output_backward_gemm(&self) -> bool {
+        self.compute_precision == ModelComputePrecision::Bf16TensorCore
+            && !matches!(
+                std::env::var("PG_GPU_BF16_OUTPUT_BACKWARD_GEMM")
+                    .unwrap_or_else(|_| "1".to_string())
+                    .to_ascii_lowercase()
+                    .as_str(),
+                "0" | "false" | "no" | "off"
+            )
+    }
+
+    fn use_qkv_dx_beta_accum(&self) -> bool {
+        matches!(
+            std::env::var("PG_GPU_QKV_DX_BETA_ACCUM")
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    }
+
+    fn use_fused_qkv_projection(&self) -> bool {
+        self.compute_precision == ModelComputePrecision::Bf16TensorCore
+            && matches!(
+                std::env::var("PG_GPU_FUSED_QKV_PROJ")
+                    .unwrap_or_default()
+                    .to_ascii_lowercase()
+                    .as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+    }
+
+    fn output_projection_forward(
+        &self,
+        x_in: &GpuTensor,
+        x_in_bf16: &GpuTensor,
+        logits: &GpuTensor,
+        tokens: usize,
+    ) -> PgResult<()> {
+        use pg_kernels::gpu_kernels::CudaPtr;
+
+        let d = self.config.model_dim;
+        let vocab = self.config.vocab_size;
+        let stream = self.gemm.stream();
+        if self.use_bf16_output_gemm() {
+            self.kernels.f32_to_bf16(
+                CudaPtr(x_in.cu_ptr(stream)?),
+                CudaPtr(x_in_bf16.cu_ptr(stream)?),
+                (tokens * d) as u32,
+            )?;
+            unsafe {
+                self.gemm.matmul_bf16_bt_to_f32(
+                    x_in_bf16.cu_ptr(stream)?,
+                    self.weights.tok_emb_bf16.cu_ptr(stream)?,
+                    logits.cu_ptr(stream)?,
+                    tokens,
+                    vocab,
+                    d,
+                    1.0,
+                    0.0,
+                )?;
+            }
+        } else {
+            unsafe {
+                self.gemm.matmul_f32(
+                    x_in.cu_ptr(stream)?,
+                    self.weights.tok_emb.cu_ptr(stream)?,
+                    logits.cu_ptr(stream)?,
+                    tokens,
+                    vocab,
+                    d,
+                    1.0,
+                    0.0,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn linear_forward(
+        &self,
+        input: &GpuTensor,
+        input_bf16: &GpuTensor,
+        weight: &GpuTensor,
+        weight_bf16: &GpuTensor,
+        output: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> PgResult<()> {
+        self.linear_forward_impl(
+            input,
+            input_bf16,
+            weight,
+            weight_bf16,
+            output,
+            tokens,
+            out_dim,
+            in_dim,
+            true,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn linear_forward_bf16_input_ready(
+        &self,
+        input: &GpuTensor,
+        input_bf16: &GpuTensor,
+        weight: &GpuTensor,
+        weight_bf16: &GpuTensor,
+        output: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> PgResult<()> {
+        self.linear_forward_impl(
+            input,
+            input_bf16,
+            weight,
+            weight_bf16,
+            output,
+            tokens,
+            out_dim,
+            in_dim,
+            false,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn linear_forward_f32(
+        &self,
+        input: &GpuTensor,
+        weight: &GpuTensor,
+        output: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> PgResult<()> {
+        let stream = self.gemm.stream();
+        unsafe {
+            self.gemm.matmul_f32(
+                input.cu_ptr(stream)?,
+                weight.cu_ptr(stream)?,
+                output.cu_ptr(stream)?,
+                tokens,
+                out_dim,
+                in_dim,
+                1.0,
+                0.0,
+            )?;
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn linear_forward_impl(
+        &self,
+        input: &GpuTensor,
+        input_bf16: &GpuTensor,
+        weight: &GpuTensor,
+        weight_bf16: &GpuTensor,
+        output: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+        convert_bf16_input: bool,
+    ) -> PgResult<()> {
+        use pg_kernels::gpu_kernels::CudaPtr;
+
+        let stream = self.gemm.stream();
+        if self.use_bf16_forward_gemm() {
+            if convert_bf16_input {
+                self.kernels.f32_to_bf16(
+                    CudaPtr(input.cu_ptr(stream)?),
+                    CudaPtr(input_bf16.cu_ptr(stream)?),
+                    (tokens * in_dim) as u32,
+                )?;
+            }
+            unsafe {
+                self.gemm.matmul_bf16_bt_to_f32(
+                    input_bf16.cu_ptr(stream)?,
+                    weight_bf16.cu_ptr(stream)?,
+                    output.cu_ptr(stream)?,
+                    tokens,
+                    out_dim,
+                    in_dim,
+                    1.0,
+                    0.0,
+                )?;
+            }
+        } else {
+            unsafe {
+                self.gemm.matmul_f32(
+                    input.cu_ptr(stream)?,
+                    weight.cu_ptr(stream)?,
+                    output.cu_ptr(stream)?,
+                    tokens,
+                    out_dim,
+                    in_dim,
+                    1.0,
+                    0.0,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn linear_backward_input_and_weight(
+        &self,
+        dy: &GpuTensor,
+        dy_bf16: &GpuTensor,
+        x: &GpuTensor,
+        x_bf16: &GpuTensor,
+        weight: &GpuTensor,
+        weight_bf16: &GpuTensor,
+        dx: &GpuTensor,
+        dw: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> PgResult<()> {
+        self.linear_backward_input_and_weight_impl(
+            dy,
+            dy_bf16,
+            x,
+            x_bf16,
+            weight,
+            weight_bf16,
+            dx,
+            dw,
+            tokens,
+            out_dim,
+            in_dim,
+            true,
+            0.0,
+            1.0,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn linear_backward_input_and_weight_x_bf16_ready(
+        &self,
+        dy: &GpuTensor,
+        dy_bf16: &GpuTensor,
+        x: &GpuTensor,
+        x_bf16: &GpuTensor,
+        weight: &GpuTensor,
+        weight_bf16: &GpuTensor,
+        dx: &GpuTensor,
+        dw: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+    ) -> PgResult<()> {
+        self.linear_backward_input_and_weight_impl(
+            dy,
+            dy_bf16,
+            x,
+            x_bf16,
+            weight,
+            weight_bf16,
+            dx,
+            dw,
+            tokens,
+            out_dim,
+            in_dim,
+            false,
+            0.0,
+            1.0,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn linear_backward_input_and_weight_x_bf16_ready_with_dx_beta(
+        &self,
+        dy: &GpuTensor,
+        dy_bf16: &GpuTensor,
+        x: &GpuTensor,
+        x_bf16: &GpuTensor,
+        weight: &GpuTensor,
+        weight_bf16: &GpuTensor,
+        dx: &GpuTensor,
+        dw: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+        dx_beta: f32,
+    ) -> PgResult<()> {
+        self.linear_backward_input_and_weight_impl(
+            dy,
+            dy_bf16,
+            x,
+            x_bf16,
+            weight,
+            weight_bf16,
+            dx,
+            dw,
+            tokens,
+            out_dim,
+            in_dim,
+            false,
+            dx_beta,
+            1.0,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn linear_backward_input_and_weight_x_bf16_ready_with_betas(
+        &self,
+        dy: &GpuTensor,
+        dy_bf16: &GpuTensor,
+        x: &GpuTensor,
+        x_bf16: &GpuTensor,
+        weight: &GpuTensor,
+        weight_bf16: &GpuTensor,
+        dx: &GpuTensor,
+        dw: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+        dx_beta: f32,
+        dw_beta: f32,
+    ) -> PgResult<()> {
+        self.linear_backward_input_and_weight_impl(
+            dy,
+            dy_bf16,
+            x,
+            x_bf16,
+            weight,
+            weight_bf16,
+            dx,
+            dw,
+            tokens,
+            out_dim,
+            in_dim,
+            false,
+            dx_beta,
+            dw_beta,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn linear_backward_input_and_weight_impl(
+        &self,
+        dy: &GpuTensor,
+        dy_bf16: &GpuTensor,
+        x: &GpuTensor,
+        x_bf16: &GpuTensor,
+        weight: &GpuTensor,
+        weight_bf16: &GpuTensor,
+        dx: &GpuTensor,
+        dw: &GpuTensor,
+        tokens: usize,
+        out_dim: usize,
+        in_dim: usize,
+        convert_x_bf16: bool,
+        dx_beta: f32,
+        dw_beta: f32,
+    ) -> PgResult<()> {
+        use pg_kernels::gpu_kernels::CudaPtr;
+
+        let stream = self.gemm.stream();
+        if self.use_bf16_backward_gemm() {
+            self.kernels.f32_to_bf16(
+                CudaPtr(dy.cu_ptr(stream)?),
+                CudaPtr(dy_bf16.cu_ptr(stream)?),
+                (tokens * out_dim) as u32,
+            )?;
+            if convert_x_bf16 {
+                self.kernels.f32_to_bf16(
+                    CudaPtr(x.cu_ptr(stream)?),
+                    CudaPtr(x_bf16.cu_ptr(stream)?),
+                    (tokens * in_dim) as u32,
+                )?;
+            }
+            unsafe {
+                self.gemm.linear_backward_input_bf16_to_f32(
+                    dy_bf16.cu_ptr(stream)?,
+                    weight_bf16.cu_ptr(stream)?,
+                    dx.cu_ptr(stream)?,
+                    tokens,
+                    out_dim,
+                    in_dim,
+                    1.0,
+                    dx_beta,
+                )?;
+                self.gemm.linear_backward_weight_bf16_to_f32(
+                    dy_bf16.cu_ptr(stream)?,
+                    x_bf16.cu_ptr(stream)?,
+                    dw.cu_ptr(stream)?,
+                    tokens,
+                    out_dim,
+                    in_dim,
+                    1.0,
+                    dw_beta,
+                )?;
+            }
+        } else {
+            unsafe {
+                self.gemm.linear_backward_input_f32(
+                    dy.cu_ptr(stream)?,
+                    weight.cu_ptr(stream)?,
+                    dx.cu_ptr(stream)?,
+                    tokens,
+                    out_dim,
+                    in_dim,
+                    1.0,
+                    dx_beta,
+                )?;
+                self.gemm.linear_backward_weight_f32(
+                    dy.cu_ptr(stream)?,
+                    x.cu_ptr(stream)?,
+                    dw.cu_ptr(stream)?,
+                    tokens,
+                    out_dim,
+                    in_dim,
+                    1.0,
+                    dw_beta,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn qkv_projection_forward(
+        &self,
+        layer: usize,
+        buf: &mut GpuActivations,
+        tokens: usize,
+    ) -> PgResult<bool> {
+        use pg_kernels::gpu_kernels::CudaPtr;
+
+        if !self.use_fused_qkv_projection() {
+            return Ok(false);
+        }
+
+        let stream = self.gemm.stream();
+        let d = self.config.model_dim;
+        let kv = self.config.kv_dim();
+        self.kernels.f32_to_bf16(
+            CudaPtr(buf.attn_norm.cu_ptr(stream)?),
+            CudaPtr(buf.x_in_bf16.cu_ptr(stream)?),
+            (tokens * d) as u32,
+        )?;
+        let qkv_w = self.weights.qkv_bank.slice_first(layer)?;
+        let qkv_w_bf16 = self.weights.qkv_bank_bf16.slice_first(layer)?;
+        self.linear_forward_bf16_input_ready(
+            &buf.attn_norm,
+            &buf.x_in_bf16,
+            &qkv_w,
+            &qkv_w_bf16,
+            &buf.qkv_out,
+            tokens,
+            d + 2 * kv,
+            d,
+        )?;
+        self.kernels.unpack_qkv_output(
+            CudaPtr(buf.qkv_out.cu_ptr(stream)?),
+            CudaPtr(buf.q.cu_ptr(stream)?),
+            CudaPtr(buf.k.cu_ptr(stream)?),
+            CudaPtr(buf.v.cu_ptr(stream)?),
+            tokens as u32,
+            d as u32,
+            kv as u32,
+        )?;
+        Ok(true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn qkv_projection_backward(
+        &self,
+        layer: usize,
+        buf: &mut GpuActivations,
+        block_cache: &GpuBlockBackwardCache,
+        grads: &mut GpuGradBuffers,
+        grad_q_proj: &GpuTensor,
+        grad_k_proj: &GpuTensor,
+        grad_v_projection: &GpuTensor,
+        grad_attn_norm: &GpuTensor,
+        tokens: usize,
+    ) -> PgResult<bool> {
+        use pg_kernels::gpu_kernels::CudaPtr;
+
+        if !self.use_fused_qkv_projection() {
+            return Ok(false);
+        }
+
+        let stream = self.gemm.stream();
+        let d = self.config.model_dim;
+        let kv = self.config.kv_dim();
+        let n = self.config.num_layers;
+
+        self.kernels.pack_qkv_grads(
+            CudaPtr(grad_q_proj.cu_ptr(stream)?),
+            CudaPtr(grad_k_proj.cu_ptr(stream)?),
+            CudaPtr(grad_v_projection.cu_ptr(stream)?),
+            CudaPtr(block_cache.grad_qkv_proj.cu_ptr(stream)?),
+            tokens as u32,
+            d as u32,
+            kv as u32,
+        )?;
+        self.kernels.f32_to_bf16(
+            CudaPtr(buf.attn_norm.cu_ptr(stream)?),
+            CudaPtr(buf.x_in_bf16.cu_ptr(stream)?),
+            (tokens * d) as u32,
+        )?;
+
+        let qkv_w = self.weights.qkv_bank.slice_first(layer)?;
+        let qkv_w_bf16 = self.weights.qkv_bank_bf16.slice_first(layer)?;
+        self.linear_backward_input_and_weight_x_bf16_ready_with_betas(
+            &block_cache.grad_qkv_proj,
+            &buf.qkv_aux_bf16,
+            &buf.attn_norm,
+            &buf.x_in_bf16,
+            &qkv_w,
+            &qkv_w_bf16,
+            grad_attn_norm,
+            &block_cache.grad_qkv_weight,
+            tokens,
+            d + 2 * kv,
+            d,
+            0.0,
+            0.0,
+        )?;
+        self.kernels.unpack_qkv_weight_grad(
+            CudaPtr(block_cache.grad_qkv_weight.cu_ptr(stream)?),
+            CudaPtr(grads.qo_bank.cu_ptr(stream)?),
+            CudaPtr(grads.kv_bank.cu_ptr(stream)?),
+            layer as u32,
+            n as u32,
+            d as u32,
+            kv as u32,
+        )?;
+        self.backward_q_lora(layer, grad_q_proj, grad_attn_norm, buf)?;
+        Ok(true)
     }
 
     pub fn enable_q_lora(&mut self, rank: usize, alpha: f32) -> PgResult<()> {
@@ -867,8 +1973,42 @@ impl GpuModel {
         num_kv_heads: usize,
         head_dim: usize,
         seq_len: usize,
+        stats: Option<u64>,
     ) -> PgResult<()> {
         use pg_kernels::gpu_kernels::CudaPtr;
+
+        if self.attention_backend == AttentionBackend::CudnnSdpaBf16 {
+            let Some(cudnn_attention) = &self.cudnn_frontend_attention else {
+                return Err(pg_core::PgError::InvalidOp(
+                    "attention_backend=cudnn_sdpa_bf16 was selected, but the cuDNN frontend SDPA backend was not compiled into this build".into(),
+                ));
+            };
+            if let Some(stats) = stats {
+                return cudnn_attention.forward_with_stats(
+                    q,
+                    k,
+                    v,
+                    out,
+                    stats,
+                    tokens,
+                    seq_len,
+                    num_heads,
+                    num_kv_heads,
+                    head_dim,
+                );
+            }
+            return cudnn_attention.forward(
+                q,
+                k,
+                v,
+                out,
+                tokens,
+                seq_len,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+            );
+        }
 
         if std::env::var("PG_USE_CPP_NAIVE_ATTENTION")
             .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
@@ -894,6 +2034,83 @@ impl GpuModel {
             CudaPtr(k),
             CudaPtr(v),
             CudaPtr(out),
+            tokens as u32,
+            seq_len as u32,
+            num_heads as u32,
+            num_kv_heads as u32,
+            head_dim as u32,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_attention_backward(
+        &self,
+        q: u64,
+        k: u64,
+        v: u64,
+        out: u64,
+        grad_out: u64,
+        grad_q: u64,
+        grad_k: u64,
+        grad_v: u64,
+        tokens: usize,
+        num_heads: usize,
+        num_kv_heads: usize,
+        head_dim: usize,
+        seq_len: usize,
+        stats: Option<u64>,
+    ) -> PgResult<()> {
+        use pg_kernels::gpu_kernels::CudaPtr;
+
+        if self.attention_backend == AttentionBackend::CudnnSdpaBf16 {
+            let Some(cudnn_attention) = &self.cudnn_frontend_attention else {
+                return Err(pg_core::PgError::InvalidOp(
+                    "attention_backend=cudnn_sdpa_bf16 was selected, but the cuDNN frontend SDPA backend was not compiled into this build".into(),
+                ));
+            };
+            if let Some(stats) = stats {
+                return cudnn_attention.backward_with_stats(
+                    q,
+                    k,
+                    v,
+                    out,
+                    grad_out,
+                    grad_q,
+                    grad_k,
+                    grad_v,
+                    stats,
+                    tokens,
+                    seq_len,
+                    num_heads,
+                    num_kv_heads,
+                    head_dim,
+                );
+            }
+            return cudnn_attention.backward(
+                q,
+                k,
+                v,
+                out,
+                grad_out,
+                grad_q,
+                grad_k,
+                grad_v,
+                tokens,
+                seq_len,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+            );
+        }
+
+        self.kernels.causal_attention_online_bwd(
+            CudaPtr(q),
+            CudaPtr(k),
+            CudaPtr(v),
+            CudaPtr(grad_out),
+            CudaPtr(grad_q),
+            CudaPtr(grad_k),
+            CudaPtr(grad_v),
             tokens as u32,
             seq_len as u32,
             num_heads as u32,
@@ -1034,15 +2251,26 @@ impl GpuModel {
         Ok(())
     }
 
-    fn zeros_f32(&self, shape: &[usize]) -> PgResult<GpuTensor> {
-        GpuTensor::zeros_gpu(self.gemm.stream().clone(), shape, DType::F32)
+    fn zero_tensor(&self, tensor: &GpuTensor) -> PgResult<()> {
+        use pg_kernels::gpu_kernels::CudaPtr;
+
+        self.kernels.scale_inplace(
+            CudaPtr(tensor.cu_ptr(self.gemm.stream())?),
+            0.0,
+            tensor.numel() as u32,
+        )
     }
 
-    fn mean_loss(&self, logits: &GpuTensor, targets: &GpuTensor, tokens: usize) -> PgResult<f32> {
+    fn mean_loss_with_scratch(
+        &self,
+        logits: &GpuTensor,
+        targets: &GpuTensor,
+        losses: &GpuTensor,
+        tokens: usize,
+    ) -> PgResult<f32> {
         use pg_kernels::gpu_kernels::CudaPtr;
 
         let stream = self.gemm.stream();
-        let losses = self.zeros_f32(&[tokens])?;
         self.kernels.cross_entropy_fwd(
             CudaPtr(logits.cu_ptr(stream)?),
             CudaPtr(targets.cu_ptr(stream)?),
@@ -1119,40 +2347,57 @@ impl GpuModel {
             1e-6,
         )?;
 
-        let q_w = self.weights.qo_bank.slice_first(layer)?;
-        let k_w = self.weights.kv_bank.slice_first(layer)?;
-        let v_w = self.weights.kv_bank.slice_first(n + layer)?;
-        unsafe {
-            self.gemm.matmul_f32(
-                buf.attn_norm.cu_ptr(stream)?,
-                q_w.cu_ptr(stream)?,
-                buf.q.cu_ptr(stream)?,
+        if self.qkv_projection_forward(layer, buf, t)? {
+            // Hot path handled by a single packed QKV GEMM.
+        } else if self.use_bf16_primary_forward_gemm() {
+            let q_w = self.weights.qo_bank.slice_first(layer)?;
+            let q_w_bf16 = self.weights.qo_bank_bf16.slice_first(layer)?;
+            let k_w = self.weights.kv_bank.slice_first(layer)?;
+            let k_w_bf16 = self.weights.kv_bank_bf16.slice_first(layer)?;
+            let v_w = self.weights.kv_bank.slice_first(n + layer)?;
+            let v_w_bf16 = self.weights.kv_bank_bf16.slice_first(n + layer)?;
+            self.kernels.f32_to_bf16(
+                CudaPtr(buf.attn_norm.cu_ptr(stream)?),
+                CudaPtr(buf.x_in_bf16.cu_ptr(stream)?),
+                (t * d) as u32,
+            )?;
+            self.linear_forward_bf16_input_ready(
+                &buf.attn_norm,
+                &buf.x_in_bf16,
+                &q_w,
+                &q_w_bf16,
+                &buf.q,
                 t,
                 d,
                 d,
-                1.0,
-                0.0,
             )?;
-            self.gemm.matmul_f32(
-                buf.attn_norm.cu_ptr(stream)?,
-                k_w.cu_ptr(stream)?,
-                buf.k.cu_ptr(stream)?,
+            self.linear_forward_bf16_input_ready(
+                &buf.attn_norm,
+                &buf.x_in_bf16,
+                &k_w,
+                &k_w_bf16,
+                &buf.k,
                 t,
                 kv,
                 d,
-                1.0,
-                0.0,
             )?;
-            self.gemm.matmul_f32(
-                buf.attn_norm.cu_ptr(stream)?,
-                v_w.cu_ptr(stream)?,
-                buf.v.cu_ptr(stream)?,
+            self.linear_forward_bf16_input_ready(
+                &buf.attn_norm,
+                &buf.x_in_bf16,
+                &v_w,
+                &v_w_bf16,
+                &buf.v,
                 t,
                 kv,
                 d,
-                1.0,
-                0.0,
             )?;
+        } else {
+            let q_w = self.weights.qo_bank.slice_first(layer)?;
+            let k_w = self.weights.kv_bank.slice_first(layer)?;
+            let v_w = self.weights.kv_bank.slice_first(n + layer)?;
+            self.linear_forward_f32(&buf.attn_norm, &q_w, &buf.q, t, d, d)?;
+            self.linear_forward_f32(&buf.attn_norm, &k_w, &buf.k, t, kv, d)?;
+            self.linear_forward_f32(&buf.attn_norm, &v_w, &buf.v, t, kv, d)?;
         }
         self.apply_q_lora_forward(layer, buf)?;
         self.copy_tensor(&buf.q, &cache.q_pre_norm)?;
@@ -1239,6 +2484,7 @@ impl GpuModel {
             hkv,
             hd,
             runtime_seq_len,
+            Some(cache.attn_stats.cu_ptr(stream)?),
         )?;
 
         let attn_src = if layer >= n.saturating_sub(self.config.xsa_last_n) {
@@ -1270,23 +2516,37 @@ impl GpuModel {
                 self.config.attn_out_gate_width as u32,
             )?;
             &buf.attn_gated
+        } else if self.config.sparse_attn_gate_enabled {
+            self.kernels.sparse_attn_gate_fwd(
+                CudaPtr(attn_src.cu_ptr(stream)?),
+                CudaPtr(buf.attn_norm.cu_ptr(stream)?),
+                CudaPtr(self.weights.sparse_attn_gate_weights[layer].cu_ptr(stream)?),
+                CudaPtr(buf.attn_gated.cu_ptr(stream)?),
+                CudaPtr(buf.attn_gate_values.cu_ptr(stream)?),
+                t as u32,
+                h as u32,
+                hd as u32,
+                d as u32,
+                self.config.sparse_attn_gate_width as u32,
+                self.config.sparse_attn_gate_scale,
+            )?;
+            &buf.attn_gated
         } else {
             attn_src
         };
 
         let o_w = self.weights.qo_bank.slice_first(n + layer)?;
-        unsafe {
-            self.gemm.matmul_f32(
-                attn_src.cu_ptr(stream)?,
-                o_w.cu_ptr(stream)?,
-                buf.proj_out.cu_ptr(stream)?,
-                t,
-                d,
-                d,
-                1.0,
-                0.0,
-            )?;
-        }
+        let o_w_bf16 = self.weights.qo_bank_bf16.slice_first(n + layer)?;
+        self.linear_forward(
+            attn_src,
+            &buf.x_in_bf16,
+            &o_w,
+            &o_w_bf16,
+            &buf.proj_out,
+            t,
+            d,
+            d,
+        )?;
 
         self.copy_tensor(&buf.x_in, &buf.x)?;
         self.kernels.residual_add_scale_fwd(
@@ -1316,36 +2576,34 @@ impl GpuModel {
         )?;
 
         let up_w = self.weights.mlp_up_bank.slice_first(layer)?;
+        let up_w_bf16 = self.weights.mlp_up_bank_bf16.slice_first(layer)?;
         let down_w = self.weights.mlp_down_bank.slice_first(layer)?;
-        unsafe {
-            self.gemm.matmul_f32(
-                buf.mlp_norm.cu_ptr(stream)?,
-                up_w.cu_ptr(stream)?,
-                buf.mlp_up.cu_ptr(stream)?,
-                t,
-                mlp,
-                d,
-                1.0,
-                0.0,
-            )?;
-        }
+        let down_w_bf16 = self.weights.mlp_down_bank_bf16.slice_first(layer)?;
+        self.linear_forward(
+            &buf.mlp_norm,
+            &buf.x_in_bf16,
+            &up_w,
+            &up_w_bf16,
+            &buf.mlp_up,
+            t,
+            mlp,
+            d,
+        )?;
         self.kernels.leaky_relu_sq_forward(
             CudaPtr(buf.mlp_up.cu_ptr(stream)?),
             CudaPtr(buf.mlp_act.cu_ptr(stream)?),
             (t * mlp) as u32,
         )?;
-        unsafe {
-            self.gemm.matmul_f32(
-                buf.mlp_act.cu_ptr(stream)?,
-                down_w.cu_ptr(stream)?,
-                buf.mlp_out.cu_ptr(stream)?,
-                t,
-                d,
-                mlp,
-                1.0,
-                0.0,
-            )?;
-        }
+        self.linear_forward(
+            &buf.mlp_act,
+            &buf.wide_bf16,
+            &down_w,
+            &down_w_bf16,
+            &buf.mlp_out,
+            t,
+            d,
+            mlp,
+        )?;
         self.kernels.residual_add_scale_fwd(
             CudaPtr(buf.x.cu_ptr(stream)?),
             CudaPtr(buf.mlp_out.cu_ptr(stream)?),
@@ -1357,7 +2615,36 @@ impl GpuModel {
         Ok(())
     }
 
-    fn block_backward_single(
+    fn restore_saved_block_for_backward(
+        &self,
+        saved: &GpuLayerForwardCache,
+        buf: &mut GpuActivations,
+        block_cache: &mut GpuBlockBackwardCache,
+    ) -> PgResult<()> {
+        self.copy_tensor(&saved.x_in, &buf.x_in)?;
+        self.copy_tensor(&saved.attn_norm, &buf.attn_norm)?;
+        self.copy_tensor(&saved.q_pre_norm, &block_cache.q_pre_norm)?;
+        self.copy_tensor(&saved.k_pre_norm, &block_cache.k_pre_norm)?;
+        self.copy_tensor(&saved.q_post_rope, &block_cache.q_post_rope)?;
+        self.copy_tensor(&saved.q, &buf.q)?;
+        self.copy_tensor(&saved.k, &buf.k)?;
+        self.copy_tensor(&saved.v, &buf.v)?;
+        self.copy_tensor(&saved.ve_embed_out, &buf.ve_embed_out)?;
+        self.copy_tensor(&saved.ve_out, &buf.ve_out)?;
+        self.copy_tensor(&saved.attn_out, &buf.attn_out)?;
+        self.copy_tensor(&saved.xsa_out, &buf.xsa_out)?;
+        self.copy_tensor(&saved.attn_gated, &buf.attn_gated)?;
+        self.copy_tensor(&saved.attn_gate_values, &buf.attn_gate_values)?;
+        self.copy_tensor(&saved.proj_out, &buf.proj_out)?;
+        self.copy_tensor(&saved.x_after_attn, &block_cache.x_after_attn)?;
+        self.copy_tensor(&saved.mlp_norm, &buf.mlp_norm)?;
+        self.copy_tensor(&saved.mlp_up, &buf.mlp_up)?;
+        self.copy_tensor(&saved.mlp_act, &buf.mlp_act)?;
+        self.copy_tensor(&saved.mlp_out, &buf.mlp_out)?;
+        Ok(())
+    }
+
+    fn block_backward_single_into(
         &self,
         layer: usize,
         input_ids: &GpuTensor,
@@ -1367,19 +2654,35 @@ impl GpuModel {
         block_cache: &mut GpuBlockBackwardCache,
         grad_x: &GpuTensor,
         grad_x0: &GpuTensor,
+        grad_x_out: &GpuTensor,
         grads: &mut GpuGradBuffers,
         runtime_seq_len: usize,
-    ) -> PgResult<GpuTensor> {
+        saved: Option<&GpuLayerForwardCache>,
+        mut stage_timing: Option<&mut GpuBackwardStageTiming>,
+    ) -> PgResult<()> {
         use pg_kernels::gpu_kernels::CudaPtr;
 
-        self.block_recompute_for_backward(
-            layer,
-            input_ids,
-            layer_x,
-            x0,
-            buf,
-            block_cache,
-            runtime_seq_len,
+        let stream = self.gemm.stream();
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
+        if let Some(saved) = saved {
+            self.restore_saved_block_for_backward(saved, buf, block_cache)?;
+        } else {
+            self.block_recompute_for_backward(
+                layer,
+                input_ids,
+                layer_x,
+                x0,
+                buf,
+                block_cache,
+                runtime_seq_len,
+            )?;
+        }
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.backward_block_recompute_ms),
         )?;
 
         let t = input_ids.shape().iter().product::<usize>();
@@ -1390,10 +2693,11 @@ impl GpuModel {
         let kv = self.config.kv_dim();
         let mlp = self.config.mlp_dim;
         let n = self.config.num_layers;
-        let stream = self.gemm.stream();
 
-        let grad_x_after_attn = self.zeros_f32(&[t, d])?;
-        let grad_mlp_out = self.zeros_f32(&[t, d])?;
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
+        let grad_x_after_attn = &block_cache.grad_x_after_attn;
+        let grad_mlp_out = &block_cache.grad_mlp_out;
+        self.zero_tensor(grad_x_after_attn)?;
         self.kernels.residual_add_scale_bwd(
             CudaPtr(buf.mlp_out.cu_ptr(stream)?),
             CudaPtr(grad_x.cu_ptr(stream)?),
@@ -1405,34 +2709,25 @@ impl GpuModel {
             (t * d) as u32,
         )?;
 
-        let grad_mlp_act = self.zeros_f32(&[t, mlp])?;
-        unsafe {
-            self.gemm.linear_backward_input_f32(
-                grad_mlp_out.cu_ptr(stream)?,
-                self.weights
-                    .mlp_down_bank
-                    .slice_first(layer)?
-                    .cu_ptr(stream)?,
-                grad_mlp_act.cu_ptr(stream)?,
-                t,
-                d,
-                mlp,
-                1.0,
-                0.0,
-            )?;
-            self.gemm.linear_backward_weight_f32(
-                grad_mlp_out.cu_ptr(stream)?,
-                buf.mlp_act.cu_ptr(stream)?,
-                grads.mlp_down_bank.slice_first(layer)?.cu_ptr(stream)?,
-                t,
-                d,
-                mlp,
-                1.0,
-                1.0,
-            )?;
-        }
+        let grad_mlp_act = &block_cache.grad_mlp_act;
+        let mlp_down_w = self.weights.mlp_down_bank.slice_first(layer)?;
+        let mlp_down_w_bf16 = self.weights.mlp_down_bank_bf16.slice_first(layer)?;
+        let grad_mlp_out_bf16 = &buf.x_aux_bf16;
+        self.linear_backward_input_and_weight(
+            grad_mlp_out,
+            grad_mlp_out_bf16,
+            &buf.mlp_act,
+            &buf.wide_bf16,
+            &mlp_down_w,
+            &mlp_down_w_bf16,
+            grad_mlp_act,
+            &grads.mlp_down_bank.slice_first(layer)?,
+            t,
+            d,
+            mlp,
+        )?;
 
-        let grad_mlp_up = self.zeros_f32(&[t, mlp])?;
+        let grad_mlp_up = &block_cache.grad_mlp_up;
         self.kernels.leaky_relu_sq_backward(
             CudaPtr(buf.mlp_up.cu_ptr(stream)?),
             CudaPtr(grad_mlp_act.cu_ptr(stream)?),
@@ -1440,34 +2735,24 @@ impl GpuModel {
             (t * mlp) as u32,
         )?;
 
-        let grad_mlp_norm = self.zeros_f32(&[t, d])?;
-        unsafe {
-            self.gemm.linear_backward_input_f32(
-                grad_mlp_up.cu_ptr(stream)?,
-                self.weights
-                    .mlp_up_bank
-                    .slice_first(layer)?
-                    .cu_ptr(stream)?,
-                grad_mlp_norm.cu_ptr(stream)?,
-                t,
-                mlp,
-                d,
-                1.0,
-                0.0,
-            )?;
-            self.gemm.linear_backward_weight_f32(
-                grad_mlp_up.cu_ptr(stream)?,
-                buf.mlp_norm.cu_ptr(stream)?,
-                grads.mlp_up_bank.slice_first(layer)?.cu_ptr(stream)?,
-                t,
-                mlp,
-                d,
-                1.0,
-                1.0,
-            )?;
-        }
+        let grad_mlp_norm = &block_cache.grad_mlp_norm;
+        let mlp_up_w = self.weights.mlp_up_bank.slice_first(layer)?;
+        let mlp_up_w_bf16 = self.weights.mlp_up_bank_bf16.slice_first(layer)?;
+        self.linear_backward_input_and_weight(
+            grad_mlp_up,
+            &buf.wide_bf16,
+            &buf.mlp_norm,
+            &buf.x_in_bf16,
+            &mlp_up_w,
+            &mlp_up_w_bf16,
+            grad_mlp_norm,
+            &grads.mlp_up_bank.slice_first(layer)?,
+            t,
+            mlp,
+            d,
+        )?;
 
-        let grad_x_pre_mlp_norm = self.zeros_f32(&[t, d])?;
+        let grad_x_pre_mlp_norm = &block_cache.grad_x_pre_mlp_norm;
         self.kernels.rms_norm_backward(
             CudaPtr(block_cache.x_after_attn.cu_ptr(stream)?),
             CudaPtr(grad_mlp_norm.cu_ptr(stream)?),
@@ -1478,11 +2763,20 @@ impl GpuModel {
             1e-6,
         )?;
         if !self.parallel_residual_enabled() {
-            self.add_inplace(&grad_x_after_attn, &grad_x_pre_mlp_norm, 1.0)?;
+            self.add_inplace(grad_x_after_attn, grad_x_pre_mlp_norm, 1.0)?;
         }
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.backward_block_mlp_ms),
+        )?;
 
-        let grad_x_in = self.zeros_f32(&[t, d])?;
-        let grad_proj_out = self.zeros_f32(&[t, d])?;
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
+        let grad_x_in = &block_cache.grad_x_in;
+        let grad_proj_out = &block_cache.grad_proj_out;
+        self.zero_tensor(grad_x_in)?;
         self.kernels.residual_add_scale_bwd(
             CudaPtr(buf.proj_out.cu_ptr(stream)?),
             CudaPtr(grad_x_after_attn.cu_ptr(stream)?),
@@ -1494,41 +2788,32 @@ impl GpuModel {
             (t * d) as u32,
         )?;
         if self.parallel_residual_enabled() {
-            self.add_inplace(&grad_x_in, &grad_x_pre_mlp_norm, 1.0)?;
+            self.add_inplace(grad_x_in, grad_x_pre_mlp_norm, 1.0)?;
         }
-
-        let grad_attn_result = self.zeros_f32(&[t, h, hd])?;
-        unsafe {
-            self.gemm.linear_backward_input_f32(
-                grad_proj_out.cu_ptr(stream)?,
-                self.weights
-                    .qo_bank
-                    .slice_first(n + layer)?
-                    .cu_ptr(stream)?,
-                grad_attn_result.cu_ptr(stream)?,
-                t,
-                d,
-                d,
-                1.0,
-                0.0,
-            )?;
-            self.gemm.linear_backward_weight_f32(
-                grad_proj_out.cu_ptr(stream)?,
-                if self.config.attn_out_gate_enabled {
-                    buf.attn_gated.cu_ptr(stream)?
-                } else if layer >= n.saturating_sub(self.config.xsa_last_n) {
-                    buf.xsa_out.cu_ptr(stream)?
-                } else {
-                    buf.attn_out.cu_ptr(stream)?
-                },
-                grads.qo_bank.slice_first(n + layer)?.cu_ptr(stream)?,
-                t,
-                d,
-                d,
-                1.0,
-                1.0,
-            )?;
-        }
+        let grad_attn_result = &block_cache.grad_attn_result;
+        let o_w = self.weights.qo_bank.slice_first(n + layer)?;
+        let o_w_bf16 = self.weights.qo_bank_bf16.slice_first(n + layer)?;
+        let attn_weight_input =
+            if self.config.attn_out_gate_enabled || self.config.sparse_attn_gate_enabled {
+                &buf.attn_gated
+            } else if layer >= n.saturating_sub(self.config.xsa_last_n) {
+                &buf.xsa_out
+            } else {
+                &buf.attn_out
+            };
+        self.linear_backward_input_and_weight(
+            grad_proj_out,
+            &buf.x_aux_bf16,
+            attn_weight_input,
+            &buf.x_in_bf16,
+            &o_w,
+            &o_w_bf16,
+            grad_attn_result,
+            &grads.qo_bank.slice_first(n + layer)?,
+            t,
+            d,
+            d,
+        )?;
 
         let grad_attn_pre_gate = if self.config.attn_out_gate_enabled {
             let raw_src = if layer >= n.saturating_sub(self.config.xsa_last_n) {
@@ -1536,7 +2821,7 @@ impl GpuModel {
             } else {
                 &buf.attn_out
             };
-            let grad_raw = self.zeros_f32(&[t, h, hd])?;
+            let grad_raw = &block_cache.grad_raw;
             self.kernels.scale_inplace(
                 CudaPtr(buf.attn_gate_grad_input.cu_ptr(stream)?),
                 0.0,
@@ -1559,12 +2844,41 @@ impl GpuModel {
                 self.config.attn_out_gate_width as u32,
             )?;
             grad_raw
+        } else if self.config.sparse_attn_gate_enabled {
+            let raw_src = if layer >= n.saturating_sub(self.config.xsa_last_n) {
+                &buf.xsa_out
+            } else {
+                &buf.attn_out
+            };
+            let grad_raw = &block_cache.grad_raw;
+            self.kernels.scale_inplace(
+                CudaPtr(buf.attn_gate_grad_input.cu_ptr(stream)?),
+                0.0,
+                (t * d) as u32,
+            )?;
+            self.kernels.sparse_attn_gate_bwd(
+                CudaPtr(raw_src.cu_ptr(stream)?),
+                CudaPtr(buf.attn_norm.cu_ptr(stream)?),
+                CudaPtr(buf.attn_gate_values.cu_ptr(stream)?),
+                CudaPtr(grad_attn_result.cu_ptr(stream)?),
+                CudaPtr(self.weights.sparse_attn_gate_weights[layer].cu_ptr(stream)?),
+                CudaPtr(grad_raw.cu_ptr(stream)?),
+                CudaPtr(buf.attn_gate_grad_input.cu_ptr(stream)?),
+                CudaPtr(grads.block_sparse_attn_gate_weight[layer].cu_ptr(stream)?),
+                t as u32,
+                h as u32,
+                hd as u32,
+                d as u32,
+                self.config.sparse_attn_gate_width as u32,
+                self.config.sparse_attn_gate_scale,
+            )?;
+            grad_raw
         } else {
             grad_attn_result
         };
 
-        let grad_attn_out = self.zeros_f32(&[t, h, hd])?;
-        let grad_v_xsa = self.zeros_f32(&[t, hkv, hd])?;
+        let grad_attn_out = &block_cache.grad_attn_out;
+        let grad_v_xsa = &block_cache.grad_v_xsa;
         if layer >= n.saturating_sub(self.config.xsa_last_n) {
             self.kernels.xsa_bwd(
                 CudaPtr(buf.attn_out.cu_ptr(stream)?),
@@ -1580,29 +2894,52 @@ impl GpuModel {
         } else {
             self.copy_tensor(&grad_attn_pre_gate, &grad_attn_out)?;
         }
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.backward_block_attn_out_ms),
+        )?;
 
-        let grad_q_post_gain = self.zeros_f32(&[t, h, hd])?;
-        let grad_k_attn = self.zeros_f32(&[t, hkv, hd])?;
-        let grad_v_projection = self.zeros_f32(&[t, hkv, hd])?;
-        self.kernels.causal_attention_online_bwd(
-            CudaPtr(buf.q.cu_ptr(stream)?),
-            CudaPtr(buf.k.cu_ptr(stream)?),
-            CudaPtr(buf.v.cu_ptr(stream)?),
-            CudaPtr(grad_attn_out.cu_ptr(stream)?),
-            CudaPtr(grad_q_post_gain.cu_ptr(stream)?),
-            CudaPtr(grad_k_attn.cu_ptr(stream)?),
-            CudaPtr(grad_v_projection.cu_ptr(stream)?),
-            t as u32,
-            runtime_seq_len as u32,
-            h as u32,
-            hkv as u32,
-            hd as u32,
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
+        let grad_q_post_gain = &block_cache.grad_q_post_gain;
+        let grad_k_attn = &block_cache.grad_k_attn;
+        let grad_v_projection = &block_cache.grad_v_projection;
+        let attn_stats = if let Some(saved) = saved {
+            Some(saved.attn_stats.cu_ptr(stream)?)
+        } else {
+            Some(block_cache.attn_stats.cu_ptr(stream)?)
+        };
+        self.run_attention_backward(
+            buf.q.cu_ptr(stream)?,
+            buf.k.cu_ptr(stream)?,
+            buf.v.cu_ptr(stream)?,
+            buf.attn_out.cu_ptr(stream)?,
+            grad_attn_out.cu_ptr(stream)?,
+            grad_q_post_gain.cu_ptr(stream)?,
+            grad_k_attn.cu_ptr(stream)?,
+            grad_v_projection.cu_ptr(stream)?,
+            t,
+            h,
+            hkv,
+            hd,
+            runtime_seq_len,
+            attn_stats,
         )?;
         if layer >= n.saturating_sub(self.config.xsa_last_n) {
             self.add_inplace(&grad_v_projection, &grad_v_xsa, 1.0)?;
         }
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.backward_block_attention_ms),
+        )?;
 
-        let grad_q_post_rope = self.zeros_f32(&[t, h, hd])?;
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
+        let grad_q_post_rope = &block_cache.grad_q_post_rope;
         self.kernels.q_gain_bwd(
             CudaPtr(block_cache.q_post_rope.cu_ptr(stream)?),
             CudaPtr(grad_q_post_gain.cu_ptr(stream)?),
@@ -1636,8 +2973,8 @@ impl GpuModel {
             )?;
         }
 
-        let grad_q_proj = self.zeros_f32(&[t, h, hd])?;
-        let grad_k_proj = self.zeros_f32(&[t, hkv, hd])?;
+        let grad_q_proj = &block_cache.grad_q_proj;
+        let grad_k_proj = &block_cache.grad_k_proj;
         self.kernels.qk_norm_bwd(
             CudaPtr(block_cache.q_pre_norm.cu_ptr(stream)?),
             CudaPtr(grad_q_post_rope.cu_ptr(stream)?),
@@ -1655,55 +2992,78 @@ impl GpuModel {
             1e-6,
         )?;
 
-        let grad_attn_norm = self.zeros_f32(&[t, d])?;
-        unsafe {
-            self.gemm.linear_backward_input_f32(
-                grad_q_proj.cu_ptr(stream)?,
-                self.weights.qo_bank.slice_first(layer)?.cu_ptr(stream)?,
-                grad_attn_norm.cu_ptr(stream)?,
+        let grad_attn_norm = &block_cache.grad_attn_norm;
+        let qkv_fused = self.qkv_projection_backward(
+            layer,
+            buf,
+            block_cache,
+            grads,
+            grad_q_proj,
+            grad_k_proj,
+            grad_v_projection,
+            grad_attn_norm,
+            t,
+        )?;
+        if !qkv_fused {
+            let q_w = self.weights.qo_bank.slice_first(layer)?;
+            let q_w_bf16 = self.weights.qo_bank_bf16.slice_first(layer)?;
+            if self.use_bf16_backward_gemm() {
+                self.kernels.f32_to_bf16(
+                    CudaPtr(buf.attn_norm.cu_ptr(stream)?),
+                    CudaPtr(buf.x_in_bf16.cu_ptr(stream)?),
+                    (t * d) as u32,
+                )?;
+            }
+            self.linear_backward_input_and_weight_x_bf16_ready(
+                grad_q_proj,
+                &buf.x_aux_bf16,
+                &buf.attn_norm,
+                &buf.x_in_bf16,
+                &q_w,
+                &q_w_bf16,
+                grad_attn_norm,
+                &grads.qo_bank.slice_first(layer)?,
                 t,
                 d,
                 d,
-                1.0,
-                0.0,
             )?;
-            self.gemm.linear_backward_weight_f32(
-                grad_q_proj.cu_ptr(stream)?,
-                buf.attn_norm.cu_ptr(stream)?,
-                grads.qo_bank.slice_first(layer)?.cu_ptr(stream)?,
-                t,
-                d,
-                d,
-                1.0,
-                1.0,
-            )?;
-        }
-        self.backward_q_lora(layer, &grad_q_proj, &grad_attn_norm, buf)?;
+            self.backward_q_lora(layer, &grad_q_proj, &grad_attn_norm, buf)?;
 
-        let grad_attn_norm_k = self.zeros_f32(&[t, d])?;
-        unsafe {
-            self.gemm.linear_backward_input_f32(
-                grad_k_proj.cu_ptr(stream)?,
-                self.weights.kv_bank.slice_first(layer)?.cu_ptr(stream)?,
-                grad_attn_norm_k.cu_ptr(stream)?,
-                t,
-                kv,
-                d,
-                1.0,
-                0.0,
-            )?;
-            self.gemm.linear_backward_weight_f32(
-                grad_k_proj.cu_ptr(stream)?,
-                buf.attn_norm.cu_ptr(stream)?,
-                grads.kv_bank.slice_first(layer)?.cu_ptr(stream)?,
-                t,
-                kv,
-                d,
-                1.0,
-                1.0,
-            )?;
+            let k_w = self.weights.kv_bank.slice_first(layer)?;
+            let k_w_bf16 = self.weights.kv_bank_bf16.slice_first(layer)?;
+            if self.use_qkv_dx_beta_accum() {
+                self.linear_backward_input_and_weight_x_bf16_ready_with_dx_beta(
+                    grad_k_proj,
+                    &buf.x_aux_bf16,
+                    &buf.attn_norm,
+                    &buf.x_in_bf16,
+                    &k_w,
+                    &k_w_bf16,
+                    grad_attn_norm,
+                    &grads.kv_bank.slice_first(layer)?,
+                    t,
+                    kv,
+                    d,
+                    1.0,
+                )?;
+            } else {
+                let grad_attn_norm_k = &block_cache.grad_attn_norm_k;
+                self.linear_backward_input_and_weight_x_bf16_ready(
+                    grad_k_proj,
+                    &buf.x_aux_bf16,
+                    &buf.attn_norm,
+                    &buf.x_in_bf16,
+                    &k_w,
+                    &k_w_bf16,
+                    grad_attn_norm_k,
+                    &grads.kv_bank.slice_first(layer)?,
+                    t,
+                    kv,
+                    d,
+                )?;
+                self.add_inplace(&grad_attn_norm, grad_attn_norm_k, 1.0)?;
+            }
         }
-        self.add_inplace(&grad_attn_norm, &grad_attn_norm_k, 1.0)?;
 
         if let Some(ve_idx) = self.config.ve_layers.iter().position(|&l| l == layer) {
             let layer_scale = self.weights.ve_layer_scales_host[ve_idx];
@@ -1722,7 +3082,8 @@ impl GpuModel {
                 (t * kv) as u32,
             )?;
 
-            let grad_projected = self.zeros_f32(&[t, kv])?;
+            let grad_projected = &block_cache.grad_projected;
+            self.zero_tensor(grad_projected)?;
             self.kernels.add_scaled_fwd(
                 CudaPtr(grad_projected.cu_ptr(stream)?),
                 CudaPtr(grad_v_projection.cu_ptr(stream)?),
@@ -1741,7 +3102,7 @@ impl GpuModel {
                     1.0,
                 )?;
             }
-            let grad_ve_embed_out = self.zeros_f32(&[t, self.config.ve_dim])?;
+            let grad_ve_embed_out = &block_cache.grad_ve_embed_out;
             unsafe {
                 self.gemm.linear_backward_input_f32(
                     grad_projected.cu_ptr(stream)?,
@@ -1763,38 +3124,47 @@ impl GpuModel {
             )?;
         }
 
-        let grad_attn_norm_v = self.zeros_f32(&[t, d])?;
-        unsafe {
-            self.gemm.linear_backward_input_f32(
-                grad_v_projection.cu_ptr(stream)?,
-                self.weights
-                    .kv_bank
-                    .slice_first(n + layer)?
-                    .cu_ptr(stream)?,
-                grad_attn_norm_v.cu_ptr(stream)?,
-                t,
-                kv,
-                d,
-                1.0,
-                0.0,
-            )?;
-            self.gemm.linear_backward_weight_f32(
-                grad_v_projection.cu_ptr(stream)?,
-                buf.attn_norm.cu_ptr(stream)?,
-                grads.kv_bank.slice_first(n + layer)?.cu_ptr(stream)?,
-                t,
-                kv,
-                d,
-                1.0,
-                1.0,
-            )?;
+        if !qkv_fused {
+            let v_w = self.weights.kv_bank.slice_first(n + layer)?;
+            let v_w_bf16 = self.weights.kv_bank_bf16.slice_first(n + layer)?;
+            if self.use_qkv_dx_beta_accum() {
+                self.linear_backward_input_and_weight_x_bf16_ready_with_dx_beta(
+                    grad_v_projection,
+                    &buf.x_aux_bf16,
+                    &buf.attn_norm,
+                    &buf.x_in_bf16,
+                    &v_w,
+                    &v_w_bf16,
+                    grad_attn_norm,
+                    &grads.kv_bank.slice_first(n + layer)?,
+                    t,
+                    kv,
+                    d,
+                    1.0,
+                )?;
+            } else {
+                let grad_attn_norm_v = &block_cache.grad_attn_norm_v;
+                self.linear_backward_input_and_weight_x_bf16_ready(
+                    grad_v_projection,
+                    &buf.x_aux_bf16,
+                    &buf.attn_norm,
+                    &buf.x_in_bf16,
+                    &v_w,
+                    &v_w_bf16,
+                    grad_attn_norm_v,
+                    &grads.kv_bank.slice_first(n + layer)?,
+                    t,
+                    kv,
+                    d,
+                )?;
+                self.add_inplace(&grad_attn_norm, grad_attn_norm_v, 1.0)?;
+            }
         }
-        self.add_inplace(&grad_attn_norm, &grad_attn_norm_v, 1.0)?;
-        if self.config.attn_out_gate_enabled {
+        if self.config.attn_out_gate_enabled || self.config.sparse_attn_gate_enabled {
             self.add_inplace(&grad_attn_norm, &buf.attn_gate_grad_input, 1.0)?;
         }
 
-        let grad_x_in_from_norm = self.zeros_f32(&[t, d])?;
+        let grad_x_in_from_norm = &block_cache.grad_x_in_from_norm;
         self.kernels.rms_norm_backward(
             CudaPtr(buf.x_in.cu_ptr(stream)?),
             CudaPtr(grad_attn_norm.cu_ptr(stream)?),
@@ -1804,9 +3174,8 @@ impl GpuModel {
             self.ln_scale_factor(layer),
             1e-6,
         )?;
-        self.add_inplace(&grad_x_in, &grad_x_in_from_norm, 1.0)?;
+        self.add_inplace(grad_x_in, grad_x_in_from_norm, 1.0)?;
 
-        let grad_x_out = self.zeros_f32(&[t, d])?;
         self.kernels.residual_mix_bwd(
             CudaPtr(layer_x.cu_ptr(stream)?),
             CudaPtr(x0.cu_ptr(stream)?),
@@ -1818,11 +3187,18 @@ impl GpuModel {
             d as u32,
             (t * d) as u32,
         )?;
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.backward_block_qkv_ms),
+        )?;
 
-        Ok(grad_x_out)
+        Ok(())
     }
 
-    fn block_backward(
+    fn block_backward_into(
         &self,
         layer: usize,
         input_ids: &GpuTensor,
@@ -1832,12 +3208,13 @@ impl GpuModel {
         block_cache: &mut GpuBlockBackwardCache,
         grad_x: &GpuTensor,
         grad_x0: &GpuTensor,
+        grad_x_out: &GpuTensor,
         grads: &mut GpuGradBuffers,
         runtime_seq_len: usize,
-    ) -> PgResult<GpuTensor> {
+        saved: Option<&GpuLayerForwardCache>,
+        mut stage_timing: Option<&mut GpuBackwardStageTiming>,
+    ) -> PgResult<()> {
         if self.is_recurrent_layer(layer) {
-            let t = input_ids.shape().iter().product::<usize>();
-            let pass1_out = self.zeros_f32(&[t, self.config.model_dim])?;
             self.block_recompute_for_backward(
                 layer,
                 input_ids,
@@ -1847,8 +3224,10 @@ impl GpuModel {
                 block_cache,
                 runtime_seq_len,
             )?;
-            self.copy_tensor(&buf.x, &pass1_out)?;
-            let grad_mid = self.block_backward_single(
+            self.copy_tensor(&buf.x, &block_cache.pass1_out)?;
+            let pass1_out = block_cache.pass1_out.clone();
+            let grad_mid = block_cache.grad_mid.clone();
+            self.block_backward_single_into(
                 layer,
                 input_ids,
                 &pass1_out,
@@ -1857,10 +3236,13 @@ impl GpuModel {
                 block_cache,
                 grad_x,
                 grad_x0,
+                &grad_mid,
                 grads,
                 runtime_seq_len,
+                None,
+                stage_timing.as_deref_mut(),
             )?;
-            return self.block_backward_single(
+            return self.block_backward_single_into(
                 layer,
                 input_ids,
                 layer_x,
@@ -1869,12 +3251,15 @@ impl GpuModel {
                 block_cache,
                 &grad_mid,
                 grad_x0,
+                grad_x_out,
                 grads,
                 runtime_seq_len,
+                None,
+                stage_timing.as_deref_mut(),
             );
         }
 
-        self.block_backward_single(
+        self.block_backward_single_into(
             layer,
             input_ids,
             layer_x,
@@ -1883,8 +3268,11 @@ impl GpuModel {
             block_cache,
             grad_x,
             grad_x0,
+            grad_x_out,
             grads,
             runtime_seq_len,
+            saved,
+            stage_timing,
         )
     }
 
@@ -1894,6 +3282,8 @@ impl GpuModel {
         input_ids: &GpuTensor,
         buf: &mut GpuActivations,
         runtime_seq_len: usize,
+        save: Option<&GpuLayerForwardCache>,
+        mut stage_timing: Option<&mut GpuBackwardStageTiming>,
     ) -> PgResult<()> {
         use pg_kernels::gpu_kernels::CudaPtr;
 
@@ -1922,6 +3312,7 @@ impl GpuModel {
         let mlp_act = CudaPtr(buf.mlp_act.cu_ptr(stream)?);
         let mlp_out = CudaPtr(buf.mlp_out.cu_ptr(stream)?);
 
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
         self.kernels.residual_mix_fwd(
             x,
             x0,
@@ -1930,6 +3321,9 @@ impl GpuModel {
             d as u32,
             (t * d) as u32,
         )?;
+        if let Some(save) = save {
+            self.copy_tensor(&buf.x_in, &save.x_in)?;
+        }
 
         self.kernels.rms_norm_forward(
             x_in,
@@ -1939,47 +3333,67 @@ impl GpuModel {
             self.ln_scale_factor(layer),
             1e-6,
         )?;
+        if let Some(save) = save {
+            self.copy_tensor(&buf.attn_norm, &save.attn_norm)?;
+        }
 
-        let q_w = self.weights.qo_bank.slice_first(layer)?.cu_ptr(stream)?;
-        let k_w = self.weights.kv_bank.slice_first(layer)?.cu_ptr(stream)?;
-        let v_w = self
-            .weights
-            .kv_bank
-            .slice_first(n + layer)?
-            .cu_ptr(stream)?;
-        unsafe {
-            self.gemm.matmul_f32(
-                buf.attn_norm.cu_ptr(stream)?,
-                q_w,
-                buf.q.cu_ptr(stream)?,
+        if self.qkv_projection_forward(layer, buf, t)? {
+            // Hot path handled by a single packed QKV GEMM.
+        } else if self.use_bf16_primary_forward_gemm() {
+            let q_w = self.weights.qo_bank.slice_first(layer)?;
+            let q_w_bf16 = self.weights.qo_bank_bf16.slice_first(layer)?;
+            let k_w = self.weights.kv_bank.slice_first(layer)?;
+            let k_w_bf16 = self.weights.kv_bank_bf16.slice_first(layer)?;
+            let v_w = self.weights.kv_bank.slice_first(n + layer)?;
+            let v_w_bf16 = self.weights.kv_bank_bf16.slice_first(n + layer)?;
+            self.kernels.f32_to_bf16(
+                CudaPtr(buf.attn_norm.cu_ptr(stream)?),
+                CudaPtr(buf.x_in_bf16.cu_ptr(stream)?),
+                (t * d) as u32,
+            )?;
+            self.linear_forward_bf16_input_ready(
+                &buf.attn_norm,
+                &buf.x_in_bf16,
+                &q_w,
+                &q_w_bf16,
+                &buf.q,
                 t,
                 d,
                 d,
-                1.0,
-                0.0,
             )?;
-            self.gemm.matmul_f32(
-                buf.attn_norm.cu_ptr(stream)?,
-                k_w,
-                buf.k.cu_ptr(stream)?,
-                t,
-                kv,
-                d,
-                1.0,
-                0.0,
-            )?;
-            self.gemm.matmul_f32(
-                buf.attn_norm.cu_ptr(stream)?,
-                v_w,
-                buf.v.cu_ptr(stream)?,
+            self.linear_forward_bf16_input_ready(
+                &buf.attn_norm,
+                &buf.x_in_bf16,
+                &k_w,
+                &k_w_bf16,
+                &buf.k,
                 t,
                 kv,
                 d,
-                1.0,
-                0.0,
             )?;
+            self.linear_forward_bf16_input_ready(
+                &buf.attn_norm,
+                &buf.x_in_bf16,
+                &v_w,
+                &v_w_bf16,
+                &buf.v,
+                t,
+                kv,
+                d,
+            )?;
+        } else {
+            let q_w = self.weights.qo_bank.slice_first(layer)?;
+            let k_w = self.weights.kv_bank.slice_first(layer)?;
+            let v_w = self.weights.kv_bank.slice_first(n + layer)?;
+            self.linear_forward_f32(&buf.attn_norm, &q_w, &buf.q, t, d, d)?;
+            self.linear_forward_f32(&buf.attn_norm, &k_w, &buf.k, t, kv, d)?;
+            self.linear_forward_f32(&buf.attn_norm, &v_w, &buf.v, t, kv, d)?;
         }
         self.apply_q_lora_forward(layer, buf)?;
+        if let Some(save) = save {
+            self.copy_tensor(&buf.q, &save.q_pre_norm)?;
+            self.copy_tensor(&buf.k, &save.k_pre_norm)?;
+        }
 
         if let Some(ve_idx) = self.config.ve_layers.iter().position(|&l| l == layer) {
             self.kernels.embedding_gather_fwd(
@@ -2007,6 +3421,10 @@ impl GpuModel {
                 self.weights.ve_scale * self.weights.ve_layer_scales_host[ve_idx],
                 (t * kv) as u32,
             )?;
+            if let Some(save) = save {
+                self.copy_tensor(&buf.ve_embed_out, &save.ve_embed_out)?;
+                self.copy_tensor(&buf.ve_out, &save.ve_out)?;
+            }
         }
 
         self.kernels
@@ -2035,6 +3453,9 @@ impl GpuModel {
                 (t * hkv) as u32,
             )?;
         }
+        if let Some(save) = save {
+            self.copy_tensor(&buf.q, &save.q_post_rope)?;
+        }
         self.kernels.q_gain_fwd(
             q,
             CudaPtr(self.weights.q_gains[layer].cu_ptr(stream)?),
@@ -2042,7 +3463,25 @@ impl GpuModel {
             hd as u32,
             (t * h) as u32,
         )?;
+        if let Some(save) = save {
+            self.copy_tensor(&buf.q, &save.q)?;
+            self.copy_tensor(&buf.k, &save.k)?;
+            self.copy_tensor(&buf.v, &save.v)?;
+        }
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.forward_block_pre_attn_ms),
+        )?;
 
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
+        let attn_stats = if let Some(save) = save {
+            Some(save.attn_stats.cu_ptr(stream)?)
+        } else {
+            None
+        };
         self.run_attention_forward(
             buf.q.cu_ptr(stream)?,
             buf.k.cu_ptr(stream)?,
@@ -2053,12 +3492,27 @@ impl GpuModel {
             hkv,
             hd,
             runtime_seq_len,
+            attn_stats,
+        )?;
+        if let Some(save) = save {
+            self.copy_tensor(&buf.attn_out, &save.attn_out)?;
+        }
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.forward_block_attention_ms),
         )?;
 
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
         let attn_src_tensor = if layer >= n.saturating_sub(self.config.xsa_last_n) {
             self.kernels.xsa_fwd(
                 attn_out, v, xsa_out, t as u32, h as u32, hkv as u32, hd as u32,
             )?;
+            if let Some(save) = save {
+                self.copy_tensor(&buf.xsa_out, &save.xsa_out)?;
+            }
             &buf.xsa_out
         } else {
             &buf.attn_out
@@ -2077,27 +3531,52 @@ impl GpuModel {
                 d as u32,
                 self.config.attn_out_gate_width as u32,
             )?;
+            if let Some(save) = save {
+                self.copy_tensor(&buf.attn_gated, &save.attn_gated)?;
+                self.copy_tensor(&buf.attn_gate_values, &save.attn_gate_values)?;
+            }
+            &buf.attn_gated
+        } else if self.config.sparse_attn_gate_enabled {
+            self.kernels.sparse_attn_gate_fwd(
+                CudaPtr(attn_src_tensor.cu_ptr(stream)?),
+                CudaPtr(buf.attn_norm.cu_ptr(stream)?),
+                CudaPtr(self.weights.sparse_attn_gate_weights[layer].cu_ptr(stream)?),
+                CudaPtr(buf.attn_gated.cu_ptr(stream)?),
+                CudaPtr(buf.attn_gate_values.cu_ptr(stream)?),
+                t as u32,
+                h as u32,
+                hd as u32,
+                d as u32,
+                self.config.sparse_attn_gate_width as u32,
+                self.config.sparse_attn_gate_scale,
+            )?;
+            if let Some(save) = save {
+                self.copy_tensor(&buf.attn_gated, &save.attn_gated)?;
+                self.copy_tensor(&buf.attn_gate_values, &save.attn_gate_values)?;
+            }
             &buf.attn_gated
         } else {
             attn_src_tensor
         };
 
-        let o_w = self
-            .weights
-            .qo_bank
-            .slice_first(n + layer)?
-            .cu_ptr(stream)?;
-        unsafe {
-            self.gemm.matmul_f32(
-                attn_src_tensor.cu_ptr(stream)?,
-                o_w,
-                buf.proj_out.cu_ptr(stream)?,
+        let o_w = self.weights.qo_bank.slice_first(n + layer)?;
+        let o_w_bf16 = self.weights.qo_bank_bf16.slice_first(n + layer)?;
+        if self.use_bf16_primary_forward_gemm() {
+            self.linear_forward(
+                attn_src_tensor,
+                &buf.x_in_bf16,
+                &o_w,
+                &o_w_bf16,
+                &buf.proj_out,
                 t,
                 d,
                 d,
-                1.0,
-                0.0,
             )?;
+        } else {
+            self.linear_forward_f32(attn_src_tensor, &o_w, &buf.proj_out, t, d, d)?;
+        }
+        if let Some(save) = save {
+            self.copy_tensor(&buf.proj_out, &save.proj_out)?;
         }
 
         self.kernels.copy_fwd(x_in, x, (t * d) as u32)?;
@@ -2108,6 +3587,13 @@ impl GpuModel {
             d as u32,
             (t * d) as u32,
         )?;
+        if let Some(save) = save {
+            if self.parallel_residual_enabled() {
+                self.copy_tensor(&buf.x_in, &save.x_after_attn)?;
+            } else {
+                self.copy_tensor(&buf.x, &save.x_after_attn)?;
+            }
+        }
 
         let mlp_norm_input = if self.parallel_residual_enabled() {
             x_in
@@ -2122,42 +3608,60 @@ impl GpuModel {
             self.ln_scale_factor(layer),
             1e-6,
         )?;
+        if let Some(save) = save {
+            self.copy_tensor(&buf.mlp_norm, &save.mlp_norm)?;
+        }
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.forward_block_post_attn_ms),
+        )?;
 
-        let up_w = self
-            .weights
-            .mlp_up_bank
-            .slice_first(layer)?
-            .cu_ptr(stream)?;
-        let down_w = self
-            .weights
-            .mlp_down_bank
-            .slice_first(layer)?
-            .cu_ptr(stream)?;
-        unsafe {
-            self.gemm.matmul_f32(
-                buf.mlp_norm.cu_ptr(stream)?,
-                up_w,
-                buf.mlp_up.cu_ptr(stream)?,
+        let substage_start = record_stage_event_if(stream, stage_timing.is_some())?;
+        let up_w = self.weights.mlp_up_bank.slice_first(layer)?;
+        let up_w_bf16 = self.weights.mlp_up_bank_bf16.slice_first(layer)?;
+        let down_w = self.weights.mlp_down_bank.slice_first(layer)?;
+        let down_w_bf16 = self.weights.mlp_down_bank_bf16.slice_first(layer)?;
+        if self.use_bf16_primary_forward_gemm() {
+            self.linear_forward(
+                &buf.mlp_norm,
+                &buf.x_in_bf16,
+                &up_w,
+                &up_w_bf16,
+                &buf.mlp_up,
                 t,
                 mlp,
                 d,
-                1.0,
-                0.0,
             )?;
+        } else {
+            self.linear_forward_f32(&buf.mlp_norm, &up_w, &buf.mlp_up, t, mlp, d)?;
+        }
+        if let Some(save) = save {
+            self.copy_tensor(&buf.mlp_up, &save.mlp_up)?;
         }
         self.kernels
             .leaky_relu_sq_forward(mlp_up, mlp_act, (t * mlp) as u32)?;
-        unsafe {
-            self.gemm.matmul_f32(
-                buf.mlp_act.cu_ptr(stream)?,
-                down_w,
-                buf.mlp_out.cu_ptr(stream)?,
+        if let Some(save) = save {
+            self.copy_tensor(&buf.mlp_act, &save.mlp_act)?;
+        }
+        if self.use_bf16_primary_forward_gemm() {
+            self.linear_forward(
+                &buf.mlp_act,
+                &buf.wide_bf16,
+                &down_w,
+                &down_w_bf16,
+                &buf.mlp_out,
                 t,
                 d,
                 mlp,
-                1.0,
-                0.0,
             )?;
+        } else {
+            self.linear_forward_f32(&buf.mlp_act, &down_w, &buf.mlp_out, t, d, mlp)?;
+        }
+        if let Some(save) = save {
+            self.copy_tensor(&buf.mlp_out, &save.mlp_out)?;
         }
         self.kernels.residual_add_scale_fwd(
             x,
@@ -2165,6 +3669,13 @@ impl GpuModel {
             CudaPtr(self.weights.mlp_scales[layer].cu_ptr(stream)?),
             d as u32,
             (t * d) as u32,
+        )?;
+        finish_stage_event_optional(
+            stream,
+            substage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.forward_block_mlp_ms),
         )?;
 
         Ok(())
@@ -2176,10 +3687,25 @@ impl GpuModel {
         input_ids: &GpuTensor,
         buf: &mut GpuActivations,
         runtime_seq_len: usize,
+        mut stage_timing: Option<&mut GpuBackwardStageTiming>,
     ) -> PgResult<()> {
-        self.block_forward_once(layer, input_ids, buf, runtime_seq_len)?;
+        self.block_forward_once(
+            layer,
+            input_ids,
+            buf,
+            runtime_seq_len,
+            None,
+            stage_timing.as_deref_mut(),
+        )?;
         if self.is_recurrent_layer(layer) {
-            self.block_forward_once(layer, input_ids, buf, runtime_seq_len)?;
+            self.block_forward_once(
+                layer,
+                input_ids,
+                buf,
+                runtime_seq_len,
+                None,
+                stage_timing.as_deref_mut(),
+            )?;
         }
         Ok(())
     }
@@ -2200,7 +3726,6 @@ impl GpuModel {
         let t = input_ids.shape().iter().product::<usize>();
         let runtime_seq_len = runtime_seq_len.min(t).max(1);
         let d = self.config.model_dim;
-        let vocab = self.config.vocab_size;
         let stream = self.gemm.stream();
 
         let x = CudaPtr(buf.x.cu_ptr(stream)?);
@@ -2260,7 +3785,7 @@ impl GpuModel {
         let n_enc = self.config.num_encoder_layers();
         let n_dec = self.config.num_decoder_layers();
         for layer in 0..n_enc {
-            self.block_forward(layer, input_ids, buf, runtime_seq_len)?;
+            self.block_forward(layer, input_ids, buf, runtime_seq_len, None)?;
             self.kernels.copy_fwd(
                 CudaPtr(buf.x.cu_ptr(stream)?),
                 CudaPtr(buf.encoder_skips[layer].cu_ptr(stream)?),
@@ -2279,7 +3804,7 @@ impl GpuModel {
                     (t * d) as u32,
                 )?;
             }
-            self.block_forward(n_enc + i, input_ids, buf, runtime_seq_len)?;
+            self.block_forward(n_enc + i, input_ids, buf, runtime_seq_len, None)?;
         }
 
         self.kernels.rms_norm_forward(
@@ -2290,18 +3815,7 @@ impl GpuModel {
             1.0,
             1e-6,
         )?;
-        unsafe {
-            self.gemm.matmul_f32(
-                buf.x_in.cu_ptr(stream)?,
-                self.weights.tok_emb.cu_ptr(stream)?,
-                buf.logits.cu_ptr(stream)?,
-                t,
-                vocab,
-                d,
-                1.0,
-                0.0,
-            )?;
-        }
+        self.output_projection_forward(&buf.x_in, &buf.x_in_bf16, &buf.logits, t)?;
         Ok(())
     }
 
@@ -2322,18 +3836,30 @@ impl GpuModel {
         cache: &mut GpuForwardCache,
         runtime_seq_len: usize,
     ) -> PgResult<()> {
+        self.forward_with_cache_seq_len_timed(input_ids, buf, cache, runtime_seq_len, None)
+    }
+
+    fn forward_with_cache_seq_len_timed(
+        &self,
+        input_ids: &GpuTensor,
+        buf: &mut GpuActivations,
+        cache: &mut GpuForwardCache,
+        runtime_seq_len: usize,
+        mut stage_timing: Option<&mut GpuBackwardStageTiming>,
+    ) -> PgResult<()> {
         use pg_kernels::gpu_kernels::CudaPtr;
 
         let t = input_ids.shape().iter().product::<usize>();
         let runtime_seq_len = runtime_seq_len.min(t).max(1);
         let d = self.config.model_dim;
-        let vocab = self.config.vocab_size;
         let stream = self.gemm.stream();
+        let time_forward_substages = stage_timing.is_some();
 
         let x = CudaPtr(buf.x.cu_ptr(stream)?);
         let x_in = CudaPtr(buf.x_in.cu_ptr(stream)?);
         let x0 = CudaPtr(buf.x0.cu_ptr(stream)?);
 
+        let stage_start = record_stage_event_if(stream, time_forward_substages)?;
         self.kernels.embedding_gather_fwd(
             CudaPtr(input_ids.cu_ptr(stream)?),
             CudaPtr(self.weights.tok_emb.cu_ptr(stream)?),
@@ -2388,21 +3914,67 @@ impl GpuModel {
         )?;
         self.kernels.copy_fwd(x, x0, (t * d) as u32)?;
         self.copy_tensor(&buf.x, &cache.x0)?;
+        finish_stage_event_optional(
+            stream,
+            stage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.forward_embed_ms),
+        )?;
 
         let n_enc = self.config.num_encoder_layers();
         let n_dec = self.config.num_decoder_layers();
+        let stage_start = record_stage_event_if(stream, time_forward_substages)?;
         for layer in 0..n_enc {
+            let layer_start = record_stage_event_if(stream, time_forward_substages)?;
             self.copy_tensor(&buf.x, &cache.layer_x[layer])?;
-            self.block_forward(layer, input_ids, buf, runtime_seq_len)?;
+            if let Some(saved) = cache
+                .saved_layers
+                .get(layer)
+                .and_then(|saved| saved.as_ref())
+            {
+                self.block_forward_once(
+                    layer,
+                    input_ids,
+                    buf,
+                    runtime_seq_len,
+                    Some(saved),
+                    stage_timing.as_deref_mut(),
+                )?;
+            } else {
+                self.block_forward(
+                    layer,
+                    input_ids,
+                    buf,
+                    runtime_seq_len,
+                    stage_timing.as_deref_mut(),
+                )?;
+            }
             self.kernels.copy_fwd(
                 CudaPtr(buf.x.cu_ptr(stream)?),
                 CudaPtr(buf.encoder_skips[layer].cu_ptr(stream)?),
                 (t * d) as u32,
             )?;
             self.copy_tensor(&buf.x, &cache.skips[layer])?;
+            finish_stage_event_optional_max(
+                stream,
+                layer_start,
+                stage_timing
+                    .as_deref_mut()
+                    .map(|timing| &mut timing.forward_encoder_layer_max_ms),
+            )?;
         }
+        finish_stage_event_optional(
+            stream,
+            stage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.forward_encoder_ms),
+        )?;
 
+        let stage_start = record_stage_event_if(stream, time_forward_substages)?;
         for i in 0..n_dec {
+            let layer_start = record_stage_event_if(stream, time_forward_substages)?;
             if i < self.config.num_skip_weights() {
                 let skip_idx = self.config.num_skip_weights() - 1 - i;
                 self.kernels.residual_add_scale_fwd(
@@ -2414,9 +3986,46 @@ impl GpuModel {
                 )?;
             }
             self.copy_tensor(&buf.x, &cache.layer_x[n_enc + i])?;
-            self.block_forward(n_enc + i, input_ids, buf, runtime_seq_len)?;
+            let layer = n_enc + i;
+            if let Some(saved) = cache
+                .saved_layers
+                .get(layer)
+                .and_then(|saved| saved.as_ref())
+            {
+                self.block_forward_once(
+                    layer,
+                    input_ids,
+                    buf,
+                    runtime_seq_len,
+                    Some(saved),
+                    stage_timing.as_deref_mut(),
+                )?;
+            } else {
+                self.block_forward(
+                    layer,
+                    input_ids,
+                    buf,
+                    runtime_seq_len,
+                    stage_timing.as_deref_mut(),
+                )?;
+            }
+            finish_stage_event_optional_max(
+                stream,
+                layer_start,
+                stage_timing
+                    .as_deref_mut()
+                    .map(|timing| &mut timing.forward_decoder_layer_max_ms),
+            )?;
         }
+        finish_stage_event_optional(
+            stream,
+            stage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.forward_decoder_ms),
+        )?;
 
+        let stage_start = record_stage_event_if(stream, time_forward_substages)?;
         self.copy_tensor(&buf.x, &cache.x_final)?;
 
         self.kernels.rms_norm_forward(
@@ -2427,18 +4036,14 @@ impl GpuModel {
             1.0,
             1e-6,
         )?;
-        unsafe {
-            self.gemm.matmul_f32(
-                buf.x_in.cu_ptr(stream)?,
-                self.weights.tok_emb.cu_ptr(stream)?,
-                buf.logits.cu_ptr(stream)?,
-                t,
-                vocab,
-                d,
-                1.0,
-                0.0,
-            )?;
-        }
+        self.output_projection_forward(&buf.x_in, &buf.x_in_bf16, &buf.logits, t)?;
+        finish_stage_event_optional(
+            stream,
+            stage_start,
+            stage_timing
+                .as_deref_mut()
+                .map(|timing| &mut timing.forward_logits_ms),
+        )?;
         Ok(())
     }
 
@@ -2449,6 +4054,41 @@ impl GpuModel {
         targets: &GpuTensor,
         grads: &mut GpuGradBuffers,
     ) -> PgResult<GpuTensor> {
+        let t = targets.shape().iter().product::<usize>();
+        let d = self.config.model_dim;
+        let vocab = self.config.vocab_size;
+        let stream = self.gemm.stream();
+
+        let grad_logits = GpuTensor::zeros_gpu(stream.clone(), &[t, vocab], DType::F32)?;
+        let grad_logits_bf16 = GpuTensor::zeros_gpu(stream.clone(), &[t, vocab], DType::BF16)?;
+        let grad_x = GpuTensor::zeros_gpu(stream.clone(), &[t, d], DType::F32)?;
+        let grad_pre_norm = GpuTensor::zeros_gpu(stream.clone(), &[t, d], DType::F32)?;
+
+        self.backward_output_loss_only_into(
+            cache,
+            buf,
+            targets,
+            grads,
+            &grad_logits,
+            &grad_logits_bf16,
+            &grad_x,
+            &grad_pre_norm,
+        )?;
+
+        Ok(grad_pre_norm)
+    }
+
+    fn backward_output_loss_only_into(
+        &self,
+        cache: &GpuForwardCache,
+        buf: &mut GpuActivations,
+        targets: &GpuTensor,
+        grads: &mut GpuGradBuffers,
+        grad_logits: &GpuTensor,
+        grad_logits_bf16: &GpuTensor,
+        grad_x: &GpuTensor,
+        grad_pre_norm: &GpuTensor,
+    ) -> PgResult<()> {
         use pg_kernels::gpu_kernels::CudaPtr;
 
         let t = targets.shape().iter().product::<usize>();
@@ -2456,41 +4096,77 @@ impl GpuModel {
         let vocab = self.config.vocab_size;
         let stream = self.gemm.stream();
 
-        let grad_logits = GpuTensor::zeros_gpu(stream.clone(), &[t, vocab], DType::F32)?;
-        let grad_x = GpuTensor::zeros_gpu(stream.clone(), &[t, d], DType::F32)?;
-        let grad_pre_norm = GpuTensor::zeros_gpu(stream.clone(), &[t, d], DType::F32)?;
-
-        self.kernels.cross_entropy_bwd(
-            CudaPtr(buf.logits.cu_ptr(stream)?),
-            CudaPtr(targets.cu_ptr(stream)?),
-            CudaPtr(grad_logits.cu_ptr(stream)?),
-            vocab as u32,
-            self.config.logit_softcap,
-            1.0 / t as f32,
-            t as u32,
-        )?;
-
-        unsafe {
-            self.gemm.linear_backward_input_f32(
-                grad_logits.cu_ptr(stream)?,
-                self.weights.tok_emb.cu_ptr(stream)?,
-                grad_x.cu_ptr(stream)?,
-                t,
-                vocab,
-                d,
-                1.0,
-                0.0,
+        if self.use_bf16_output_backward_gemm() {
+            self.kernels.cross_entropy_bwd_bf16(
+                CudaPtr(buf.logits.cu_ptr(stream)?),
+                CudaPtr(targets.cu_ptr(stream)?),
+                CudaPtr(grad_logits_bf16.cu_ptr(stream)?),
+                vocab as u32,
+                self.config.logit_softcap,
+                1.0 / t as f32,
+                t as u32,
             )?;
-            self.gemm.linear_backward_weight_f32(
-                grad_logits.cu_ptr(stream)?,
-                buf.x_in.cu_ptr(stream)?,
-                grads.tok_emb.cu_ptr(stream)?,
-                t,
-                vocab,
-                d,
-                1.0,
-                1.0,
+            if !self.use_bf16_output_gemm() {
+                self.kernels.f32_to_bf16(
+                    CudaPtr(buf.x_in.cu_ptr(stream)?),
+                    CudaPtr(buf.x_in_bf16.cu_ptr(stream)?),
+                    (t * d) as u32,
+                )?;
+            }
+            unsafe {
+                self.gemm.linear_backward_input_bf16_to_f32(
+                    grad_logits_bf16.cu_ptr(stream)?,
+                    self.weights.tok_emb_bf16.cu_ptr(stream)?,
+                    grad_x.cu_ptr(stream)?,
+                    t,
+                    vocab,
+                    d,
+                    1.0,
+                    0.0,
+                )?;
+                self.gemm.linear_backward_weight_bf16_to_f32(
+                    grad_logits_bf16.cu_ptr(stream)?,
+                    buf.x_in_bf16.cu_ptr(stream)?,
+                    grads.tok_emb.cu_ptr(stream)?,
+                    t,
+                    vocab,
+                    d,
+                    1.0,
+                    1.0,
+                )?;
+            }
+        } else {
+            self.kernels.cross_entropy_bwd(
+                CudaPtr(buf.logits.cu_ptr(stream)?),
+                CudaPtr(targets.cu_ptr(stream)?),
+                CudaPtr(grad_logits.cu_ptr(stream)?),
+                vocab as u32,
+                self.config.logit_softcap,
+                1.0 / t as f32,
+                t as u32,
             )?;
+            unsafe {
+                self.gemm.linear_backward_input_f32(
+                    grad_logits.cu_ptr(stream)?,
+                    self.weights.tok_emb.cu_ptr(stream)?,
+                    grad_x.cu_ptr(stream)?,
+                    t,
+                    vocab,
+                    d,
+                    1.0,
+                    0.0,
+                )?;
+                self.gemm.linear_backward_weight_f32(
+                    grad_logits.cu_ptr(stream)?,
+                    buf.x_in.cu_ptr(stream)?,
+                    grads.tok_emb.cu_ptr(stream)?,
+                    t,
+                    vocab,
+                    d,
+                    1.0,
+                    1.0,
+                )?;
+            }
         }
 
         self.kernels.rms_norm_backward(
@@ -2503,7 +4179,7 @@ impl GpuModel {
             1e-6,
         )?;
 
-        Ok(grad_pre_norm)
+        Ok(())
     }
 
     pub fn backward_with_state(
@@ -2591,23 +4267,62 @@ impl GpuModel {
         let n_skip = self.config.num_skip_weights();
         let stream = self.gemm.stream();
         let runtime_seq_len = runtime_seq_len.min(t).max(1);
+        state.stage_timing = GpuBackwardStageTiming::default();
 
-        self.forward_with_cache_seq_len(input_ids, buf, &mut state.cache, runtime_seq_len)?;
+        let stage_start = record_stage_event(stream)?;
+        let cache = &mut state.cache;
+        let stage_timing = &mut state.stage_timing;
+        self.forward_with_cache_seq_len_timed(
+            input_ids,
+            buf,
+            cache,
+            runtime_seq_len,
+            Some(stage_timing),
+        )?;
+        finish_stage_event(stream, stage_start, &mut state.stage_timing.forward_ms)?;
+
+        let stage_start = record_stage_event(stream)?;
         let loss = if compute_loss {
-            self.mean_loss(&buf.logits, targets, t)?
+            self.mean_loss_with_scratch(&buf.logits, targets, &state.losses, t)?
         } else {
             0.0
         };
 
-        let mut grad_x = self.backward_output_loss_only(&state.cache, buf, targets, grads)?;
-        let grad_x0 = self.zeros_f32(&[t, d])?;
-        let grad_encoder_skips: Vec<GpuTensor> = (0..n_skip)
-            .map(|_| self.zeros_f32(&[t, d]))
-            .collect::<PgResult<_>>()?;
+        self.backward_output_loss_only_into(
+            &state.cache,
+            buf,
+            targets,
+            grads,
+            &state.grad_logits,
+            &state.grad_logits_bf16,
+            &state.grad_output_x,
+            &state.grad_output_pre_norm,
+        )?;
+        self.copy_tensor(&state.grad_output_pre_norm, &state.grad_ping)?;
+        self.zero_tensor(&state.grad_x0)?;
+        for skip_grad in &state.grad_encoder_skips {
+            self.zero_tensor(skip_grad)?;
+        }
+        finish_stage_event(stream, stage_start, &mut state.stage_timing.output_ms)?;
 
+        let mut grad_x = state.grad_ping.clone();
+        let mut next_grad_x = state.grad_pong.clone();
+
+        let stage_start = record_stage_event(stream)?;
         for i in (0..n_dec).rev() {
             let bi = n_enc + i;
-            grad_x = self.block_backward(
+            if grad_x.overlaps_storage_region(&next_grad_x) {
+                return Err(PgError::InvalidOp(format!(
+                    "decoder backward gradient ping-pong alias before layer {bi}"
+                )));
+            }
+            let saved = state
+                .cache
+                .saved_layers
+                .get(bi)
+                .and_then(|saved| saved.as_ref())
+                .filter(|_| !self.is_recurrent_layer(bi));
+            self.block_backward_into(
                 bi,
                 input_ids,
                 &state.cache.layer_x[bi],
@@ -2615,33 +4330,55 @@ impl GpuModel {
                 buf,
                 &mut state.block_cache,
                 &grad_x,
-                &grad_x0,
+                &state.grad_x0,
+                &next_grad_x,
                 grads,
                 runtime_seq_len,
+                saved,
+                Some(&mut state.stage_timing),
             )?;
+            std::mem::swap(&mut grad_x, &mut next_grad_x);
 
             if i < n_skip {
                 let enc_layer = n_enc - 1 - i;
-                let grad_x_post_skip = self.zeros_f32(&[t, d])?;
+                self.zero_tensor(&state.grad_x_post_skip)?;
                 self.kernels.residual_add_scale_bwd(
                     CudaPtr(state.cache.skips[enc_layer].cu_ptr(stream)?),
                     CudaPtr(grad_x.cu_ptr(stream)?),
                     CudaPtr(self.weights.skip_weights.slice_first(i)?.cu_ptr(stream)?),
-                    CudaPtr(grad_x_post_skip.cu_ptr(stream)?),
-                    CudaPtr(grad_encoder_skips[enc_layer].cu_ptr(stream)?),
+                    CudaPtr(state.grad_x_post_skip.cu_ptr(stream)?),
+                    CudaPtr(state.grad_encoder_skips[enc_layer].cu_ptr(stream)?),
                     CudaPtr(grads.skip_weights.slice_first(i)?.cu_ptr(stream)?),
                     d as u32,
                     (t * d) as u32,
                 )?;
-                grad_x = grad_x_post_skip;
+                grad_x = state.grad_x_post_skip.clone();
+                // `grad_x_post_skip` is a third scratch buffer outside the ping/pong pair.
+                // After rebinding `grad_x` to it, make the next block write back into a
+                // real ping/pong buffer; otherwise consecutive decoder skips can alias the
+                // input and output gradients for the following block.
+                next_grad_x = state.grad_ping.clone();
             }
         }
+        finish_stage_event(stream, stage_start, &mut state.stage_timing.decoder_ms)?;
 
+        let stage_start = record_stage_event(stream)?;
         for i in (0..n_enc).rev() {
             if i < n_skip {
-                self.add_inplace(&grad_x, &grad_encoder_skips[i], 1.0)?;
+                self.add_inplace(&grad_x, &state.grad_encoder_skips[i], 1.0)?;
             }
-            grad_x = self.block_backward(
+            if grad_x.overlaps_storage_region(&next_grad_x) {
+                return Err(PgError::InvalidOp(format!(
+                    "encoder backward gradient ping-pong alias before layer {i}"
+                )));
+            }
+            let saved = state
+                .cache
+                .saved_layers
+                .get(i)
+                .and_then(|saved| saved.as_ref())
+                .filter(|_| !self.is_recurrent_layer(i));
+            self.block_backward_into(
                 i,
                 input_ids,
                 &state.cache.layer_x[i],
@@ -2649,41 +4386,43 @@ impl GpuModel {
                 buf,
                 &mut state.block_cache,
                 &grad_x,
-                &grad_x0,
+                &state.grad_x0,
+                &next_grad_x,
                 grads,
                 runtime_seq_len,
+                saved,
+                Some(&mut state.stage_timing),
             )?;
+            std::mem::swap(&mut grad_x, &mut next_grad_x);
         }
+        finish_stage_event(stream, stage_start, &mut state.stage_timing.encoder_ms)?;
 
-        self.add_inplace(&grad_x, &grad_x0, 1.0)?;
+        let stage_start = record_stage_event(stream)?;
+        self.add_inplace(&grad_x, &state.grad_x0, 1.0)?;
 
-        let grad_x_smear = self.zeros_f32(&[t, d])?;
-        let grad_x_prev = self.zeros_f32(&[t, d])?;
         self.kernels.smear_gate_bwd(
             CudaPtr(state.cache.x_post_norm.cu_ptr(stream)?),
             CudaPtr(self.weights.smear_gate.cu_ptr(stream)?),
             CudaPtr(grad_x.cu_ptr(stream)?),
-            CudaPtr(grad_x_smear.cu_ptr(stream)?),
-            CudaPtr(grad_x_prev.cu_ptr(stream)?),
+            CudaPtr(state.grad_x_smear.cu_ptr(stream)?),
+            CudaPtr(state.grad_x_prev.cu_ptr(stream)?),
             CudaPtr(grads.smear_gate.cu_ptr(stream)?),
             t as u32,
             runtime_seq_len as u32,
             d as u32,
         )?;
 
-        let grad_x_post_norm = self.zeros_f32(&[t, d])?;
-        self.copy_tensor(&grad_x_smear, &grad_x_post_norm)?;
+        self.copy_tensor(&state.grad_x_smear, &state.grad_x_post_norm)?;
         if t > 1 {
-            let dst = grad_x_post_norm.slice_range(0, t - 1)?;
-            let src = grad_x_prev.slice_range(1, t)?;
+            let dst = state.grad_x_post_norm.slice_range(0, t - 1)?;
+            let src = state.grad_x_prev.slice_range(1, t)?;
             self.add_inplace(&dst, &src, 1.0)?;
         }
 
-        let grad_x_post_embed = self.zeros_f32(&[t, d])?;
         self.kernels.rms_norm_backward(
             CudaPtr(state.cache.x_post_embed.cu_ptr(stream)?),
-            CudaPtr(grad_x_post_norm.cu_ptr(stream)?),
-            CudaPtr(grad_x_post_embed.cu_ptr(stream)?),
+            CudaPtr(state.grad_x_post_norm.cu_ptr(stream)?),
+            CudaPtr(state.grad_x_post_embed.cu_ptr(stream)?),
             t as u32,
             d as u32,
             1.0,
@@ -2713,23 +4452,23 @@ impl GpuModel {
                 )?;
             }
             self.kernels.dot_accumulate(
-                CudaPtr(grad_x_post_embed.cu_ptr(stream)?),
+                CudaPtr(state.grad_x_post_embed.cu_ptr(stream)?),
                 CudaPtr(buf.bigram_proj_out.cu_ptr(stream)?),
                 CudaPtr(grads.bigram_scale.cu_ptr(stream)?),
                 1.0,
                 (t * d) as u32,
             )?;
 
-            let grad_bigram_proj_out = self.zeros_f32(&[t, d])?;
+            self.zero_tensor(&state.grad_bigram_proj_out)?;
             self.kernels.add_scaled_fwd(
-                CudaPtr(grad_bigram_proj_out.cu_ptr(stream)?),
-                CudaPtr(grad_x_post_embed.cu_ptr(stream)?),
+                CudaPtr(state.grad_bigram_proj_out.cu_ptr(stream)?),
+                CudaPtr(state.grad_x_post_embed.cu_ptr(stream)?),
                 self.weights.bigram_scale,
                 (t * d) as u32,
             )?;
             unsafe {
                 self.gemm.linear_backward_weight_f32(
-                    grad_bigram_proj_out.cu_ptr(stream)?,
+                    state.grad_bigram_proj_out.cu_ptr(stream)?,
                     buf.bigram_out.cu_ptr(stream)?,
                     grads.bigram_proj.cu_ptr(stream)?,
                     t,
@@ -2739,12 +4478,11 @@ impl GpuModel {
                     1.0,
                 )?;
             }
-            let grad_bigram_out = self.zeros_f32(&[t, self.config.bigram_dim])?;
             unsafe {
                 self.gemm.linear_backward_input_f32(
-                    grad_bigram_proj_out.cu_ptr(stream)?,
+                    state.grad_bigram_proj_out.cu_ptr(stream)?,
                     self.weights.bigram_proj.cu_ptr(stream)?,
-                    grad_bigram_out.cu_ptr(stream)?,
+                    state.grad_bigram_out.cu_ptr(stream)?,
                     t,
                     d,
                     self.config.bigram_dim,
@@ -2754,7 +4492,7 @@ impl GpuModel {
             }
             self.kernels.bigram_hash_embed_bwd(
                 CudaPtr(input_ids.cu_ptr(stream)?),
-                CudaPtr(grad_bigram_out.cu_ptr(stream)?),
+                CudaPtr(state.grad_bigram_out.cu_ptr(stream)?),
                 CudaPtr(grads.bigram_embed.cu_ptr(stream)?),
                 self.config.bigram_vocab_size as u32,
                 self.config.bigram_dim as u32,
@@ -2765,11 +4503,12 @@ impl GpuModel {
 
         self.kernels.embedding_gather_bwd(
             CudaPtr(input_ids.cu_ptr(stream)?),
-            CudaPtr(grad_x_post_embed.cu_ptr(stream)?),
+            CudaPtr(state.grad_x_post_embed.cu_ptr(stream)?),
             CudaPtr(grads.tok_emb.cu_ptr(stream)?),
             d as u32,
             t as u32,
         )?;
+        finish_stage_event(stream, stage_start, &mut state.stage_timing.tail_ms)?;
 
         Ok(loss)
     }

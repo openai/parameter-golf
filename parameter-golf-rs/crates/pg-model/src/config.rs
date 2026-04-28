@@ -28,6 +28,9 @@ pub struct ModelConfig {
     pub parallel_residual: bool,
     pub attn_out_gate_enabled: bool,
     pub attn_out_gate_width: usize,
+    pub sparse_attn_gate_enabled: bool,
+    pub sparse_attn_gate_width: usize,
+    pub sparse_attn_gate_scale: f32,
 
     // Value Residual Learning
     pub vrl_enabled: bool,
@@ -83,6 +86,9 @@ impl ModelConfig {
             parallel_residual: false,
             attn_out_gate_enabled: false,
             attn_out_gate_width: 24,
+            sparse_attn_gate_enabled: false,
+            sparse_attn_gate_width: 12,
+            sparse_attn_gate_scale: 1.0,
 
             vrl_enabled: false, // value_residual flag (separate from VE)
             ve_enabled: true,
@@ -170,6 +176,11 @@ impl ModelConfig {
         } else {
             0
         };
+        let sparse_attn_gate = if self.sparse_attn_gate_enabled {
+            n * self.num_heads * self.sparse_attn_gate_width
+        } else {
+            0
+        };
 
         embeddings
             + qo_bank
@@ -180,6 +191,7 @@ impl ModelConfig {
             + ve
             + per_layer_scalars
             + attn_out_gate
+            + sparse_attn_gate
     }
 }
 
@@ -216,6 +228,7 @@ pub struct TrainConfig {
     pub warmup_steps: usize,
     pub warmdown_iters: usize,
     pub total_iterations: usize,
+    pub min_lr_scale: f32,
     pub max_wallclock_seconds: f32,
 
     // Batch
@@ -270,6 +283,7 @@ impl TrainConfig {
             warmup_steps: 20,
             warmdown_iters: 3500,
             total_iterations: 9000,
+            min_lr_scale: 0.0,
             max_wallclock_seconds: 600.0,
 
             train_batch_tokens: 786_432,
@@ -298,17 +312,18 @@ impl TrainConfig {
     /// Compute WSD learning rate at a given step.
     pub fn wsd_lr(&self, step: usize) -> f32 {
         let warmdown_start = self.total_iterations.saturating_sub(self.warmdown_iters);
-        if step < self.warmup_steps {
+        let scale = if step < self.warmup_steps {
             // Linear warmup
-            self.matrix_lr * (step as f32 / self.warmup_steps as f32)
+            return self.matrix_lr * (step as f32 / self.warmup_steps as f32);
         } else if step < warmdown_start {
             // Stable phase
-            self.matrix_lr
+            1.0
         } else {
-            // Linear warmdown to 0
+            // Linear warmdown to the configured floor.
             let remaining = self.total_iterations - step;
-            self.matrix_lr * (remaining as f32 / self.warmdown_iters as f32).max(0.0)
-        }
+            (remaining as f32 / self.warmdown_iters as f32).max(0.0)
+        };
+        self.matrix_lr * scale.max(self.min_lr_scale)
     }
 
     /// LR scale factor at a given step (0.0 to 1.0).
@@ -383,6 +398,11 @@ mod tests {
         // Mid warmdown
         let mid = wd_start + 1750;
         assert!((config.wsd_lr(mid) - 0.0125).abs() < 0.001);
+
+        let mut floored = config.clone();
+        floored.min_lr_scale = 0.10;
+        assert_eq!(floored.wsd_lr(0), 0.0);
+        assert!((floored.wsd_lr(9000) - floored.matrix_lr * 0.10).abs() < 1e-6);
     }
 
     #[test]

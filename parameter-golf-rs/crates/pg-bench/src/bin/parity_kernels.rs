@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bytemuck::cast_slice;
 use cudarc::driver::CudaContext;
+use half::bf16;
 use pg_core::{DType, GpuTensor, PgResult};
 use pg_kernels::gpu_kernels::{CudaPtr, GpuKernels};
 
@@ -49,6 +50,8 @@ fn real_main() -> Result<(), Box<dyn std::error::Error>> {
     run_partial_rope_bwd(&kernels, &stream)?;
     run_q_gain(&kernels, &stream)?;
     run_q_gain_bwd(&kernels, &stream)?;
+    run_sparse_attn_gate(&kernels, &stream)?;
+    run_sparse_attn_gate_bwd(&kernels, &stream)?;
     run_dot_accumulate(&kernels, &stream)?;
     run_cross_entropy_bwd(&kernels, &stream)?;
     run_attention(&kernels, &stream)?;
@@ -58,6 +61,7 @@ fn real_main() -> Result<(), Box<dyn std::error::Error>> {
     run_xsa_bwd(&kernels, &stream)?;
     run_bigram_hash_bwd(&kernels, &stream)?;
     run_gemm(&gemm, &stream)?;
+    run_bf16_gemm(&kernels, &gemm, &stream)?;
     Ok(())
 }
 
@@ -81,6 +85,14 @@ fn zeros(stream: &Arc<cudarc::driver::CudaStream>, shape: &[usize]) -> PgResult<
     GpuTensor::zeros_gpu(stream.clone(), shape, DType::F32)
 }
 
+fn zeros_dtype(
+    stream: &Arc<cudarc::driver::CudaStream>,
+    shape: &[usize],
+    dtype: DType,
+) -> PgResult<GpuTensor> {
+    GpuTensor::zeros_gpu(stream.clone(), shape, dtype)
+}
+
 fn download_f32(
     stream: &Arc<cudarc::driver::CudaStream>,
     tensor: &GpuTensor,
@@ -88,6 +100,105 @@ fn download_f32(
     stream.synchronize()?;
     let bytes = tensor.to_host_bytes()?;
     Ok(cast_slice::<u8, f32>(&bytes).to_vec())
+}
+
+fn upload_bf16_from_f32(
+    kernels: &GpuKernels,
+    stream: &Arc<cudarc::driver::CudaStream>,
+    data: &[f32],
+    shape: &[usize],
+) -> PgResult<GpuTensor> {
+    let f32_gpu = upload_f32(stream, data, shape)?;
+    let bf16_gpu = zeros_dtype(stream, shape, DType::BF16)?;
+    kernels.f32_to_bf16(
+        CudaPtr(f32_gpu.cu_ptr(stream)?),
+        CudaPtr(bf16_gpu.cu_ptr(stream)?),
+        data.len() as u32,
+    )?;
+    stream.synchronize()?;
+    Ok(bf16_gpu)
+}
+
+fn download_bf16_as_f32(
+    kernels: &GpuKernels,
+    stream: &Arc<cudarc::driver::CudaStream>,
+    tensor: &GpuTensor,
+) -> PgResult<Vec<f32>> {
+    let out = zeros_dtype(stream, tensor.shape(), DType::F32)?;
+    kernels.bf16_to_f32(
+        CudaPtr(tensor.cu_ptr(stream)?),
+        CudaPtr(out.cu_ptr(stream)?),
+        tensor.numel() as u32,
+    )?;
+    download_f32(stream, &out)
+}
+
+fn round_bf16(v: f32) -> f32 {
+    bf16::from_f32(v).to_f32()
+}
+
+fn rounded_bf16_vec(values: &[f32]) -> Vec<f32> {
+    values.iter().map(|&v| round_bf16(v)).collect()
+}
+
+fn linear_forward_cpu(
+    x: &[f32],
+    w: &[f32],
+    tokens: usize,
+    out_dim: usize,
+    in_dim: usize,
+) -> Vec<f32> {
+    let mut out = vec![0.0f32; tokens * out_dim];
+    for t in 0..tokens {
+        for o in 0..out_dim {
+            let mut acc = 0.0f32;
+            for i in 0..in_dim {
+                acc += x[t * in_dim + i] * w[o * in_dim + i];
+            }
+            out[t * out_dim + o] = acc;
+        }
+    }
+    out
+}
+
+fn linear_backward_input_cpu(
+    dy: &[f32],
+    w: &[f32],
+    tokens: usize,
+    out_dim: usize,
+    in_dim: usize,
+) -> Vec<f32> {
+    let mut out = vec![0.0f32; tokens * in_dim];
+    for t in 0..tokens {
+        for i in 0..in_dim {
+            let mut acc = 0.0f32;
+            for o in 0..out_dim {
+                acc += dy[t * out_dim + o] * w[o * in_dim + i];
+            }
+            out[t * in_dim + i] = acc;
+        }
+    }
+    out
+}
+
+fn linear_backward_weight_cpu(
+    dy: &[f32],
+    x: &[f32],
+    tokens: usize,
+    out_dim: usize,
+    in_dim: usize,
+) -> Vec<f32> {
+    let mut out = vec![0.0f32; out_dim * in_dim];
+    for o in 0..out_dim {
+        for i in 0..in_dim {
+            let mut acc = 0.0f32;
+            for t in 0..tokens {
+                acc += dy[t * out_dim + o] * x[t * in_dim + i];
+            }
+            out[o * in_dim + i] = acc;
+        }
+    }
+    out
 }
 
 fn report(name: &str, cpu: &[f32], gpu: &[f32]) {
@@ -674,6 +785,158 @@ fn run_q_gain_bwd(kernels: &GpuKernels, stream: &Arc<cudarc::driver::CudaStream>
     Ok(())
 }
 
+fn run_sparse_attn_gate(
+    kernels: &GpuKernels,
+    stream: &Arc<cudarc::driver::CudaStream>,
+) -> PgResult<()> {
+    let tokens = 3usize;
+    let h = 2usize;
+    let hd = 4usize;
+    let d = 8usize;
+    let width = 3usize;
+    let scale = 1.2f32;
+    let attn: Vec<f32> = (0..tokens * h * hd)
+        .map(|i| i as f32 * 0.031 - 0.25)
+        .collect();
+    let gate_input: Vec<f32> = (0..tokens * d).map(|i| i as f32 * 0.019 - 0.11).collect();
+    let weight: Vec<f32> = (0..h * width).map(|i| i as f32 * 0.013 - 0.04).collect();
+    let mut cpu_out = vec![0.0f32; attn.len()];
+    let mut cpu_gate = vec![0.0f32; tokens * h];
+    for tok in 0..tokens {
+        for head in 0..h {
+            let mut score = 0.0f32;
+            for j in 0..width {
+                score += weight[head * width + j] * gate_input[tok * d + j];
+            }
+            let gate = 1.0 / (1.0 + (-(scale * score)).exp());
+            cpu_gate[tok * h + head] = gate;
+            let base = (tok * h + head) * hd;
+            for j in 0..hd {
+                cpu_out[base + j] = attn[base + j] * gate;
+            }
+        }
+    }
+    let attn_gpu = upload_f32(stream, &attn, &[tokens, h, hd])?;
+    let input_gpu = upload_f32(stream, &gate_input, &[tokens, d])?;
+    let weight_gpu = upload_f32(stream, &weight, &[h, width])?;
+    let out_gpu = zeros(stream, &[tokens, h, hd])?;
+    let gate_gpu = zeros(stream, &[tokens, h])?;
+    kernels.sparse_attn_gate_fwd(
+        CudaPtr(attn_gpu.cu_ptr(stream)?),
+        CudaPtr(input_gpu.cu_ptr(stream)?),
+        CudaPtr(weight_gpu.cu_ptr(stream)?),
+        CudaPtr(out_gpu.cu_ptr(stream)?),
+        CudaPtr(gate_gpu.cu_ptr(stream)?),
+        tokens as u32,
+        h as u32,
+        hd as u32,
+        d as u32,
+        width as u32,
+        scale,
+    )?;
+    report(
+        "sparse_attn_gate",
+        &cpu_out,
+        &download_f32(stream, &out_gpu)?,
+    );
+    report(
+        "sparse_attn_gate_values",
+        &cpu_gate,
+        &download_f32(stream, &gate_gpu)?,
+    );
+    Ok(())
+}
+
+fn run_sparse_attn_gate_bwd(
+    kernels: &GpuKernels,
+    stream: &Arc<cudarc::driver::CudaStream>,
+) -> PgResult<()> {
+    let tokens = 3usize;
+    let h = 2usize;
+    let hd = 4usize;
+    let d = 8usize;
+    let width = 3usize;
+    let scale = 1.2f32;
+    let attn: Vec<f32> = (0..tokens * h * hd)
+        .map(|i| i as f32 * 0.031 - 0.25)
+        .collect();
+    let gate_input: Vec<f32> = (0..tokens * d).map(|i| i as f32 * 0.019 - 0.11).collect();
+    let weight: Vec<f32> = (0..h * width).map(|i| i as f32 * 0.013 - 0.04).collect();
+    let grad_out: Vec<f32> = (0..tokens * h * hd)
+        .map(|i| i as f32 * -0.017 + 0.33)
+        .collect();
+    let mut gate_values = vec![0.0f32; tokens * h];
+    for tok in 0..tokens {
+        for head in 0..h {
+            let mut score = 0.0f32;
+            for j in 0..width {
+                score += weight[head * width + j] * gate_input[tok * d + j];
+            }
+            gate_values[tok * h + head] = 1.0 / (1.0 + (-(scale * score)).exp());
+        }
+    }
+    let mut cpu_grad_attn = vec![0.0f32; attn.len()];
+    let mut cpu_grad_input = vec![0.0f32; gate_input.len()];
+    let mut cpu_grad_weight = vec![0.0f32; weight.len()];
+    for tok in 0..tokens {
+        for head in 0..h {
+            let gate = gate_values[tok * h + head];
+            let base = (tok * h + head) * hd;
+            let mut grad_gate = 0.0f32;
+            for j in 0..hd {
+                let go = grad_out[base + j];
+                cpu_grad_attn[base + j] = go * gate;
+                grad_gate += go * attn[base + j];
+            }
+            let grad_score = grad_gate * scale * gate * (1.0 - gate);
+            for j in 0..width {
+                cpu_grad_weight[head * width + j] += grad_score * gate_input[tok * d + j];
+                cpu_grad_input[tok * d + j] += grad_score * weight[head * width + j];
+            }
+        }
+    }
+    let attn_gpu = upload_f32(stream, &attn, &[tokens, h, hd])?;
+    let input_gpu = upload_f32(stream, &gate_input, &[tokens, d])?;
+    let weight_gpu = upload_f32(stream, &weight, &[h, width])?;
+    let gate_gpu = upload_f32(stream, &gate_values, &[tokens, h])?;
+    let grad_out_gpu = upload_f32(stream, &grad_out, &[tokens, h, hd])?;
+    let grad_attn_gpu = zeros(stream, &[tokens, h, hd])?;
+    let grad_input_gpu = zeros(stream, &[tokens, d])?;
+    let grad_weight_gpu = zeros(stream, &[h, width])?;
+    kernels.sparse_attn_gate_bwd(
+        CudaPtr(attn_gpu.cu_ptr(stream)?),
+        CudaPtr(input_gpu.cu_ptr(stream)?),
+        CudaPtr(gate_gpu.cu_ptr(stream)?),
+        CudaPtr(grad_out_gpu.cu_ptr(stream)?),
+        CudaPtr(weight_gpu.cu_ptr(stream)?),
+        CudaPtr(grad_attn_gpu.cu_ptr(stream)?),
+        CudaPtr(grad_input_gpu.cu_ptr(stream)?),
+        CudaPtr(grad_weight_gpu.cu_ptr(stream)?),
+        tokens as u32,
+        h as u32,
+        hd as u32,
+        d as u32,
+        width as u32,
+        scale,
+    )?;
+    report(
+        "sparse_attn_gate_bwd_attn",
+        &cpu_grad_attn,
+        &download_f32(stream, &grad_attn_gpu)?,
+    );
+    report(
+        "sparse_attn_gate_bwd_input",
+        &cpu_grad_input,
+        &download_f32(stream, &grad_input_gpu)?,
+    );
+    report(
+        "sparse_attn_gate_bwd_weight",
+        &cpu_grad_weight,
+        &download_f32(stream, &grad_weight_gpu)?,
+    );
+    Ok(())
+}
+
 fn run_dot_accumulate(
     kernels: &GpuKernels,
     stream: &Arc<cudarc::driver::CudaStream>,
@@ -1068,6 +1331,149 @@ fn run_gemm(
     );
     report(
         "gemm_linear_bwd_weight",
+        &cpu_dw,
+        &download_f32(stream, &dw_gpu)?,
+    );
+    Ok(())
+}
+
+fn run_bf16_gemm(
+    kernels: &GpuKernels,
+    gemm: &pg_kernels::gemm::GemmEngine,
+    stream: &Arc<cudarc::driver::CudaStream>,
+) -> PgResult<()> {
+    let tokens = 6usize;
+    let in_dim = 9usize;
+    let out_dim = 7usize;
+    let x: Vec<f32> = (0..tokens * in_dim)
+        .map(|i| (i as f32 * 0.017 - 0.41).sin() * 0.7)
+        .collect();
+    let w: Vec<f32> = (0..out_dim * in_dim)
+        .map(|i| (i as f32 * -0.013 + 0.29).cos() * 0.4)
+        .collect();
+    let dy: Vec<f32> = (0..tokens * out_dim)
+        .map(|i| (i as f32 * 0.021 - 0.17).sin() * 0.5)
+        .collect();
+
+    let x_bf16_cpu = rounded_bf16_vec(&x);
+    let w_bf16_cpu = rounded_bf16_vec(&w);
+    let dy_bf16_cpu = rounded_bf16_vec(&dy);
+
+    let x_gpu = upload_bf16_from_f32(kernels, stream, &x, &[tokens, in_dim])?;
+    let w_gpu = upload_bf16_from_f32(kernels, stream, &w, &[out_dim, in_dim])?;
+    let dy_gpu = upload_bf16_from_f32(kernels, stream, &dy, &[tokens, out_dim])?;
+
+    let out_gpu = zeros_dtype(stream, &[tokens, out_dim], DType::BF16)?;
+    unsafe {
+        gemm.matmul_bf16_bt(
+            x_gpu.cu_ptr(stream)?,
+            w_gpu.cu_ptr(stream)?,
+            out_gpu.cu_ptr(stream)?,
+            tokens,
+            out_dim,
+            in_dim,
+            1.0,
+            0.0,
+        )?;
+    }
+    let cpu_forward: Vec<f32> =
+        linear_forward_cpu(&x_bf16_cpu, &w_bf16_cpu, tokens, out_dim, in_dim)
+            .into_iter()
+            .map(round_bf16)
+            .collect();
+    report(
+        "gemm_bf16_linear",
+        &cpu_forward,
+        &download_bf16_as_f32(kernels, stream, &out_gpu)?,
+    );
+
+    let out_f32_gpu = zeros_dtype(stream, &[tokens, out_dim], DType::F32)?;
+    unsafe {
+        gemm.matmul_bf16_bt_to_f32(
+            x_gpu.cu_ptr(stream)?,
+            w_gpu.cu_ptr(stream)?,
+            out_f32_gpu.cu_ptr(stream)?,
+            tokens,
+            out_dim,
+            in_dim,
+            1.0,
+            0.0,
+        )?;
+    }
+    let cpu_forward_f32 = linear_forward_cpu(&x_bf16_cpu, &w_bf16_cpu, tokens, out_dim, in_dim);
+    report(
+        "gemm_bf16_linear_to_f32",
+        &cpu_forward_f32,
+        &download_f32(stream, &out_f32_gpu)?,
+    );
+
+    let dx_gpu = zeros_dtype(stream, &[tokens, in_dim], DType::BF16)?;
+    unsafe {
+        gemm.linear_backward_input_bf16(
+            dy_gpu.cu_ptr(stream)?,
+            w_gpu.cu_ptr(stream)?,
+            dx_gpu.cu_ptr(stream)?,
+            tokens,
+            out_dim,
+            in_dim,
+            1.0,
+            0.0,
+        )?;
+    }
+    let cpu_dx: Vec<f32> =
+        linear_backward_input_cpu(&dy_bf16_cpu, &w_bf16_cpu, tokens, out_dim, in_dim)
+            .into_iter()
+            .map(round_bf16)
+            .collect();
+    report(
+        "gemm_bf16_bwd_input",
+        &cpu_dx,
+        &download_bf16_as_f32(kernels, stream, &dx_gpu)?,
+    );
+
+    let dx_f32_gpu = zeros_dtype(stream, &[tokens, in_dim], DType::F32)?;
+    unsafe {
+        gemm.linear_backward_input_bf16_to_f32(
+            dy_gpu.cu_ptr(stream)?,
+            w_gpu.cu_ptr(stream)?,
+            dx_f32_gpu.cu_ptr(stream)?,
+            tokens,
+            out_dim,
+            in_dim,
+            1.0,
+            0.0,
+        )?;
+    }
+    let cpu_dx_f32 = linear_backward_input_cpu(&dy_bf16_cpu, &w_bf16_cpu, tokens, out_dim, in_dim);
+    report(
+        "gemm_bf16_bwd_input_to_f32",
+        &cpu_dx_f32,
+        &download_f32(stream, &dx_f32_gpu)?,
+    );
+
+    let dw_seed: Vec<f32> = (0..out_dim * in_dim)
+        .map(|i| i as f32 * 0.003 - 0.07)
+        .collect();
+    let dw_gpu = upload_f32(stream, &dw_seed, &[out_dim, in_dim])?;
+    unsafe {
+        gemm.linear_backward_weight_bf16_to_f32(
+            dy_gpu.cu_ptr(stream)?,
+            x_gpu.cu_ptr(stream)?,
+            dw_gpu.cu_ptr(stream)?,
+            tokens,
+            out_dim,
+            in_dim,
+            1.0,
+            1.0,
+        )?;
+    }
+    let mut cpu_dw = dw_seed;
+    let add_dw = linear_backward_weight_cpu(&dy_bf16_cpu, &x_bf16_cpu, tokens, out_dim, in_dim);
+    for (dst, add) in cpu_dw.iter_mut().zip(add_dw.iter()) {
+        *dst += *add;
+    }
+    report(
+        "gemm_bf16_bwd_weight_beta1",
         &cpu_dw,
         &download_f32(stream, &dw_gpu)?,
     );

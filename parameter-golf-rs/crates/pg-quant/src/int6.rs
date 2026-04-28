@@ -112,7 +112,7 @@ mod tests {
         let cols = 128;
         // Random-ish weights
         let weights: Vec<f32> = (0..rows * cols)
-            .map(|i| ((i as f32 * 0.1).sin() * 0.5))
+            .map(|i| (i as f32 * 0.1).sin() * 0.5)
             .collect();
 
         let qw = quantize_int6(&weights, rows, cols);

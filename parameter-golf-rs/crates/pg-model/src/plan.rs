@@ -6,8 +6,8 @@ use pg_core::error::{PgError, PgResult};
 use crate::config::ModelConfig;
 use crate::gpu::{bank_shapes, checkpoint_layers, estimate_memory};
 use crate::spec::{
-    AttentionBackend, CompressionMode, EvalAdaptationBackend, ModelSpec, QuantScheme, RopeMode,
-    RunMode, RunSpec, SkipTopology,
+    CompressionMode, EvalAdaptationBackend, ModelSpec, QuantScheme, RopeMode, RunMode, RunSpec,
+    SkipTopology,
 };
 
 #[derive(Debug, Clone)]
@@ -18,6 +18,7 @@ pub struct LayerFeatureMask {
     pub recurrent: bool,
     pub parallel_residual: bool,
     pub attn_out_gate: bool,
+    pub sparse_attn_gate: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +105,7 @@ impl ExecutionPlan {
                 recurrent,
                 parallel_residual: run_spec.model.parallel_residual.enabled,
                 attn_out_gate: run_spec.model.attn_out_gate.enabled,
+                sparse_attn_gate: run_spec.model.sparse_attn_gate.enabled,
             });
         }
 
@@ -234,6 +236,24 @@ impl ExecutionPlan {
                 spec.attn_out_gate.width, config.attn_out_gate_width,
             )));
         }
+        if spec.sparse_attn_gate.enabled != config.sparse_attn_gate_enabled {
+            return Err(PgError::InvalidOp(format!(
+                "execution plan mismatch for sparse_attn_gate_enabled: expected {}, got {}",
+                spec.sparse_attn_gate.enabled, config.sparse_attn_gate_enabled,
+            )));
+        }
+        if spec.sparse_attn_gate.width != config.sparse_attn_gate_width {
+            return Err(PgError::InvalidOp(format!(
+                "execution plan mismatch for sparse_attn_gate_width: expected {}, got {}",
+                spec.sparse_attn_gate.width, config.sparse_attn_gate_width,
+            )));
+        }
+        if (spec.sparse_attn_gate.scale - config.sparse_attn_gate_scale).abs() > f32::EPSILON {
+            return Err(PgError::InvalidOp(format!(
+                "execution plan mismatch for sparse_attn_gate_scale: expected {}, got {}",
+                spec.sparse_attn_gate.scale, config.sparse_attn_gate_scale,
+            )));
+        }
         if spec.ln_scale != config.ln_scale {
             return Err(PgError::InvalidOp(format!(
                 "execution plan mismatch for ln_scale: expected {}, got {}",
@@ -324,11 +344,6 @@ fn validate_run_spec(run_spec: &RunSpec) -> PgResult<()> {
             "disabling SmearGate is not implemented in the Rust execution runtime".into(),
         ));
     }
-    if spec.attention_backend == AttentionBackend::CudnnSdpaBf16 {
-        return Err(PgError::InvalidOp(
-            "attention_backend=cudnn_sdpa_bf16 is declared but the production BF16 cuDNN/FlashAttention forward+backward path is not implemented yet".into(),
-        ));
-    }
     if spec.attn_out_gate.enabled {
         if spec.attn_out_gate.width == 0 {
             return Err(PgError::InvalidOp(
@@ -339,6 +354,30 @@ fn validate_run_spec(run_spec: &RunSpec) -> PgResult<()> {
             return Err(PgError::InvalidOp(format!(
                 "AttnOutGate width {} exceeds model_dim {}",
                 spec.attn_out_gate.width, spec.model_dim
+            )));
+        }
+    }
+    if spec.sparse_attn_gate.enabled {
+        if spec.attn_out_gate.enabled {
+            return Err(PgError::InvalidOp(
+                "SparseAttnGate and AttnOutGate are mutually exclusive in the Rust frontier runtime".into(),
+            ));
+        }
+        if spec.sparse_attn_gate.width == 0 {
+            return Err(PgError::InvalidOp(
+                "SparseAttnGate is enabled but width is zero".into(),
+            ));
+        }
+        if spec.sparse_attn_gate.width > spec.model_dim {
+            return Err(PgError::InvalidOp(format!(
+                "SparseAttnGate width {} exceeds model_dim {}",
+                spec.sparse_attn_gate.width, spec.model_dim
+            )));
+        }
+        if !spec.sparse_attn_gate.scale.is_finite() || spec.sparse_attn_gate.scale <= 0.0 {
+            return Err(PgError::InvalidOp(format!(
+                "SparseAttnGate scale must be positive and finite, got {}",
+                spec.sparse_attn_gate.scale
             )));
         }
     }
@@ -392,22 +431,36 @@ mod tests {
     use crate::{RunSpec, VariantFamily};
 
     #[test]
-    fn hybrid_competitive_plan_accepts_attn_out_gate() {
+    fn hybrid_competitive_plan_accepts_sparse_attn_gate() {
         let spec = RunSpec::for_family(VariantFamily::HybridCompetitiveSp8192);
         let plan = ExecutionPlan::from_run_spec(&spec).unwrap();
         let config = spec.model.to_model_config();
-        assert!(config.attn_out_gate_enabled);
-        assert_eq!(config.attn_out_gate_width, 24);
+        assert!(!config.attn_out_gate_enabled);
+        assert!(config.sparse_attn_gate_enabled);
+        assert_eq!(config.sparse_attn_gate_width, 12);
         plan.validate_model_config(&config).unwrap();
     }
 
     #[test]
     fn attn_out_gate_rejects_invalid_width() {
         let mut spec = RunSpec::for_family(VariantFamily::HybridCompetitiveSp8192);
+        spec.model.sparse_attn_gate.enabled = false;
+        spec.model.attn_out_gate.enabled = true;
         spec.model.attn_out_gate.width = spec.model.model_dim + 1;
         let err = ExecutionPlan::from_run_spec(&spec).unwrap_err();
         assert!(
             err.to_string().contains("AttnOutGate width"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn sparse_attn_gate_rejects_attn_out_gate_combo() {
+        let mut spec = RunSpec::for_family(VariantFamily::HybridCompetitiveSp8192);
+        spec.model.attn_out_gate.enabled = true;
+        let err = ExecutionPlan::from_run_spec(&spec).unwrap_err();
+        assert!(
+            err.to_string().contains("mutually exclusive"),
             "unexpected error: {err}"
         );
     }

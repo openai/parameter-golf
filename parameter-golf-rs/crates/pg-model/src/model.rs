@@ -16,13 +16,14 @@ use pg_core::PgResult;
 
 /// Per-block learnable parameters (non-banked).
 pub struct BlockParams {
-    pub attn_scale: Vec<f32>,       // [model_dim]
-    pub mlp_scale: Vec<f32>,        // [model_dim]
-    pub resid_mix: Vec<f32>,        // [2, model_dim] — resid_mix[0] and resid_mix[1]
-    pub q_gain: Vec<f32>,           // [num_heads]
-    pub attn_gate_weight: Vec<f32>, // [num_heads, attn_out_gate_width]
-    pub attn_gate_bias: Vec<f32>,   // [num_heads]
-    pub ln_scale_factor: f32,       // 1/sqrt(layer_idx + 1) if ln_scale
+    pub attn_scale: Vec<f32>,              // [model_dim]
+    pub mlp_scale: Vec<f32>,               // [model_dim]
+    pub resid_mix: Vec<f32>,               // [2, model_dim] — resid_mix[0] and resid_mix[1]
+    pub q_gain: Vec<f32>,                  // [num_heads]
+    pub attn_gate_weight: Vec<f32>,        // [num_heads, attn_out_gate_width]
+    pub attn_gate_bias: Vec<f32>,          // [num_heads]
+    pub sparse_attn_gate_weight: Vec<f32>, // [num_heads, sparse_attn_gate_width]
+    pub ln_scale_factor: f32,              // 1/sqrt(layer_idx + 1) if ln_scale
     pub use_xsa: bool,
 }
 
@@ -174,6 +175,10 @@ impl GptModel {
         self.config.attn_out_gate_enabled
     }
 
+    pub(crate) fn sparse_attn_gate_enabled(&self) -> bool {
+        self.config.sparse_attn_gate_enabled
+    }
+
     pub(crate) fn parallel_residual_enabled(&self) -> bool {
         self.config.parallel_residual
     }
@@ -216,6 +221,11 @@ impl GptModel {
                 q_gain: vec![config.qk_gain_init; config.num_heads],
                 attn_gate_weight: vec![0.0; config.num_heads * config.attn_out_gate_width.max(1)],
                 attn_gate_bias: vec![0.0; config.num_heads],
+                sparse_attn_gate_weight: vec![
+                    0.0;
+                    config.num_heads
+                        * config.sparse_attn_gate_width.max(1)
+                ],
                 ln_scale_factor,
                 use_xsa,
             });
@@ -313,6 +323,9 @@ impl GptModel {
                 for (head, bias) in block.attn_gate_bias.iter_mut().enumerate() {
                     *bias = -0.04 + 0.02 * (((layer + head) % 5) as f32);
                 }
+            }
+            if self.config.sparse_attn_gate_enabled {
+                block.sparse_attn_gate_weight.fill(0.0);
             }
         }
     }
@@ -553,6 +566,27 @@ impl GptModel {
                     }
                     let sig = 1.0 / (1.0 + (-score).exp());
                     let gate = 2.0 * sig;
+                    buf.attn_gate[tok * h + head] = gate;
+                    let base = (tok * h + head) * hd;
+                    for j in 0..hd {
+                        buf.attn_gated[base + j] = attn_result_raw[base + j] * gate;
+                    }
+                }
+            }
+            &buf.attn_gated[..t * h * hd]
+        } else if self.sparse_attn_gate_enabled() {
+            let width = self.config.sparse_attn_gate_width;
+            let scale = self.config.sparse_attn_gate_scale;
+            debug_assert!(width <= d);
+            for tok in 0..t {
+                let gate_input = &buf.attn_norm_out[tok * d..tok * d + width];
+                for head in 0..h {
+                    let w = &bp.sparse_attn_gate_weight[head * width..(head + 1) * width];
+                    let mut score = 0.0f32;
+                    for j in 0..width {
+                        score += w[j] * gate_input[j];
+                    }
+                    let gate = 1.0 / (1.0 + (-(scale * score)).exp());
                     buf.attn_gate[tok * h + head] = gate;
                     let base = (tok * h + head) * hd;
                     for j in 0..hd {
@@ -824,6 +858,9 @@ mod tests {
             parallel_residual: false,
             attn_out_gate_enabled: false,
             attn_out_gate_width: 24,
+            sparse_attn_gate_enabled: false,
+            sparse_attn_gate_width: 12,
+            sparse_attn_gate_scale: 1.0,
             vrl_enabled: false,
             ve_enabled: false,
             ve_dim: 4,
@@ -940,6 +977,75 @@ mod tests {
         assert!(
             max_diff < 1e-6,
             "identity gate changed logits by {max_diff}"
+        );
+    }
+
+    #[test]
+    fn test_sparse_attn_gate_zero_init_halves_attention_path() {
+        let mut sparse_config = tiny_config();
+        sparse_config.sparse_attn_gate_enabled = true;
+        sparse_config.sparse_attn_gate_width = 4;
+        sparse_config.sparse_attn_gate_scale = 1.0;
+        let mut plain_config = sparse_config.clone();
+        plain_config.sparse_attn_gate_enabled = false;
+
+        let mut sparse = GptModel::new(sparse_config.clone());
+        sparse.fill_deterministic();
+        for block in &mut sparse.blocks {
+            block.sparse_attn_gate_weight.fill(0.0);
+            for scale in &mut block.attn_scale {
+                *scale *= 2.0;
+            }
+        }
+
+        let mut plain = GptModel::new(plain_config.clone());
+        plain.tok_emb.clone_from(&sparse.tok_emb);
+        plain.bigram_embed.clone_from(&sparse.bigram_embed);
+        plain.bigram_proj.clone_from(&sparse.bigram_proj);
+        plain.bigram_scale = sparse.bigram_scale;
+        plain.smear_gate.clone_from(&sparse.smear_gate);
+        plain.skip_weights.clone_from(&sparse.skip_weights);
+        plain.qo_bank.clone_from(&sparse.qo_bank);
+        plain.kv_bank.clone_from(&sparse.kv_bank);
+        plain.mlp_up_bank.clone_from(&sparse.mlp_up_bank);
+        plain.mlp_down_bank.clone_from(&sparse.mlp_down_bank);
+        plain.ve_embed.clone_from(&sparse.ve_embed);
+        plain.ve_proj.clone_from(&sparse.ve_proj);
+        plain.ve_scale = sparse.ve_scale;
+        plain.ve_layer_scales.clone_from(&sparse.ve_layer_scales);
+        for layer in 0..plain.blocks.len() {
+            plain.blocks[layer]
+                .attn_scale
+                .clone_from(&sparse.blocks[layer].attn_scale);
+            for scale in &mut plain.blocks[layer].attn_scale {
+                *scale *= 0.5;
+            }
+            plain.blocks[layer]
+                .mlp_scale
+                .clone_from(&sparse.blocks[layer].mlp_scale);
+            plain.blocks[layer]
+                .resid_mix
+                .clone_from(&sparse.blocks[layer].resid_mix);
+            plain.blocks[layer]
+                .q_gain
+                .clone_from(&sparse.blocks[layer].q_gain);
+        }
+
+        let tokens = vec![1u32, 5, 3, 7, 2, 4];
+        let mut sparse_buf = ForwardBuffer::new(&sparse_config, tokens.len());
+        let mut plain_buf = ForwardBuffer::new(&plain_config, tokens.len());
+        sparse.forward(&tokens, &mut sparse_buf);
+        plain.forward(&tokens, &mut plain_buf);
+
+        let max_diff = sparse_buf
+            .logits
+            .iter()
+            .zip(plain_buf.logits.iter())
+            .map(|(&a, &b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(
+            max_diff < 1e-6,
+            "zero SparseAttnGate with compensated attn_scale changed logits by {max_diff}"
         );
     }
 

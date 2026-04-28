@@ -24,6 +24,12 @@ RUN apt-get install -y --allow-change-held-packages \
     libcudnn9-dev-cuda-12 || \
     apt-get install -y --allow-change-held-packages libnccl2 libnccl-dev libcudnn8-dev
 
+# cuDNN's graph/frontend SDPA API is distributed as NVIDIA's header-only
+# cudnn-frontend project, not by the CUDA apt package on this base image.
+RUN curl -L https://github.com/NVIDIA/cudnn-frontend/archive/refs/tags/v1.22.0.tar.gz \
+    | tar xz -C /opt && \
+    cp -r /opt/cudnn-frontend-1.22.0/include/* /usr/local/include/
+
 WORKDIR /build
 
 # Copy manifests first for dependency caching
@@ -39,13 +45,15 @@ FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
 RUN apt-get update && apt-get install -y --allow-change-held-packages \
     libnccl2=2.25.1-1+cuda12.8 \
     libnccl-dev=2.25.1-1+cuda12.8 \
-    libcudnn9-cuda-12 || \
+    libcudnn9-cuda-12 \
+    cuda-nvrtc-12-8 || \
     apt-get install -y --allow-change-held-packages libnccl2 libnccl-dev libcudnn8 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/pg-train /usr/local/bin/pg-train
 COPY --from=builder /build/target/release/smoke /usr/local/bin/pg-smoke
 COPY --from=builder /build/target/release/gemm-bench /usr/local/bin/pg-gemm-bench
+COPY --from=builder /build/target/release/attention-bench /usr/local/bin/pg-attention-bench
 COPY --from=builder /build/target/release/nccl-bench /usr/local/bin/pg-nccl-bench
 COPY --from=builder /build/target/release/preliminary /usr/local/bin/pg-preliminary
 COPY --from=builder /build/target/release/parity-forward /usr/local/bin/pg-parity-forward

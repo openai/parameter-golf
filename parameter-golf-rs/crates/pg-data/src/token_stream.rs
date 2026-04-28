@@ -163,9 +163,18 @@ pub fn load_validation_tokens_limited(
     pattern: &str,
     max_tokens: Option<usize>,
 ) -> PgResult<Vec<u16>> {
+    load_validation_u16_shards_limited(pattern, max_tokens, false)
+}
+
+fn load_validation_u16_shards_limited(
+    pattern: &str,
+    max_tokens: Option<usize>,
+    allow_byte_sidecars: bool,
+) -> PgResult<Vec<u16>> {
     let mut files: Vec<PathBuf> = glob::glob(pattern)
         .map_err(|e| PgError::DataFormat(format!("invalid glob pattern: {}", e)))?
         .filter_map(Result::ok)
+        .filter(|path| allow_byte_sidecars || !is_byte_sidecar_path(path))
         .collect();
     files.sort();
 
@@ -193,4 +202,86 @@ pub fn load_validation_tokens_limited(
     }
 
     Ok(all_tokens)
+}
+
+fn is_byte_sidecar_path(path: &std::path::Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.contains("_bytes_") || name.contains("val_bytes"))
+        .unwrap_or(false)
+}
+
+/// Load a validation byte-count sidecar aligned one-to-one with validation
+/// token shards. CaseOps/SP8192 validation uses this instead of deriving byte
+/// counts from token surfaces after lossless case transforms.
+pub fn load_validation_byte_sidecar_limited(
+    pattern: &str,
+    max_tokens: Option<usize>,
+) -> PgResult<Vec<f32>> {
+    let raw = load_validation_u16_shards_limited(pattern, max_tokens, true)?;
+    Ok(raw.into_iter().map(|v| v as f32).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn write_test_shard(path: &std::path::Path, values: &[u16]) {
+        let mut file = std::fs::File::create(path).unwrap();
+        let mut header = [0i32; 256];
+        header[0] = 20240520;
+        header[1] = 1;
+        header[2] = values.len() as i32;
+        file.write_all(bytemuck::cast_slice(&header)).unwrap();
+        file.write_all(bytemuck::cast_slice(values)).unwrap();
+    }
+
+    #[test]
+    fn byte_sidecar_loader_preserves_alignment_and_limit() {
+        let path = std::env::temp_dir().join(format!(
+            "pg_caseops_bytes_{}_{}.bin",
+            std::process::id(),
+            17
+        ));
+        write_test_shard(&path, &[0, 5, 1, 3]);
+        let pattern = path.to_string_lossy().to_string();
+
+        let all = load_validation_byte_sidecar_limited(&pattern, None).unwrap();
+        assert_eq!(all, vec![0.0, 5.0, 1.0, 3.0]);
+
+        let limited = load_validation_byte_sidecar_limited(&pattern, Some(3)).unwrap();
+        assert_eq!(limited, vec![0.0, 5.0, 1.0]);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn validation_token_loader_ignores_byte_sidecars_in_broad_glob() {
+        let dir = std::env::temp_dir().join(format!(
+            "pg_val_sidecar_filter_{}_{}",
+            std::process::id(),
+            23
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let token_path = dir.join("fineweb_val_000.bin");
+        let sidecar_path = dir.join("fineweb_val_bytes_000.bin");
+        write_test_shard(&token_path, &[10, 11]);
+        write_test_shard(&sidecar_path, &[1, 2, 3, 4]);
+
+        let pattern = dir.join("fineweb_val_*.bin").to_string_lossy().to_string();
+        let tokens = load_validation_tokens_limited(&pattern, None).unwrap();
+        assert_eq!(tokens, vec![10, 11]);
+
+        let sidecar_pattern = dir
+            .join("fineweb_val_bytes_*.bin")
+            .to_string_lossy()
+            .to_string();
+        let sidecar = load_validation_byte_sidecar_limited(&sidecar_pattern, None).unwrap();
+        assert_eq!(sidecar, vec![1.0, 2.0, 3.0, 4.0]);
+
+        let _ = std::fs::remove_file(token_path);
+        let _ = std::fs::remove_file(sidecar_path);
+        let _ = std::fs::remove_dir(dir);
+    }
 }

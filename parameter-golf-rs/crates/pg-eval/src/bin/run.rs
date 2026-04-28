@@ -11,6 +11,8 @@ fn main() {
     let mut validation_data_pattern: Option<String> = None;
     let mut stride: Option<usize> = None;
     let mut tokenizer_vocab_path: Option<String> = None;
+    let mut caseops_byte_sidecar_pattern: Option<String> = None;
+    let mut leaderboard_mode = false;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--artifact" => artifact = args.next().map(PathBuf::from),
@@ -19,6 +21,8 @@ fn main() {
             "--max-tokens" => max_tokens = args.next().and_then(|v| v.parse::<usize>().ok()),
             "--stride" => stride = args.next().and_then(|v| v.parse::<usize>().ok()),
             "--tokenizer-vocab" => tokenizer_vocab_path = args.next(),
+            "--caseops-byte-sidecar" => caseops_byte_sidecar_pattern = args.next(),
+            "--leaderboard" => leaderboard_mode = true,
             "--builtin" => {
                 if let Some(name) = args.next() {
                     builtin = match name.as_str() {
@@ -47,6 +51,10 @@ fn main() {
     if let Some(path) = tokenizer_vocab_path {
         run_spec.eval.tokenizer_vocab_path = Some(path);
     }
+    if let Some(pattern) = caseops_byte_sidecar_pattern {
+        run_spec.eval.caseops_byte_sidecar_pattern = Some(pattern);
+    }
+    validate_leaderboard_eval_request(&run_spec, artifact.as_ref(), max_tokens, leaderboard_mode);
     let plan = ExecutionPlan::from_run_spec(&run_spec).expect("failed to build execution plan");
 
     let artifact_bytes = artifact
@@ -83,6 +91,12 @@ fn main() {
             "artifact_budget_ok={}",
             plan.artifact_budget_ok(total_bytes)
         );
+        if leaderboard_mode && !plan.artifact_budget_ok(total_bytes) {
+            fail(&format!(
+                "leaderboard eval artifact budget failed: artifact_bytes={bytes} code_bytes={code_bytes} total_bytes={total_bytes} limit={}",
+                plan.run_spec.quant.target_artifact_bytes
+            ));
+        }
     } else {
         println!("artifact_bytes=unknown");
     }
@@ -107,7 +121,9 @@ fn main() {
         } else {
             pg_data::bpb::BpbLuts::placeholder(run_spec.model.vocab_size)
         };
-        let target_bytes = bpb_luts.pair_byte_counts_u32(&tokens);
+        let target_bytes =
+            eval_target_byte_counts(&run_spec, &tokens, &bpb_luts, max_tokens.map(|v| v.max(2)))
+                .expect("failed to load eval byte counts");
         let seq_len = run_spec
             .model
             .eval_seq_len
@@ -136,16 +152,105 @@ fn main() {
         println!("eval_loss={loss:.6}");
         println!(
             "eval_bpb_kind={}",
-            if run_spec.eval.tokenizer_vocab_path.is_some() {
+            if run_spec.eval.caseops_byte_sidecar_pattern.is_some() {
+                "caseops_byte_sidecar"
+            } else if run_spec.eval.tokenizer_vocab_path.is_some() {
                 "tokenizer_vocab"
             } else {
                 "placeholder"
             }
         );
         println!("eval_bpb={bpb:.6}");
+        println!(
+            "eval_audit_json={{\"leaderboard_mode\":{},\"full_validation\":{},\"eval_tokens\":{},\"legal_score_first\":{},\"eval_adaptation_backend\":\"{:?}\",\"bpb_kind\":\"{}\",\"placeholder_bpb\":{},\"artifact_budget_checked\":{}}}",
+            leaderboard_mode,
+            max_tokens.is_none(),
+            tokens.len(),
+            plan.eval_plan.legal_score_first,
+            plan.eval_plan.adaptation_backend,
+            if run_spec.eval.caseops_byte_sidecar_pattern.is_some() {
+                "caseops_byte_sidecar"
+            } else if run_spec.eval.tokenizer_vocab_path.is_some() {
+                "tokenizer_vocab"
+            } else {
+                "placeholder"
+            },
+            run_spec.eval.caseops_byte_sidecar_pattern.is_none()
+                && run_spec.eval.tokenizer_vocab_path.is_none(),
+            artifact_bytes.is_some(),
+        );
     } else {
         println!("eval_status=plan_only_no_validation_data");
     }
+}
+
+fn validate_leaderboard_eval_request(
+    run_spec: &RunSpec,
+    artifact: Option<&PathBuf>,
+    max_tokens: Option<usize>,
+    leaderboard_mode: bool,
+) {
+    if let Some(message) =
+        leaderboard_eval_error(run_spec, artifact.is_some(), max_tokens, leaderboard_mode)
+    {
+        fail(message);
+    }
+}
+
+fn leaderboard_eval_error(
+    run_spec: &RunSpec,
+    artifact_present: bool,
+    max_tokens: Option<usize>,
+    leaderboard_mode: bool,
+) -> Option<&'static str> {
+    if !leaderboard_mode {
+        return None;
+    }
+    if !artifact_present {
+        return Some("leaderboard eval requires --artifact");
+    }
+    if run_spec.train.validation_data_pattern.is_none() {
+        return Some("leaderboard eval requires --val-data");
+    }
+    if max_tokens.is_some() {
+        return Some(
+            "leaderboard eval cannot use --max-tokens; it must score the full validation stream",
+        );
+    }
+    if !run_spec.eval.legal_score_first {
+        return Some("leaderboard eval requires legal_score_first=true");
+    }
+    if run_spec.model.caseops.enabled && run_spec.model.caseops.byte_sidecar {
+        if run_spec.eval.caseops_byte_sidecar_pattern.is_none() {
+            return Some("leaderboard eval with CaseOps requires --caseops-byte-sidecar");
+        }
+    } else if run_spec.eval.tokenizer_vocab_path.is_none() {
+        return Some(
+            "leaderboard eval requires --tokenizer-vocab when CaseOps byte sidecar is not active",
+        );
+    }
+    None
+}
+
+fn eval_target_byte_counts(
+    run_spec: &RunSpec,
+    tokens: &[u32],
+    bpb_luts: &pg_data::bpb::BpbLuts,
+    max_tokens: Option<usize>,
+) -> pg_core::PgResult<Vec<f32>> {
+    if let Some(pattern) = run_spec.eval.caseops_byte_sidecar_pattern.as_deref() {
+        let sidecar =
+            pg_data::token_stream::load_validation_byte_sidecar_limited(pattern, max_tokens)?;
+        if sidecar.len() != tokens.len() {
+            return Err(pg_core::PgError::DataFormat(format!(
+                "CaseOps byte sidecar length {} does not match validation token length {}",
+                sidecar.len(),
+                tokens.len()
+            )));
+        }
+        return Ok(sidecar.get(1..).unwrap_or(&[]).to_vec());
+    }
+    Ok(bpb_luts.pair_byte_counts_u32(tokens))
 }
 
 #[cfg(feature = "cuda")]
@@ -177,9 +282,84 @@ fn current_executable_bytes() -> usize {
             return bytes;
         }
     }
+    if let Ok(path) = std::env::var("PG_SUBMISSION_CODE_DIR") {
+        if let Ok(bytes) = directory_regular_file_bytes(std::path::Path::new(&path)) {
+            return bytes;
+        }
+    }
     std::env::current_exe()
         .ok()
         .and_then(|path| std::fs::metadata(path).ok())
         .map(|metadata| metadata.len() as usize)
         .unwrap_or(0)
+}
+
+fn directory_regular_file_bytes(path: &std::path::Path) -> std::io::Result<usize> {
+    let metadata = std::fs::symlink_metadata(path)?;
+    if metadata.is_file() {
+        return Ok(metadata.len() as usize);
+    }
+    if !metadata.is_dir() {
+        return Ok(0);
+    }
+
+    let mut total = 0usize;
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        total += directory_regular_file_bytes(&entry.path())?;
+    }
+    Ok(total)
+}
+
+fn fail(message: &str) -> ! {
+    eprintln!("error: {message}");
+    std::process::exit(2);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn leaderboard_eval_requires_full_official_inputs() {
+        let mut spec = RunSpec::for_family(VariantFamily::BaselineSp8192);
+        assert_eq!(
+            leaderboard_eval_error(&spec, false, None, true),
+            Some("leaderboard eval requires --artifact")
+        );
+        assert_eq!(
+            leaderboard_eval_error(&spec, true, None, true),
+            Some("leaderboard eval requires --val-data")
+        );
+        spec.train.validation_data_pattern = Some("/val/*.bin".to_string());
+        assert_eq!(
+            leaderboard_eval_error(&spec, true, Some(4096), true),
+            Some(
+                "leaderboard eval cannot use --max-tokens; it must score the full validation stream"
+            )
+        );
+        assert_eq!(
+            leaderboard_eval_error(&spec, true, None, true),
+            Some(
+                "leaderboard eval requires --tokenizer-vocab when CaseOps byte sidecar is not active"
+            )
+        );
+        spec.eval.tokenizer_vocab_path = Some("/tok.vocab".to_string());
+        assert_eq!(leaderboard_eval_error(&spec, true, None, true), None);
+    }
+
+    #[test]
+    fn leaderboard_eval_requires_caseops_sidecar_when_caseops_is_active() {
+        let mut spec = RunSpec::for_family(VariantFamily::BaselineSp8192);
+        spec.train.validation_data_pattern = Some("/val/*.bin".to_string());
+        spec.model.caseops.enabled = true;
+        spec.model.caseops.byte_sidecar = true;
+        spec.eval.tokenizer_vocab_path = Some("/tok.vocab".to_string());
+        assert_eq!(
+            leaderboard_eval_error(&spec, true, None, true),
+            Some("leaderboard eval with CaseOps requires --caseops-byte-sidecar")
+        );
+        spec.eval.caseops_byte_sidecar_pattern = Some("/val_bytes/*.bin".to_string());
+        assert_eq!(leaderboard_eval_error(&spec, true, None, true), None);
+    }
 }

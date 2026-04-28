@@ -213,6 +213,40 @@ impl GpuTensor {
         }
     }
 
+    /// Set the full base tensor contents to zero.
+    ///
+    /// CUDA record paths use this for persistent gradient buffers. Sliced views
+    /// are intentionally rejected because zeroing a view through the underlying
+    /// allocation would otherwise corrupt neighboring slices.
+    pub fn zero_bytes(&mut self) -> PgResult<()> {
+        if self.offset != 0 {
+            return Err(PgError::InvalidOp(
+                "zero_bytes only supports base tensors with offset=0".into(),
+            ));
+        }
+        match &mut self.data {
+            TensorStorage::Cpu(data) => {
+                let buf = std::sync::Arc::make_mut(data);
+                buf.fill(0);
+                Ok(())
+            }
+            #[cfg(feature = "cuda")]
+            TensorStorage::Gpu { data, stream } => {
+                stream.context().bind_to_thread().map_err(|e| {
+                    PgError::InvalidOp(format!("CUDA context bind failed: {:?}", e))
+                })?;
+                let dev = std::sync::Arc::get_mut(data).ok_or_else(|| {
+                    PgError::InvalidOp(
+                        "cannot zero shared GPU storage; tensor has outstanding aliases".into(),
+                    )
+                })?;
+                stream
+                    .memset_zeros(dev)
+                    .map_err(|e| PgError::InvalidOp(format!("GPU memset zero failed: {:?}", e)))
+            }
+        }
+    }
+
     #[cfg(feature = "cuda")]
     pub fn cu_ptr(&self, stream: &std::sync::Arc<cudarc::driver::CudaStream>) -> PgResult<u64> {
         match &self.data {
@@ -304,6 +338,32 @@ impl GpuTensor {
 
     pub fn offset(&self) -> usize {
         self.offset
+    }
+
+    /// Returns true when two tensor views overlap the same backing allocation.
+    ///
+    /// This is intentionally byte-range based instead of shape based. CUDA
+    /// backward code uses it as a guard against accidentally using the same
+    /// scratch allocation as both a read input and write output in ping-pong
+    /// schedules.
+    pub fn overlaps_storage_region(&self, other: &Self) -> bool {
+        let same_storage = match (&self.data, &other.data) {
+            (TensorStorage::Cpu(lhs), TensorStorage::Cpu(rhs)) => std::sync::Arc::ptr_eq(lhs, rhs),
+            #[cfg(feature = "cuda")]
+            (TensorStorage::Gpu { data: lhs, .. }, TensorStorage::Gpu { data: rhs, .. }) => {
+                std::sync::Arc::ptr_eq(lhs, rhs)
+            }
+            #[cfg(feature = "cuda")]
+            _ => false,
+        };
+        if !same_storage {
+            return false;
+        }
+        let lhs_start = self.offset;
+        let lhs_end = lhs_start + self.nbytes();
+        let rhs_start = other.offset;
+        let rhs_end = rhs_start + other.nbytes();
+        lhs_start < rhs_end && rhs_start < lhs_end
     }
 
     pub fn is_contiguous(&self) -> bool {
@@ -403,6 +463,19 @@ mod tests {
         let s = t.slice_range(2, 7).unwrap();
         assert_eq!(s.shape(), &[5, 5]);
         assert_eq!(s.offset(), 2 * 5 * 4); // stride[0]=5, f32=4 bytes
+    }
+
+    #[test]
+    fn test_storage_overlap_detection() {
+        let t = GpuTensor::zeros_cpu(&[10, 5], DType::F32);
+        let lhs = t.slice_range(2, 7).unwrap();
+        let rhs = t.slice_range(6, 9).unwrap();
+        let disjoint = t.slice_range(7, 10).unwrap();
+        let other = GpuTensor::zeros_cpu(&[5, 5], DType::F32);
+
+        assert!(lhs.overlaps_storage_region(&rhs));
+        assert!(!lhs.overlaps_storage_region(&disjoint));
+        assert!(!lhs.overlaps_storage_region(&other));
     }
 
     #[test]

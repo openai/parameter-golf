@@ -1,16 +1,17 @@
 # Submission target spec, not a runnable fallback.
 #
 # This file encodes the frontier capability target the Rust stack must satisfy
-# before a leaderboard record attempt is credible. The architecture gates
-# (recurrence, split parallel residuals, AttnOutGate) are runnable; record mode
-# still requires real train-data/eval packaging before submission.
+# before a leaderboard record attempt is credible. This spec intentionally
+# names the production BF16 attention backend. Debug-only scalar attention
+# backends must be selected explicitly and are rejected by real record mode.
 
 name = "frontier_sp8192_target"
 mode = "record"
 
 [model]
 family = "hybrid_competitive_sp8192"
-attention_backend = "flash_f32"
+attention_backend = "cudnn_sdpa_bf16"
+compute_precision = "bf16_tensor_core"
 vocab_size = 8192
 num_layers = 11
 model_dim = 512
@@ -47,8 +48,17 @@ enabled = true
 split_attention_mlp = true
 
 [model.attn_out_gate]
-enabled = true
+enabled = false
 width = 24
+
+[model.caseops]
+enabled = true
+byte_sidecar = true
+
+[model.sparse_attn_gate]
+enabled = true
+width = 12
+scale = 1.0
 
 [model.rope]
 mode = "partial"
@@ -67,6 +77,7 @@ fast_bank_updates = false
 warmup_steps = 20
 total_iterations = 9000
 warmdown_iters = 3500
+min_lr_scale = 0.10
 max_wallclock_seconds = 600.0
 matrix_lr = 0.026
 scalar_lr = 0.025
@@ -87,6 +98,14 @@ calibration = "self_generated"
 compression = "zstd22"
 target_artifact_bytes = 16000000
 
+[quant.lqer]
+enabled = true
+rank = 4
+a_bits = 2
+b_bits = 4
+group_size = 64
+asymmetric = true
+
 [eval]
 stride = 64
 legal_score_first = true
@@ -98,3 +117,4 @@ phased_ttt_prefix_docs = 2000
 phased_ttt_phases = 3
 phased_ttt_weight_decay = 1.0
 chunk_tokens = 32768
+caseops_byte_sidecar_pattern = "/data/datasets/fineweb10B_sp8192/fineweb_val_bytes_*.bin"

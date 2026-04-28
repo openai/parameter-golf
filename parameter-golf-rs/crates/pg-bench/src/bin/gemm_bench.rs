@@ -1,7 +1,6 @@
 use cudarc::driver::CudaContext;
 use half::bf16;
 use pg_kernels::gemm::GemmEngine;
-use std::sync::Arc;
 
 /// Competition-relevant GEMM shapes.
 /// (label, m, n, k) — m is the batch*seq dimension.
@@ -27,7 +26,10 @@ const BENCH_ITERS: usize = 100;
 fn main() {
     env_logger::init();
 
-    println!("=== Parameter Golf bf16 GEMM Benchmark ===\n");
+    println!(
+        "=== Parameter Golf F32/TF32 GEMM Benchmark ({}) ===\n",
+        pg_kernels::gemm::f32_compute_mode_label()
+    );
 
     let ctx = CudaContext::new(0).expect("Failed to create CUDA context");
     let stream = ctx.default_stream();
@@ -43,9 +45,9 @@ fn main() {
     println!("{}", "-".repeat(76));
 
     for &(label, m, n, k) in SHAPES {
-        let a = stream.alloc_zeros::<bf16>(m * k).expect("alloc A failed");
-        let b = stream.alloc_zeros::<bf16>(k * n).expect("alloc B failed");
-        let mut c = stream.alloc_zeros::<bf16>(m * n).expect("alloc C failed");
+        let a = stream.alloc_zeros::<f32>(m * k).expect("alloc A failed");
+        let b = stream.alloc_zeros::<f32>(k * n).expect("alloc B failed");
+        let c = stream.alloc_zeros::<f32>(m * n).expect("alloc C failed");
 
         // Warmup
         for _ in 0..WARMUP_ITERS {
@@ -106,6 +108,73 @@ fn main() {
         );
     }
 
+    println!("\n--- BF16 Tensor-Core GEMM, F32 Output ---\n");
+    println!(
+        "{:<28} {:>6} {:>6} {:>6}  {:>10}  {:>8}",
+        "Shape", "M", "N", "K", "TFLOPS", "us/iter"
+    );
+    println!("{}", "-".repeat(76));
+
+    for &(label, m, n, k) in SHAPES {
+        let a = stream.alloc_zeros::<bf16>(m * k).expect("alloc A failed");
+        let b = stream.alloc_zeros::<bf16>(n * k).expect("alloc B failed");
+        let c = stream.alloc_zeros::<f32>(m * n).expect("alloc C failed");
+
+        for _ in 0..WARMUP_ITERS {
+            unsafe {
+                engine
+                    .matmul_bf16_bt_to_f32(
+                        cudarc::driver::DevicePtr::device_ptr(&a, engine.stream()).0,
+                        cudarc::driver::DevicePtr::device_ptr(&b, engine.stream()).0,
+                        cudarc::driver::DevicePtr::device_ptr(&c, engine.stream()).0,
+                        m,
+                        n,
+                        k,
+                        1.0,
+                        0.0,
+                    )
+                    .expect("warmup bf16 gemm failed");
+            }
+        }
+
+        let start = ctx
+            .new_event(Some(cudarc::driver::sys::CUevent_flags::CU_EVENT_DEFAULT))
+            .expect("event create failed");
+        let end = ctx
+            .new_event(Some(cudarc::driver::sys::CUevent_flags::CU_EVENT_DEFAULT))
+            .expect("event create failed");
+
+        start.record(&stream).expect("event record failed");
+        for _ in 0..BENCH_ITERS {
+            unsafe {
+                engine
+                    .matmul_bf16_bt_to_f32(
+                        cudarc::driver::DevicePtr::device_ptr(&a, engine.stream()).0,
+                        cudarc::driver::DevicePtr::device_ptr(&b, engine.stream()).0,
+                        cudarc::driver::DevicePtr::device_ptr(&c, engine.stream()).0,
+                        m,
+                        n,
+                        k,
+                        1.0,
+                        0.0,
+                    )
+                    .expect("bench bf16 gemm failed");
+            }
+        }
+        end.record(&stream).expect("event record failed");
+        stream.synchronize().expect("sync failed");
+
+        let total_ms = start.elapsed_ms(&end).expect("elapsed_ms failed");
+        let us_per_iter = (total_ms as f64 * 1000.0) / BENCH_ITERS as f64;
+        let flops_per_iter = 2.0 * m as f64 * n as f64 * k as f64;
+        let tflops = flops_per_iter * BENCH_ITERS as f64 / (total_ms as f64 * 1e-3) / 1e12;
+
+        println!(
+            "{:<28} {:>6} {:>6} {:>6}  {:>10.2}  {:>8.1}",
+            label, m, n, k, tflops, us_per_iter
+        );
+    }
+
     // Batched GEMM for Newton-Schulz
     println!("\n--- Strided Batched GEMM (Newton-Schulz) ---\n");
     println!(
@@ -125,13 +194,13 @@ fn main() {
 
     for &(label, batch, m, n, k) in batched_shapes {
         let a = stream
-            .alloc_zeros::<bf16>(batch * m * k)
+            .alloc_zeros::<f32>(batch * m * k)
             .expect("alloc A failed");
         let b = stream
-            .alloc_zeros::<bf16>(batch * k * n)
+            .alloc_zeros::<f32>(batch * k * n)
             .expect("alloc B failed");
-        let mut c = stream
-            .alloc_zeros::<bf16>(batch * m * n)
+        let c = stream
+            .alloc_zeros::<f32>(batch * m * n)
             .expect("alloc C failed");
 
         for _ in 0..WARMUP_ITERS {

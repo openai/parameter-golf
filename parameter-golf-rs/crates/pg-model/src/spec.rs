@@ -11,6 +11,9 @@ pub enum RunMode {
     #[default]
     Smoke,
     Proxy,
+    /// Uses the final record batch arithmetic without doing a full artifact/eval
+    /// record attempt. This is the systems benchmark surface for H100 work.
+    RecordShapedProxy,
     Record,
 }
 
@@ -29,14 +32,24 @@ pub enum TrainBackend {
 pub enum AttentionBackend {
     /// Debug-only parity kernel with duplicated QK work. Kept as a fallback.
     NaiveF32,
-    /// F32 flash-style online softmax kernel with forward and backward support.
-    /// This is the production Rust fallback while BF16 cuDNN SDPA is pending.
+    /// F32 online-softmax parity kernel with forward and backward support.
+    /// This is still a scalar record-blocking path, not FlashAttention.
     #[default]
     FlashF32,
     /// Intended production backend: fused cuDNN/FlashAttention-style BF16 SDPA.
     /// This is explicit so record runs cannot accidentally report the F32
     /// parity kernel as FlashAttention.
     CudnnSdpaBf16,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelComputePrecision {
+    /// Current implemented runtime: f32 storage with optional TF32 cuBLAS math.
+    #[default]
+    F32Tf32,
+    /// Frontier target: BF16/FP16 tensor-core parameter/activation/GEMM graph.
+    Bf16TensorCore,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -224,9 +237,44 @@ impl Default for AttnOutGateSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
+pub struct CaseOpsSpec {
+    pub enabled: bool,
+    pub byte_sidecar: bool,
+}
+
+impl Default for CaseOpsSpec {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            byte_sidecar: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct SparseAttnGateSpec {
+    pub enabled: bool,
+    pub width: usize,
+    pub scale: f32,
+}
+
+impl Default for SparseAttnGateSpec {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            width: 12,
+            scale: 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct ModelSpec {
     pub family: VariantFamily,
     pub attention_backend: AttentionBackend,
+    pub compute_precision: ModelComputePrecision,
     pub vocab_size: usize,
     pub num_layers: usize,
     pub model_dim: usize,
@@ -242,6 +290,8 @@ pub struct ModelSpec {
     pub recurrence: RecurrenceSpec,
     pub parallel_residual: ParallelResidualSpec,
     pub attn_out_gate: AttnOutGateSpec,
+    pub caseops: CaseOpsSpec,
+    pub sparse_attn_gate: SparseAttnGateSpec,
     pub rope: RopeSpec,
     pub smear_gate: bool,
     pub logit_softcap: f32,
@@ -261,6 +311,7 @@ impl ModelSpec {
         let mut spec = Self {
             family,
             attention_backend: AttentionBackend::NaiveF32,
+            compute_precision: ModelComputePrecision::F32Tf32,
             vocab_size: 8192,
             num_layers: 11,
             model_dim: 512,
@@ -276,6 +327,8 @@ impl ModelSpec {
             recurrence: RecurrenceSpec::default(),
             parallel_residual: ParallelResidualSpec::default(),
             attn_out_gate: AttnOutGateSpec::default(),
+            caseops: CaseOpsSpec::default(),
+            sparse_attn_gate: SparseAttnGateSpec::default(),
             rope: RopeSpec::default(),
             smear_gate: true,
             logit_softcap: 30.0,
@@ -305,8 +358,11 @@ impl ModelSpec {
                 spec.recurrence.repeat_layers = 2;
                 spec.parallel_residual.enabled = true;
                 spec.parallel_residual.split_attention_mlp = true;
-                spec.attn_out_gate.enabled = true;
-                spec.attn_out_gate.width = 24;
+                spec.caseops.enabled = true;
+                spec.caseops.byte_sidecar = true;
+                spec.sparse_attn_gate.enabled = true;
+                spec.sparse_attn_gate.width = 12;
+                spec.sparse_attn_gate.scale = 1.0;
                 spec.bigram.vocab_size = 3072;
                 spec.bigram.dim = 112;
             }
@@ -338,6 +394,9 @@ impl ModelSpec {
                 && self.parallel_residual.split_attention_mlp,
             attn_out_gate_enabled: self.attn_out_gate.enabled,
             attn_out_gate_width: self.attn_out_gate.width,
+            sparse_attn_gate_enabled: self.sparse_attn_gate.enabled,
+            sparse_attn_gate_width: self.sparse_attn_gate.width,
+            sparse_attn_gate_scale: self.sparse_attn_gate.scale,
             vrl_enabled: false,
             ve_enabled: self.value_embedding.enabled,
             ve_dim: self.value_embedding.dim,
@@ -377,6 +436,7 @@ pub struct TrainSpec {
     pub warmup_steps: usize,
     pub total_iterations: usize,
     pub warmdown_iters: usize,
+    pub min_lr_scale: f32,
     pub max_wallclock_seconds: f32,
     pub matrix_lr: f32,
     pub scalar_lr: f32,
@@ -408,6 +468,7 @@ impl Default for TrainSpec {
             warmup_steps: 20,
             total_iterations: 9_000,
             warmdown_iters: 3_500,
+            min_lr_scale: 0.0,
             max_wallclock_seconds: 600.0,
             matrix_lr: 0.025,
             scalar_lr: 0.025,
@@ -445,6 +506,7 @@ impl TrainSpec {
             warmup_steps: self.warmup_steps,
             warmdown_iters: self.warmdown_iters,
             total_iterations: self.total_iterations,
+            min_lr_scale: self.min_lr_scale,
             max_wallclock_seconds: self.max_wallclock_seconds,
             train_batch_tokens: self.batch_tokens,
             grad_clip_norm: 0.3,
@@ -471,8 +533,33 @@ pub struct QuantSpec {
     pub scheme: QuantScheme,
     pub calibration: CalibrationMode,
     pub prune_keep_ratio: Option<f32>,
+    pub lqer: LqerSpec,
     pub compression: CompressionMode,
     pub target_artifact_bytes: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct LqerSpec {
+    pub enabled: bool,
+    pub rank: usize,
+    pub a_bits: u8,
+    pub b_bits: u8,
+    pub group_size: usize,
+    pub asymmetric: bool,
+}
+
+impl Default for LqerSpec {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            rank: 4,
+            a_bits: 2,
+            b_bits: 4,
+            group_size: 64,
+            asymmetric: true,
+        }
+    }
 }
 
 impl Default for QuantSpec {
@@ -481,6 +568,7 @@ impl Default for QuantSpec {
             scheme: QuantScheme::GptqLiteInt6,
             calibration: CalibrationMode::Disabled,
             prune_keep_ratio: None,
+            lqer: LqerSpec::default(),
             compression: CompressionMode::Zstd22,
             target_artifact_bytes: 16_000_000,
         }
@@ -501,6 +589,7 @@ pub struct EvalSpec {
     pub phased_ttt_weight_decay: f32,
     pub chunk_tokens: usize,
     pub tokenizer_vocab_path: Option<String>,
+    pub caseops_byte_sidecar_pattern: Option<String>,
     pub max_tokens: Option<usize>,
 }
 
@@ -518,6 +607,7 @@ impl Default for EvalSpec {
             phased_ttt_weight_decay: 1.0,
             chunk_tokens: 32_768,
             tokenizer_vocab_path: None,
+            caseops_byte_sidecar_pattern: None,
             max_tokens: None,
         }
     }

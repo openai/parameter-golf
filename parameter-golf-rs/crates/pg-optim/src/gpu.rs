@@ -1,13 +1,12 @@
 /// CUDA-side optimizer helpers.
 ///
-/// This module now provides the real device-side substrate used by the
-/// `cuda-single` proxy backend:
+/// This module provides reusable device-side optimizer primitives:
 /// - grad norm clipping on device
 /// - fused AdamW for scalar / embedding tensors
 /// - device-resident Muon / NS5 for bank updates
 ///
-/// The distributed Muon path is still intentionally separated because it needs
-/// NCCL orchestration plus NS5 bank orthogonalization to be submission-valid.
+/// Multi-rank orchestration is owned by `pg-train`, where NCCL communicators,
+/// per-rank model replicas, and sharded bank buffers are available together.
 
 #[cfg(feature = "cuda")]
 use cudarc::driver::CudaStream;
@@ -442,21 +441,5 @@ impl GpuOptimizer {
             weight_decay,
             param.numel() as u32,
         )
-    }
-}
-
-#[cfg(feature = "cuda")]
-pub struct DistributedGpuOptimizer;
-
-#[cfg(feature = "cuda")]
-impl DistributedGpuOptimizer {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn step_distributed(&mut self) -> PgResult<()> {
-        Err(PgError::InvalidOp(
-            "DistributedGpuOptimizer::step_distributed is not implemented; cuda-single now has a real device-side proxy optimizer, but distributed NCCL+Muon orchestration still needs a dedicated path".into(),
-        ))
     }
 }
