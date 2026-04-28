@@ -1,0 +1,276 @@
+WARNING:__main__:
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+[vocab] data vocab OK (1024 tokens ≤ 1024)
+[compile] torch.compile enabled (default mode)
+====================================================================
+  HyperGPT — Parameter Golf 16MB  |  2026-04-03 06:53:17
+====================================================================
+  device    : NVIDIA H100 80GB HBM3 x8  (85GB each)
+  model     : 11.55M params | 16L d512 h8/kv4 rank48 groups2
+  vocab     : 1024  |  seq_len: 1024
+  batch     : 64 seq × 8 GPU × 1 accum = 524,288 tok/step
+  schedule  : time-aware | warmup 15% | peak 65% | decay 20% of 580s
+  data      : /workspace/parameter-golf/datasets/fineweb10B_sp1024
+  output    : runs/hypergpt
+====================================================================
+step    10/20000  loss=17.4191  ppl=36729893.7  bpb≈45.6171  gnorm=67.576  tok/s= 85.5K  t= 1m01s  lr=7.02e-03  eta=34h02m
+step    20/20000  loss=27.8591  ppl=485165195.4  bpb≈72.9574  gnorm=153.818  tok/s=2540.8K  t= 1m03s  lr=7.26e-03  eta=17h34m
+step    30/20000  loss=49.2441  ppl=485165195.4  bpb≈128.9603  gnorm=159.667  tok/s=2575.8K  t= 1m05s  lr=7.49e-03  eta=12h05m
+step    40/20000  loss=58.4893  ppl=485165195.4  bpb≈153.1715  gnorm=171.378  tok/s=2562.2K  t= 1m07s  lr=7.73e-03  eta=9h20m
+step    50/20000  loss=33.8032  ppl=485165195.4  bpb≈88.5236  gnorm=120.670  tok/s=2556.0K  t= 1m09s  lr=7.96e-03  eta=7h42m
+step    60/20000  loss=38.1444  ppl=485165195.4  bpb≈99.8924  gnorm=174.668  tok/s=2567.0K  t= 1m11s  lr=8.20e-03  eta=6h36m
+step    70/20000  loss=39.4766  ppl=485165195.4  bpb≈103.3811  gnorm=186.325  tok/s=2563.0K  t= 1m13s  lr=8.43e-03  eta=5h49m
+step    80/20000  loss=41.6867  ppl=485165195.4  bpb≈109.1690  gnorm=134.444  tok/s=2556.3K  t= 1m15s  lr=8.67e-03  eta=5h13m
+step    90/20000  loss=31.5979  ppl=485165195.4  bpb≈82.7485  gnorm=112.053  tok/s=2554.7K  t= 1m17s  lr=8.91e-03  eta=4h46m
+step   100/20000  loss=22.7436  ppl=485165195.4  bpb≈59.5607  gnorm=65.652  tok/s=2584.0K  t= 1m19s  lr=9.14e-03  eta=4h24m
+step   110/20000  loss=17.0729  ppl=25982504.4  bpb≈44.7105  gnorm=37.914  tok/s=2556.2K  t= 1m21s  lr=9.38e-03  eta=4h06m
+step   120/20000  loss=8.8324  ppl=6852.7  bpb≈23.1303  gnorm=23.048  tok/s=2549.6K  t= 1m23s  lr=9.61e-03  eta=3h51m
+step   130/20000  loss=6.0175  ppl= 410.6  bpb≈15.7587  gnorm=9.673  tok/s=2557.6K  t= 1m25s  lr=9.85e-03  eta=3h38m
+step   140/20000  loss=5.4708  ppl= 237.7  bpb≈14.3270  gnorm=3.667  tok/s=2571.6K  t= 1m27s  lr=1.00e-02  eta=3h27m
+step   150/20000  loss=5.0433  ppl= 155.0  bpb≈13.2073  gnorm=2.132  tok/s=2583.1K  t= 1m29s  lr=1.00e-02  eta=3h18m
+step   160/20000  loss=4.8797  ppl= 131.6  bpb≈12.7789  gnorm=2.149  tok/s=2567.1K  t= 1m31s  lr=1.00e-02  eta=3h10m
+step   170/20000  loss=4.7056  ppl= 110.6  bpb≈12.3231  gnorm=1.452  tok/s=2583.7K  t= 1m34s  lr=1.00e-02  eta=3h02m
+step   180/20000  loss=4.6037  ppl=  99.9  bpb≈12.0563  gnorm=1.669  tok/s=2556.9K  t= 1m36s  lr=1.00e-02  eta=2h56m
+step   190/20000  loss=4.5525  ppl=  94.9  bpb≈11.9219  gnorm=1.538  tok/s=2572.1K  t= 1m38s  lr=1.00e-02  eta=2h50m
+step   200/20000  loss=4.4841  ppl=  88.6  bpb≈11.7430  gnorm=1.683  tok/s=2556.3K  t= 1m40s  lr=1.00e-02  eta=2h45m
+  [val] step=  200  bpb=43.383284  ppl=15652083.80  Δ=-inf  best=43.383284 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.23 MB compressed
+step   210/20000  loss=4.4863  ppl=  88.8  bpb≈11.7486  gnorm=1.587  tok/s=796.9K  t= 1m46s  lr=1.00e-02  eta=2h47m
+step   220/20000  loss=4.4199  ppl=  83.1  bpb≈11.5748  gnorm=1.419  tok/s=2556.7K  t= 1m48s  lr=1.00e-02  eta=2h43m
+step   230/20000  loss=4.3891  ppl=  80.6  bpb≈11.4942  gnorm=1.340  tok/s=2579.7K  t= 1m50s  lr=1.00e-02  eta=2h38m
+step   240/20000  loss=4.3943  ppl=  81.0  bpb≈11.5078  gnorm=1.296  tok/s=2560.9K  t= 1m52s  lr=1.00e-02  eta=2h34m
+step   250/20000  loss=4.3781  ppl=  79.7  bpb≈11.4653  gnorm=1.342  tok/s=2562.3K  t= 1m54s  lr=1.00e-02  eta=2h31m
+step   260/20000  loss=4.3474  ppl=  77.3  bpb≈11.3849  gnorm=1.284  tok/s=2545.2K  t= 1m56s  lr=1.00e-02  eta=2h28m
+step   270/20000  loss=4.3681  ppl=  78.9  bpb≈11.4392  gnorm=1.380  tok/s=2557.0K  t= 1m59s  lr=1.00e-02  eta=2h24m
+step   280/20000  loss=4.3489  ppl=  77.4  bpb≈11.3888  gnorm=1.275  tok/s=2560.3K  t= 2m01s  lr=1.00e-02  eta=2h22m
+step   290/20000  loss=4.3143  ppl=  74.8  bpb≈11.2982  gnorm=1.307  tok/s=2566.2K  t= 2m03s  lr=1.00e-02  eta=2h19m
+step   300/20000  loss=4.3046  ppl=  74.0  bpb≈11.2729  gnorm=1.287  tok/s=2570.0K  t= 2m05s  lr=1.00e-02  eta=2h16m
+step   310/20000  loss=4.3074  ppl=  74.2  bpb≈11.2801  gnorm=1.131  tok/s=2539.9K  t= 2m07s  lr=1.00e-02  eta=2h14m
+step   320/20000  loss=4.3138  ppl=  74.7  bpb≈11.2970  gnorm=1.365  tok/s=2559.3K  t= 2m09s  lr=1.00e-02  eta=2h12m
+step   330/20000  loss=4.2902  ppl=  73.0  bpb≈11.2351  gnorm=1.172  tok/s=2564.6K  t= 2m11s  lr=1.00e-02  eta=2h10m
+step   340/20000  loss=4.2897  ppl=  72.9  bpb≈11.2338  gnorm=1.229  tok/s=2553.4K  t= 2m13s  lr=1.00e-02  eta=2h08m
+step   350/20000  loss=4.2773  ppl=  72.0  bpb≈11.2013  gnorm=1.260  tok/s=2544.0K  t= 2m15s  lr=1.00e-02  eta=2h06m
+step   360/20000  loss=4.2707  ppl=  71.6  bpb≈11.1842  gnorm=1.236  tok/s=2561.1K  t= 2m17s  lr=1.00e-02  eta=2h04m
+step   370/20000  loss=4.2657  ppl=  71.2  bpb≈11.1709  gnorm=1.380  tok/s=2583.5K  t= 2m19s  lr=1.00e-02  eta=2h03m
+step   380/20000  loss=4.2352  ppl=  69.1  bpb≈11.0911  gnorm=1.350  tok/s=2572.7K  t= 2m21s  lr=1.00e-02  eta=2h01m
+step   390/20000  loss=4.2074  ppl=  67.2  bpb≈11.0184  gnorm=1.653  tok/s=2577.1K  t= 2m23s  lr=1.00e-02  eta=2h00m
+step   400/20000  loss=5.4301  ppl= 228.2  bpb≈14.2202  gnorm=39.850  tok/s=2564.4K  t= 2m25s  lr=1.00e-02  eta=1h58m
+  [val] step=  400  bpb=38.574286  ppl=2494940.90  Δ=-4.8090  best=38.574286 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.24 MB compressed
+step   410/20000  loss=4.7198  ppl= 112.1  bpb≈12.3602  gnorm=10.933  tok/s=820.8K  t= 2m32s  lr=1.00e-02  eta=2h01m
+step   420/20000  loss=4.3309  ppl=  76.0  bpb≈11.3416  gnorm=3.328  tok/s=2567.6K  t= 2m34s  lr=1.00e-02  eta=1h59m
+step   430/20000  loss=4.2231  ppl=  68.2  bpb≈11.0594  gnorm=2.782  tok/s=2566.9K  t= 2m36s  lr=1.00e-02  eta=1h58m
+step   440/20000  loss=4.1577  ppl=  63.9  bpb≈10.8883  gnorm=2.006  tok/s=2588.4K  t= 2m38s  lr=1.00e-02  eta=1h57m
+step   450/20000  loss=4.1011  ppl=  60.4  bpb≈10.7400  gnorm=1.678  tok/s=2568.6K  t= 2m40s  lr=1.00e-02  eta=1h55m
+step   460/20000  loss=4.0466  ppl=  57.2  bpb≈10.5973  gnorm=1.881  tok/s=2556.7K  t= 2m42s  lr=1.00e-02  eta=1h54m
+step   470/20000  loss=4.0463  ppl=  57.2  bpb≈10.5965  gnorm=5.404  tok/s=2568.9K  t= 2m44s  lr=1.00e-02  eta=1h53m
+step   480/20000  loss=4.0115  ppl=  55.2  bpb≈10.5052  gnorm=7.418  tok/s=2569.4K  t= 2m46s  lr=1.00e-02  eta=1h52m
+step   490/20000  loss=4.0810  ppl=  59.2  bpb≈10.6872  gnorm=7.056  tok/s=2568.6K  t= 2m48s  lr=1.00e-02  eta=1h51m
+step   500/20000  loss=3.9501  ppl=  51.9  bpb≈10.3446  gnorm=2.213  tok/s=2579.1K  t= 2m50s  lr=1.00e-02  eta=1h50m
+step   510/20000  loss=3.9720  ppl=  53.1  bpb≈10.4018  gnorm=3.624  tok/s=2550.0K  t= 2m52s  lr=1.00e-02  eta=1h49m
+step   520/20000  loss=3.8734  ppl=  48.1  bpb≈10.1436  gnorm=1.977  tok/s=2568.4K  t= 2m54s  lr=1.00e-02  eta=1h48m
+step   530/20000  loss=3.8438  ppl=  46.7  bpb≈10.0662  gnorm=2.007  tok/s=2581.0K  t= 2m56s  lr=1.00e-02  eta=1h48m
+step   540/20000  loss=3.8075  ppl=  45.0  bpb≈9.9711  gnorm=2.014  tok/s=2564.6K  t= 2m58s  lr=1.00e-02  eta=1h47m
+step   550/20000  loss=3.7875  ppl=  44.1  bpb≈9.9186  gnorm=2.039  tok/s=2580.0K  t= 3m00s  lr=1.00e-02  eta=1h46m
+step   560/20000  loss=3.7632  ppl=  43.1  bpb≈9.8550  gnorm=6.735  tok/s=2583.4K  t= 3m02s  lr=1.00e-02  eta=1h45m
+step   570/20000  loss=3.7860  ppl=  44.1  bpb≈9.9148  gnorm=3.186  tok/s=2583.5K  t= 3m04s  lr=1.00e-02  eta=1h44m
+step   580/20000  loss=4.1072  ppl=  60.8  bpb≈10.7560  gnorm=24.221  tok/s=2583.3K  t= 3m06s  lr=1.00e-02  eta=1h44m
+step   590/20000  loss=3.7994  ppl=  44.7  bpb≈9.9497  gnorm=2.500  tok/s=2558.9K  t= 3m08s  lr=1.00e-02  eta=1h43m
+step   600/20000  loss=3.7219  ppl=  41.3  bpb≈9.7470  gnorm=2.227  tok/s=2566.0K  t= 3m10s  lr=1.00e-02  eta=1h42m
+  [val] step=  600  bpb=11.304972  ppl=74.95  Δ=-27.2693  best=11.304972 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.24 MB compressed
+step   610/20000  loss=3.7047  ppl=  40.6  bpb≈9.7019  gnorm=2.388  tok/s=758.0K  t= 3m17s  lr=1.00e-02  eta=1h44m
+step   620/20000  loss=3.7463  ppl=  42.4  bpb≈9.8107  gnorm=10.449  tok/s=2559.6K  t= 3m19s  lr=1.00e-02  eta=1h44m
+step   630/20000  loss=3.7393  ppl=  42.1  bpb≈9.7924  gnorm=2.722  tok/s=2555.5K  t= 3m21s  lr=1.00e-02  eta=1h43m
+step   640/20000  loss=3.6508  ppl=  38.5  bpb≈9.5606  gnorm=2.200  tok/s=1429.0K  t= 3m25s  lr=1.00e-02  eta=1h43m
+step   650/20000  loss=3.6219  ppl=  37.4  bpb≈9.4851  gnorm=2.275  tok/s=2569.3K  t= 3m27s  lr=1.00e-02  eta=1h42m
+step   660/20000  loss=3.6318  ppl=  37.8  bpb≈9.5108  gnorm=2.372  tok/s=1968.6K  t= 3m30s  lr=1.00e-02  eta=1h42m
+step   670/20000  loss=3.6265  ppl=  37.6  bpb≈9.4971  gnorm=2.501  tok/s=2581.9K  t= 3m32s  lr=1.00e-02  eta=1h42m
+step   680/20000  loss=3.7837  ppl=  44.0  bpb≈9.9088  gnorm=11.721  tok/s=2570.2K  t= 3m34s  lr=1.00e-02  eta=1h41m
+step   690/20000  loss=3.6449  ppl=  38.3  bpb≈9.5452  gnorm=2.790  tok/s=2568.1K  t= 3m36s  lr=1.00e-02  eta=1h40m
+step   700/20000  loss=3.6235  ppl=  37.5  bpb≈9.4892  gnorm=3.058  tok/s=2567.9K  t= 3m38s  lr=1.00e-02  eta=1h40m
+step   710/20000  loss=3.6238  ppl=  37.5  bpb≈9.4900  gnorm=2.904  tok/s=2569.5K  t= 3m40s  lr=1.00e-02  eta=1h39m
+step   720/20000  loss=3.6652  ppl=  39.1  bpb≈9.5984  gnorm=2.394  tok/s=2582.8K  t= 3m42s  lr=1.00e-02  eta=1h39m
+step   730/20000  loss=3.6072  ppl=  36.9  bpb≈9.4465  gnorm=3.992  tok/s=2556.3K  t= 3m44s  lr=1.00e-02  eta=1h38m
+step   740/20000  loss=3.6708  ppl=  39.3  bpb≈9.6131  gnorm=3.834  tok/s=2585.7K  t= 3m46s  lr=1.00e-02  eta=1h38m
+step   750/20000  loss=3.6894  ppl=  40.0  bpb≈9.6618  gnorm=12.585  tok/s=2059.8K  t= 3m48s  lr=1.00e-02  eta=1h37m
+step   760/20000  loss=3.5884  ppl=  36.2  bpb≈9.3974  gnorm=10.584  tok/s=2544.0K  t= 3m51s  lr=1.00e-02  eta=1h37m
+step   770/20000  loss=3.5835  ppl=  36.0  bpb≈9.3845  gnorm=2.183  tok/s=2555.8K  t= 3m53s  lr=1.00e-02  eta=1h37m
+step   780/20000  loss=3.5660  ppl=  35.4  bpb≈9.3388  gnorm=2.352  tok/s=2569.2K  t= 3m55s  lr=1.00e-02  eta=1h36m
+step   790/20000  loss=3.8359  ppl=  46.3  bpb≈10.0454  gnorm=25.850  tok/s=2583.9K  t= 3m57s  lr=1.00e-02  eta=1h36m
+step   800/20000  loss=3.6058  ppl=  36.8  bpb≈9.4428  gnorm=3.072  tok/s=2557.1K  t= 3m59s  lr=1.00e-02  eta=1h35m
+  [val] step=  800  bpb=9.324446  ppl=35.18  Δ=-1.9805  best=9.324446 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.24 MB compressed
+step   810/20000  loss=3.5582  ppl=  35.1  bpb≈9.3183  gnorm=2.596  tok/s=818.5K  t= 4m05s  lr=1.00e-02  eta=1h36m
+step   820/20000  loss=3.6415  ppl=  38.1  bpb≈9.5364  gnorm=8.697  tok/s=2581.6K  t= 4m07s  lr=1.00e-02  eta=1h36m
+step   830/20000  loss=3.5791  ppl=  35.8  bpb≈9.3729  gnorm=2.939  tok/s=2572.5K  t= 4m09s  lr=1.00e-02  eta=1h36m
+step   840/20000  loss=3.5845  ppl=  36.0  bpb≈9.3871  gnorm=2.580  tok/s=2564.2K  t= 4m11s  lr=1.00e-02  eta=1h35m
+step   850/20000  loss=3.4948  ppl=  32.9  bpb≈9.1521  gnorm=2.487  tok/s=2580.8K  t= 4m13s  lr=1.00e-02  eta=1h35m
+step   860/20000  loss=3.5157  ppl=  33.6  bpb≈9.2070  gnorm=2.543  tok/s=2571.0K  t= 4m15s  lr=1.00e-02  eta=1h34m
+step   870/20000  loss=3.4709  ppl=  32.2  bpb≈9.0896  gnorm=2.583  tok/s=2581.7K  t= 4m17s  lr=1.00e-02  eta=1h34m
+step   880/20000  loss=3.4681  ppl=  32.1  bpb≈9.0823  gnorm=2.388  tok/s=2553.6K  t= 4m19s  lr=1.00e-02  eta=1h34m
+step   890/20000  loss=3.5652  ppl=  35.3  bpb≈9.3365  gnorm=2.449  tok/s=2576.1K  t= 4m21s  lr=1.00e-02  eta=1h33m
+step   900/20000  loss=3.4646  ppl=  32.0  bpb≈9.0730  gnorm=2.771  tok/s=2579.9K  t= 4m23s  lr=1.00e-02  eta=1h33m
+step   910/20000  loss=3.4921  ppl=  32.9  bpb≈9.1451  gnorm=3.041  tok/s=2568.6K  t= 4m25s  lr=1.00e-02  eta=1h33m
+step   920/20000  loss=3.4848  ppl=  32.6  bpb≈9.1260  gnorm=2.614  tok/s=2582.3K  t= 4m28s  lr=1.00e-02  eta=1h32m
+step   930/20000  loss=3.4743  ppl=  32.3  bpb≈9.0984  gnorm=2.539  tok/s=2581.7K  t= 4m30s  lr=1.00e-02  eta=1h32m
+step   940/20000  loss=3.4663  ppl=  32.0  bpb≈9.0774  gnorm=2.941  tok/s=2583.7K  t= 4m32s  lr=1.00e-02  eta=1h31m
+step   950/20000  loss=3.5019  ppl=  33.2  bpb≈9.1707  gnorm=2.736  tok/s=2577.4K  t= 4m34s  lr=1.00e-02  eta=1h31m
+step   960/20000  loss=3.4948  ppl=  32.9  bpb≈9.1521  gnorm=2.584  tok/s=2582.8K  t= 4m36s  lr=1.00e-02  eta=1h31m
+step   970/20000  loss=3.4892  ppl=  32.8  bpb≈9.1376  gnorm=5.788  tok/s=2555.1K  t= 4m38s  lr=1.00e-02  eta=1h30m
+step   980/20000  loss=3.4762  ppl=  32.3  bpb≈9.1034  gnorm=2.744  tok/s=2541.6K  t= 4m40s  lr=1.00e-02  eta=1h30m
+step   990/20000  loss=3.4906  ppl=  32.8  bpb≈9.1412  gnorm=2.910  tok/s=2580.0K  t= 4m42s  lr=1.00e-02  eta=1h30m
+step  1000/20000  loss=3.4666  ppl=  32.0  bpb≈9.0783  gnorm=2.700  tok/s=2568.8K  t= 4m44s  lr=1.00e-02  eta=1h30m
+  [val] step= 1000  bpb=8.970682  ppl=30.74  Δ=-0.3538  best=8.970682 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.26 MB compressed
+step  1010/20000  loss=3.4208  ppl=  30.6  bpb≈8.9585  gnorm=3.273  tok/s=824.0K  t= 4m50s  lr=1.00e-02  eta=1h31m
+step  1020/20000  loss=3.5126  ppl=  33.5  bpb≈9.1987  gnorm=3.066  tok/s=2554.1K  t= 4m52s  lr=1.00e-02  eta=1h30m
+step  1030/20000  loss=3.4296  ppl=  30.9  bpb≈8.9815  gnorm=2.544  tok/s=2580.1K  t= 4m54s  lr=1.00e-02  eta=1h30m
+step  1040/20000  loss=3.4716  ppl=  32.2  bpb≈9.0915  gnorm=2.657  tok/s=2548.9K  t= 4m56s  lr=1.00e-02  eta=1h30m
+step  1050/20000  loss=3.5573  ppl=  35.1  bpb≈9.3158  gnorm=13.758  tok/s=2555.1K  t= 4m58s  lr=1.00e-02  eta=1h29m
+step  1060/20000  loss=3.4993  ppl=  33.1  bpb≈9.1638  gnorm=3.186  tok/s=2565.5K  t= 5m00s  lr=1.00e-02  eta=1h29m
+step  1070/20000  loss=3.4950  ppl=  32.9  bpb≈9.1526  gnorm=2.742  tok/s=2556.6K  t= 5m02s  lr=1.00e-02  eta=1h29m
+step  1080/20000  loss=3.4656  ppl=  32.0  bpb≈9.0756  gnorm=2.798  tok/s=2556.6K  t= 5m05s  lr=1.00e-02  eta=1h29m
+step  1090/20000  loss=3.4422  ppl=  31.3  bpb≈9.0144  gnorm=2.791  tok/s=2566.1K  t= 5m07s  lr=1.00e-02  eta=1h28m
+step  1100/20000  loss=3.4019  ppl=  30.0  bpb≈8.9088  gnorm=2.777  tok/s=2557.7K  t= 5m09s  lr=1.00e-02  eta=1h28m
+step  1110/20000  loss=3.4467  ppl=  31.4  bpb≈9.0261  gnorm=2.724  tok/s=2579.5K  t= 5m11s  lr=1.00e-02  eta=1h28m
+step  1120/20000  loss=4.3011  ppl=  73.8  bpb≈11.2636  gnorm=39.849  tok/s=2580.2K  t= 5m13s  lr=1.00e-02  eta=1h27m
+step  1130/20000  loss=3.4049  ppl=  30.1  bpb≈8.9166  gnorm=2.912  tok/s=2542.3K  t= 5m15s  lr=1.00e-02  eta=1h27m
+step  1140/20000  loss=3.4499  ppl=  31.5  bpb≈9.0347  gnorm=2.818  tok/s=2566.1K  t= 5m17s  lr=1.00e-02  eta=1h27m
+step  1150/20000  loss=3.4062  ppl=  30.1  bpb≈8.9201  gnorm=2.716  tok/s=2551.4K  t= 5m19s  lr=1.00e-02  eta=1h27m
+step  1160/20000  loss=3.4004  ppl=  30.0  bpb≈8.9049  gnorm=2.786  tok/s=2565.0K  t= 5m21s  lr=1.00e-02  eta=1h26m
+step  1170/20000  loss=3.4412  ppl=  31.2  bpb≈9.0117  gnorm=8.116  tok/s=2539.9K  t= 5m23s  lr=1.00e-02  eta=1h26m
+step  1180/20000  loss=3.4321  ppl=  30.9  bpb≈8.9879  gnorm=3.392  tok/s=2553.1K  t= 5m25s  lr=1.00e-02  eta=1h26m
+step  1190/20000  loss=3.5260  ppl=  34.0  bpb≈9.2338  gnorm=15.382  tok/s=2571.6K  t= 5m27s  lr=1.00e-02  eta=1h26m
+step  1200/20000  loss=3.3943  ppl=  29.8  bpb≈8.8889  gnorm=2.906  tok/s=2552.1K  t= 5m29s  lr=1.00e-02  eta=1h26m
+  [val] step= 1200  bpb=8.804231  ppl=28.85  Δ=-0.1665  best=8.804231 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.36 MB compressed
+step  1210/20000  loss=3.4248  ppl=  30.7  bpb≈8.9688  gnorm=8.991  tok/s=821.5K  t= 5m35s  lr=1.00e-02  eta=1h26m
+step  1220/20000  loss=3.4006  ppl=  30.0  bpb≈8.9054  gnorm=2.987  tok/s=2555.6K  t= 5m38s  lr=1.00e-02  eta=1h26m
+step  1230/20000  loss=3.4369  ppl=  31.1  bpb≈9.0006  gnorm=2.743  tok/s=2568.7K  t= 5m40s  lr=1.00e-02  eta=1h26m
+step  1240/20000  loss=3.4234  ppl=  30.7  bpb≈8.9652  gnorm=9.472  tok/s=2562.1K  t= 5m42s  lr=1.00e-02  eta=1h26m
+step  1250/20000  loss=3.3868  ppl=  29.6  bpb≈8.8692  gnorm=2.882  tok/s=2540.8K  t= 5m44s  lr=1.00e-02  eta=1h26m
+step  1260/20000  loss=3.4152  ppl=  30.4  bpb≈8.9436  gnorm=3.795  tok/s=2554.5K  t= 5m46s  lr=1.00e-02  eta=1h25m
+step  1270/20000  loss=3.3914  ppl=  29.7  bpb≈8.8815  gnorm=2.766  tok/s=2549.9K  t= 5m48s  lr=1.00e-02  eta=1h25m
+step  1280/20000  loss=3.4149  ppl=  30.4  bpb≈8.9430  gnorm=2.791  tok/s=2552.6K  t= 5m50s  lr=1.00e-02  eta=1h25m
+step  1290/20000  loss=3.4087  ppl=  30.2  bpb≈8.9268  gnorm=2.890  tok/s=2577.3K  t= 5m52s  lr=1.00e-02  eta=1h25m
+step  1300/20000  loss=3.4026  ppl=  30.0  bpb≈8.9106  gnorm=3.473  tok/s=2565.6K  t= 5m54s  lr=1.00e-02  eta=1h24m
+step  1310/20000  loss=3.4078  ppl=  30.2  bpb≈8.9244  gnorm=2.781  tok/s=2552.1K  t= 5m56s  lr=1.00e-02  eta=1h24m
+step  1320/20000  loss=3.3581  ppl=  28.7  bpb≈8.7941  gnorm=3.139  tok/s=2541.1K  t= 5m58s  lr=1.00e-02  eta=1h24m
+step  1330/20000  loss=3.3823  ppl=  29.4  bpb≈8.8576  gnorm=3.175  tok/s=2580.1K  t= 6m00s  lr=1.00e-02  eta=1h24m
+step  1340/20000  loss=3.3551  ppl=  28.6  bpb≈8.7863  gnorm=3.023  tok/s=2554.4K  t= 6m02s  lr=1.00e-02  eta=1h24m
+step  1350/20000  loss=3.3459  ppl=  28.4  bpb≈8.7622  gnorm=3.765  tok/s=2568.0K  t= 6m04s  lr=1.00e-02  eta=1h23m
+step  1360/20000  loss=3.5091  ppl=  33.4  bpb≈9.1896  gnorm=12.795  tok/s=2582.5K  t= 6m06s  lr=1.00e-02  eta=1h23m
+step  1370/20000  loss=3.3797  ppl=  29.4  bpb≈8.8508  gnorm=2.793  tok/s=2563.0K  t= 6m08s  lr=1.00e-02  eta=1h23m
+step  1380/20000  loss=3.3668  ppl=  29.0  bpb≈8.8171  gnorm=2.900  tok/s=2560.7K  t= 6m10s  lr=1.00e-02  eta=1h23m
+step  1390/20000  loss=3.3936  ppl=  29.8  bpb≈8.8870  gnorm=6.705  tok/s=2582.2K  t= 6m12s  lr=1.00e-02  eta=1h23m
+step  1400/20000  loss=3.3773  ppl=  29.3  bpb≈8.8445  gnorm=3.454  tok/s=2552.4K  t= 6m14s  lr=1.00e-02  eta=1h23m
+  [val] step= 1400  bpb=8.715189  ppl=27.88  Δ=-0.0890  best=8.715189 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.34 MB compressed
+step  1410/20000  loss=3.3752  ppl=  29.2  bpb≈8.8391  gnorm=3.144  tok/s=819.2K  t= 6m21s  lr=1.00e-02  eta=1h23m
+step  1420/20000  loss=3.3464  ppl=  28.4  bpb≈8.7636  gnorm=2.814  tok/s=2548.2K  t= 6m23s  lr=1.00e-02  eta=1h23m
+step  1430/20000  loss=3.3850  ppl=  29.5  bpb≈8.8645  gnorm=2.971  tok/s=2557.7K  t= 6m25s  lr=1.00e-02  eta=1h23m
+step  1440/20000  loss=3.3881  ppl=  29.6  bpb≈8.8727  gnorm=2.941  tok/s=2581.0K  t= 6m27s  lr=1.00e-02  eta=1h23m
+step  1450/20000  loss=3.3489  ppl=  28.5  bpb≈8.7700  gnorm=3.341  tok/s=2566.2K  t= 6m29s  lr=1.00e-02  eta=1h23m
+step  1460/20000  loss=3.3956  ppl=  29.8  bpb≈8.8923  gnorm=3.270  tok/s=2580.2K  t= 6m31s  lr=1.00e-02  eta=1h22m
+step  1470/20000  loss=3.3556  ppl=  28.7  bpb≈8.7876  gnorm=3.093  tok/s=2555.2K  t= 6m33s  lr=1.00e-02  eta=1h22m
+step  1480/20000  loss=3.4498  ppl=  31.5  bpb≈9.0343  gnorm=10.586  tok/s=2555.0K  t= 6m35s  lr=1.00e-02  eta=1h22m
+step  1490/20000  loss=3.3410  ppl=  28.2  bpb≈8.7495  gnorm=3.184  tok/s=2580.8K  t= 6m37s  lr=1.00e-02  eta=1h22m
+step  1500/20000  loss=3.4609  ppl=  31.8  bpb≈9.0634  gnorm=19.618  tok/s=2566.7K  t= 6m39s  lr=1.00e-02  eta=1h22m
+step  1510/20000  loss=3.3548  ppl=  28.6  bpb≈8.7855  gnorm=2.949  tok/s=2562.1K  t= 6m41s  lr=1.00e-02  eta=1h21m
+step  1520/20000  loss=3.3394  ppl=  28.2  bpb≈8.7451  gnorm=2.780  tok/s=2578.6K  t= 6m43s  lr=1.00e-02  eta=1h21m
+step  1530/20000  loss=3.4051  ppl=  30.1  bpb≈8.9173  gnorm=4.836  tok/s=2318.9K  t= 6m46s  lr=1.00e-02  eta=1h21m
+step  1540/20000  loss=3.3594  ppl=  28.8  bpb≈8.7976  gnorm=2.771  tok/s=2586.2K  t= 6m48s  lr=1.00e-02  eta=1h21m
+step  1550/20000  loss=3.3235  ppl=  27.8  bpb≈8.7036  gnorm=2.745  tok/s=2570.8K  t= 6m50s  lr=1.00e-02  eta=1h21m
+step  1560/20000  loss=3.3876  ppl=  29.6  bpb≈8.8715  gnorm=4.048  tok/s=2584.7K  t= 6m52s  lr=1.00e-02  eta=1h21m
+step  1570/20000  loss=3.3747  ppl=  29.2  bpb≈8.8377  gnorm=2.914  tok/s=2560.3K  t= 6m54s  lr=1.00e-02  eta=1h21m
+step  1580/20000  loss=3.3262  ppl=  27.8  bpb≈8.7106  gnorm=2.803  tok/s=2586.2K  t= 6m56s  lr=1.00e-02  eta=1h20m
+step  1590/20000  loss=3.3342  ppl=  28.1  bpb≈8.7315  gnorm=2.711  tok/s=2585.5K  t= 6m58s  lr=1.00e-02  eta=1h20m
+step  1600/20000  loss=3.3577  ppl=  28.7  bpb≈8.7931  gnorm=3.187  tok/s=2559.7K  t= 7m00s  lr=1.00e-02  eta=1h20m
+  [val] step= 1600  bpb=8.587268  ppl=26.55  Δ=-0.1279  best=8.587268 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.36 MB compressed
+step  1610/20000  loss=3.3563  ppl=  28.7  bpb≈8.7894  gnorm=3.526  tok/s=824.1K  t= 7m06s  lr=1.00e-02  eta=1h21m
+step  1620/20000  loss=3.3356  ppl=  28.1  bpb≈8.7352  gnorm=3.031  tok/s=2571.6K  t= 7m08s  lr=1.00e-02  eta=1h21m
+step  1630/20000  loss=3.3697  ppl=  29.1  bpb≈8.8246  gnorm=3.081  tok/s=2579.4K  t= 7m10s  lr=1.00e-02  eta=1h20m
+step  1640/20000  loss=3.3291  ppl=  27.9  bpb≈8.7183  gnorm=4.374  tok/s=2584.7K  t= 7m12s  lr=1.00e-02  eta=1h20m
+step  1650/20000  loss=3.3812  ppl=  29.4  bpb≈8.8548  gnorm=7.090  tok/s=2570.3K  t= 7m14s  lr=1.00e-02  eta=1h20m
+step  1660/20000  loss=3.3287  ppl=  27.9  bpb≈8.7172  gnorm=3.082  tok/s=2582.8K  t= 7m16s  lr=1.00e-02  eta=1h20m
+step  1670/20000  loss=3.3415  ppl=  28.3  bpb≈8.7507  gnorm=3.057  tok/s=2536.9K  t= 7m18s  lr=1.00e-02  eta=1h20m
+step  1680/20000  loss=3.3099  ppl=  27.4  bpb≈8.6679  gnorm=2.882  tok/s=2584.7K  t= 7m20s  lr=1.00e-02  eta=1h20m
+step  1690/20000  loss=3.3821  ppl=  29.4  bpb≈8.8571  gnorm=3.492  tok/s=2581.7K  t= 7m22s  lr=1.00e-02  eta=1h19m
+step  1700/20000  loss=3.3165  ppl=  27.6  bpb≈8.6851  gnorm=2.970  tok/s=2574.5K  t= 7m24s  lr=1.00e-02  eta=1h19m
+step  1710/20000  loss=3.3095  ppl=  27.4  bpb≈8.6670  gnorm=2.972  tok/s=2566.8K  t= 7m27s  lr=1.00e-02  eta=1h19m
+step  1720/20000  loss=3.2970  ppl=  27.0  bpb≈8.6341  gnorm=2.936  tok/s=2582.9K  t= 7m29s  lr=1.00e-02  eta=1h19m
+step  1730/20000  loss=3.3108  ppl=  27.4  bpb≈8.6703  gnorm=2.832  tok/s=2582.2K  t= 7m31s  lr=1.00e-02  eta=1h19m
+step  1740/20000  loss=3.3171  ppl=  27.6  bpb≈8.6868  gnorm=3.181  tok/s=2556.7K  t= 7m33s  lr=1.00e-02  eta=1h19m
+step  1750/20000  loss=3.2936  ppl=  26.9  bpb≈8.6253  gnorm=2.968  tok/s=2557.0K  t= 7m35s  lr=1.00e-02  eta=1h19m
+step  1760/20000  loss=3.3226  ppl=  27.7  bpb≈8.7013  gnorm=3.043  tok/s=2569.7K  t= 7m37s  lr=1.00e-02  eta=1h18m
+step  1770/20000  loss=3.3692  ppl=  29.1  bpb≈8.8232  gnorm=2.761  tok/s=2569.8K  t= 7m39s  lr=1.00e-02  eta=1h18m
+step  1780/20000  loss=3.3073  ppl=  27.3  bpb≈8.6611  gnorm=2.902  tok/s=2572.2K  t= 7m41s  lr=1.00e-02  eta=1h18m
+step  1790/20000  loss=3.3173  ppl=  27.6  bpb≈8.6873  gnorm=3.391  tok/s=2585.3K  t= 7m43s  lr=1.00e-02  eta=1h18m
+step  1800/20000  loss=3.5582  ppl=  35.1  bpb≈9.3181  gnorm=33.435  tok/s=2554.2K  t= 7m45s  lr=9.90e-03  eta=1h18m
+  [val] step= 1800  bpb=8.487786  ppl=25.56  Δ=-0.0995  best=8.487786 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.31 MB compressed
+step  1810/20000  loss=3.3230  ppl=  27.7  bpb≈8.7023  gnorm=3.170  tok/s=823.9K  t= 7m51s  lr=9.35e-03  eta=1h19m
+step  1820/20000  loss=3.3193  ppl=  27.6  bpb≈8.6925  gnorm=2.858  tok/s=2578.8K  t= 7m53s  lr=9.18e-03  eta=1h18m
+step  1830/20000  loss=3.2800  ppl=  26.6  bpb≈8.5898  gnorm=2.735  tok/s=2556.8K  t= 7m55s  lr=9.00e-03  eta=1h18m
+step  1840/20000  loss=3.3080  ppl=  27.3  bpb≈8.6629  gnorm=2.570  tok/s=2584.7K  t= 7m57s  lr=8.82e-03  eta=1h18m
+step  1850/20000  loss=3.2626  ppl=  26.1  bpb≈8.5442  gnorm=2.714  tok/s=2581.0K  t= 7m59s  lr=8.65e-03  eta=1h18m
+step  1860/20000  loss=3.2834  ppl=  26.7  bpb≈8.5986  gnorm=2.797  tok/s=2581.8K  t= 8m01s  lr=8.47e-03  eta=1h18m
+step  1870/20000  loss=3.2461  ppl=  25.7  bpb≈8.5009  gnorm=2.596  tok/s=2567.5K  t= 8m03s  lr=8.30e-03  eta=1h18m
+step  1880/20000  loss=3.2979  ppl=  27.1  bpb≈8.6365  gnorm=2.373  tok/s=2578.8K  t= 8m05s  lr=8.12e-03  eta=1h18m
+step  1890/20000  loss=3.2863  ppl=  26.7  bpb≈8.6061  gnorm=2.510  tok/s=2538.7K  t= 8m08s  lr=7.95e-03  eta=1h17m
+step  1900/20000  loss=3.2367  ppl=  25.5  bpb≈8.4763  gnorm=2.686  tok/s=2566.0K  t= 8m10s  lr=7.77e-03  eta=1h17m
+step  1910/20000  loss=3.3065  ppl=  27.3  bpb≈8.6591  gnorm=2.531  tok/s=2569.2K  t= 8m12s  lr=7.59e-03  eta=1h17m
+step  1920/20000  loss=3.2248  ppl=  25.1  bpb≈8.4452  gnorm=2.525  tok/s=2566.5K  t= 8m14s  lr=7.42e-03  eta=1h17m
+step  1930/20000  loss=3.3125  ppl=  27.5  bpb≈8.6748  gnorm=3.208  tok/s=2558.3K  t= 8m16s  lr=7.24e-03  eta=1h17m
+step  1940/20000  loss=3.2337  ppl=  25.4  bpb≈8.4685  gnorm=2.462  tok/s=2553.9K  t= 8m18s  lr=7.06e-03  eta=1h17m
+step  1950/20000  loss=3.2157  ppl=  24.9  bpb≈8.4214  gnorm=2.370  tok/s=2567.9K  t= 8m20s  lr=6.89e-03  eta=1h17m
+step  1960/20000  loss=3.2570  ppl=  26.0  bpb≈8.5295  gnorm=2.314  tok/s=2553.4K  t= 8m22s  lr=6.71e-03  eta=1h17m
+step  1970/20000  loss=3.2217  ppl=  25.1  bpb≈8.4369  gnorm=2.261  tok/s=2566.5K  t= 8m24s  lr=6.53e-03  eta=1h16m
+step  1980/20000  loss=3.2677  ppl=  26.3  bpb≈8.5575  gnorm=2.226  tok/s=2566.1K  t= 8m26s  lr=6.36e-03  eta=1h16m
+step  1990/20000  loss=3.2069  ppl=  24.7  bpb≈8.3983  gnorm=2.105  tok/s=2565.0K  t= 8m28s  lr=6.18e-03  eta=1h16m
+step  2000/20000  loss=3.1967  ppl=  24.5  bpb≈8.3714  gnorm=2.226  tok/s=2566.4K  t= 8m30s  lr=6.01e-03  eta=1h16m
+  [val] step= 2000  bpb=8.427208  ppl=24.98  Δ=-0.0606  best=8.427208 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.31 MB compressed
+step  2010/20000  loss=3.2021  ppl=  24.6  bpb≈8.3856  gnorm=2.042  tok/s=822.0K  t= 8m36s  lr=5.46e-03  eta=1h17m
+step  2020/20000  loss=3.1863  ppl=  24.2  bpb≈8.3444  gnorm=1.915  tok/s=2557.7K  t= 8m38s  lr=5.28e-03  eta=1h16m
+step  2030/20000  loss=3.2170  ppl=  25.0  bpb≈8.4246  gnorm=2.001  tok/s=2549.4K  t= 8m41s  lr=5.10e-03  eta=1h16m
+step  2040/20000  loss=3.2048  ppl=  24.7  bpb≈8.3928  gnorm=2.030  tok/s=2582.0K  t= 8m43s  lr=4.93e-03  eta=1h16m
+step  2050/20000  loss=3.2422  ppl=  25.6  bpb≈8.4907  gnorm=1.827  tok/s=2554.9K  t= 8m45s  lr=4.75e-03  eta=1h16m
+step  2060/20000  loss=3.1813  ppl=  24.1  bpb≈8.3311  gnorm=1.832  tok/s=2556.0K  t= 8m47s  lr=4.57e-03  eta=1h16m
+step  2070/20000  loss=3.1997  ppl=  24.5  bpb≈8.3793  gnorm=1.780  tok/s=2584.4K  t= 8m49s  lr=4.40e-03  eta=1h16m
+step  2080/20000  loss=3.1985  ppl=  24.5  bpb≈8.3764  gnorm=1.973  tok/s=2585.5K  t= 8m51s  lr=4.22e-03  eta=1h16m
+step  2090/20000  loss=3.1524  ppl=  23.4  bpb≈8.2555  gnorm=1.775  tok/s=2584.5K  t= 8m53s  lr=4.05e-03  eta=1h16m
+step  2100/20000  loss=3.1837  ppl=  24.1  bpb≈8.3374  gnorm=1.747  tok/s=2575.6K  t= 8m55s  lr=3.87e-03  eta=1h16m
+step  2110/20000  loss=3.1310  ppl=  22.9  bpb≈8.1996  gnorm=1.724  tok/s=2582.3K  t= 8m57s  lr=3.70e-03  eta=1h15m
+step  2120/20000  loss=3.2402  ppl=  25.5  bpb≈8.4854  gnorm=4.387  tok/s=2583.8K  t= 8m59s  lr=3.52e-03  eta=1h15m
+step  2130/20000  loss=3.1614  ppl=  23.6  bpb≈8.2791  gnorm=1.523  tok/s=2569.4K  t= 9m01s  lr=3.35e-03  eta=1h15m
+step  2140/20000  loss=3.1537  ppl=  23.4  bpb≈8.2589  gnorm=1.513  tok/s=2581.5K  t= 9m03s  lr=3.17e-03  eta=1h15m
+step  2150/20000  loss=3.1438  ppl=  23.2  bpb≈8.2328  gnorm=1.462  tok/s=2577.6K  t= 9m05s  lr=3.00e-03  eta=1h15m
+step  2160/20000  loss=3.2134  ppl=  24.9  bpb≈8.4153  gnorm=1.440  tok/s=2576.4K  t= 9m07s  lr=2.82e-03  eta=1h15m
+step  2170/20000  loss=3.1439  ppl=  23.2  bpb≈8.2333  gnorm=1.430  tok/s=2579.2K  t= 9m09s  lr=2.65e-03  eta=1h15m
+step  2180/20000  loss=3.1648  ppl=  23.7  bpb≈8.2878  gnorm=1.469  tok/s=2579.4K  t= 9m11s  lr=2.47e-03  eta=1h15m
+step  2190/20000  loss=3.2099  ppl=  24.8  bpb≈8.4062  gnorm=1.391  tok/s=2564.2K  t= 9m13s  lr=2.29e-03  eta=1h15m
+step  2200/20000  loss=3.1731  ppl=  23.9  bpb≈8.3097  gnorm=1.432  tok/s=2563.6K  t= 9m15s  lr=2.12e-03  eta=1h14m
+  [val] step= 2200  bpb=8.255086  ppl=23.39  Δ=-0.1721  best=8.255086 ← best
+[save] runs/hypergpt/best_model.int8.ptz  model=11.08 MB compressed
+step  2210/20000  loss=3.1627  ppl=  23.6  bpb≈8.2825  gnorm=1.134  tok/s=818.1K  t= 9m22s  lr=1.57e-03  eta=1h15m
+step  2220/20000  loss=3.1035  ppl=  22.3  bpb≈8.1273  gnorm=1.165  tok/s=2580.8K  t= 9m24s  lr=1.39e-03  eta=1h15m
+step  2230/20000  loss=3.1357  ppl=  23.0  bpb≈8.2118  gnorm=1.102  tok/s=2580.4K  t= 9m26s  lr=1.22e-03  eta=1h15m
+step  2240/20000  loss=3.1482  ppl=  23.3  bpb≈8.2444  gnorm=1.026  tok/s=2581.9K  t= 9m28s  lr=1.04e-03  eta=1h15m
+step  2250/20000  loss=3.0789  ppl=  21.7  bpb≈8.0629  gnorm=1.013  tok/s=2573.7K  t= 9m30s  lr=8.65e-04  eta=1h14m
+step  2260/20000  loss=3.1344  ppl=  23.0  bpb≈8.2083  gnorm=0.929  tok/s=2580.9K  t= 9m32s  lr=6.90e-04  eta=1h14m
+step  2270/20000  loss=3.1162  ppl=  22.6  bpb≈8.1606  gnorm=0.822  tok/s=2565.3K  t= 9m34s  lr=5.13e-04  eta=1h14m
+step  2280/20000  loss=3.1167  ppl=  22.6  bpb≈8.1620  gnorm=0.748  tok/s=2579.2K  t= 9m36s  lr=3.38e-04  eta=1h14m
+step  2290/20000  loss=3.1163  ppl=  22.6  bpb≈8.1609  gnorm=0.739  tok/s=2578.9K  t= 9m38s  lr=1.63e-04  eta=1h14m
+
+[time] 10-min cap hit at step 2300 (9m40s), stopping.
+[save] runs/hypergpt/final_model.int8.ptz  model=10.43 MB compressed
+
+====================================================================
+  RESULT  val_bpb=8.218640  ppl=23.065  model=10.43MB  code=32.4KB  artifact=10.47MB
+  best checkpoint: 8.218640 bpb
+====================================================================
