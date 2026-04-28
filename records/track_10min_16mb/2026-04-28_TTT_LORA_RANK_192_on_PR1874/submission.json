@@ -1,0 +1,129 @@
+{
+  "author": "Saicharan Ramineni",
+  "github_id": "GodlyDonuts",
+  "name": "Independent 3-seed reproduction of PR #1874 + TTT_LORA_RANK=192",
+  "date": "2026-04-28",
+  "track": "10min_16mb",
+  "val_bpb": 1.06996,
+  "val_bpb_std": 0.00059,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {
+      "val_bpb_quantized_ttt_phased": 1.06927777,
+      "val_loss": 2.76205552,
+      "model_int6_ptz_bytes": 15921161,
+      "code_compressed_bytes": 33710,
+      "total_submission_bytes": 15954871,
+      "headroom_under_16M": 45129,
+      "total_eval_time_s": 438.3,
+      "train_log": "train_seed42.log",
+      "model_artifact": "models/champion_3seed_42.int6.ptz"
+    },
+    "314": {
+      "val_bpb_quantized_ttt_phased": 1.07023963,
+      "val_loss": 2.76454012,
+      "model_int6_ptz_bytes": 15921214,
+      "code_compressed_bytes": 33710,
+      "total_submission_bytes": 15954924,
+      "headroom_under_16M": 45076,
+      "total_eval_time_s": 440.6,
+      "train_log": "train_seed314.log",
+      "model_artifact": "models/champion_3seed_314.int6.ptz"
+    },
+    "999": {
+      "val_bpb_quantized_ttt_phased": 1.07035739,
+      "val_loss": 2.76484430,
+      "model_int6_ptz_bytes": 15914086,
+      "code_compressed_bytes": 33710,
+      "total_submission_bytes": 15947796,
+      "headroom_under_16M": 52204,
+      "total_eval_time_s": 434.3,
+      "train_log": "train_seed999.log",
+      "model_artifact": "models/champion_3seed_999.int6.ptz"
+    }
+  },
+  "statistics": {
+    "sota_at_submission": 1.0810,
+    "improvement_nats": 0.01104,
+    "improvement_threshold_nats": 0.005,
+    "excess_over_threshold_nats": 0.00604,
+    "standard_error_of_mean": 0.000342,
+    "t_statistic_df2": 17.67,
+    "critical_t_one_tailed_p_lt_0.01_df2": 6.965,
+    "critical_t_one_tailed_p_lt_0.005_df2": 9.925,
+    "p_value_bound": "< 0.005",
+    "passes_p_lt_0.01_requirement": true,
+    "passes_p_lt_0.005_requirement": true
+  },
+  "compliance": {
+    "train_under_600s_all_seeds": true,
+    "max_wallclock_seconds_setting": 600.0,
+    "training_time_observed_minutes": "9.2 (552 s, all 3 seeds reach iter 4500/20000 before wallclock cap)",
+    "artifact_under_16mb_all_seeds": true,
+    "max_total_submission_bytes_observed": 15954924,
+    "min_headroom_observed_bytes": 45076,
+    "eval_under_600s_all_seeds": true,
+    "max_total_eval_time_s_observed": 440.6,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt_per_issue_1017": true,
+    "three_independent_seeds": true,
+    "p_value_under_0.01": true,
+    "p_value_under_0.005": true
+  },
+  "hardware": "8 × H100 80GB SXM (RunPod, single node)",
+  "pytorch_version": "2.9.1+cu128",
+  "flash_attention_version": "flash_attn_3 (cu128_torch291 wheel)",
+  "compute_provenance": {
+    "platform": "RunPod",
+    "node_type": "8xH100 80GB SXM",
+    "billing_email": "csramineni@gmail.com (invoices available privately on request)",
+    "approx_total_compute_usd": 245,
+    "submitted_runs_compute_usd": 60,
+    "negative_result_compute_usd": 12,
+    "sweep_compute_usd": 173
+  },
+  "technique_summary": "Independent end-to-end reproduction of PR #1874 (full stack: SmearGate, AttnOutGate width=24, LoRA-TTT, Phased Global SGD TTT, Polar Express NS, MIN_LR=0.10, LQER int4 rank-4 top-3) with one additional hyperparameter change: TTT_LORA_RANK raised from 128 to 192. LZMA-wrapped train_gpt.py at 32,353 bytes on disk; the script's own _compressed_code_size() reports 33,710 bytes for byte-budget purposes.",
+  "single_delta_vs_pr_1874": {
+    "code_change": "ttt_lora_rank default 128 -> 192",
+    "single_seed_sweep_evidence": "1.06888 (rank=192, seed=42, sweep run) vs 1.06907 (rank=128, seed=42, sweep run) = -0.00019 nat",
+    "three_seed_seed42_replication": "1.06928 (rank=192, seed=42, 3-seed run)",
+    "honest_assessment": "The rank=192 effect measured in the sweep (~0.0002 nat) is comparable to inter-seed noise. The seed=42 number from the 3-seed run is slightly worse than the rank=128 sweep baseline, indicating run-to-run kernel-scheduling nondeterminism dominates this signal at our scale. The 3-seed mean of 1.06996 passes the 0.005-nat threshold over SOTA 1.0810 by 0.00604 nats and t=17.67 even attributing zero credit to the rank change. The primary contribution of this submission is the independent 3-seed reproduction of PR #1874's stack with full unedited logs and reload-ready artifacts."
+  },
+  "attribution": {
+    "full_stack_reproduced": "@AjAnubolu (PR #1874)",
+    "smeargate_attnoutgate_lora_ttt_phased_ttt_base": "@dexhunter (PR #1790)",
+    "lqer": "PR #1530 (original), PR #1797 (SP8192 port), PR #1874 (current asym int4 rank-4 packing)",
+    "polar_express_ns": "PR #1667",
+    "min_lr_for_qat": "PR #1787",
+    "score_first_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "sp8192_gptq_sdclip_muoneq_r": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "this_submission_unique_contribution": "TTT_LORA_RANK 128 -> 192 (~0.0002 nat in the sweep, in the noise on the 3-seed evaluation), plus an independent 3-seed reproduction of PR #1874 with full logs and 5 reload-ready quantized artifacts"
+  },
+  "notes_on_pr_1900_provenance_review": {
+    "acknowledgement": "PR #1900 (admin leaderboard maintenance by @regina-openai) flagged validity/provenance concerns on PR #1787 (MIN_LR) and PR #1797 (LQER), both upstream of PR #1874 and therefore upstream of this submission.",
+    "what_we_did_about_it": [
+      "Every reported BPB number is from a run we executed on our own pod. The corresponding logs are in this folder. The model artifacts are in models/ (one per seed plus the rank=128 baseline and the rank=192 sweep run for direct A/B verification).",
+      "We did not copy any blocked submission's numerical claims. Every line in submission.json maps to a 'quantized_ttt_phased val_loss:... val_bpb:...' line in one of the included logs.",
+      "We are not aware of any path to score in the 1.067-1.070 BPB band on the SP8192 track without these techniques in some form. We are open to being corrected on that."
+    ],
+    "fallback_offer": "If admin policy is that derivative submissions inherit a parent's blocked status, this PR can be closed without merge and we will not contest it. We will gladly submit a variant with MIN_LR=0.0 and LQER_ENABLED=0 (one-line env-var changes against the same train_gpt.py) on request. Estimated 3-seed mean for that variant: 1.077-1.079 BPB (still above the 0.005-nat threshold, with tighter margin and no blocked-parent dependencies). ~$45 / ~3 hours of pod time to produce."
+  },
+  "files_in_submission": [
+    "README.md",
+    "submission.json",
+    "requirements.txt",
+    "train_gpt.py",
+    "train_seed42.log",
+    "train_seed314.log",
+    "train_seed999.log",
+    "models/champion_3seed_42.int6.ptz",
+    "models/champion_3seed_314.int6.ptz",
+    "models/champion_3seed_999.int6.ptz",
+    "models/pr1874_baseline_rank128_seed42.int6.ptz",
+    "models/sweep_rank192_seed42.int6.ptz"
+  ]
+}
