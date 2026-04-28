@@ -125,6 +125,23 @@ for SEED in $SEEDS; do
   echo "$SEED,$PRE,$POST,$TTT,$ART,$EV" >> $CSV
   echo "[$(date)] === SEED $SEED DONE: ttt=$TTT artifact=$ART ==="
 
+  # Persist results to HF so we can read them even after pod auto-stop.
+  python3 - "$CSV" "$RUN_ID_PREFIX" <<'PY' || true
+import sys, os, json
+from huggingface_hub import HfApi, upload_file
+csv_path, prefix = sys.argv[1], sys.argv[2]
+text = open(csv_path).read()
+api = HfApi(token=os.environ["HF_TOKEN"])
+api.upload_file(
+    path_or_fileobj=text.encode(),
+    path_in_repo=f"results/{prefix}_summary.csv",
+    repo_id="FijaEE/parameter-golf-sp8192-caseops",
+    repo_type="dataset",
+    commit_message=f"Phase {prefix} progress",
+)
+print(f"uploaded {csv_path} to HF results/{prefix}_summary.csv")
+PY
+
   # ABORT GUARD: if seed 1's artifact is still over cap, no point doing more.
   if [ $SEED_NUM -eq 1 ] && [ -n "$ART" ]; then
     if [ "$ART" -gt 16000000 ]; then
