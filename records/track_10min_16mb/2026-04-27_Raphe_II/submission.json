@@ -1,0 +1,30 @@
+{
+  "author": "newjordan",
+  "github_id": "newjordan",
+  "name": "Raphe_II",
+  "date": "2026-04-27",
+  "track": "10min_16mb",
+  "val_bpb": 0.85018169,
+  "val_bpb_std": 0.00022,
+  "seeds": [4, 42, 300],
+  "seed_results": {
+    "4":   {"val_bpb": 0.85020690, "artifact_bytes": 15995307},
+    "42":  {"val_bpb": 0.84994524, "artifact_bytes": 15999255},
+    "300": {"val_bpb": 0.85039293, "artifact_bytes": 15999412}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {}
+}
