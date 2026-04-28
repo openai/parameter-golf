@@ -1,5 +1,11 @@
-/target
+**/target/
 **/*.rs.bk
 .DS_Store
 artifacts/
+.env
 .trinity/experience/*.trinity
+.trinity/results/
+worker.log
+needle_radar*.py
+needle_worker.py
+worker_loop.py
