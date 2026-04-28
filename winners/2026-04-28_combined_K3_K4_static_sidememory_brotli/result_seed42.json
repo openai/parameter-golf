@@ -1,0 +1,26 @@
+{
+  "id": "0072_combined_seed42",
+  "parent": "0069_combined_k3_k4_side_memory",
+  "created_at": "2026-04-28T07:11:12Z",
+  "metrics": {
+    "val_bpb_pre_quant": 2.0053,
+    "val_bpb_post_quant": 1.9625482,
+    "val_loss_pre_quant": 3.4272,
+    "val_loss_post_quant": 3.3542525,
+    "quant_tax": -0.042752,
+    "step_avg_ms": 8178.43,
+    "num_steps": 200.0,
+    "artifact_bytes": 15716550.0,
+    "artifact_mb": 15.717,
+    "code_bytes": 95396.0,
+    "compression_ratio": 3.44
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0
+  },
+  "status": null,
+  "description": null
+}
