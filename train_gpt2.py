@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 
-# Tự động cài đặt thư viện brotli nếu chưa có
+# auto install brotli if not present, since it's needed for validation token loading and compression
 try:
     import brotli
 except ImportError:
@@ -738,13 +738,23 @@ class GPT(nn.Module):
         # Decoder phase with U-Net skip connections
         for vi in range(num_dec):
             phys_idx = virtual_layers[num_enc + vi]
+            
+            delta = 0
             if skips and vi < self.num_skip_weights:
-                scaled_skip = self.skip_weights[vi].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                curr_state = x if not is_parallel_mode else (lane0 + lane1) * 0.5
+                scaled_skip = self.skip_weights[vi].to(dtype=curr_state.dtype)[None, None, :] * skips.pop()
                 if self.skip_gates is not None:
-                    g = torch.sigmoid(self.skip_gates[vi].to(dtype=x.dtype))[None, None, :]
-                    x = torch.lerp(scaled_skip, x, g)
+                    g = torch.sigmoid(self.skip_gates[vi].to(dtype=curr_state.dtype))[None, None, :]
+                    delta = torch.lerp(scaled_skip, curr_state, g) - curr_state
                 else:
-                    x = x + scaled_skip
+                    delta = scaled_skip
+
+            if isinstance(delta, Tensor):
+                if not is_parallel_mode:
+                    x = x + delta
+                else:
+                    lane0 = lane0 + delta
+                    lane1 = lane1 + delta
 
             # Check if we should enter parallel mode
             if phys_idx >= parallel_start_physical and not is_parallel_mode:
@@ -1459,7 +1469,12 @@ def eval_val_sliding(
 ) -> tuple[float, float]:
     """Sliding window evaluation: each token scored with maximum context."""
     base_model.eval()
-    logits_fn = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    
+    # Check if the model is already a compiled model (OptimizedModule)
+    if hasattr(base_model, '_orig_mod'):
+        logits_fn = base_model.forward_logits
+    else:
+        logits_fn = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
 
     seq_len = h.eval_seq_len
     context_size = seq_len - h.eval_stride
@@ -1716,7 +1731,7 @@ def run_evals(
     compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
     timed_eval("final_int6_roundtrip", eval_val, h, device, val_data, compiled_model)
     if h.sliding_window_enabled:
-        timed_eval("final_int6_sliding_window", eval_val_sliding, h, device, val_data, eval_model)
+        timed_eval("final_int6_sliding_window", eval_val_sliding, h, device, val_data, compiled_model)
     if h.ttt_enabled:
         # TTT needs fresh model with clean tensors (no inference_mode)
         ttt_model = GPT(h).to(device).bfloat16()
