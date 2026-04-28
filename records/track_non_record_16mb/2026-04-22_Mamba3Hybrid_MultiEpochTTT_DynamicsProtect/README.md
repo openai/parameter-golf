@@ -53,5 +53,3 @@ This is a non-record submission and represents the cleaned production path from 
 - **Muon optimizer-vs-SSM discordance**: Muon's Newton-Schulz orthogonalization treats `in_proj` as one homogeneous matrix and flattens row-magnitude variance that SSM dynamics rows actually need. Co-varying signal: replacing 2-attn with 1-attn at SP8192 7L costs +7.5 mBPB BF16 even though it was a clean win at SP4096.
 
 - **SP4096 → SP8192 architectural-finding non-transfer**: at 25M, embedding parameter cost shifts allocation enough that architectural sweeps at SP4096 don't generalize to SP8192. Two techniques validated at SP4096 (1-attention, expand=1.5 depth recurrence) flipped sign at SP8192.
-
-These findings are documented at length with empirical detail at [mradassaad/parameter-golf/docs/ssm_structural_findings_writeup.md](https://github.com/mradassaad/parameter-golf/blob/mamba3-hybrid-qat/docs/ssm_structural_findings_writeup.md).
