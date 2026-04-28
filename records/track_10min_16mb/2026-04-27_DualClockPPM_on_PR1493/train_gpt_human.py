@@ -428,25 +428,19 @@ class DualClockPPM:
 		full=torch.cat([prep,pv_full])  # length prep_len + chunk_len
 		# For each chunk position i (0..chunk_len-1), context-of-order-k is full[prep_len+i-k+1 : prep_len+i+1]
 		# Build hashes for orders 1..Kmax via FNV-style rolling
-		MUL=torch.tensor(0x9E3779B185EBCA87,dtype=torch.int64,device=self.device)
-		MASK=torch.tensor((1<<63)-1,dtype=torch.int64,device=self.device)  # avoid sign issues
-		# Initialize hash with FNV offset basis
-		# For each order k, compute hash[i] = FNV(last k tokens ending at chunk position i)
-		hashes=[]  # hashes[k-1] = (chunk_len,) int64 hash for order k
-		# Compute incremental: maintain a (chunk_len,) buffer h_k that's the hash of last k tokens at each position
-		# h_k for position i depends on tokens at positions i-k+1..i (in full[]).
-		# We'll just compute each order directly: for each order k, slide a hash window of length k across full[prep_len-k+1 : prep_len+chunk_len]
-		# Each window: tokens[w_start:w_start+k]
-		# Hash via: h = OFFSET; for j in range(k): h = (h ^ (tokens[j]+S)) * MUL & MASK
+		_s64=lambda u:u-(1<<64) if u>=(1<<63) else u
+		MUL=torch.tensor(_s64(0x9E3779B185EBCA87),dtype=torch.int64,device=self.device)
+		MASK=torch.tensor((1<<63)-1,dtype=torch.int64,device=self.device)
 		OFFSET=torch.tensor(1469598103934665603,dtype=torch.int64,device=self.device)
-		SALT=torch.tensor(0x9E3779B97F4A7C15,dtype=torch.int64,device=self.device)
+		SALT=torch.tensor(_s64(0x9E3779B97F4A7C15),dtype=torch.int64,device=self.device)
+		ORDM=torch.tensor(_s64(0xA0761D6478BD642F),dtype=torch.int64,device=self.device)
+		hashes=[]
 		for k in range(1,Kmax+1):
 			h=torch.full((chunk_len,),OFFSET.item(),dtype=torch.int64,device=self.device)
 			for j in range(k):
 				toks=full[prep_len-k+1+j:prep_len-k+1+j+chunk_len]
 				h=((h^((toks+SALT)&MASK))*MUL)&MASK
-			# Mix in order
-			h=(h^(torch.tensor(k,dtype=torch.int64,device=self.device)+torch.tensor(0xA0761D6478BD642F,dtype=torch.int64,device=self.device)))&MASK
+			h=(h^((torch.tensor(k,dtype=torch.int64,device=self.device)+ORDM)&MASK))&MASK
 			h=(h*MUL)&MASK
 			hashes.append(h)
 		# Apply mask to get only scored positions
