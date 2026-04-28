@@ -58,7 +58,7 @@ def _ppm_mixture_bpb(target_ids,prev_ids,nll_nats,token_bytes_lut,has_leading_sp
 		for b in tb:byte_stream.append(b);byte_nn_logp.append(per_byte_logp)
 	total_bytes=len(byte_stream)
 	if total_bytes==0:return(0.0,0.0,0.0)
-	ctx_counts={};mix_nll=0.0;ppm_nll=0.0;nn_nll=0.0;window=bytearray()
+	ctx_counts={};mix_nll=0.0;ppm_nll=0.0;nn_nll=0.0;gate_skip=0;window=bytearray()
 	for t in range(total_bytes):
 		b=byte_stream[t];ppm_log_p=None;confidence=0.0;seen_any=False;escape_log_prob=0.0
 		for K in range(min(order,len(window)),-1,-1):
@@ -70,6 +70,8 @@ def _ppm_mixture_bpb(target_ids,prev_ids,nll_nats,token_bytes_lut,has_leading_sp
 			escape_log_prob+=_ln(unique/denom)if unique>0 else 0.0
 		if ppm_log_p is None:ppm_log_p=escape_log_prob+UNIFORM_LOGP
 		nn_log_p=byte_nn_logp[t];lam=lambda_lo if confidence>=conf_threshold else lambda_hi
+		nn_nll_nats=-nn_log_p;nn_skip_thr_nats=0.277
+		if nn_nll_nats<nn_skip_thr_nats:lam=1.0;gate_skip+=1
 		if lam<=0.0:log_mix=ppm_log_p
 		elif lam>=1.0:log_mix=nn_log_p
 		else:a=_ln(lam)+nn_log_p;c=_ln(1.0-lam)+ppm_log_p;log_mix=max(a,c)+math.log1p(math.exp(-abs(a-c)))
@@ -81,7 +83,8 @@ def _ppm_mixture_bpb(target_ids,prev_ids,nll_nats,token_bytes_lut,has_leading_sp
 		window.append(b)
 		if len(window)>order:del window[0]
 	mix_bpb=mix_nll/total_bytes/LOG2;ppm_bpb=ppm_nll/total_bytes/LOG2;nn_bpb=nn_nll/total_bytes/LOG2
-	log(f"{log_prefix} bytes={total_bytes} mix_bpb={mix_bpb:.6f} ppm_only={ppm_bpb:.6f} nn_only={nn_bpb:.6f}")
+	gate_frac=gate_skip/max(total_bytes,1)
+	log(f"{log_prefix} bytes={total_bytes} mix_bpb={mix_bpb:.6f} ppm_only={ppm_bpb:.6f} nn_only={nn_bpb:.6f} gate_skip={gate_frac:.2%}")
 	return mix_bpb,ppm_bpb,nn_bpb
 def load_validation_tokens(pattern,seq_len):
 	files=[Path(p)for p in sorted(glob.glob(pattern))]
