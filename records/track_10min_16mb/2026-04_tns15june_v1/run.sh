@@ -4,6 +4,26 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 mkdir -p logs
 
+GPU_COUNT="$(nvidia-smi -L 2>/dev/null | wc -l)"
+if [ "$GPU_COUNT" -ne 8 ]; then
+  echo "ERROR: expected 8 visible GPUs, found $GPU_COUNT"
+  exit 1
+fi
+
+python3 -c "import brotli, sentencepiece, torch; print('torch', torch.__version__)"
+
+if [ ! -f data/tokenizers/fineweb_8192_bpe.model ]; then
+  echo "ERROR: missing data/tokenizers/fineweb_8192_bpe.model"
+  exit 1
+fi
+
+TRAIN_SHARDS="$(find data/datasets/fineweb10B_sp8192 -maxdepth 1 -name 'fineweb_train_*.bin' 2>/dev/null | wc -l)"
+VAL_SHARDS="$(find data/datasets/fineweb10B_sp8192 -maxdepth 1 -name 'fineweb_val_*.bin' 2>/dev/null | wc -l)"
+if [ "$TRAIN_SHARDS" -lt 80 ] || [ "$VAL_SHARDS" -lt 1 ]; then
+  echo "ERROR: incomplete SP8192 data: train_shards=$TRAIN_SHARDS val_shards=$VAL_SHARDS"
+  exit 1
+fi
+
 DATA_PATH=data/datasets/fineweb10B_sp8192 \
 TOKENIZER_PATH=data/tokenizers/fineweb_8192_bpe.model \
 VOCAB_SIZE=8192 \
