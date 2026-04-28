@@ -1,0 +1,390 @@
+W0428 19:25:54.832000 4259 torch/distributed/run.py:803] 
+W0428 19:25:54.832000 4259 torch/distributed/run.py:803] *****************************************
+W0428 19:25:54.832000 4259 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0428 19:25:54.832000 4259 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: 
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.95
+  caseops_enabled: True
+  compressor: brotli
+  data_dir: ./data
+  datasets_dir: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 15.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_muon_nesterov: True
+  global_ttt_muon_ns_steps: 5
+  global_ttt_optimizer: sgd
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 0.5
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/baseline_8xh100_seed314.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 12.0
+  mlp_mult: 3.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_huber_delta: 0.1
+  muon_huber_wd: False
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  optrot_enabled: False
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 3
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  qk_gain_schedule: []
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: baseline_8xh100_seed314
+  scalar_lr: 0.02
+  seed: 314
+  skip_gates_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 1.0
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 1.0
+  val_batch_tokens: 524288
+  val_bytes_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.75
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 1499
+val_tokens: 47851520
+model_params:30178503
+gptq:reserving 0s, effective=599500ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 8.9980 val_bpb: 4.1115
+1/20000 train_loss: 8.9988 train_time: 0.0m tok/s: 10977007
+2/20000 train_loss: 12.8187 train_time: 0.0m tok/s: 10985741
+3/20000 train_loss: 10.2077 train_time: 0.0m tok/s: 10195255
+4/20000 train_loss: 8.6610 train_time: 0.0m tok/s: 9869574
+5/20000 train_loss: 7.9051 train_time: 0.0m tok/s: 9624948
+500/20000 train_loss: 2.7520 train_time: 0.7m tok/s: 8972631
+1000/20000 train_loss: 2.8046 train_time: 1.5m tok/s: 8937205
+1500/20000 train_loss: 2.7555 train_time: 2.2m tok/s: 8929750
+2000/20000 train_loss: 2.5245 train_time: 2.9m tok/s: 8929533
+layer_loop:enabled step:2383 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 2.7219 train_time: 3.8m tok/s: 8735969
+3000/20000 train_loss: 2.5365 train_time: 4.8m tok/s: 8135860
+3500/20000 train_loss: 2.4198 train_time: 6.0m tok/s: 7690028
+4000/20000 train_loss: 2.5620 train_time: 7.0m tok/s: 7441788
+4000/20000 val_loss: 2.4809 val_bpb: 1.1336
+4500/20000 train_loss: 2.4477 train_time: 8.2m tok/s: 7208964
+5000/20000 train_loss: 2.3110 train_time: 9.3m tok/s: 7073887
+5337/20000 val_loss: 2.3779 val_bpb: 1.0866
+stopping_early: wallclock_cap train_time: 599638ms step: 5337/20000
+peak memory allocated: 38367 MiB reserved: 43802 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.35358042 val_bpb:1.07542457 eval_time:11690ms
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3744, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3738, in main
+[rank1]:     train_and_eval(h, device)
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3582, in train_and_eval
+[rank1]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2608, in serialize
+[rank1]:     code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+[rank1]:                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2597, in _compressed_code_size
+[rank1]:     minified = subprocess.run(
+[rank1]:                ^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+[rank1]:     with Popen(*popenargs, **kwargs) as process:
+[rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+[rank1]:     self._execute_child(args, executable, preexec_fn, close_fds,
+[rank1]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+[rank1]:     raise child_exception_type(errno_num, err_msg, err_filename)
+[rank1]: FileNotFoundError: [Errno 2] No such file or directory: 'pyminify'
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3744, in <module>
+[rank3]:     main()
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3738, in main
+[rank3]:     train_and_eval(h, device)
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3582, in train_and_eval
+[rank3]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2608, in serialize
+[rank3]:     code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+[rank3]:                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2597, in _compressed_code_size
+[rank3]:     minified = subprocess.run(
+[rank3]:                ^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+[rank3]:     with Popen(*popenargs, **kwargs) as process:
+[rank3]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+[rank3]:     self._execute_child(args, executable, preexec_fn, close_fds,
+[rank3]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+[rank3]:     raise child_exception_type(errno_num, err_msg, err_filename)
+[rank3]: FileNotFoundError: [Errno 2] No such file or directory: 'pyminify'
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3744, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3738, in main
+[rank2]:     train_and_eval(h, device)
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3582, in train_and_eval
+[rank2]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2608, in serialize
+[rank2]:     code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+[rank2]:                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2597, in _compressed_code_size
+[rank2]:     minified = subprocess.run(
+[rank2]:                ^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+[rank2]:     with Popen(*popenargs, **kwargs) as process:
+[rank2]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+[rank2]:     self._execute_child(args, executable, preexec_fn, close_fds,
+[rank2]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+[rank2]:     raise child_exception_type(errno_num, err_msg, err_filename)
+[rank2]: FileNotFoundError: [Errno 2] No such file or directory: 'pyminify'
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3744, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3738, in main
+[rank6]:     train_and_eval(h, device)
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3582, in train_and_eval
+[rank6]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2608, in serialize
+[rank6]:     code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+[rank6]:                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2597, in _compressed_code_size
+[rank6]:     minified = subprocess.run(
+[rank6]:                ^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+[rank6]:     with Popen(*popenargs, **kwargs) as process:
+[rank6]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+[rank6]:     self._execute_child(args, executable, preexec_fn, close_fds,
+[rank6]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+[rank6]:     raise child_exception_type(errno_num, err_msg, err_filename)
+[rank6]: FileNotFoundError: [Errno 2] No such file or directory: 'pyminify'
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3744, in <module>
+[rank5]:     main()
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3738, in main
+[rank5]:     train_and_eval(h, device)
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3582, in train_and_eval
+[rank5]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2608, in serialize
+[rank5]:     code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+[rank5]:                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2597, in _compressed_code_size
+[rank5]:     minified = subprocess.run(
+[rank5]:                ^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+[rank5]:     with Popen(*popenargs, **kwargs) as process:
+[rank5]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+[rank5]:     self._execute_child(args, executable, preexec_fn, close_fds,
+[rank5]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+[rank5]:     raise child_exception_type(errno_num, err_msg, err_filename)
+[rank5]: FileNotFoundError: [Errno 2] No such file or directory: 'pyminify'
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3744, in <module>
+[rank4]:     main()
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3738, in main
+[rank4]:     train_and_eval(h, device)
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3582, in train_and_eval
+[rank4]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2608, in serialize
+[rank4]:     code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+[rank4]:                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2597, in _compressed_code_size
+[rank4]:     minified = subprocess.run(
+[rank4]:                ^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+[rank4]:     with Popen(*popenargs, **kwargs) as process:
+[rank4]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+[rank4]:     self._execute_child(args, executable, preexec_fn, close_fds,
+[rank4]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+[rank4]:     raise child_exception_type(errno_num, err_msg, err_filename)
+[rank4]: FileNotFoundError: [Errno 2] No such file or directory: 'pyminify'
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3744, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3738, in main
+[rank0]:     train_and_eval(h, device)
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3582, in train_and_eval
+[rank0]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2608, in serialize
+[rank0]:     code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+[rank0]:                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2597, in _compressed_code_size
+[rank0]:     minified = subprocess.run(
+[rank0]:                ^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+[rank0]:     with Popen(*popenargs, **kwargs) as process:
+[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+[rank0]:     self._execute_child(args, executable, preexec_fn, close_fds,
+[rank0]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+[rank0]:     raise child_exception_type(errno_num, err_msg, err_filename)
+[rank0]: FileNotFoundError: [Errno 2] No such file or directory: 'pyminify'
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3744, in <module>
+[rank7]:     main()
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3738, in main
+[rank7]:     train_and_eval(h, device)
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3582, in train_and_eval
+[rank7]:     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2608, in serialize
+[rank7]:     code_bytes_uncompressed, code_bytes = _compressed_code_size(code)
+[rank7]:                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2597, in _compressed_code_size
+[rank7]:     minified = subprocess.run(
+[rank7]:                ^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+[rank7]:     with Popen(*popenargs, **kwargs) as process:
+[rank7]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+[rank7]:     self._execute_child(args, executable, preexec_fn, close_fds,
+[rank7]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+[rank7]:     raise child_exception_type(errno_num, err_msg, err_filename)
+[rank7]: FileNotFoundError: [Errno 2] No such file or directory: 'pyminify'
+[rank0]:[W428 19:44:03.026886012 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0428 19:44:09.730000 4259 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 4329 closing signal SIGTERM
+W0428 19:44:09.735000 4259 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 4330 closing signal SIGTERM
+W0428 19:44:09.736000 4259 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 4332 closing signal SIGTERM
+W0428 19:44:09.741000 4259 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 4333 closing signal SIGTERM
+W0428 19:44:09.743000 4259 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 4334 closing signal SIGTERM
+W0428 19:44:09.744000 4259 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 4335 closing signal SIGTERM
+W0428 19:44:09.745000 4259 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 4336 closing signal SIGTERM
+E0428 19:44:10.841000 4259 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 2 (pid: 4331) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-28_19:44:09
+  host      : 7ef2312ba661
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 4331)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
