@@ -1,0 +1,18 @@
+{
+  "author": "Yash Kumar",
+  "github_id": "hypnoastic",
+  "name": "11L PartialRoPE XSA4 EMA GPTQ-lite LeakyReLU (1xH100)",
+  "blurb": "Non-record 1xH100 screening submission: March 22 11L GPTQ-lite/EMA/XSA4/PartialRoPE stack with a single March 23 activation port to LeakyReLU(0.5)^2. Fair 4-shard 600s comparison run under the 16MB cap; conservative post-quant roundtrip score 1.30806928 BPB.",
+  "date": "2026-04-07",
+  "track": "non-record-16mb",
+  "val_loss": 2.20862019,
+  "val_bpb": 1.30806928,
+  "pre_quant_val_loss": 2.1809,
+  "pre_quant_val_bpb": 1.2916,
+  "step_stop": 2552,
+  "wallclock_seconds": 600.043,
+  "bytes_total": 12889311,
+  "bytes_model_int6_zstd": 12821686,
+  "bytes_code": 67625,
+  "gpu": "1xH100 80GB"
+}
