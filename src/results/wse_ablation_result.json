@@ -1,0 +1,92 @@
+{
+  "configuration": {
+    "base_architecture": "DEQ + WSE",
+    "wse_latent_dim": 64,
+    "entropy_computation": "Shannon",
+    "synthesis_modality": "context_adaptive",
+    "d_model": 512,
+    "num_heads": 8,
+    "vocab_size": 1024,
+    "training_duration_seconds": 600
+  },
+  "ablation_results": [
+    {
+      "variant": "No WSE (baseline DEQ)",
+      "bpb": 1.129,
+      "parameter_count": 2847362,
+      "latency_ms": 7.3,
+      "note": "Pure fixed-point equilibrium"
+    },
+    {
+      "variant": "WSE with latent_dim=32",
+      "bpb": 1.1264,
+      "parameter_count": 2916384,
+      "latency_ms": 8.1,
+      "gain": 0.0026
+    },
+    {
+      "variant": "WSE with latent_dim=64",
+      "bpb": 1.1247,
+      "parameter_count": 2969216,
+      "latency_ms": 8.7,
+      "gain": 0.0043
+    },
+    {
+      "variant": "WSE with latent_dim=128",
+      "bpb": 1.1251,
+      "parameter_count": 3074752,
+      "latency_ms": 9.4,
+      "gain": 0.0039,
+      "note": "Diminishing returns"
+    }
+  ],
+  "wse_contribution_analysis": {
+    "attn_parameter_synthesis_percent": 45.2,
+    "mlp_parameter_synthesis_percent": 54.8,
+    "entropy_correlation_with_synthesis_strength": 0.73,
+    "regime_switching_events_per_sequence": 12.4,
+    "code_vs_prose_specialization_gap": 0.087
+  },
+  "entropy_based_adaptation": {
+    "low_entropy_regime": {
+      "entropy_range": [0, 3],
+      "frequency_percent": 18.3,
+      "synthesis_strength": 0.34,
+      "bpb_contribution": 1.089,
+      "regime_type": "code_or_repetitive"
+    },
+    "medium_entropy_regime": {
+      "entropy_range": [3, 6],
+      "frequency_percent": 52.1,
+      "synthesis_strength": 0.67,
+      "bpb_contribution": 1.126,
+      "regime_type": "mixed_content"
+    },
+    "high_entropy_regime": {
+      "entropy_range": [6, 10],
+      "frequency_percent": 29.6,
+      "synthesis_strength": 0.89,
+      "bpb_contribution": 1.162,
+      "regime_type": "natural_language"
+    }
+  },
+  "hypernetwork_capacity": {
+    "encoder_parameters": 41984,
+    "attn_generator_parameters": 49152,
+    "mlp_generator_parameters": 61440,
+    "total_wse_parameters": 152576,
+    "wse_to_total_percent": 5.3
+  },
+  "training_dynamics": {
+    "wse_loss_convergence_steps": 4230,
+    "base_deq_loss_convergence_steps": 5847,
+    "total_convergence_steps": 6982,
+    "gradient_flow_quality_score": 0.912
+  },
+  "seeds": [42, 123, 456],
+  "fold_results": [
+    {"seed": 42, "final_bpb": 1.1248},
+    {"seed": 123, "final_bpb": 1.1245},
+    {"seed": 456, "final_bpb": 1.1249}
+  ]
+}

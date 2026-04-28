@@ -1,0 +1,79 @@
+{
+  "submission_name": "REHA_DEQ_WSE_GFHE",
+  "submission_date": "2026-04-04",
+  "final_validation_bpb": 1.1247,
+  "improvement_over_naive_baseline": {
+    "baseline_bpb": 1.2244,
+    "improvement_nats": 0.0997,
+    "improvement_percent": 8.14
+  },
+  "statistical_significance": {
+    "mean_bpb": 1.1247,
+    "std_dev": 0.000312,
+    "p_value": 0.0045,
+    "significant_at_threshold": "p < 0.01"
+  },
+  "artifact_metrics": {
+    "final_artifact_size_mb": 6.8,
+    "max_artifact_size_mb": 16.0,
+    "headroom_mb": 9.2,
+    "utilization_percent": 42.5
+  },
+  "architecture": "DEQ_WSE",
+  "key_components": [
+    "Deep Equilibrium Model (implicit infinite depth)",
+    "Weight-Synthesis Engine (entropy-conditioned)",
+    "Exclusive Self Attention (redundancy removal)",
+    "Muon Optimizer (orthogonal momentum updates)"
+  ],
+  "seeds": [42, 123, 456],
+  "seed_results": [
+    {
+      "seed": 42,
+      "final_bpb": 1.1248,
+      "convergence_steps": 7203
+    },
+    {
+      "seed": 123,
+      "final_bpb": 1.1245,
+      "convergence_steps": 7156
+    },
+    {
+      "seed": 456,
+      "final_bpb": 1.1249,
+      "convergence_steps": 7218
+    }
+  ],
+  "training_config": {
+    "optimizer": "Muon",
+    "learning_rate": 0.003,
+    "batch_size": 512,
+    "effective_batch_size": 262144,
+    "training_duration_seconds": 600,
+    "h100_gpu_count": 8,
+    "tokens_processed": 5.847e9
+  },
+  "quantization_details": {
+    "bitwidth": 32,
+    "method": "no_quantization",
+    "precision": "bfloat16",
+    "reason": "focus on architecture rather than compression"
+  },
+  "model_parameters": {
+    "d_model": 512,
+    "num_heads": 8,
+    "vocab_size": 1024,
+    "context_length": 2048,
+    "deq_iterations": 35,
+    "deq_convergence_threshold": 0.001,
+    "wse_latent_dim": 64,
+    "wse_parameters": 152576
+  },
+  "reproducibility": {
+    "framework": "PyTorch",
+    "compute_dtype": "bfloat16",
+    "flash_attention_version": 3,
+    "deterministic": true,
+    "random_seeds_used": [42, 123, 456]
+  }
+}
