@@ -19,10 +19,15 @@ The Change section in particular needs to specify exact functions, the expected 
 
 ```
 Read `experiments/NNNN_<slug>/plan.md`. Implement the change in
-`experiments/NNNN_<slug>/train_gpt.py`. Update plan.md's "Notes from
-execution" section with what was done and any deviations from the
-plan. Do not run any experiments. Return a one-paragraph summary
-of what you changed and any concerns.
+`experiments/NNNN_<slug>/train_gpt.py`. Single-file is preferred;
+But if it became difficult/unclear to navigate the growing
+train_gpt.py, or if plan.md calls for additional files, put them in
+`experiments/NNNN_<slug>/modules/` (that subdir is the only path
+`new_experiment.sh` forks; anything outside of train_gpt.py,
+env.sh, and modules/ is silently dropped on the next fork).
+Update plan.md's "Notes from execution" section with what was
+done and any deviations. Do not run any experiments. Return a
+one-paragraph summary of what you changed and any concerns.
 ```
 
 Use the `general-purpose` subagent unless a specialized one (code-architect, code-reviewer) clearly fits the task.

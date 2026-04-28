@@ -1,7 +1,11 @@
 """
+Original message from OpenAI's repo:
 The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
 
 Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+
+For our purpose:
+There is no new participant or newcomers, but a lot of these good practices still hold. Single-file is preferred but clarity still matters — modularity fragments diffs and adds re-reading overhead. If a huge change (e.g. customized kernels) genuinely doesn't fit here, additional files MUST live in `experiments/NNNN_<slug>/modules/`. That subdirectory is the only path `new_experiment.sh` carries forward when forking from a parent — files placed elsewhere in the experiment folder will be silently dropped on the next fork, so resist the temptation.
 """
 
 from __future__ import annotations

@@ -55,15 +55,35 @@ if [[ -n "$PARENT_ARG" ]]; then
     echo "Parent experiment not found: experiments/${PARENT_ARG}/train_gpt.py" >&2
     exit 1
   fi
-  SOURCE_FILE="$PARENT_DIR/train_gpt.py"
   PARENT="$PARENT_ARG"
 else
-  SOURCE_FILE="$REPO_ROOT/train_gpt.py"
+  PARENT_DIR=""
   PARENT="canonical"
 fi
 
 mkdir "$DIR"
-cp "$SOURCE_FILE" "$DIR/train_gpt.py"
+
+# Copy source files. From a parent: train_gpt.py, env.sh, and modules/ (if
+# present) ride along — these are the parent's tuned overrides and any extra
+# code the experiment depends on. Generated artifacts (plan.md, result.json,
+# run.log, logs/, *.pt, *.ptz) are NOT inherited; plan.md and result.json
+# are freshly generated below.
+if [[ -n "$PARENT_DIR" ]]; then
+  cp "$PARENT_DIR/train_gpt.py" "$DIR/train_gpt.py"
+  if [[ -f "$PARENT_DIR/env.sh" ]]; then
+    cp "$PARENT_DIR/env.sh" "$DIR/env.sh"
+    # Rewrite RUN_ID so logs/results land under the new experiment name.
+    # Preserve everything else — overrides like SEED, LR_*, WARMDOWN_ITERS
+    # are exactly what the agent wants forked.
+    sed -i.bak -E "s|^export RUN_ID=.*|export RUN_ID=\"${NAME}\"|" "$DIR/env.sh"
+    rm -f "$DIR/env.sh.bak"
+  fi
+  if [[ -d "$PARENT_DIR/modules" ]]; then
+    cp -R "$PARENT_DIR/modules" "$DIR/modules"
+  fi
+else
+  cp "$REPO_ROOT/train_gpt.py" "$DIR/train_gpt.py"
+fi
 
 cat > "$DIR/plan.md" <<EOF
 # Experiment ${NAME}
@@ -86,7 +106,11 @@ Parent: ${PARENT}
 <!-- Filled during edit, or by subagent if invoked. Note any deviations. -->
 EOF
 
-cat > "$DIR/env.sh" <<EOF
+# Generate canonical env.sh only when forking from canonical (no parent).
+# When a parent_id is given, the parent's env.sh has already been copied
+# above with RUN_ID rewritten — overwriting it would defeat the purpose.
+if [[ -z "$PARENT_DIR" ]]; then
+  cat > "$DIR/env.sh" <<EOF
 # Source this from inside the experiment folder before running.
 export RUN_ID="${NAME}"
 export DATA_PATH="../../data/datasets/fineweb10B_sp1024"
@@ -119,6 +143,7 @@ export VAL_TOKENS=16384
 export TRAIN_LOG_EVERY=5
 # Experiment-specific overrides go below:
 EOF
+fi
 
 CREATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 cat > "$DIR/result.json" <<EOF

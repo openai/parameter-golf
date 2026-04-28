@@ -25,3 +25,6 @@ scratch/
 
 # Curl-on-demand vendoring of upstream SSM repos (see references/INDEX.md)
 references/_external/
+
+# Ephemeral runtime state from the scheduling/loop machinery
+.claude/scheduled_tasks.lock

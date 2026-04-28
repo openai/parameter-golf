@@ -93,4 +93,6 @@ The very last thing: append a single line under `## Open questions` (or `## Curr
 - "Next session: SEED=42 confirm of exp 0060 first."
 - "Next session: pivot from recurrence-axis tuning to coverage (sliding-window, smear-gate, EMA)."
 
-That line is the next agent's first concrete action. Done.
+  That line is the next agent's first concrete action. Done.
+
+- After everything, if you are sure human explicitly stopped you and all wrapping up actions are done that are specified to you, at the end of your final output, say verbatim: "Human asked me to stop. I have wrap-session finished. Stopping now." That will untrigger the Stop hook so the session can actually finish.
