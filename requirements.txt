@@ -1,6 +1,8 @@
 numpy
 tqdm
 torch
+brotli
+flash-attn
 huggingface-hub
 kernels
 setuptools

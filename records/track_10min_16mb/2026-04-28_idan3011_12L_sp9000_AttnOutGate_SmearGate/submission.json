@@ -1,0 +1,26 @@
+{
+  "author": "Idan3011",
+  "github_id": "Idan3011",
+  "name": "SP9000 + 12L 3.5x MLP + Depth Recurrence (L3-5) + AttnOutGate + SmearGate + LQER Asymmetric",
+  "date": "2026-04-28",
+  "track": "10min_16mb",
+  "val_bpb": 1.0902,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {"val_bpb": 1.0902, "artifact_bytes": 14962936}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.6.0+cu126",
+  "technique_summary": "SP9000 + 12L 3.5x MLP + 2-Layer Depth Recurrence (L3-5 looped 3x) + Parallel Residuals (L7+) + QK-Gain 5.25 + EMA 0.9965 + WD 0.095 + AttnOutGate + SmearGate + Sliding Window Eval + GPTQ SDClip + LQER Asymmetric Rank-4 + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false
+  }
+}
