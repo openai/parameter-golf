@@ -1,6 +1,8 @@
-# Record: PR #1787 base + Smear Gate + LQER Asymmetric + Phased TTT — val_bpb 1.06157
+# Record: PR #1787 base + Smear Gate (BOS-masked) + LQER Asymmetric + Phased TTT — val_bpb 1.06412
 
-**val_bpb: 1.06157** (3-seed mean, std 0.00066) | **val_loss: 2.32312 nats/token** (std 0.00145) | **~15.95 MB** | 8×H100 SXM, 600s train / 600s eval | Phased TTT
+**val_bpb: 1.06412** (3-seed mean, std 0.00172) | **val_loss: 2.32869 nats/token** (std 0.00373) | **~15.95 MB** | 8×H100 SXM, 600s train / 600s eval | Phased TTT
+
+> **Updated 2026-04-27**: SmearGate forward path now masks the previous-token term at document boundaries (`input_ids == BOS_ID`), per @msisovic's catch in [#1797 (comment)](https://github.com/openai/parameter-golf/pull/1797#issuecomment-2783310834). The metric below is the rebanked 3-seed result with the BOS mask applied at both `_forward_hidden` and `forward_ttt`. The original 1.06157 headline was favorably biased by the cross-doc smear leak (+0.00255 BPB).
 
 ## Results (8×H100 80GB SXM, PyTorch 2.9.1+cu128, Phased TTT)
 
@@ -8,21 +10,21 @@
 
 | Seed | Steps  | Pre-TTT BPB | Post-TTT BPB | TTT gain | TTT time | Artifact (bytes) |
 |------|-------:|------------:|-------------:|---------:|---------:|-----------------:|
-| 314  | 4954   | 1.07371     | **1.06083**  | -0.01289 | 494.8s   | 15,951,189       |
-| 42   | 4948   | 1.07460     | **1.06181**  | -0.01279 | 451.9s   | 15,953,178       |
-| 1234 | 4948   | 1.07499     | **1.06209**  | -0.01290 | 423.3s   | 15,953,718       |
-| **Mean** | **4950** | **1.07443** | **1.06157** | **-0.01286** | **456.7s** | **15,952,695** |
-| **Std**  |          | 0.00065     | **0.00066** |          | 35.99s   | 1,332            |
+| 314  | 4883   | 1.07599     | **1.06307**  | -0.01292 | 422.8s   | 15,951,189       |
+| 42   | 4878   | 1.07606     | **1.06319**  | -0.01287 | 429.4s   | 15,953,178       |
+| 1234 | 4655   | 1.07898     | **1.06610**  | -0.01288 | 473.1s   | 15,953,718       |
+| **Mean** | **4805** | **1.07701** | **1.06412** | **-0.01289** | **441.8s** | **15,952,695** |
+| **Std**  |          | 0.00172     | **0.00172** |          | 27.27s   | 1,332            |
 
 ### Supplemental diagnostics
 
 | Seed | Post-EMA BPB (pre-quant) | Quantized BPB (no TTT) | Post-TTT BPB | val_loss (nats) | Train time | Eval time |
 |------|-------------------------:|-----------------------:|-------------:|----------------:|-----------:|----------:|
-| 314  | 1.06484                  | 1.07371                | 1.06083      | 2.32148         | 599.47s    | 494.8s    |
-| 42   | 1.06535                  | 1.07460                | 1.06181      | 2.32363         | 599.59s    | 451.9s    |
-| 1234 | 1.06601                  | 1.07499                | 1.06209      | 2.32424         | 599.64s    | 423.3s    |
+| 314  | 1.06684                  | 1.07599                | 1.06307      | 2.32639         | 596.13s    | 422.8s    |
+| 42   | 1.06705                  | 1.07606                | 1.06319      | 2.32665         | 596.13s    | 429.4s    |
+| 1234 | 1.06988                  | 1.07898                | 1.06610      | 2.33302         | 596.10s    | 473.1s    |
 
-All 3 seeds clear both 600s budgets (train + eval) and the 16,000,000-byte decimal artifact cap. 3-seed std is 0.00066 BPB.
+All 3 seeds clear both 600s budgets (train + eval) and the 16,000,000-byte decimal artifact cap. 3-seed std is 0.00172 BPB.
 
 ## Key innovation — PR #1787 native base + orthogonal Smear gate + inline LQER asymmetric factorization
 
@@ -47,13 +49,13 @@ This submission combines three components on top of the PR #1787 (nprime06) upst
 
 | Seed | val_bpb | val_loss (nats) |
 |------|--------:|----------------:|
-| 314  | 1.06083 | 2.32148         |
-| 42   | 1.06181 | 2.32363         |
-| 1234 | 1.06209 | 2.32424         |
-| **Mean** | **1.06157** | **2.32312** |
-| **Std**  | 0.00066    | 0.00145        |
+| 314  | 1.06307 | 2.32639         |
+| 42   | 1.06319 | 2.32665         |
+| 1234 | 1.06610 | 2.33302         |
+| **Mean** | **1.06412** | **2.32869** |
+| **Std**  | 0.00172    | 0.00373        |
 
-3-seed mean clears the merged SOTA (PR #1493 at 1.0810) by **0.0194 BPB ≈ 0.0502 nats/token ≈ 10× the 0.005-nat record bar inflection** (sp8192: 0.005 nats ≈ 0.00194 BPB).
+3-seed mean clears the merged SOTA (PR #1493 at 1.0810) by **0.0169 BPB ≈ 0.0436 nats/token ≈ 8.7× the 0.005-nat record bar inflection** (sp8192: 0.005 nats ≈ 0.00194 BPB).
 
 ## Changes from PR #1736 (our prior banked submission)
 
@@ -68,7 +70,7 @@ This submission combines three components on top of the PR #1787 (nprime06) upst
 | TTT warm-start A | off | `TTT_WARM_START_A=1` |
 | Other hparams | — | identical (SP8192, 11L, dim=512, 8/4 heads, MLP 4×, Loop3-5, 2 iters, parallel_start=8, int6 MLP/matrix, int7 embed, eval stride 64) |
 
-Net on 3-seed mean: **−0.00392 BPB / −0.00856 val_loss (nats/token)** vs PR #1736 (1.06549 / 2.33168).
+Net on 3-seed mean: **−0.00137 BPB / −0.00299 val_loss (nats/token)** vs PR #1736 (1.06549 / 2.33168).
 
 ## Architecture (inherits PR #1787 shape)
 

@@ -1328,10 +1328,14 @@ class GPT(nn.Module):
         # to the projection so torch.compile fullgraph is happy. lam=0 + W=0 -> identity
         # at init. This block runs unconditionally on the smear path; the cat keeps
         # position 0 untouched so causality holds.
+        # BOS-mask fix (msisovic, 2026-04-26): zero gate at doc boundaries so packed
+        # streams do not smear doc N's last token into doc N+1's BOS embedding.
         if self.smear_gate_enabled:
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
+            bos_mask = (input_ids[:, 1:] != 1).unsqueeze(-1).to(g.dtype)
+            g = g * bos_mask
             x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -1425,10 +1429,13 @@ class GPT(nn.Module):
     def forward_ttt(self, input_ids, target_ids, lora):
         x = self.tok_emb(input_ids)
         # SmearGate on the TTT path — same inline compute as forward_logits.
+        # BOS-mask fix (msisovic, 2026-04-26): same as _forward_hidden.
         if self.smear_gate_enabled:
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
+            bos_mask = (input_ids[:, 1:] != 1).unsqueeze(-1).to(g.dtype)
+            g = g * bos_mask
             x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -3445,8 +3452,6 @@ def train_and_eval(h, device):
         fwd_ttt_compiled = _fwd_ttt
         log(f"ttt_lora:warming up compile (random tokens, no val data)")
         global BOS_ID
-        if BOS_ID is None:
-            BOS_ID = 1
         t_warmup = time.perf_counter()
         warmup_bszes = [h.ttt_batch_size]
         for bsz in warmup_bszes:
