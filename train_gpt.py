@@ -1,3 +1,5 @@
+
+
 from __future__ import annotations
 
 import copy
@@ -284,8 +286,7 @@ def eval_val(
         dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
     val_loss = val_loss_sum / val_token_count
     bits_per_token = val_loss.item() / math.log(2.0)
-    tokens_per_byte = (val_token_count.item() / val_byte_count.item()
-                       if val_byte_count.item() > 0 else 1.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
@@ -437,38 +438,6 @@ def quantize_int6_per_row(t: Tensor, clip_range: int = 31) -> tuple[Tensor, Tens
     return q, scale
 
 
-def pack_int6(q: Tensor) -> tuple[Tensor, int]:
-    """Pack int8 tensor with values in [-32,31] into true 6-bit packed uint8.
-    4 values × 6 bit = 3 bytes → saves 25% storage vs storing as int8.
-    Returns (packed_tensor, orig_last_dim) for later unpacking."""
-    orig_cols = q.shape[-1]
-    flat = q.reshape(-1, orig_cols).to(torch.int32)
-    rows = flat.shape[0]
-    pad = (4 - orig_cols % 4) % 4   # pad cols to multiple of 4
-    if pad:
-        flat = torch.cat([flat, flat.new_zeros(rows, pad)], dim=1)
-    u = (flat + 32) & 0x3F          # shift [-32,31] → [0,63], mask to 6 bits
-    u = u.reshape(rows, -1, 4)
-    b0 = (u[..., 0])          | ((u[..., 1] & 0x03) << 6)
-    b1 = (u[..., 1] >> 2)     | ((u[..., 2] & 0x0F) << 4)
-    b2 = (u[..., 2] >> 4)     | (u[..., 3] << 2)
-    packed = torch.stack([b0, b1, b2], dim=-1).reshape(rows, -1).to(torch.uint8)
-    return packed.reshape(q.shape[:-1] + (packed.shape[-1],)).contiguous(), orig_cols
-
-
-def unpack_int6(packed: Tensor, orig_cols: int) -> Tensor:
-    """Inverse of pack_int6. Restores int8 tensor with values in [-32,31]."""
-    flat = packed.reshape(-1, packed.shape[-1]).to(torch.int32)
-    rows, nbytes = flat.shape
-    f = flat.reshape(rows, nbytes // 3, 3)
-    v0 = f[..., 0] & 0x3F
-    v1 = ((f[..., 0] >> 6) | ((f[..., 1] & 0x0F) << 2)) & 0x3F
-    v2 = ((f[..., 1] >> 4) | ((f[..., 2] & 0x03) << 4)) & 0x3F
-    v3 = (f[..., 2] >> 2) & 0x3F
-    u = torch.stack([v0, v1, v2, v3], dim=-1).reshape(rows, -1)[:, :orig_cols]
-    return (u - 32).to(torch.int8).reshape(packed.shape[:-1] + (orig_cols,)).contiguous()
-
-
 def quantize_state_dict_mixed(state_dict: dict[str, Tensor]):
     """Mixed quantization: int6 for large attn/mlp tensors, int8 for others."""
     result: dict[str, Tensor] = {}
@@ -504,8 +473,7 @@ def quantize_state_dict_mixed(state_dict: dict[str, Tensor]):
         cat = _classify_param(name)
         if cat in {"mlp", "attn"} and t.ndim == 2:
             q, s = quantize_int6_per_row(t)
-            q, orig_cols = pack_int6(q)   # true 6-bit packing: 4 vals → 3 bytes
-            meta[name] = {"type": "int6", "orig_cols": orig_cols}
+            meta[name] = {"type": "int6"}
         else:
             q, s = quantize_float_tensor(t)
             meta[name] = {"type": "int8", "per_row": s.ndim > 0}
@@ -534,8 +502,6 @@ def dequantize_state_dict_mixed(result: dict, meta: dict, template_sd: dict) -> 
             out[name] = t
             continue
         q, s = result[name + ".q"], result[name + ".scale"]
-        if isinstance(info, dict) and info.get("type") == "int6" and "orig_cols" in info:
-            q = unpack_int6(q, info["orig_cols"])   # restore true int8 from 6-bit packing
         if s.ndim > 0:
             out[name] = (q.float() * s.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(orig_dtype)
         else:
@@ -726,16 +692,12 @@ class CausalSelfAttention(nn.Module):
         proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
 
-    def forward(self, x: Tensor, v_bias: Tensor | None = None) -> Tensor:
-        """v_bias: optional (B, T, kv_dim) tensor added to value projection before attention."""
+    def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
         # BTHD layout throughout; transpose only if using SDPA
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        v_proj = self.c_v(x)
-        if v_bias is not None:
-            v_proj = v_proj + v_bias
-        v = v_proj.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -788,9 +750,6 @@ class BigramHashEmbedding(nn.Module):
 
     def bigram_hash(self, tokens: Tensor) -> Tensor:
         t = tokens.to(torch.int32)
-        # mod = vocab_size - 1 is intentional: index (vocab_size-1) acts as a
-        # "beginning-of-sequence" sentinel exclusively for position 0, while
-        # non-first positions map to [0, vocab_size-2] via % mod, ensuring no collision.
         mod = self.bigram_vocab_size - 1
         out = torch.empty_like(t)
         out[..., 0] = mod
@@ -861,7 +820,12 @@ class Block(nn.Module):
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         normed = self.attn_norm(x_in) * self.ln_scale_factor
-        attn_out = self.attn(normed, v_bias=v_embed)
+        # Inject value embedding into attention (only if v_embed provided by GPT)
+        if v_embed is not None:
+            # Temporarily patch the v projection output (add v_embed before reshape in attn)
+            attn_out = self._attn_with_v_embed(normed, v_embed)
+        else:
+            attn_out = self.attn(normed)
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * \
             self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor)
@@ -869,6 +833,29 @@ class Block(nn.Module):
             gate = torch.sigmoid(self.dtg_gate(x_in.detach()))
             x_out = x_in + gate * (x_out - x_in)
         return x_out
+
+    def _attn_with_v_embed(self, x: Tensor, v_embed: Tensor) -> Tensor:
+        """Run attention with v_embed added to the value projection output."""
+        attn = self.attn
+        bsz, seqlen, dim = x.shape
+        q = attn.c_q(x).reshape(bsz, seqlen, attn.num_heads, attn.head_dim)
+        k = attn.c_k(x).reshape(bsz, seqlen, attn.num_kv_heads, attn.head_dim)
+        v = (attn.c_v(x) + v_embed).reshape(bsz, seqlen, attn.num_kv_heads, attn.head_dim)
+        q = F.rms_norm(q, (q.size(-1),))
+        k = F.rms_norm(k, (k.size(-1),))
+        cos, sin = attn.rotary(seqlen, x.device, q.dtype)
+        q = apply_rotary_emb(q, cos, sin, attn.rope_dims)
+        k = apply_rotary_emb(k, cos, sin, attn.rope_dims)
+        q = q * attn.q_gain.to(dtype=q.dtype)[None, None, :, None]
+        if _USE_FLASH_ATTN:
+            y = flash_attn_3_func(q, k, v, causal=True)
+        else:
+            q_t, k_t, v_t = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
+            y = F.scaled_dot_product_attention(q_t, k_t, v_t, is_causal=True,
+                                                enable_gqa=(attn.num_kv_heads != attn.num_heads)).transpose(1, 2)
+        if attn.use_xsa:
+            y = attn._xsa_efficient(y, v)
+        return attn.proj(y.reshape(bsz, seqlen, dim))
 
 
 class GPT(nn.Module):
@@ -941,12 +928,6 @@ class GPT(nn.Module):
         kv_dim = num_kv_heads * (model_dim // num_heads)
         self.ve_layer_indices = [int(x) for x in ve_layers.split(",") if x.strip()] if ve_enabled else []
         if self.ve_layer_indices:
-            out_of_range = [i for i in self.ve_layer_indices if i >= num_layers]
-            if out_of_range:
-                raise ValueError(
-                    f"VE_LAYERS contains indices {out_of_range} out of range for "
-                    f"NUM_LAYERS={num_layers}. Valid range: 0..{num_layers - 1}."
-                )
             self.ve_shared = ValueEmbedding(vocab_size, ve_dim, kv_dim)
             self.ve_layer_scales = nn.ParameterList(
                 [nn.Parameter(torch.ones(1, dtype=torch.float32)) for _ in self.ve_layer_indices]
@@ -1069,9 +1050,9 @@ def main():
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    # grad_accum_steps keeps total micro-batches ≈ 8 regardless of GPU count.
-    # Any world_size is valid; we just round down (min 1).
-    grad_accum_steps = max(1, 8 // world_size)
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8")
+    grad_accum_steps = 8 // world_size
     grad_scale = 1.0 / grad_accum_steps
 
     if not torch.cuda.is_available():
@@ -1246,10 +1227,6 @@ def main():
         return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
 
     if args.warmup_steps > 0:
-        # NOTE: warmup_steps is a torch.compile graph-compilation warmup, NOT an LR warmup.
-        # We run warmup_steps forward-backward passes to trigger JIT compilation,
-        # then fully reset model + optimizer state to initial values.
-        # LR starts at full value from step 0 in the actual training loop.
         initial_model_state = {n: t.detach().cpu().clone() for n, t in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
