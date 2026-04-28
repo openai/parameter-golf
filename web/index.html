@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parameter Golf Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 id="project-name">Parameter Golf</h1>
+            <p class="subtitle" id="project-desc">OpenAI Model Craft Challenge: Advanced Training Dashboard</p>
+        </header>
+
+        <main class="dashboard-grid">
+            <section class="card leaderboard-card">
+                <h2>🏆 Current Standings</h2>
+                <div class="leaderboard-container">
+                    <table id="leaderboard-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Run</th>
+                                <th>Score (BPB)</th>
+                                <th>Author</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body">
+                            <!-- Data injected via app.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <aside class="sidebar">
+                <section class="card stats-card">
+                    <h2>📊 Project Insights</h2>
+                    <div id="stats-content">
+                        <div class="stat-item">
+                            <div class="stat-label">Model Constraints</div>
+                            <div class="stat-value">16MB / 10 Minutes</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Last Updated</div>
+                            <div class="stat-value" id="last-updated">-</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card logs-card">
+                    <h2>📋 Recent Diagnostics</h2>
+                    <div id="logs-list">
+                        <!-- Logs injected via app.js -->
+                    </div>
+                </section>
+            </aside>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

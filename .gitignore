@@ -9,3 +9,14 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# Model and training artifacts
+_archive/
+*.pt
+*.ptz
+*.npz
+
+# Local secrets
+*.secret.sh
+.runpod_secret.sh
+.env

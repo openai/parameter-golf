@@ -1,0 +1,173 @@
+{
+  "leaderboard": [
+    {
+      "Run": "LeakyReLU\u00b2 + Legal Score-First TTT + Parallel Muon",
+      "Score": 1.1194,
+      "Author": "abaybektursun",
+      "Summary": "On PR #549: LeakyReLU(0.5)^2 + TTT + Parallel Muon on the PR #414 stack",
+      "Date": "2026-03-23",
+      "Info": "[info](records/track_10min_16mb/2026-03-23_LeakyReLU_LegalTTT_ParallelMuon/README.md)"
+    },
+    {
+      "Run": "11L EMA + GPTQ-lite + warmdown3500",
+      "Score": 1.1228,
+      "Author": "signalrush",
+      "Summary": "On PR #374: GPTQ-lite clip search + EMA, plus warmdown3500 and QAT@0.15",
+      "Date": "2026-03-22",
+      "Info": "[info](records/track_10min_16mb/2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233/README.md)"
+    },
+    {
+      "Run": "11L Partial RoPE + LN Scale + EMA + XSA4",
+      "Score": 1.1248,
+      "Author": "jfprincz",
+      "Summary": "On PR #287: Partial RoPE (16/64) + layerwise LN scale",
+      "Date": "2026-03-21",
+      "Info": "[info](records/track_10min_16mb/2026-03-21_11L_XSA4_EMA_PartialRoPE_LateQAT_1.1248/README.md)"
+    },
+    {
+      "Run": "11L XSA4 + EMA + Int6 MLP3x",
+      "Score": 1.1271,
+      "Author": "jfprincz",
+      "Summary": "On PR #198: XSA on the last 4 layers + EMA replacing SWA",
+      "Date": "2026-03-20",
+      "Info": "[info](records/track_10min_16mb/2026-03-20_11L_XSA4_EMA_Int6_MLP3x_WD04_1.1271/README.md)"
+    },
+    {
+      "Run": "11L Efficient Partial XSA",
+      "Score": 1.1307,
+      "Author": "unnir",
+      "Summary": "On PR #198: Efficient Partial XSA on the deepest 3 layers",
+      "Date": "2026-03-20",
+      "Info": "[info](records/track_10min_16mb/2026-03-20_11L_EfficientPartialXSA_FA3_SWA120/README.md)"
+    },
+    {
+      "Run": "10L Int5-MLP + BigramHash(10240)",
+      "Score": 1.1428,
+      "Author": "thwu1",
+      "Summary": "10 layers, mixed int5/int6 quantization, BigramHash(10240), SWA(0.4), WD=0.04",
+      "Date": "2026-03-20",
+      "Info": "[info](records/track_10min_16mb/2026-03-20_10L_Int5MLP_MuonWD04_SWA50/README.md)"
+    },
+    {
+      "Run": "Int6 MLP3x + SmearGate + BigramHash",
+      "Score": 1.1458,
+      "Author": "Raahil Shah",
+      "Summary": "3x MLP + SmearGate + BigramHash + OrthoInit + Muon WD + SWA",
+      "Date": "2026-03-20",
+      "Info": "[info](records/track_10min_16mb/2026-03-20_Int6_MLP3x_SmearGate_BigramHash_MuonWD_SWA/README.md)"
+    },
+    {
+      "Run": "11L MLP3x + Int6 QAT",
+      "Score": 1.1502,
+      "Author": "aruniyer",
+      "Summary": "11 layers, 3x MLP, int6 QAT, zstd-22, WD=0.04, sliding eval",
+      "Date": "2026-03-20",
+      "Info": "[info](records/track_10min_16mb/2026-03-19_MLP3x_QAT_Int6_SlidingWindow/README.md)"
+    },
+    {
+      "Run": "SmearGate + OrthoInit + Muon WD",
+      "Score": 1.1556,
+      "Author": "aquariouseworkman",
+      "Summary": "SmearGate + BigramHash + 3x MLP + int6 STE QAT + sliding eval",
+      "Date": "2026-03-19",
+      "Info": "[info](records/track_10min_16mb/2026-03-19_smeargate_orthoinit_muonwd/README.md)"
+    },
+    {
+      "Run": "Ternary Quantization",
+      "Score": 1.157,
+      "Author": "Ciprian-Florin Ifrim",
+      "Summary": "73.7M params quantized to 1 0 -1 + misc arch changes",
+      "Date": "2026-03-24",
+      "Info": "[info](records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/README.md)"
+    },
+    {
+      "Run": "10L Int6 QAT + Zstd MLP2.6x",
+      "Score": 1.1586,
+      "Author": "yahya010",
+      "Summary": "10 layers, int6 QAT + zstd-22, MLP 1344, Muon 0.99, sliding eval",
+      "Date": "2026-03-19",
+      "Info": "[info](records/track_10min_16mb/2026-03-19_Seq2048_FP16Emb_TunedLR/README.md)"
+    },
+    {
+      "Run": "Mixed Quant + Sliding Window Eval",
+      "Score": 1.163,
+      "Author": "aquariouseworkman",
+      "Summary": "Int6 block weights + int8 embeddings + 3x MLP + sliding eval",
+      "Date": "2026-03-19",
+      "Info": "[info](records/track_10min_16mb/2026-03-19_MixedQuant_Int6Int8_SlidingWindow/README.md)"
+    },
+    {
+      "Run": "Muon WD + 10 layer",
+      "Score": 1.1748,
+      "Author": "notapplica",
+      "Summary": "Includes prev. wins + Spectral embed init + resid mix",
+      "Date": "2026-03-19",
+      "Info": "[info](records/track_10min_16mb/2026-03-19_SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit/README.md)"
+    },
+    {
+      "Run": "Sliding Window Eval",
+      "Score": 1.1925,
+      "Author": "Matthew Li",
+      "Summary": "Sliding window evaluation at stride=64, increasing context for eval",
+      "Date": "2026-03-19",
+      "Info": "[info](records/track_10min_16mb/2026-03-19_SlidingWindowEval/README.md)"
+    },
+    {
+      "Run": "Lora TTT",
+      "Score": 1.1928,
+      "Author": "samacqua",
+      "Summary": "Test-time training with LORAs",
+      "Date": "2026-03-19",
+      "Info": "[info](records/track_10min_16mb/2026-03-17_LoRA_TTT/README.md)"
+    },
+    {
+      "Run": "4k seq length",
+      "Score": 1.2014,
+      "Author": "Spokane Way",
+      "Summary": "4k seq length + better hypers",
+      "Date": "2026-03-19",
+      "Info": "[info](records/track_10min_16mb/2026-03-19_TrainingOptSeq4096/README.md)"
+    },
+    {
+      "Run": "2048 seq length",
+      "Score": 1.206,
+      "Author": "Spokane Way",
+      "Summary": "2048 seq length (train + val)",
+      "Date": "2026-03-18",
+      "Info": "[info](records/track_10min_16mb/2026-03-18_LongContextSeq2048/README.md)"
+    },
+    {
+      "Run": "int6 mixed precision",
+      "Score": 1.2147,
+      "Author": "Nan Liu",
+      "Summary": "10 layers, mixed int8/int6",
+      "Date": "2026-03-18",
+      "Info": "[info](records/track_10min_16mb/2026-03-19_10L_MixedPrecision/README.md)"
+    },
+    {
+      "Run": "fp16 Embed",
+      "Score": 1.2197,
+      "Author": "Renier Velazco",
+      "Summary": "FP16 Tied Embedding + LR/Warmdown Tuning",
+      "Date": "2026-03-18",
+      "Info": "[info](records/track_10min_16mb/2026-03-18_FP16Embed_WD3600/README.md)"
+    },
+    {
+      "Run": "Naive Baseline",
+      "Score": 1.2244,
+      "Author": "Baseline",
+      "Summary": "9layer 512dim 1024vocab TiedEmbeddings 4 KV heads",
+      "Date": "2026-03-18",
+      "Info": "[info](records/track_10min_16mb/2026-03-17_NaiveBaseline/README.md)"
+    }
+  ],
+  "latest_logs": [
+    {
+      "name": "diag_export_n1_tb16k_20260418_020049.txt",
+      "timestamp": "2026-04-18T02:09:35.552421"
+    }
+  ],
+  "last_updated": "2026-04-18T08:49:27.940971",
+  "project_name": "Parameter Golf",
+  "description": "OpenAI Model Craft Challenge: Train the best 16MB model in under 10 minutes."
+}

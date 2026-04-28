@@ -1,0 +1,38 @@
+# AI Agent Restrictive Ignore File
+# Focus ONLY on core training and conversion logic
+
+# Archive and legacy directories
+_archive/
+logs/
+scratch/
+records/
+
+# Data and large assets
+data/
+
+# Secondary scripts (already archived, but safety first)
+*.sh
+!run_god_tier_skc.sh
+
+# Temporary / cache files
+__pycache__/
+.runtime_cache/
+.DS_Store
+
+# Hidden folders
+.claude/
+
+# Ignore everything except these core files:
+# train_gpt_verbose.py
+# train_gpt.py
+# triton_kernels.py
+# build_submission.py
+# extract_competition.py
+# run_god_tier_skc.sh
+# requirements.txt
+# README.md
+# LICENSE
+# THIRD_PARTY_NOTICES.md
+# .runpod_secret.sh
+# .gitignore
+# .cursorignore
