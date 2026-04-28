@@ -1,6 +1,6 @@
 {
   "anchor": "phi^2 + phi^-2 = 3",
-  "generated_at": "2026-04-27T18:43:31Z",
+  "generated_at": "2026-04-28T15:09:58Z",
   "generator": "tri-railway snapshot fleet",
   "version": "1.0.0",
   "accounts": [
@@ -19,21 +19,6 @@
           "name": "trios-train-seed-221-L2-jepat"
         },
         {
-          "createdAt": "2026-04-27T06:11:12.110Z",
-          "id": "0f0a948f-c457-4f4c-b5c7-a5ef96fcf9e9",
-          "name": "trios-train-seed-100"
-        },
-        {
-          "createdAt": "2026-04-27T14:35:16.506Z",
-          "id": "10994ca5-3079-4d1f-81c4-4c4be0ac97b5",
-          "name": "igla-final-seed-44"
-        },
-        {
-          "createdAt": "2026-04-27T06:11:22.881Z",
-          "id": "20b0fcef-b6da-4853-94b7-b1cc27cbd406",
-          "name": "trios-train-seed-102"
-        },
-        {
           "createdAt": "2026-04-27T11:35:27.500Z",
           "id": "3abc18da-91d6-4377-8cf2-ebcdd6e6aae4",
           "name": "trios-mcp-public"
@@ -44,44 +29,14 @@
           "name": "trios-train-seed-242-L4-h2000"
         },
         {
-          "createdAt": "2026-04-27T11:10:39.900Z",
-          "id": "47b49b66-60b8-459a-a78d-843e43014b1e",
-          "name": "igla-trainer-seed-100"
-        },
-        {
-          "createdAt": "2026-04-27T10:43:24.662Z",
-          "id": "4c7aadec-48ab-47bc-8694-ee0ce8239ebf",
-          "name": "trios-train-seed-47"
-        },
-        {
           "createdAt": "2026-04-27T11:12:28.986Z",
           "id": "7941c83a-deba-4958-a658-754ddfeda2ab",
           "name": "igla-trainer-seed-102"
         },
         {
-          "createdAt": "2026-04-27T11:12:29.101Z",
-          "id": "8479b05a-b42f-4adb-bea9-742a817d5985",
-          "name": "igla-trainer-seed-101"
-        },
-        {
           "createdAt": "2026-04-27T18:01:22.600Z",
           "id": "861b9501-1003-4d39-8382-266bf6638316",
           "name": "trios-train-seed-212-L1-attnbw"
-        },
-        {
-          "createdAt": "2026-04-27T14:35:16.543Z",
-          "id": "89e5243d-800a-4e9b-b2da-3299c0b9d619",
-          "name": "igla-final-seed-42"
-        },
-        {
-          "createdAt": "2026-04-24T09:01:52.727Z",
-          "id": "8b90e9a5-33cb-4a7d-b68e-658c6d183fca",
-          "name": "trios-dwagent"
-        },
-        {
-          "createdAt": "2026-04-27T06:11:20.601Z",
-          "id": "8e1c7858-5c38-43bc-8015-23c46aaa1ee2",
-          "name": "trios-train-seed-101"
         },
         {
           "createdAt": "2026-04-27T18:02:03.281Z",
@@ -94,19 +49,19 @@
           "name": "trios-train-seed-210-L1-attnbw"
         },
         {
+          "createdAt": "2026-04-28T08:48:10.503Z",
+          "id": "b84f7b81-fbc3-4de4-8df9-edcdc16ed399",
+          "name": "trios-railway"
+        },
+        {
           "createdAt": "2026-04-27T18:01:59.907Z",
           "id": "c9c5324d-20cc-4799-8aba-16078d40fa41",
           "name": "trios-train-seed-240-L4-h2000"
         },
         {
-          "createdAt": "2026-04-27T10:43:32.798Z",
-          "id": "cb10efd7-9bdb-44c3-91c3-a81a6ac38dbe",
-          "name": "trios-train-seed-48"
-        },
-        {
-          "createdAt": "2026-04-27T10:43:19.418Z",
-          "id": "d4d96b6a-a22c-47a6-8a73-6826a09874ec",
-          "name": "trios-train-seed-46"
+          "createdAt": "2026-04-28T08:13:19.034Z",
+          "id": "db786a4b-5a79-4643-b915-e9184680cf97",
+          "name": "trios-railway-mcp"
         },
         {
           "createdAt": "2026-04-27T18:01:22.728Z",
@@ -114,19 +69,14 @@
           "name": "trios-train-seed-222-L2-jepat"
         },
         {
-          "createdAt": "2026-04-27T14:35:16.569Z",
-          "id": "e9779d8f-88ce-47f2-a56d-60d7d84016c6",
-          "name": "igla-final-seed-43"
-        },
-        {
           "createdAt": "2026-04-27T18:01:22.979Z",
           "id": "eb9d7525-6d7d-49f8-9e50-5a91b6837a3d",
           "name": "trios-train-seed-220-L2-jepat"
         },
         {
-          "createdAt": "2026-04-27T04:29:29.151Z",
-          "id": "f29473a2-09d6-4c18-bcc3-f5bb8cab2f42",
-          "name": "igla-trainer-seed-43"
+          "createdAt": "2026-04-28T11:39:14.358Z",
+          "id": "f6318414-9551-4a82-8f32-50993229493a",
+          "name": "seed-agent-001"
         },
         {
           "createdAt": "2026-04-27T18:01:22.560Z",
@@ -134,7 +84,7 @@
           "name": "trios-train-seed-211-L1-attnbw"
         }
       ],
-      "service_count": 24
+      "service_count": 14
     },
     {
       "alias": "acc1",
@@ -162,6 +112,11 @@
           "name": "guacamole-railway"
         },
         {
+          "createdAt": "2026-04-27T19:41:42.693Z",
+          "id": "5e2785ff-037d-43f1-91c5-c739c2535ad3",
+          "name": "trios-train-seed-251-L4lite-h768"
+        },
+        {
           "createdAt": "2026-04-27T14:34:23.001Z",
           "id": "63a8a01d-59db-47ea-bb1b-f4f2c450865b",
           "name": "iglaB-seed-43"
@@ -177,9 +132,19 @@
           "name": "guacd"
         },
         {
+          "createdAt": "2026-04-27T19:42:10.075Z",
+          "id": "9c7f2026-b032-4f8b-9ab8-2e04835e9985",
+          "name": "trios-train-seed-252-L4lite-h768"
+        },
+        {
           "createdAt": "2026-04-27T14:34:06.840Z",
           "id": "c6675e56-64c6-4629-bf65-c4da77cda6e0",
           "name": "iglaB-seed-42"
+        },
+        {
+          "createdAt": "2026-04-27T19:41:06.916Z",
+          "id": "f1c6afd6-f1a1-42ed-89da-25a01de85834",
+          "name": "trios-train-seed-250-L4lite-h768"
         },
         {
           "createdAt": "2026-04-27T14:34:43.989Z",
@@ -187,7 +152,7 @@
           "name": "iglaB-seed-44"
         }
       ],
-      "service_count": 6
+      "service_count": 9
     },
     {
       "alias": "acc2",
@@ -225,6 +190,6 @@
   "totals": {
     "accounts": 2,
     "projects": 4,
-    "services": 34
+    "services": 27
   }
 }
