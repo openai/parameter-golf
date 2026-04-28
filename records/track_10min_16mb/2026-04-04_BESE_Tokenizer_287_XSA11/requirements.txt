@@ -1,0 +1,2 @@
+# FlashAttention 3 must be installed separately; see README.md
+# No sentencepiece needed — BESE tokenizer is self-contained
