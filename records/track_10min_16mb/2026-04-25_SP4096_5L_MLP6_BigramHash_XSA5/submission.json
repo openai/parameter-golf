@@ -1,0 +1,11 @@
+{
+    "author": "Blitzo125",
+    "github_id": "Blitzo125",
+    "name": "SP4096 5L MLP6 BigramHash XSA5, val_bpb=1.1636",
+    "blurb": "5-layer model with SP4096 tokenizer, 6x MLP expansion, BigramHash embeddings (dim=256, kaiming init), full XSA on all 5 layers, Brotli-11 compression, partial RoPE (32/64 dims), GPTQ-lite calibrated clipping, seq_len=2048",
+    "date": "2026-04-25T00:00:00Z",
+    "val_loss": 2.67752839,
+    "val_bpb": 1.16362299,
+    "bytes_total": 15753699,
+    "bytes_code": 69973
+}
