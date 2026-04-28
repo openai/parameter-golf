@@ -1,6 +1,6 @@
 {
   "anchor": "phi^2 + phi^-2 = 3",
-  "generated_at": "2026-04-28T18:51:45Z",
+  "generated_at": "2026-04-28T19:53:36Z",
   "generator": "tri-railway snapshot fleet",
   "version": "1.0.0",
   "accounts": [
@@ -19,6 +19,16 @@
           "name": "trios-train-seed-221-L2-jepat"
         },
         {
+          "createdAt": "2026-04-28T19:47:07.348Z",
+          "id": "21d8f361-d07c-464d-b62b-7ccb2a48adc1",
+          "name": "seed-agent-005"
+        },
+        {
+          "createdAt": "2026-04-28T19:47:07.383Z",
+          "id": "2c4a4651-22e0-44a1-8ea5-3ab2435174a1",
+          "name": "seed-agent-003"
+        },
+        {
           "createdAt": "2026-04-27T11:35:27.500Z",
           "id": "3abc18da-91d6-4377-8cf2-ebcdd6e6aae4",
           "name": "trios-mcp-public"
@@ -27,6 +37,16 @@
           "createdAt": "2026-04-27T18:02:18.995Z",
           "id": "3de0f6ad-48da-46cb-a795-04a0e2df59d1",
           "name": "trios-train-seed-242-L4-h2000"
+        },
+        {
+          "createdAt": "2026-04-28T19:41:18.421Z",
+          "id": "4235a9de-c538-4efb-b120-5738e1af10a5",
+          "name": "needle-champ-1597"
+        },
+        {
+          "createdAt": "2026-04-28T19:47:07.307Z",
+          "id": "6fd81cb8-771a-4412-9304-4d2f0857fdf2",
+          "name": "seed-agent-002"
         },
         {
           "createdAt": "2026-04-27T11:12:28.986Z",
@@ -44,9 +64,19 @@
           "name": "trios-train-seed-241-L4-h2000"
         },
         {
+          "createdAt": "2026-04-28T19:47:24.335Z",
+          "id": "9f3832b0-8e4d-4de5-beae-f49cb67d878c",
+          "name": "seed-agent-007"
+        },
+        {
           "createdAt": "2026-04-27T18:00:10.500Z",
           "id": "a2a24d1c-5b79-402a-a37f-83cee21a65c6",
           "name": "trios-train-seed-210-L1-attnbw"
+        },
+        {
+          "createdAt": "2026-04-28T19:47:07.335Z",
+          "id": "b6684e36-3e13-42ba-9e38-0828bae5b9ea",
+          "name": "seed-agent-006"
         },
         {
           "createdAt": "2026-04-28T08:48:10.503Z",
@@ -69,6 +99,11 @@
           "name": "trios-train-seed-222-L2-jepat"
         },
         {
+          "createdAt": "2026-04-28T19:47:07.357Z",
+          "id": "e8f3d3f0-4a57-4a3d-9d4b-27fbb2c563fa",
+          "name": "seed-agent-004"
+        },
+        {
           "createdAt": "2026-04-27T18:01:22.979Z",
           "id": "eb9d7525-6d7d-49f8-9e50-5a91b6837a3d",
           "name": "trios-train-seed-220-L2-jepat"
@@ -84,7 +119,7 @@
           "name": "trios-train-seed-211-L1-attnbw"
         }
       ],
-      "service_count": 14
+      "service_count": 21
     },
     {
       "alias": "acc1",
@@ -190,6 +225,6 @@
   "totals": {
     "accounts": 2,
     "projects": 4,
-    "services": 27
+    "services": 34
   }
 }
