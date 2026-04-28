@@ -2,23 +2,24 @@
   "name": "Score-First TTT + PPM-D Byte Mixture + QK-Gain 5.25",
   "author": "G3sparky (Gavin Saunders)",
   "github_id": "G3sparky",
-  "date": "2026-04-27T12:00:00Z",
+  "date": "2026-04-28T07:00:00Z",
   "val_bpb": 0.9946,
-  "bytes_total": 15997374,
-  "bytes_code": 19877,
-  "blurb": "Legal score-first TTT (3-epoch SGD per chunk) + PPM-D byte mixture (order-5, binary-lambda gate). Neural-only TTT BPB 1.0807, PPM-D mixture pushes to 0.9944. 8xH100 SXM, 3-seed mean 0.9946 BPB (std 0.0002). Built on SP8192 + 3-layer depth recurrence + parallel residuals + QK-Gain 5.25.",
-  "val_bpb_std": 0.0002,
+  "bytes_total": 15996616,
+  "bytes_code": 20092,
+  "blurb": "Legal score-first TTT (2-epoch SGD per chunk) + PPM-D byte mixture (order-5, binary-lambda gate). Neural-only TTT BPB 1.0807, PPM-D mixture pushes to 0.9942. 8xH100 SXM, 3-seed mean 0.9946 BPB (std 0.0003). Void fraction compass diagnostic (0.510). Built on SP8192 + 3-layer depth recurrence + parallel residuals + QK-Gain 5.25.",
+  "val_bpb_std": 0.0003,
   "seeds": {
-    "42": {"mix_bpb": 0.9944, "ttt_bpb": 1.0807, "sliding_bpb": 1.0820, "quantized_bpb": 1.0986, "artifact_bytes": 15997374},
-    "314": {"mix_bpb": 0.9947, "ttt_bpb": 1.0812, "sliding_bpb": 1.0826, "quantized_bpb": 1.0992, "artifact_bytes": 15997007},
-    "999": {"mix_bpb": 0.9948, "ttt_bpb": 1.0813, "sliding_bpb": 1.0827, "quantized_bpb": 1.0994, "artifact_bytes": 15997375}
+    "42": {"mix_bpb": 0.9942, "ttt_bpb": 1.0807, "sliding_bpb": 1.0818, "quantized_bpb": 1.0984, "artifact_bytes": 15995530, "void_fraction": 0.5105, "ttt_eval_seconds": 387},
+    "314": {"mix_bpb": 0.9947, "ttt_bpb": 1.0812, "sliding_bpb": 1.0825, "quantized_bpb": 1.0992, "artifact_bytes": 15996616, "void_fraction": 0.5107, "ttt_eval_seconds": 351},
+    "999": {"mix_bpb": 0.9948, "ttt_bpb": 1.0814, "sliding_bpb": 1.0826, "quantized_bpb": 1.0992, "artifact_bytes": 15995718, "void_fraction": 0.5103, "ttt_eval_seconds": 350}
   },
   "hardware": "8xH100 80GB SXM",
   "training_time_seconds": 588,
   "key_changes": [
-    "Legal score-first TTT: 3-epoch SGD per chunk on quantized model (Issue #1017 C3 compliant)",
+    "Legal score-first TTT: 2-epoch SGD per chunk on quantized model (Issue #1017 C3 compliant)",
     "PPM-D byte mixture: order-5 PPM-D with binary-lambda gate (0.05/0.9 at conf 0.9)",
-    "LZMA-compressed self-extracting code wrapper",
+    "Void fraction compass: post-TTT diagnostic (stable ~0.510 across all seeds)",
+    "Deterministic LZMA bootstrap: source captured at startup, 20,092 bytes",
     "Brotli-11 model compression"
   ],
   "base": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25"
