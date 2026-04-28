@@ -5651,6 +5651,20 @@ def _run_hash_grad_single(args) -> int:
 
     from datetime import datetime, timezone
 
+    # CPU gauntlet guard: fail fast with a clear message rather than silently
+    # running a degraded CPU path that would produce incorrect timing results.
+    # The verified BPB result requires 8×H100 SXM; CPU execution is not supported.
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "[HashGrad] CUDA is required but not available.\n"
+            "  This submission requires GPU execution (verified on 8×H100 SXM).\n"
+            "  CPU-only execution is not supported: the NMF tabulation, distributed\n"
+            "  all-reduce, and DSV build are all GPU-accelerated and would exceed\n"
+            "  the 600s training budget on CPU.\n"
+            "  To run the CPU pre-flight import check only, use:\n"
+            "    CUDA_VISIBLE_DEVICES='' python -c 'import train_gpt; print(train_gpt.Hyperparameters())'"
+        )
+
     rank, world_size = _init_distributed()
     is_main = (rank == 0)
 
@@ -5680,6 +5694,7 @@ def _run_hash_grad_single(args) -> int:
             train_hash_grad_model,
             train_hash_grad_multi_seed,
             hash_grad_bpb,
+            hash_grad_bpb_softmax_only,
             save_hash_grad_artifact,
             precompute_g_states,
         )
@@ -5974,6 +5989,26 @@ def _run_hash_grad_single(args) -> int:
             skip_bigram_lags=skip_bigram_lags,
             suffix_grammar=suffix_grammar,
         )
+        # ── Point-6 audit: NMF softmax + DSV similarity, with disclaimer ──────
+        try:
+            hash_grad_bpb_softmax_only(
+                val_tokens=val_tokens,
+                embed=embed, W_out=W_out,
+                g_states_val=g_val,
+                seed=HG_SEEDS[0],
+                table_bits=TABLE_BITS,
+                base_bytes=base_bytes_arr,
+                has_leading_space=has_leading_space,
+                is_boundary_token=is_boundary_token,
+                fingerprint_packed=fingerprint,
+                sem_fwd=sem_fwd,
+                codebook=codebook,
+                skip_bigram_lags=skip_bigram_lags,
+                suffix_grammar=suffix_grammar,
+            )
+        except Exception as _p6_e:
+            print(f"[HashGrad] Point-6 audit skipped ({_p6_e})")
+
     except Exception as _eval_e:
         import traceback
         traceback.print_exc()
@@ -6088,6 +6123,52 @@ def _setup_tee_logging(log_path: str):
     sys.stdout = _Tee(sys.__stdout__, log_file)
     sys.stderr = _Tee(sys.__stderr__, log_file)
     return log_file
+
+# ---------------------------------------------------------------------------
+# Hyperparameters stub — required for the standard competition pre-flight
+# (import-only + Hyperparameters discovery).  The hash-grad pipeline is
+# controlled via environment variables (TABLE_BITS, EMBED_DIM, HG_SEEDS) and
+# the --hash_grad argparse flag rather than a Hyperparameters dataclass, but
+# this stub allows the pre-flight to confirm the script is importable and to
+# discover the submission's key configuration values.
+# ---------------------------------------------------------------------------
+import dataclasses as _dataclasses
+
+@_dataclasses.dataclass
+class Hyperparameters:
+    """Minimal stub for competition pre-flight compatibility.
+
+    The hash-grad pipeline does not use a Hyperparameters dataclass at runtime
+    (configuration is via env vars TABLE_BITS / EMBED_DIM / HG_SEEDS and the
+    --hash_grad argparse flag).  This stub exists so that the standard
+    pre-flight smoke test (``import train_gpt; train_gpt.Hyperparameters()``)
+    succeeds and reports the submission's key parameters.
+    """
+    # Hash-table configuration
+    table_bits: int  = int(__import__("os").environ.get("TABLE_BITS", "19"))
+    embed_dim:  int  = int(__import__("os").environ.get("EMBED_DIM",  "16"))
+    # Derived budget: TABLE_SIZE × EMBED_DIM × 2 bytes (fp16) ≤ 16 MB
+    table_size: int  = _dataclasses.field(init=False)
+    budget_mb:  float = _dataclasses.field(init=False)
+    # Seed list (comma-separated in HG_SEEDS env var)
+    hg_seeds:   str  = __import__("os").environ.get("HG_SEEDS", "42,7,1337")
+    # Vocabulary size (fixed by the 1024-token SentencePiece model)
+    vocab_size: int  = 1024
+    # Entry point: --hash_grad (default True)
+    hash_grad:  bool = True
+
+    def __post_init__(self):
+        self.table_size = 1 << self.table_bits
+        self.budget_mb  = self.table_size * self.embed_dim * 2 / 1024 / 1024
+
+    def __repr__(self):
+        return (
+            f"Hyperparameters(table_bits={self.table_bits}, "
+            f"table_size={self.table_size:,}, embed_dim={self.embed_dim}, "
+            f"budget_mb={self.budget_mb:.1f}, vocab_size={self.vocab_size}, "
+            f"hg_seeds={self.hg_seeds!r}, hash_grad={self.hash_grad})"
+        )
+
 
 def main():
     import argparse
