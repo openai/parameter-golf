@@ -1,6 +1,6 @@
 # GPT-2 Inspired Model Optimization for the 10-Minute, 16MB Track
 
-**Author:** trung
+**Author:** Quân group HCMUS
 
 ## 1. Introduction
 This submission aims to maximize language modeling performance under the strict constraints of the `track_10min_16mb` challenge. Achieving top-tier Byte-Per-Token (BPB) scores within a maximum of 10 minutes of wall-clock training time and a strict 16.0 MB storage limit for the final serialized artifact requires aggressive optimization across three fronts: architecture layout, training dynamics, and post-training quantization. This approach explores how parallelizing residual streams and effectively routing information deep into the network can push the boundaries of cross-entropy loss under these extreme constraints.
