@@ -1662,6 +1662,12 @@ class GPT(nn.Module):
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
+            # SmearGate BOS Fix (PR #1851 @aquariouseworkman, audit @cocohearts):
+            # mask gate to zero at any position where current token is BOS, so
+            # the last token of doc N does NOT smear into BOS of doc N+1.
+            # Model-quality fix; preserves causality.
+            bos_mask = (input_ids[:, 1:] == 1).unsqueeze(-1)
+            g = g.masked_fill(bos_mask, 0.0)
             x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -1754,11 +1760,14 @@ class GPT(nn.Module):
 
     def forward_ttt(self, input_ids, target_ids, lora):
         x = self.tok_emb(input_ids)
-        # SmearGate on the TTT path — same inline compute as forward_logits.
+        # SmearGate on the TTT path — same inline compute as forward_logits,
+        # including the PR #1851 BOS fix.
         if self.smear_gate_enabled:
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
+            bos_mask = (input_ids[:, 1:] == 1).unsqueeze(-1)
+            g = g.masked_fill(bos_mask, 0.0)
             x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
