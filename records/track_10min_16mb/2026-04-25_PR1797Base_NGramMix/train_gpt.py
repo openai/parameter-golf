@@ -2941,6 +2941,11 @@ def _compress(data, compressor):
     data = _byte_shuffle(data)
     if compressor == "lzma":
         return lzma.compress(data, preset=6)
+    elif compressor == "lzma9":
+        # Extreme preset: dramatically slower (1-3 min for ~16 MB) but
+        # typically 5-15% smaller than brotli q=11 on quantized weight blobs.
+        # Used by Phase O when brotli output is just over the 16 MB cap.
+        return lzma.compress(data, preset=9 | lzma.PRESET_EXTREME)
     elif compressor == "brotli":
         import brotli
 
@@ -2949,7 +2954,7 @@ def _compress(data, compressor):
 
 
 def _decompress(data, compressor):
-    if compressor == "lzma":
+    if compressor in ("lzma", "lzma9"):
         raw = lzma.decompress(data)
     elif compressor == "brotli":
         import brotli
