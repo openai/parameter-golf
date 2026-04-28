@@ -733,6 +733,15 @@ def quantize_small_float_tensor(t: Tensor):
     q = torch.clamp(torch.round(t.float() / scale), -127, 127).to(torch.int8)
     return q, torch.tensor(scale, dtype=torch.float16)
 
+def quantize_scale_tensor(s: Tensor):
+    max_val = float(s.max().item()) if s.numel() else 0.0
+    step = max(max_val / 255.0, 1e-8)
+    q = torch.clamp(torch.round(s.float() / step), 1, 255).to(torch.uint8)
+    return q, torch.tensor(step, dtype=torch.float16)
+
+def dequantize_scale_tensor(q: Tensor, step: Tensor) -> Tensor:
+    return q.float() * float(step.item())
+
 def dequantize_q_tensor(q: Tensor, s: Tensor) -> Tensor:
     if s.ndim > 0:
         return q.float() * s.float().view(q.shape[0], *[1] * (q.ndim - 1))
@@ -746,7 +755,7 @@ def reconstruct_quantized_tensor(name, result, meta):
         return result[name + ".small_q"].float() * float(result[name + ".small_scale"].item())
     if "passthrough" in info:
         return result[name].float()
-    s = result[name + ".scale"]
+    s = dequantize_scale_tensor(result[name + ".scale_q"], result[name + ".scale_step"]) if name + ".scale_q" in result else result[name + ".scale"]
     q = result[name + ".q"]
     t = dequantize_q_tensor(q, s)
     if name + ".u" in result and name + ".v" in result:
@@ -769,8 +778,14 @@ def gptq_mixed_quantize(state_dict, hessians, args):
                 meta[name] = "passthrough (float16)"
             continue
         if name not in hessians:
-            result[name] = t.to(torch.float16)
-            meta[name] = "passthrough (missing hessian)"
+            if t.numel() >= 128:
+                q_small, s_small = quantize_small_float_tensor(t)
+                result[name + ".small_q"] = q_small
+                result[name + ".small_scale"] = s_small
+                meta[name] = "small-float int8 (missing hessian)"
+            else:
+                result[name] = t.to(torch.float16)
+                meta[name] = "passthrough (missing hessian)"
             continue
         quant_cat = classify_quant_param(name)
         if quant_cat == "embed":
@@ -784,7 +799,12 @@ def gptq_mixed_quantize(state_dict, hessians, args):
             bits = args.matrix_bits
         q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1)
         result[name + ".q"] = q
-        result[name + ".scale"] = s
+        if s.numel() >= 128:
+            sq, ss = quantize_scale_tensor(s)
+            result[name + ".scale_q"] = sq
+            result[name + ".scale_step"] = ss
+        else:
+            result[name + ".scale"] = s
         if should_apply_qres(name, args):
             deq = dequantize_q_tensor(q, s)
             u, v = low_rank_residual(t.float() - deq, args.qres_rank)
