@@ -727,17 +727,57 @@ def low_rank_residual(residual, rank):
     v = (root_s[:, None] * Vh[:rank, :]).to(torch.float16)
     return u, v
 
+def pack_int6_tensor(q: Tensor) -> Tensor:
+    q_np = q.detach().cpu().contiguous().numpy().reshape(-1).astype(np.int16, copy=False)
+    if q_np.size == 0:
+        return torch.empty(0, dtype=torch.uint8)
+    if q_np.min() < -32 or q_np.max() > 31:
+        raise ValueError("int6 packing expects values in [-32, 31]")
+    u = (q_np + 32).astype(np.uint8, copy=False)
+    pad = (-u.size) % 4
+    if pad:
+        u = np.pad(u, (0, pad), constant_values=0)
+    groups = u.reshape(-1, 4).astype(np.uint32, copy=False)
+    packed = np.empty(groups.shape[0] * 3, dtype=np.uint8)
+    packed[0::3] = (groups[:, 0] | ((groups[:, 1] & 0x03) << 6)).astype(np.uint8)
+    packed[1::3] = ((groups[:, 1] >> 2) | ((groups[:, 2] & 0x0F) << 4)).astype(np.uint8)
+    packed[2::3] = ((groups[:, 2] >> 4) | (groups[:, 3] << 2)).astype(np.uint8)
+    return torch.from_numpy(packed.copy())
+
+def unpack_int6_tensor(packed: Tensor, shape: tuple[int, ...]) -> Tensor:
+    packed_np = packed.detach().cpu().contiguous().numpy().reshape(-1).astype(np.uint8, copy=False)
+    if packed_np.size == 0:
+        return torch.empty(shape, dtype=torch.int8)
+    if packed_np.size % 3 != 0:
+        raise ValueError("Packed int6 tensor must have byte length divisible by 3")
+    groups = packed_np.reshape(-1, 3).astype(np.uint32, copy=False)
+    unpacked = np.empty(groups.shape[0] * 4, dtype=np.uint8)
+    unpacked[0::4] = (groups[:, 0] & 0x3F).astype(np.uint8)
+    unpacked[1::4] = (((groups[:, 0] >> 6) & 0x03) | ((groups[:, 1] & 0x0F) << 2)).astype(np.uint8)
+    unpacked[2::4] = (((groups[:, 1] >> 4) & 0x0F) | ((groups[:, 2] & 0x03) << 4)).astype(np.uint8)
+    unpacked[3::4] = ((groups[:, 2] >> 2) & 0x3F).astype(np.uint8)
+    n = math.prod(shape)
+    q_np = unpacked[:n].astype(np.int16, copy=False) - 32
+    return torch.from_numpy(q_np.reshape(shape).astype(np.int8, copy=False))
+
+def dequantize_q_tensor(q: Tensor, s: Tensor) -> Tensor:
+    if s.ndim > 0:
+        return q.float() * s.float().view(q.shape[0], *[1] * (q.ndim - 1))
+    return q.float() * float(s.item())
+
 def reconstruct_quantized_tensor(name, result, meta):
     info = meta.get(name)
     if info is None:
         return None
     if "passthrough" in info:
         return result[name].float()
-    q, s = result[name + ".q"], result[name + ".scale"]
-    if s.ndim > 0:
-        t = q.float() * s.float().view(q.shape[0], *[1] * (q.ndim - 1))
+    s = result[name + ".scale"]
+    if name + ".q_packed" in result:
+        shape = tuple(int(v) for v in result[name + ".q_shape"].tolist())
+        q = unpack_int6_tensor(result[name + ".q_packed"], shape)
     else:
-        t = q.float() * float(s.item())
+        q = result[name + ".q"]
+    t = dequantize_q_tensor(q, s)
     if name + ".u" in result and name + ".v" in result:
         t = t + result[name + ".u"].float() @ result[name + ".v"].float()
     return t
@@ -766,17 +806,21 @@ def gptq_mixed_quantize(state_dict, hessians, args):
             cs = args.matrix_clip_sigmas
             bits = args.matrix_bits
         q, s = gptq_quantize_weight(t, hessians[name], clip_sigmas=cs, clip_range=2 ** (bits - 1) - 1)
-        result[name + ".q"] = q
         result[name + ".scale"] = s
+        if bits == 6:
+            result[name + ".q_packed"] = pack_int6_tensor(q)
+            result[name + ".q_shape"] = torch.tensor(q.shape, dtype=torch.int32)
+        else:
+            result[name + ".q"] = q
         if should_apply_qres(name, args):
-            deq = reconstruct_quantized_tensor(name, result, {name: f"gptq (int{bits})"})
+            deq = dequantize_q_tensor(q, s)
             u, v = low_rank_residual(t.float() - deq, args.qres_rank)
             if u is not None and v is not None:
                 result[name + ".u"] = u
                 result[name + ".v"] = v
-                meta[name] = f"gptq+qres (int{bits}+r{u.shape[1]})"
+                meta[name] = f"gptq+qres (int{bits}{' packed' if bits == 6 else ''}+r{u.shape[1]})"
                 continue
-        meta[name] = f"gptq (int{bits})"
+        meta[name] = f"gptq (int{bits}{' packed' if bits == 6 else ''})"
     categories = collections.defaultdict(set)
     for name, cat in meta.items():
         short = re.sub(r"\.\d+$", "", re.sub(r"blocks\.\d+", "blocks", name))
