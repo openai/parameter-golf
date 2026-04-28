@@ -1,0 +1,16 @@
+{
+  "author": "Ivan Verbovoy",
+  "github_id": "iverbovoy",
+  "name": "Depth Recurrence + Int7 Mixed Quantization + Parallel Hedge Mixer",
+  "blurb": "3 shared blocks x 4 repeats (12 effective layers) with MLP 3x (d=880), progressive depth (2->3->4 repeats), int7 attention (63 levels) + int5 MLP (16 levels) mixed quantization, 8-GPU parallel Hedge Mixer eval. Key finding: int7 is the sweet spot for attention quantization — recovers 98% of int8 hedge quality while saving 2MB for a wider model. 5 seeds tested, 3-seed mean reported.",
+  "date": "2026-04-08T00:00:00Z",
+  "val_loss": 1.91197327,
+  "val_bpb": 1.13237601,
+  "roundtrip_val_bpb": 1.21676461,
+  "sliding_val_bpb": 1.18335612,
+  "seeds": [1337, 42, 7],
+  "mean_steps": 4342,
+  "wallclock_seconds": 600,
+  "eval_seconds": 164,
+  "bytes_model_int8_zstd22": 15403955
+}
