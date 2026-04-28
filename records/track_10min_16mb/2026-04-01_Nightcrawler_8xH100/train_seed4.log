@@ -1,0 +1,99 @@
+============================================
+  BW11_5Flat — 5F+1C depth
+  BW8 + NUM_FLAT_LAYERS=5
+  seed=4  GPUs=8  wallclock=600s
+  Log: /workspace/parameter-golf/crawler/2026-04-01_BW11_5Flat/results/BW11_5Flat_s4_20260401_034202.log
+============================================
+
+W0401 03:42:05.620000 71028 torch/distributed/run.py:803]
+W0401 03:42:05.620000 71028 torch/distributed/run.py:803] *****************************************
+W0401 03:42:05.620000 71028 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0401 03:42:05.620000 71028 torch/distributed/run.py:803] *****************************************
+logs/f6035bc8-6725-41cc-b8ae-cce554fb7448.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:16889396
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:relu_sq mlp_leaky_slope:0.5 crawler_mlp_leaky_slope:0.5 crawler_mlp_choke_dim:0 choke_shape:flat choke_groups:8 crawler_loop_smear:False crawler_tap_dim:32 crawler_tap_loop_specific:False crawler_tap_layers:all crawler_loop_rope_scales:(9, 1, 1)
+XSA:last_11 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.03
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 fullgraph=1 optimize_ddp=0
+ddp:find_unused_parameters=1
+seed:4
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9290 val_bpb:4.1037 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9307 train_time:125ms step_avg:124.91ms
+step:2/20000 train_loss:8.8659 train_time:195ms step_avg:97.74ms
+step:3/20000 train_loss:7.6456 train_time:267ms step_avg:89.15ms
+step:4/20000 train_loss:7.4091 train_time:346ms step_avg:86.49ms
+step:5/20000 train_loss:7.2223 train_time:428ms step_avg:85.51ms
+step:6/20000 train_loss:7.0321 train_time:512ms step_avg:85.26ms
+step:7/20000 train_loss:6.9123 train_time:596ms step_avg:85.12ms
+step:8/20000 train_loss:6.8108 train_time:680ms step_avg:85.02ms
+step:9/20000 train_loss:6.4711 train_time:765ms step_avg:84.98ms
+step:10/20000 train_loss:6.0974 train_time:851ms step_avg:85.09ms
+step:500/20000 train_loss:2.4736 train_time:42491ms step_avg:84.98ms
+step:1000/20000 train_loss:2.3384 train_time:85028ms step_avg:85.03ms
+step:1500/20000 train_loss:2.2809 train_time:127510ms step_avg:85.01ms
+step:2000/20000 train_loss:2.1204 train_time:169964ms step_avg:84.98ms
+step:2500/20000 train_loss:2.2231 train_time:212400ms step_avg:84.96ms
+step:3000/20000 train_loss:2.2193 train_time:254792ms step_avg:84.93ms
+step:3500/20000 train_loss:2.2391 train_time:297154ms step_avg:84.90ms
+step:4000/20000 train_loss:2.0513 train_time:339521ms step_avg:84.88ms
+step:4000/20000 val_loss:2.1402 val_bpb:1.2675 train_time:339522ms step_avg:84.88ms
+step:4500/20000 train_loss:2.2139 train_time:381829ms step_avg:84.85ms
+step:5000/20000 train_loss:2.2119 train_time:424231ms step_avg:84.85ms
+step:5500/20000 train_loss:2.1213 train_time:466768ms step_avg:84.87ms
+step:6000/20000 train_loss:2.0282 train_time:509170ms step_avg:84.86ms
+step:6500/20000 train_loss:2.1718 train_time:551562ms step_avg:84.86ms
+swa:start step:6700
+step:7000/20000 train_loss:1.8665 train_time:593811ms step_avg:84.83ms
+step:7074/20000 val_loss:2.0053 val_bpb:1.1877 train_time:600019ms step_avg:84.82ms
+stopping_early: wallclock_cap train_time:600019ms step:7074/20000
+peak memory allocated: 17931 MiB reserved: 18270 MiB
+gptq:SKIPPED (SKIP_GPTQ=1) — using naive int6
+ema:SKIPPED (SKIP_EMA=1) — using live model weights
+DIAGNOSTIC post_ema val_loss:2.0053 val_bpb:1.1877 eval_time:1677ms
+Serialized model: 65616841 bytes
+Code size: 119294 bytes
+Serialized model int6+zstd: 10146844 bytes
+Total submission size int6+zstd: 10266138 bytes
+Total submission size int8+zlib: 10266138 bytes
+final_int6_roundtrip val_loss:2.0264 val_bpb:1.2002 eval_time:5209ms
+final_int6_roundtrip_exact val_loss:2.02644402 val_bpb:1.20017430
+final_int6_sliding_window val_loss:1.9869 val_bpb:1.1768 stride:64 eval_time:62065ms
+final_int6_sliding_window_exact val_loss:1.98690625 val_bpb:1.17676091
+final_int8_zlib_roundtrip_exact val_loss:1.98690625 val_bpb:1.17676091
+
+============================================
+  RESULT — BW11_5Flat seed=4
+  raw_bpb:     1.1877
+  int6_sw_bpb: 1.17676091
+  step_avg:    84.82ms
+  bytes:       10266138  (limit 16000000)
+  log:         /workspace/parameter-golf/crawler/2026-04-01_BW11_5Flat/results/BW11_5Flat_s4_20260401_034202.log
+
+  Champion:    1.18672385 BPB (BW5)
+============================================
+  checkpoint: /workspace/parameter-golf/checkpoints/BW11_5Flat_s4_20260401_035416_bpb1.17676091.pt

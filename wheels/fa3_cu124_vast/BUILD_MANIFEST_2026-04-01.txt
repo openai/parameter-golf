@@ -1,0 +1,8 @@
+artifact=flash_attn_3-3.0.0-cp39-abi3-linux_x86_64.whl
+built_on=Vast.ai instance 33982828
+ssh=root@206.125.32.60:59891
+gpu=8x H100 80GB HBM3
+torch=2.4.1+cu124
+cuda=12.4
+flags=FLASH_ATTENTION_DISABLE_HDIM96,FLASH_ATTENTION_DISABLE_FP8,FLASH_ATTENTION_DISABLE_VARLEN,FLASH_ATTENTION_DISABLE_SM80
+status=import_verified_on_build_pod
