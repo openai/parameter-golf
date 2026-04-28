@@ -36,26 +36,6 @@
 - **Hymba-strict topology with full-Mamba-2+BG (0025/0026)**: lost; but kill+no-BG triple-parallel wins (0051). Topology + base architecture are interactive; don't re-test parallel-everywhere with full-Mamba-2.
 - **NUM_LAYERS=11** (0019 archive): +0.0025 noise. Depth ceiling at 200 steps.
 
-## 2026-04-28 · OUTSIDE-EYES CRITIQUE · session drifted from thread-2 exploration to N-gram-axis polish
-
-Reviewer subagent (uncontaminated by my anchoring) flagged:
-
-1. **The session plan's anti-pattern materialized**: thread 2 was meant to explore SNN / temporal-rank / 1-bit-per-param / dendritic candidates. I did UU#1 (capacity), UU#4 (PR), UU#6 (static dict) — and then spent the rest of the session deep inside UU#6's neighborhood (K-sweep, K=3+K=4, per-context α, gate, HSM, EMA). The bold (d)/(e)/(f) candidates from the brief — dendritic N-gram with stored codebook, spike-rank body, dendrocentric layer — sit untouched. **Static-dictionary win is real; thread-2 exploration didn't happen.** Six experiments tuning the same mechanism is exactly the trap the brief warned about.
-
-2. **σ widening with stacking**: σ_pair grew 0051 family 0.0030 → 0069 family 0.0053 → 0076 family 0.0061. Δ between 0069 and 0076 is +0.0085 (~1.4σ at 2-seed precision). 0051 was 4-seed-confirmed; 0076 is only 2-seed. Stacking another mechanism with σ widening makes the next +0.004 win statistically indistinguishable from noise. **Should 4-seed-confirm 0076 before further stacking.**
-
-3. **Offline→production calibration gap unaddressed**: per-context α offline predicted -0.014, production gave -0.005 (65% gap). Attributed to "int8 α quant + cross-seed variance" and moved on. But the same offline pipeline is being used to design future variants. Future-research grade question: is this gap systematic or stochastic?
-
-4. **H100 transfer caveat carried forward without test**: every thread-2 promote carries `[transfer:medium]` with the same predicted -0.01 to -0.02 BPB at H100. Stacked four mechanisms with this caveat. Cumulative MPS gain -0.054; estimated cumulative H100 gain -0.02. The 0051 architecture (-0.083) was framed as higher-transfer.
-
-5. **UU#4's rank=5 finding under-used**: PR=5.4 at final block said hidden states cluster around effectively 5 directions. HSM (0073) tested 32 buckets × 5 bits and failed via gradient sparsity. The rank=5 result suggests FEWER, DENSER keys (e.g., 16 keys × full d_model with attention-style readout) might escape the sparsity trap. That's the brief's (d) candidate with empirical motivation that the static side-memory didn't have. PARKED.
-
-6. **Thread 1 mostly skipped**: brotli was the only port. AR self-gen GPTQ int6 is COMPLEMENTARY to side memory (frees cap for more contexts) — high-EV unbuilt. EMA, mini-depth-recurrence, sliding-window eval, REPEAT_UNTIE_MLP — all parked. Cheap parking_lot items (per-head B/C, depthwise conv1d) untested.
-
-**Takeaway for next session**: this session got extremely good at one game (entropy-weighted blends over a static N-gram dictionary) and the marginal Δ is shrinking (-0.045 → -0.005 → -0.004) while σ is widening — geometry of having mined out an axis. Two threads + six bold candidates were named; ~10% of the surface explored. The next move is **a math-and-code commitment in a direction the static-N-gram lessons don't cover** — UU#1 + UU#4 already gave the tools.
-
-**Why I didn't pivot mid-session**: anchored on the static-side-memory win and chasing marginal stacks. The reviewer caught this exactly. For next session: spawn outside-eyes EARLIER — by experiment 4 of any axis, not at hour 7.
-
 ## Open questions (next session priorities)
 
 **Standing brief — read first**: `scratch/2026-04-28_session_planning.md` defines the current research arc. **2026-04-28 session update**: thread 1 only completed brotli + 0065 + 0066 + 0078/0079 (EMA pending). Thread 2 drilled UU#6 axis (static side memory) and produced a clean -0.054 BPB win at the headline (0076 promoted, 2-seed mean 1.9514). But the brief's bold candidates (d) dendritic codebook, (e) full spike-rank body, (f) dendrocentric layer remained UNTOUCHED — outside-eyes critique 2026-04-28 07:30 named this as the "axis-mining" anti-pattern. **Next session priority is bold-axis pivot, not more side-memory variants.**
@@ -91,6 +71,26 @@ Parked sub-bets (not the current arc, but worth keeping on radar):
 7. **Conv1d mechanism refinement** [MEDIUM EV, code]: depthwise vs dense conv ablation; tests whether channel-specificity is what makes conv1d load-bearing. Walk 22:22 speculation.
 
 ## Entries (newest first)
+
+## 2026-04-28 · OUTSIDE-EYES CRITIQUE · session drifted from thread-2 exploration to N-gram-axis polish
+
+Reviewer subagent (uncontaminated by my anchoring) flagged:
+
+1. **The session plan's anti-pattern materialized**: thread 2 was meant to explore SNN / temporal-rank / 1-bit-per-param / dendritic candidates. I did UU#1 (capacity), UU#4 (PR), UU#6 (static dict) — and then spent the rest of the session deep inside UU#6's neighborhood (K-sweep, K=3+K=4, per-context α, gate, HSM, EMA). The bold (d)/(e)/(f) candidates from the brief — dendritic N-gram with stored codebook, spike-rank body, dendrocentric layer — sit untouched. **Static-dictionary win is real; thread-2 exploration didn't happen.** Six experiments tuning the same mechanism is exactly the trap the brief warned about.
+
+2. **σ widening with stacking**: σ_pair grew 0051 family 0.0030 → 0069 family 0.0053 → 0076 family 0.0061. Δ between 0069 and 0076 is +0.0085 (~1.4σ at 2-seed precision). 0051 was 4-seed-confirmed; 0076 is only 2-seed. Stacking another mechanism with σ widening makes the next +0.004 win statistically indistinguishable from noise. **Should 4-seed-confirm 0076 before further stacking.**
+
+3. **Offline→production calibration gap unaddressed**: per-context α offline predicted -0.014, production gave -0.005 (65% gap). Attributed to "int8 α quant + cross-seed variance" and moved on. But the same offline pipeline is being used to design future variants. Future-research grade question: is this gap systematic or stochastic?
+
+4. **H100 transfer caveat carried forward without test**: every thread-2 promote carries `[transfer:medium]` with the same predicted -0.01 to -0.02 BPB at H100. Stacked four mechanisms with this caveat. Cumulative MPS gain -0.054; estimated cumulative H100 gain -0.02.
+
+5. **UU#4's rank=5 finding under-used**: PR=5.4 at final block said hidden states cluster around effectively 5 directions. HSM (0073) tested 32 buckets × 5 bits and failed via gradient sparsity. The rank=5 result suggests FEWER, DENSER keys (e.g., 16 keys × full d_model with attention-style readout) might escape the sparsity trap. That's the brief's (d) candidate with empirical motivation that the static side-memory didn't have. PARKED.
+
+6. **Thread 1 mostly skipped**: brotli was the only port. AR self-gen GPTQ int6 is COMPLEMENTARY to side memory (frees cap for more contexts) — high-EV unbuilt. EMA, mini-depth-recurrence, sliding-window eval, REPEAT_UNTIE_MLP — all parked.
+
+**Takeaway for next session**: this session got extremely good at one game (entropy-weighted blends over a static N-gram dictionary) and the marginal Δ is shrinking (-0.045 → -0.005 → -0.004) while σ is widening — geometry of having mined out an axis. Two threads + six bold candidates were named; ~10% of the surface explored. The next move is **a math-and-code commitment in a direction the static-N-gram lessons don't cover** — UU#1 + UU#4 already gave the tools.
+
+**Why I didn't pivot mid-session**: anchored on the static-side-memory win and chasing marginal stacks. The reviewer caught this exactly. For next session: spawn outside-eyes EARLIER — by experiment 4 of any axis, not at hour 7.
 
 ## 2026-04-28 · PROMOTE · 0069/0072 combined K=3+K=4 static side-memory wins, 2-seed mean 1.9599
 
