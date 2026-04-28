@@ -30,6 +30,12 @@ Happy training!
 
 | Run | Score | Author | Summary | Date | Info |
 |-----|------:|--------|---------|------|------|
+| GatedAttn + Alpha-Scaled LoRA + Warm-Start A + WD=1.0 | 1.0708 | renqianluo | On PR #1784: gated attention plus alpha-scaled LoRA TTT, warm-start A, and WD=1.0 on the post-#1667 lineage | 2026-04-23 | [info](https://github.com/openai/parameter-golf/pull/1784) |
+| SmearGate + Attention Output Gate + Legal TTT | 1.0714 | MarioPaerle | On PR #1667: SmearGate, attention output gate, depth recurrence, parallel residuals, QK-Gain 5.25, quantization, and score-first TTT | 2026-04-16 | [info](https://github.com/openai/parameter-golf/pull/1667) |
+| VarLen Attention + Fused MLP + Multi-Phase Global SGD TTT | 1.0719 | dexhunter | On PR #1626: VarLen attention, fused MLP, multi-phase global SGD TTT, trimmed GPTQ, MLR 0.026, int7 embeddings, and adaptive clip | 2026-04-14 | [info](https://github.com/openai/parameter-golf/pull/1626) |
+| VarLenAttn + PhasingTTT | 1.0728 | romeerp | On PR #1610: #1530-style VarLen/fused stack plus phased TTT over already-scored validation chunks | 2026-04-13 | [info](https://github.com/openai/parameter-golf/pull/1610) |
+| VarLen Attention + Fused MLP + Doc-Independent Legal TTT | 1.0734 | samacqua | On PR #1530: variable-length FA3 attention, fused Triton MLP, grouped small-parameter all-reduces, and doc-independent score-first LoRA TTT | 2026-04-11 | [info](https://github.com/openai/parameter-golf/pull/1530) |
+| Asymmetric Two-Lane Parallel Routing + Tap-In V6 + Legal TTT | 1.0739 | Abay Bektursun | On PR #1518: two-lane parallel residual routing, Tap-In V6 prefix n-gram eval nudge, and score-first legal TTT | 2026-04-12 | [info](https://github.com/openai/parameter-golf/pull/1518) |
 | SP8192 + 3-Layer Recurrence + Parallel Residuals + Legal TTT | 1.0810 | bigbag | On PR #1493: 3-layer recurrence, parallel residuals, QK-Gain 5.25, and legal score-first TTT on the PR #1394 stack | 2026-04-09 | [info](records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT/README.md) |
 | SP8192 + Parallel Residuals + Score-First TTT | 1.0822 | aryanbhosale | On PR #1477: parallel residuals on the PR #1413 SP8192 + legal score-first TTT stack | 2026-04-08 | [info](records/track_10min_16mb/2026-04-08_SP8192_ParallelResid_ScoreFirstTTT/README.md) |
 | SP8192 + QK-Gain 5 + Legal Score-First TTT | 1.0828 | dexhunter | On PR #1413: QK-Gain 5.0 + legal score-first TTT on the PR #1394 SP8192 stack | 2026-04-06 | [info](records/track_10min_16mb/2026-04-06_SP8192_QK5_LegalTTT_1.0828/README.md) |
