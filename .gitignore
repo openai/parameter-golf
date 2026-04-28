@@ -9,3 +9,12 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# Local training outputs
+*.pt
+*.ptz
+*.pth
+*.bin
+*.zst
+*.log
+/logs/
