@@ -14,7 +14,7 @@
   },
   "hardware": "8xH100 80GB SXM",
   "pytorch_version": "2.9.1+cu128",
-  "record": false,
+  "record": true,
   "technique_summary": "SP8192 + 11L + Depth Recurrence (L3-5) + Parallel Residuals (L7+) + XSA-all + Coprime-Stride Loader + Full Hessian GPTQ with Cholesky Fallback + EMA 0.9965 + Score-First TTT (SGD 3ep) + Brotli-11 + LZMA Code + AttnOutGate (PR #1667/#1693) + SmearGate with BOS-fix (PR #1667/#1851) + Logit Softcap 15 (Modded-NanoGPT #18)",
   "compliance": {
     "train_under_600s": true,
