@@ -48,6 +48,52 @@ Additional compliance:
 - **No pre-quant TTT on val data.** Score-first phased TTT only (PR #1413 lineage).
 - **No external network access** at eval time. Tokenizer unchanged from PR #1854's CaseOps SP8192.
 
+## Normalization proof (Eppie / mhuen / abaybektursun litmus)
+
+Issue #677 surfaced a class of invalid submissions where (a) the predictive distribution did not sum to 1 over the full token vocabulary Σ, or (b) the byte denominator was inflated by tokenizer encoding artifacts. The headline `val_bpb` reported here is clean on both axes. The explicit checks:
+
+**(1) Full-vocab normalization over Σ.** The headline number is produced by the standard token-level path in `eval_val()` and the score-first phased TTT path. Per token position `t`:
+
+```python
+per_token_loss = F.cross_entropy(logits.reshape(-1, V), y.reshape(-1), reduction="none")
+val_loss_sum  += per_token_loss.to(torch.float64).sum()
+```
+
+`F.cross_entropy` is `−log softmax(logits)[y]` over the full V=8192 vocabulary. The softmax distribution sums to 1 by construction. There is no "score the correct token only" shortcut, no hash-bucket-only normalization, no eval-built n-gram cache contributing to the headline metric, and no `np.where(match, blend, p_model)` of the kind Eppie flagged in #913 / #933 / #944. The `_ppm_mixture_bpb` function is in the file but its output (`mix_bpb`) is **not** the reported number — see "Note on byte-PPM mixture" above.
+
+**(2) Byte denominator equals original UTF-8 bytes.** The CaseOps tokenizer transforms text by inserting private-use sentinels `..` (each 3 UTF-8 bytes) that mark capitalization. Naïve `len(piece.encode("utf-8"))` would charge those sentinel bytes and inflate the denominator, lowering `val_bpb` artificially — the same class of bug that closed PR #1184 (Scylla, "byte accounting bug in candidate.meta.npz", per author's own closing comment).
+
+This submission **bypasses** the inflated path. With `CASEOPS_ENABLED=1`, `eval_val` reads per-token original-byte counts from a precomputed sidecar (`fineweb_val_bytes_*.bin`, identical shard layout to `fineweb_val_*.bin`):
+
+```python
+# train_gpt.py:2618-2626
+if val_data.caseops_enabled and val_data.val_bytes is not None:
+    sidecar_slice = val_data.val_bytes[raw_start + 1 : raw_end].to(...)
+    val_byte_count += sidecar_slice.to(torch.float64).sum()
+```
+
+The sidecar is built in `prepare_caseops_data.py:_byte_counts`. That function:
+
+1. iterates the transformed string char by char,
+2. **skips** the four case-op sentinels,
+3. accumulates UTF-8 byte length only of non-sentinel characters into a prefix sum `prefix[]`,
+4. attributes `prefix[end] − prefix[start]` original bytes to each token piece's surface span.
+
+By telescoping, `Σ_i sidecar[i] = prefix[len(transformed)] = Σ_(non-sentinel char) utf8_bytes(char) = len(original_text.encode("utf-8"))`. BOS tokens are assigned 0 bytes (correct: they correspond to no original characters). The reported `val_bpb` is therefore `total_NLL_nats / (Σ_i sidecar[i] · ln 2)`, where the denominator is the actual UTF-8 byte length of the original validation text — not the inflated transformed-text byte length.
+
+**(3) Eppie's reconstruction litmus.** The 16 MB artifact (compressed model + `train_gpt.py` + `lossless_caps.py` + `prepare_caseops_data.py` + tokenizer model) plus the published validation token stream can reconstruct the original validation text byte-for-byte: `decode_lossless_caps_v2(sp.decode(val_tokens))` is the exact inverse of the `prepare_caseops_data.py` pipeline. The reported BPB therefore corresponds to a real arithmetic-coding rate over the original UTF-8 stream, not over a transformed/inflated stream and not over an under-normalized auxiliary distribution.
+
+**(4) One-line reviewer reproduction.** To verify the byte denominator independently, after running data prep:
+
+```python
+import glob, numpy as np
+def _shard(f):
+    n = int(np.fromfile(f, dtype=np.int32, count=256)[2])
+    return np.fromfile(f, dtype=np.uint16, count=n, offset=256*4)
+total_sidecar = sum(int(_shard(f).sum()) for f in sorted(glob.glob("data/.../fineweb_val_bytes_*.bin")))
+# total_sidecar should equal len(original_validation_text.encode("utf-8"))
+```
+
 ## Compute & artifact compliance
 
 | Item | Value | Limit | Margin |
