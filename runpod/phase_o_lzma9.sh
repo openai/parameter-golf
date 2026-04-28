@@ -84,8 +84,9 @@ export TTT_WARM_START_A=1 EMBED_BITS=7 MIN_LR=0.1 MATRIX_LR=0.026
 export MATRIX_CLIP_SIGMAS=12.85 ATTN_CLIP_SIGMAS=13.0
 export GPTQ_RESERVE_SECONDS=4.0 GPTQ_CALIBRATION_BATCHES=16  # bump back to 4s for slower lzma9 serialize
 export PHASED_TTT_PREFIX_DOCS=2500 PHASED_TTT_NUM_PHASES=3
-# 9-hparam stack (Phase G's full set)
-export MLP_CLIP_SIGMAS=11.5
+# 9-hparam stack but with Phase N's BPB-winning MLP_CLIP=10 (gives 1.05812
+# seed-42 vs Phase G's 1.05969 mean). Combined with lzma9 below to fit cap.
+export MLP_CLIP_SIGMAS=10.0
 export EMBED_CLIP_SIGMAS=14.0
 export WARMDOWN_FRAC=0.85
 export BETA2=0.99
