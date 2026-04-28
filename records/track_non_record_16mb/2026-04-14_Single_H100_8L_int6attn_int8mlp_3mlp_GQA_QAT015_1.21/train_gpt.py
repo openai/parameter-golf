@@ -37,7 +37,7 @@ class Hyperparameters:
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 100000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 100))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
+    eval_stride = int(os.environ.get("EVAL_STRIDE", 96))
     eval_batch_seqs = int(os.environ.get("EVAL_BATCH_SEQS", 32))
     iterations = int(os.environ.get("ITERATIONS", 50000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
