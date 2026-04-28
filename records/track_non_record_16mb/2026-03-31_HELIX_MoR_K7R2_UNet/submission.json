@@ -1,0 +1,17 @@
+{
+  "author": "helix-team",
+  "github_id": "helix-team",
+  "name": "HELIX MoR K7R2 U-Net (3 Seeds)",
+  "blurb": "Non-record 8xH100 MoR experiment with K=7 unique blocks and R=2 recurrence. Best seed reached 1.3663 BPB on final int6 sliding-window roundtrip (1.3105 with legal TTT), with a 7,274,404-byte artifact.",
+  "date": "2026-03-31T21:42:21Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.30698875,
+  "val_bpb": 1.3663323,
+  "pre_quant_val_loss": 2.1654,
+  "pre_quant_val_bpb": 1.2824,
+  "step_stop": 1393,
+  "wallclock_seconds": 600.548,
+  "bytes_total": 7274404,
+  "bytes_model_int8_zlib": 7182636,
+  "bytes_code": 91768
+}
