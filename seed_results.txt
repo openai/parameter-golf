@@ -1,0 +1,3 @@
+Seed Results — Tue Apr 14 11:21:39 UTC 2026
+Config: QK_GAIN_INIT=5.5, TRAIN_SEQ_LEN=8192, NUM_KV_HEADS=2
+======================================================

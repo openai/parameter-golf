@@ -552,11 +552,6 @@ def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
 
 
-# Check PyTorch version for enable_gqa support (added in 2.5.0)
-_TORCH_VERSION = tuple(int(x) for x in torch.__version__.split(".")[:2])
-_SDPA_SUPPORTS_GQA = _TORCH_VERSION >= (2, 5)
-
-
 class CausalSelfAttention(nn.Module):
     def __init__(
         self,
@@ -596,20 +591,14 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        use_gqa = (self.num_kv_heads != self.num_heads)
-        if use_gqa and not _SDPA_SUPPORTS_GQA:
-            # PyTorch < 2.5: manually expand K/V to match Q heads
-            groups = self.num_heads // self.num_kv_heads
-            k = k.repeat_interleave(groups, dim=1)
-            v = v.repeat_interleave(groups, dim=1)
-            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, is_causal=True)
-        else:
-            y = F.scaled_dot_product_attention(
-                q, k, v,
-                attn_mask=None,
-                is_causal=True,
-                **({"enable_gqa": use_gqa} if _SDPA_SUPPORTS_GQA else {}),
-            )
+        y = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=None,
+            is_causal=True,
+            enable_gqa=(self.num_kv_heads != self.num_heads),
+        )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
@@ -1135,3 +1124,38 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.11.10 (main, Sep  7 2024, 18:35:41) [GCC 11.4.0]
+Running PyTorch 2.4.1+cu124
+Tue Apr 14 11:21:45 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.127.05             Driver Version: 550.127.05     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:C3:00.0 Off |                    0 |
+| N/A   29C    P0             68W /  400W |     753MiB /  81920MiB |      9%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:15880264
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:2
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:8192 iterations:20000 warmup_steps:20 max_wallclock_seconds:570.000
+seed:1337

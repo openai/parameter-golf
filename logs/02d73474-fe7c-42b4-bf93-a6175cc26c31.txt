@@ -1135,3 +1135,83 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.11.10 (main, Sep  7 2024, 18:35:41) [GCC 11.4.0]
+Running PyTorch 2.4.1+cu124
+Tue Apr 14 11:32:54 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.127.05             Driver Version: 550.127.05     CUDA Version: 12.4     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  |   00000000:C3:00.0 Off |                    0 |
+| N/A   29C    P0             59W /  400W |       4MiB /  81920MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17059912
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9344 val_bpb:4.1069 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9357 train_time:891ms step_avg:891.44ms
+step:2/20000 train_loss:16.3849 train_time:1841ms step_avg:920.34ms
+step:3/20000 train_loss:10.2324 train_time:2752ms step_avg:917.36ms
+step:4/20000 train_loss:6.9095 train_time:3735ms step_avg:933.73ms
+step:5/20000 train_loss:6.2722 train_time:4685ms step_avg:936.97ms
+step:6/20000 train_loss:6.3311 train_time:5564ms step_avg:927.28ms
+step:7/20000 train_loss:6.1195 train_time:6443ms step_avg:920.49ms
+step:8/20000 train_loss:6.0458 train_time:7363ms step_avg:920.32ms
+step:9/20000 train_loss:5.9978 train_time:8217ms step_avg:912.97ms
+step:10/20000 train_loss:5.9437 train_time:9091ms step_avg:909.12ms
+step:200/20000 train_loss:2.7328 train_time:173253ms step_avg:866.26ms
+step:400/20000 train_loss:2.3531 train_time:350663ms step_avg:876.66ms
+step:600/20000 train_loss:2.4464 train_time:527465ms step_avg:879.11ms
+step:682/20000 val_loss:2.3723 val_bpb:1.4050 train_time:600254ms step_avg:880.14ms
+stopping_early: wallclock_cap train_time:600254ms step:682/20000
+peak memory allocated: 14000 MiB reserved: 14218 MiB
+Serialized model: 67224578 bytes
+Code size: 48310 bytes
+Total submission size: 67272888 bytes
+Serialized model int8+zlib: 11111907 bytes (payload:17178912 raw_torch:17223564 payload_ratio:3.91x)
+Total submission size int8+zlib: 11160217 bytes
+final_int8_zlib_roundtrip val_loss:2.3807 val_bpb:1.4100 eval_time:23096ms
+final_int8_zlib_roundtrip_exact val_loss:2.38069596 val_bpb:1.40998225
