@@ -52,14 +52,18 @@
   },
   "hardware": "8xH100 80GB SXM",
   "pytorch_version": "2.9.1+cu128",
-  "technique_summary": "PR #1735 (AjAnubolu) base + CaseOps Tokenizer (PR #1729 romeerp): SP8192 lossless-case tokenizer with byte sidecar for honest BPB + XSA all layers + 3-Layer Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + LeakyReLU^2 MLP + EMA/SWA + Muon + 8-GPU Parallel Pre-Quant AdamW TTT (21 epochs, epoch-level cosine LR, federated averaging) + full-Hessian GPTQ SDClip int6 + int8 embeddings + Brotli",
+  "technique_summary": "CaseOps V15 integration from PR #1738 (alertcat), combining PR #1735 (AjAnubolu) parallel pre-quant AdamW TTT with PR #1729 (romeerp) CaseOps tokenizer and byte-sidecar BPB accounting: SP8192 lossless-case tokenizer + original-byte sidecars + XSA all layers + 3-layer recurrence (L3-5) + parallel residuals (L7+) + QK-Gain 5.25 + LeakyReLU^2 MLP + EMA/SWA + Muon-family optimization + high-WD compression pressure + 21-epoch 8-GPU pre-quant AdamW TTT + full-Hessian GPTQ SDClip int6 + int8 embeddings + Brotli",
   "attribution": {
-    "pr1735_base": "@AjAnubolu (PR #1735) - Parallel Pre-Quant AdamW TTT",
-    "caseops_tokenizer": "@romeerp (PR #1729) - lossless caps tokenizer + byte sidecar",
-    "depth_recurrence": "@dexhunter (PR #1331)",
-    "parallel_residuals": "@Robby955 (PR #1412)",
-    "qk_gain_525": "@bigbag (PR #1493)",
-    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
-    "v15_integration": "this PR (@alertcat) - byte sidecar support added to PR #1735 stack to enable CaseOps tokenizer"
+    "v15_integration": "@alertcat (PR #1738) - CaseOps V15 integration and byte-sidecar support added to PR #1735 stack",
+    "pr1735_base": "@AjAnubolu (PR #1735) - 8-GPU parallel pre-quant AdamW TTT, 21 epochs, federated averaging, epoch-level cosine LR",
+    "caseops_tokenizer": "@romeerp (PR #1729) - lossless caps tokenizer, public CaseOps dataset/tokenizer export, byte-sidecar BPB accounting",
+    "prequant_ttt_concept": "@stukenov (PR #1364) - pre-quant AdamW TTT concept",
+    "qk_gain_525": "@bigbag (PR #1493) - QK-Gain 5.25 and frontier stack consolidation",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204) - parallel residual lineage",
+    "depth_recurrence": "@dexhunter (PR #1331, PR #1285), @msisovic (PR #1204) - 3-layer recurrence / mini-depth-recurrence lineage",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394, PR #1218, PR #1089, PR #1060) - SP8192, SDClip, GPTQ embedding quantization, compression path",
+    "optimizer_and_training_lineage": "@abaybektursun (PR #1019, PR #549, PR #399), @bigbag (PR #1217), @X-Abhishek-X (PR #1445)",
+    "architecture_lineage": "@parinzee (PR #493), @gowtham0992 (PR #478), @jainpranjal97 (PR #1125), @jfprincz (PR #315), @newjordan (PR #401)",
+    "ttt_and_caseops_lineage": "@Christopher-Lee-McClendon (PR #461), @dexhunter (PR #1626), @samacqua (PR #1530), @romeerp (PR #1610)"
   }
 }
