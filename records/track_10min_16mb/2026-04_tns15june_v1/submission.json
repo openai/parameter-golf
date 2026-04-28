@@ -1,0 +1,11 @@
+{
+  "author": "Tarkeshwar Narayan Sharma",
+  "github_id": "tns15june",
+  "name": "SP8192 Frontier: 11L/4xMLP + TargetedRec + ParallelLaterRes + PartialRoPE + LyrNorm + MuonEq-R + GPTQ+SDClip + Brotli + LegalTTT",
+  "blurb": "11-layer dim=512 x MLP4x on SP8192. Targeted middle recurrence (layers 3..5 x 3, 17 effective). Parallel residuals from later layers (softmax mix). Partial RoPE 25%. LeakyReLU(0.5)^2 MLP. Layerwise RMSNorm scale. QK gain 5.25. MuonEq-R + WD 0.095, matrix LR 0.022, wallclock warmdown frac 0.72. EMA 0.9965. int6 GPTQ with SDClip (k=12.85), int8 amax embeddings. Byte-shuffle + Brotli-11 compression. Legal score-first sliding TTT (lr=0.005, 3 epochs, 32K chunks). Values are auto-filled post-run by dev/fill_submission.py.",
+  "date": "FILL_AFTER_RUN",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "bytes_code": 0
+}
