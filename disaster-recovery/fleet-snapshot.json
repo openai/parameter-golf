@@ -1,6 +1,6 @@
 {
   "anchor": "phi^2 + phi^-2 = 3",
-  "generated_at": "2026-04-29T07:58:25Z",
+  "generated_at": "2026-04-29T09:03:18Z",
   "generator": "tri-railway snapshot fleet",
   "version": "1.0.0",
   "accounts": [
@@ -74,6 +74,11 @@
           "name": "trios-train-seed-210-L1-attnbw"
         },
         {
+          "createdAt": "2026-04-29T08:48:33.345Z",
+          "id": "b15a2743-a23e-4a54-bcf1-86db3eba849f",
+          "name": "mcp-test-cleanup-me"
+        },
+        {
           "createdAt": "2026-04-28T19:47:07.335Z",
           "id": "b6684e36-3e13-42ba-9e38-0828bae5b9ea",
           "name": "seed-agent-006"
@@ -119,7 +124,7 @@
           "name": "trios-train-seed-211-L1-attnbw"
         }
       ],
-      "service_count": 21
+      "service_count": 22
     },
     {
       "alias": "acc1",
@@ -225,6 +230,6 @@
   "totals": {
     "accounts": 2,
     "projects": 4,
-    "services": 34
+    "services": 35
   }
 }
