@@ -1,0 +1,38 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "SP8192 + VarLen Attention + Doc-Independent LoRA TTT + Banking + Muon 0.97 + PyTorch MLP Fallback",
+  "date": "2026-04-11",
+  "track": "10min_16mb",
+  "val_bpb": 1.07747,
+  "val_bpb_std": 0.00064,
+  "seeds": [42, 0, 1337],
+  "seed_results": {
+    "42": {"val_bpb": 1.07687, "val_loss": 2.78166, "artifact_bytes": 15992482},
+    "0": {"val_bpb": 1.07719, "val_loss": 2.78249, "artifact_bytes": 15995179},
+    "1337": {"val_bpb": 1.07835, "val_loss": 2.78549, "artifact_bytes": 15995796}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + VarLen Flash Attention (within-document only) + Doc-Independent LoRA TTT (rank 96) + Parameter Banking (layers 3-5) + Muon 0.97 + Parallel Residuals + GPTQ int6 SDClip + Brotli + PyTorch MLP (no Triton)",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "doc_independent_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "varlen_attention_doc_ttt": "@samacqua (PR #1530)",
+    "parameter_banking": "@EthanYangTW (PR #1523)",
+    "muon_097": "@dexhunter (PR #1514)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549)"
+  }
+}
