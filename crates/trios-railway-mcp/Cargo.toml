@@ -22,7 +22,8 @@ chrono      = { workspace = true }
 
 axum        = "0.8"
 schemars    = "1.0"
-rmcp        = { version = "0.8", features = ["server", "macros", "transport-streamable-http-server"] }
+tokio-util  = "0.7"
+rmcp        = { version = "0.8", features = ["server", "macros", "transport-streamable-http-server", "transport-sse-server"] }
 
 trios-railway-core       = { path = "../trios-railway-core" }
 trios-railway-experience = { path = "../trios-railway-experience" }
