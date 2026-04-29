@@ -1,0 +1,43 @@
+{
+  "author": "MarioPaerle",
+  "github_id": "MarioPaerle",
+  "name": "PR #1886 base + per-block MLP output gate (Linear, weight-learnable)",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_bpb": 1.06872454,
+  "val_bpb_std": 0.00070,
+  "seeds": [42, 1337, 314],
+  "seed_results": {
+    "42":   {"val_bpb": 1.06794764, "artifact_bytes": 15982732},
+    "1337": {"val_bpb": 1.06931760, "artifact_bytes": 15978886},
+    "314":  {"val_bpb": 1.06890838, "artifact_bytes": 15980124}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1886 stack + per-block MLP output gate: Linear(12,1, bias=True) with weight=0/bias=+5 init applied multiplicatively to mlp(...) before residual add (143 new params total, 11 layers x 13). Routing fix: 'mlp_gate' added to CONTROL_TENSOR_NAME_PATTERNS so the (1,12) weight reaches the scalar AdamW group instead of being frozen at zero-init.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "mlp_gate_out_linear_with_routing_fix": "@MarioPaerle (this submission)",
+    "narrow_gate_linear12_bias5_idiom": "@MarioPaerle (PR #1667)",
+    "gated_attention": "@MarioPaerle (PR #1667) / @ClassicLarry (Modded Nano GPT)",
+    "fused_softcap_ce_kernel": "@nprime06 (PR #1787)",
+    "ttt_weight_decay_2": "@renqianluo (PR #1886)",
+    "warm_start_lora_alpha_144_rank_128": "@renqianluo (PR #1767)",
+    "gated_attn_per_head_int8": "@renqianluo (PR #1768), @dexhunter (PR #1736)",
+    "multi_phase_sgd_trimmed_gptq_matrix_lr_026": "@dexhunter (PR #1626)",
+    "varlen_attention_fused_mlp_doc_ttt": "@samacqua (PR #1530)",
+    "phased_ttt": "@romeerp (PR #1610), @dexhunter",
+    "triple_recurrence_parallel_residuals": "@bigbag (PR #1493), @EthanYangTW (PR #1523)",
+    "legal_ttt_framework": "@abaybektursun (PR #549)"
+  }
+}
