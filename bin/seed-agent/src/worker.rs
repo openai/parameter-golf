@@ -94,7 +94,13 @@ async fn run_experiment(
             exp.steps_budget,
             &exp.config,
         )?),
-        other => anyhow::bail!("trainer_kind {other:?} not supported in PR-1"),
+        "external" => Box::new(trainer::ExternalTrainer::new(
+            &exp.canon_name,
+            exp.seed,
+            exp.steps_budget,
+            &exp.config,
+        )?),
+        other => anyhow::bail!("trainer_kind {other:?} not supported (valid: mock, external)"),
     };
 
     let early_stop_cfg = early_stop::EarlyStopConfig {
