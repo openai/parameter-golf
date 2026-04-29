@@ -38,6 +38,7 @@ Filled in as each experiment finishes. `pre` = pre-quantization post-EMA val_bpb
 | 4 | mtp | `MTP_WEIGHT=0.10 MTP_STEPS=1` | 1.11283 | 1.12678 | 1.11018 | **1.09023** | 16,035,001 | 4438/20000 | done — clear regression |
 | 5 | evalloop3 | `EVAL_NUM_LOOPS=3` | — | — | — | — | — | — | running |
 | 6 | wd_paired | `WD_SCHEDULE_ENABLED=1 PAIRED_HEAD_MUON_ENABLED=1` | 1.08610 | 1.09891 | 1.08209 | **1.07974** | 16,029,924 | 4596/20000 | done — small real stack win, see `pr1493_wd_paired_session.md` |
+| 7 | wd_strong_paired | `WD_SCHEDULE_ENABLED=1 PAIRED_HEAD_MUON_ENABLED=1 WD_SCHED_LOW_FACTOR=0.50 WD_SCHED_HIGH_FACTOR=1.75` | 1.08573 | 1.09874 | 1.08194 | **1.07971** | 16,030,578 | 4602/20000 | done — pre-quant edge but no q_ttt stack vs wd_paired, see `pr1493_wd_strong_paired_session.md` |
 
 ## Per-experiment notes
 
