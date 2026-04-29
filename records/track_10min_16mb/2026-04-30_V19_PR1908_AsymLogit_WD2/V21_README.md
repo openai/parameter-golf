@@ -1,23 +1,25 @@
-# V21: PR #1855 stack + AWQ-lite + Asymmetric Logit Rescale — val_bpb 1.05932 (3-seed mean)
+# V21: PR #1855 stack + AWQ-lite + Asymmetric Logit Rescale — val_bpb 1.05943 (3-seed mean, all strict <600s)
 
-**3-seed mean val_bpb: 1.05932** (std 0.00078) | **~15.98 MB** | 8×H100 SXM | full TTT eval
+**3-seed mean val_bpb: 1.05943** (std 0.00064) | **~15.98 MB** | 8×H100 SXM | full TTT eval
 
-**Improvement over current MERGED SOTA (bigbag PR #1493 at 1.0810): −0.02168 BPB / −0.0501 nats**
-**Improvement over current open frontier (PR #1908 romeerp at 1.06081): −0.00149 BPB**
-**Improvement over current cocohearts-merged #1 (PR #1855 codemath3000 at 1.06108): −0.00176 BPB**
+**All 3 seeds strict <600s wallclock (596.045-596.102s)** — addressing community feedback from @aquariouseworkman + @romeerp on initial v1 submission.
+
+**Improvement over current MERGED SOTA (bigbag PR #1493 at 1.0810): −0.02157 BPB / −0.0498 nats**
+**Improvement over current open frontier (PR #1908 romeerp at 1.06081): −0.00138 BPB** (Welch t≈2.18, p≈0.045)
+**Improvement over current cocohearts-merged #1 (PR #1855 codemath3000 at 1.06108): −0.00165 BPB**
 
 ## Results
 
 | Seed | Stop step | Train wallclock | Pre-quant BPB | Quantized BPB | **Post-TTT BPB** | Artifact |
 |------|----------:|----------------:|--------------:|--------------:|-----------------:|---------:|
-| 42   | 4,920 | 602.048s ⚠️ | 1.063930 | 1.072315 | **1.058336** | 15,977,644 |
+| 42   | 4,908 | 596.102s ✅ | 1.064267 | 1.072599 | **1.058675** | 15,981,148 |
 | 0    | 4,880 | 596.057s ✅ | 1.065056 | 1.073377 | **1.059394** | 15,977,881 |
 | 1234 | 4,870 | 596.045s ✅ | 1.065740 | 1.074314 | **1.060243** | 15,986,941 |
-| **Mean** | **4,890** | **598.05s** | **1.064909** | **1.073335** | **1.059324** | **15,980,822** |
+| **Mean** | **4,886** | **596.07s** | **1.065021** | **1.073430** | **1.059434** | **15,981,990** |
 
-**3-seed std: 0.00078 BPB / 0.00171 nats.** Each individual seed beats the merged 1.0810 leaderboard by ≥0.0207 BPB / ≥0.0479 nats.
+**3-seed std: 0.00064 BPB / 0.00141 nats.** Each individual seed beats the merged 1.0810 leaderboard by ≥0.0207 BPB / ≥0.0478 nats.
 
-**Note on seed 42 wallclock**: 602.048s exceeds the 600s cap by 2.048s. This matches the precedent set by PR #1908 (romeerp seed 42 at 601.153s) which was accepted into the chain. Seeds 0 and 1234 use `GPTQ_RESERVE_SECONDS=4.0` (instead of seed 42's 0.5) and finish strictly under 600s.
+**Note on revisions**: Initial v1 submission used `FORCE_STOP_STEP=4920` + `GPTQ_RESERVE_SECONDS=0.5` for seed 42 which produced 602.048s wallclock (borderline, matching PR #1908 seed 42 at 601.153s). Per @aquariouseworkman + @romeerp review (the latter being PR #1908 author who confirmed his own step-matched runs were ablation-only, not record-grade), seed 42 was re-run with `GPTQ_RESERVE_SECONDS=4.0` and no `FORCE_STOP_STEP` (identical config to seeds 0 and 1234). v2 mean 1.05943 vs v1 mean 1.05932 (+0.00011, well within the tighter v2 std of 0.00064). All 3 seeds now strict <600s.
 
 ## Stack: PR #1855 (codemath3000) + PR #1908 quantization + V21 innovation
 

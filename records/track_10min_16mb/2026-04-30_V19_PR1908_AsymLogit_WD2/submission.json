@@ -4,24 +4,24 @@
   "name": "V21: PR #1855 stack + AWQ-lite (PR #1908) + Asymmetric Logit Rescale (PR #1923)",
   "date": "2026-04-30",
   "track": "10min_16mb",
-  "val_bpb": 1.05932347,
-  "val_bpb_std": 0.00077999,
-  "val_loss": 2.32152743,
+  "val_bpb": 1.05943381,
+  "val_bpb_std": 0.00064246,
+  "val_loss": 2.31790007,
   "seeds": [42, 0, 1234],
   "seed_results": {
     "42": {
-      "val_bpb": 1.05833613,
-      "val_loss": 2.31603176,
-      "stop_step": 4920,
-      "train_wallclock_ms": 602048,
-      "eval_time_ms": 459602,
-      "artifact_bytes": 15977644,
-      "pre_quant_val_bpb": 1.06392986,
-      "quantized_val_bpb": 1.07231538,
-      "ttt_recovery_bpb": 0.01397925,
-      "force_stop_step_set": 4920,
-      "gptq_reserve_seconds": 0.5,
-      "wallclock_status": "borderline (602s, matches PR #1908 seed 42 status)"
+      "val_bpb": 1.05867499,
+      "val_loss": 2.31677331,
+      "stop_step": 4908,
+      "train_wallclock_ms": 596102,
+      "eval_time_ms": 524497,
+      "artifact_bytes": 15981148,
+      "pre_quant_val_bpb": 1.06426680,
+      "quantized_val_bpb": 1.07259883,
+      "ttt_recovery_bpb": 0.01392384,
+      "force_stop_step_set": null,
+      "gptq_reserve_seconds": 4.0,
+      "wallclock_status": "strict under 600s"
     },
     "0": {
       "val_bpb": 1.05939426,
@@ -64,20 +64,23 @@
     "no_etlb": true,
     "three_seeds": true,
     "artifact_under_16mb": true,
-    "train_under_600s_strict": "seeds 0 and 1234 strict <600s; seed 42 borderline 602.048s (same status as PR #1908 seed 42 at 601.153s)",
-    "eval_under_600s": "all 3 seeds 414-460s (well under 600s cap)",
-    "lrzip_pergroup_compression": "matches PR #1855 (cocohearts implicitly accepted via PR #1902 leaderboard merge 2026-04-28)"
+    "train_under_600s_strict": "all 3 seeds strict <600s (596.045-596.102s)",
+    "eval_under_600s": "all 3 seeds 414-524s (well under 600s cap)",
+    "lrzip_pergroup_compression": "matches PR #1855 (cocohearts merged into main 2026-04-29)"
   },
   "comparison": {
-    "vs_pr1908_frontier_3seed_mean_1.06081": -0.00149,
-    "vs_pr1855_official_no1_3seed_mean_1.06108": -0.00176,
-    "vs_win_threshold_frontier_minus_floor_1.06021": -0.00089,
-    "vs_merged_sota_bigbag_pr1493_1.0810": -0.02168,
-    "vs_record_threshold_1.0738": -0.01448,
-    "welch_t_test_vs_pr1908_p_one_sided": 0.045
+    "vs_pr1908_frontier_3seed_mean_1.06081": -0.00138,
+    "vs_pr1855_official_no1_3seed_mean_1.06108": -0.00165,
+    "vs_pr1934_liujshi_3seed_mean_1.05993": -0.00050,
+    "vs_pr1935_vimeto_3seed_mean_1.05997": -0.00054,
+    "vs_win_threshold_frontier_minus_floor_1.06021": -0.00078,
+    "vs_merged_sota_bigbag_pr1493_1.0810": -0.02157,
+    "vs_record_threshold_1.0738": -0.01437,
+    "welch_t_test_vs_pr1908_p_one_sided": 0.045,
+    "welch_t_test_vs_pr1934_p_one_sided": 0.22
   },
   "stack_components": {
-    "base_pr1855_codemath3000": "11L XSA + LQER + SparseAttnGate + BOS-fixed SmearGate + PolarNS Muon + 9-hp greedy",
+    "base_pr1855_codemath3000": "11L XSA + LQER + SparseAttnGate + BOS-fixed SmearGate + PolarNS Muon + 9-hp greedy (cocohearts merged 2026-04-29)",
     "quantization_pr1908_romeerp": "AWQ-lite mixed-precision GPTQ (1 group of 64 cols promoted to int8)",
     "innovation_v21_alertcat": "Asymmetric Logit Rescale (PR #1923 jorge-asenjo) at eval path only — adds learnable softcap_pos/softcap_neg, +0.00128 BPB consistent TTT recovery improvement across 3 seeds vs PR #1908",
     "tokenizer_pr1729_romeerp": "sp8192 lossless caps caseops v1 reserved",
@@ -86,6 +89,10 @@
   "hardware": "8xH100 80GB SXM (RunPod, AP-IN-1)",
   "pytorch_version": "2.9.1+cu128",
   "system_dependencies": "lrzip (apt-get install lrzip)",
+  "revisions": {
+    "v1_2026-04-30_03_30": "Initial 3-seed: seed 42 used FORCE_STOP_STEP=4920 + GPTQ_RESERVE=0.5 (wallclock 602.048s borderline). Mean 1.05932.",
+    "v2_2026-04-30_05_50": "After @aquariouseworkman + @romeerp review: re-ran seed 42 with same config as seeds 0+1234 (GPTQ_RESERVE=4.0, no FORCE_STOP_STEP). All 3 seeds now strict <600s. New mean 1.05943, std 0.00064 (tighter than original 0.00078)."
+  },
   "attribution": {
     "pr1855_base_stack": "@codemath3000",
     "pr1908_awq_lite_quantization": "@romeerp",
@@ -98,6 +105,6 @@
     "pr1530_varlen_attn_par_resid_lora_ttt": "@samacqua",
     "pr1344_polar_ns_depth_recurrence": "(community)",
     "pr1610_phased_ttt_originator": "(community)",
-    "v21_integration": "this PR (@alertcat) — V21 stacks PR #1908 quantization + PR #1923 Asymmetric Logit Rescale on PR #1855 base, validated 3-seed independent reproduction"
+    "v21_integration": "this PR (@alertcat) — stacks PR #1908 quantization + PR #1923 Asymmetric Logit Rescale on PR #1855 base, validated 3-seed independent reproduction with all wallclocks strict <600s"
   }
 }
