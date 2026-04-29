@@ -2,7 +2,7 @@
 
 **val_bpb (3-seed mean) = 1.06242** | σ ≈ 0.00013 | **~15.95 MB** | 8×H100 SXM | 600 s training + 600 s eval
 
-A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Billy Li ([@lijuncheng16](https://github.com/lijuncheng16))**, with thanks to **Prof. Hao Lin (Fordham University)** for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used in this submission.
+A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Billy Li ([@lijuncheng16](https://github.com/lijuncheng16))**, with thanks to **Prof. Lin Hao (Fordham University)** for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used in this submission, and **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** for project discussions.
 
 ## TL;DR
 
@@ -164,7 +164,7 @@ A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Bi
 
 With thanks to:
 
-- **Prof. Hao Lin (Fordham University)** — for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used to produce all sweep, training, and microbench results in this record.
+- **Prof. Lin Hao (Fordham University)** — for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used to produce all sweep, training, and microbench results in this record.
 - **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** — for project discussions and for the concurrent auto-research agent infrastructure that drove the Stage 1–7 ablation sweeps in parallel.
 
 Additional credits (technique stack):
