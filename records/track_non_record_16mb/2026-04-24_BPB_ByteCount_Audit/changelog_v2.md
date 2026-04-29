@@ -141,3 +141,28 @@ numbers are unchanged.
 
 See `audit/empirical_validation/run4_summary.md` and
 `audit/empirical_validation/run4_seq_len_1024.py` for detail.
+
+
+## v2.1 third addendum — 2026-04-29 — bug-family decomposition (run 5)
+
+Decomposed yahya's three LUT bugs by constructing eight LUT variants
+(canonical + each bug alone + each pair + all three) and measuring the
+ratio for each. On SP8192 fineweb val, only Bug B (byte_token_wrong_size)
+produces a measurable ratio change (-0.001476). Bugs A (leading_space_plus_one)
+and C (missing_is_unused) are empirically zero on this val — Bug A because
+leading-space tokens never follow boundary tokens by SentencePiece convention
+(run 1.5), Bug C because the vocab has zero `sp.is_unused` tokens.
+
+Implication: yahya's full LUT produces 1.1655 on SP8192 (Bug B alone shifts
+the ratio down from canonical 1.1671 to 1.1655). His quoted 1.1746 is 0.0089
+*above* canonical and cannot be produced from any of his three LUT bugs on
+SP8192. The 0.77% gap between quoted and reproduced lives in tokenizer/val
+state, not in his LUT (run 4 corroboration).
+
+Methodology: introduced the structural-vs-empirical bug distinction in
+`audit/methodology.md` to separate "structural deviation from canonical"
+(static classifier verdict) from "empirical inflation on this val"
+(measurable Δratio). The classifier flags the first; run 5 quantifies
+the second.
+
+See `audit/empirical_validation/run5_summary.md` for detail.

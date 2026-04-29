@@ -1,0 +1,27 @@
+[run5] val: 40,540,803 tokens, vocab: 8192
+[run5] vocab: 256 byte tokens, 0 unused, 5459 leading-space pieces
+
+[run5] canonical       (bugs: none    ) canonical=151,080,878  buggy=176,332,734  ratio=1.1671413109
+[run5] only_bug_a      (bugs: A       ) canonical=151,080,878  buggy=176,332,734  ratio=1.1671413109
+[run5] only_bug_b      (bugs: B       ) canonical=152,426,978  buggy=177,678,834  ratio=1.1656652669
+[run5] only_bug_c      (bugs: C       ) canonical=151,080,878  buggy=176,332,734  ratio=1.1671413109
+[run5] bugs_a_b        (bugs: A+B     ) canonical=152,426,978  buggy=177,678,834  ratio=1.1656652669
+[run5] bugs_a_c        (bugs: A+C     ) canonical=151,080,878  buggy=176,332,734  ratio=1.1671413109
+[run5] bugs_b_c        (bugs: B+C     ) canonical=152,426,978  buggy=177,678,834  ratio=1.1656652669
+[run5] all_three       (bugs: A+B+C   ) canonical=152,426,978  buggy=177,678,834  ratio=1.1656652669
+
+[run5] === decomposition ===
+[run5] canonical (no bugs):  ratio = 1.167141
+[run5] all three bugs:       ratio = 1.165665
+[run5] total inflation:      Δratio = -0.001476
+
+[run5] Per-bug isolated effect on ratio (relative to canonical):
+[run5]   A: leading_space +1   : Δratio = +0.000000  (-0.0% of total)
+[run5]   B: byte_token=6       : Δratio = -0.001476  (+100.0% of total)
+[run5]   C: missing_is_unused  : Δratio = +0.000000  (-0.0% of total)
+
+[run5] Per-bug byte contribution to the canonical denominator:
+[run5]   A: leading_space +1   : Δcanonical_bytes = +0
+[run5]   B: byte_token=6       : Δcanonical_bytes = +1,346,100
+[run5]   C: missing_is_unused  : Δcanonical_bytes = +0
+[run5] Wrote /workspace/agent-pgolf/audit/empirical_validation/run5_bug_decomposition.json

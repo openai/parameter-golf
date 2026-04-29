@@ -199,6 +199,32 @@ not pipeline structure."
 Empirical reproductions at `audit/empirical_validation/run3_yahya_full_lut.py`
 and `audit/empirical_validation/run4_seq_len_1024.py`.
 
+## Structural deviations vs empirical inflations
+
+The classifier flags structural deviations from canonical. Empirical run 5
+distinguishes these from observable inflation on the audited val:
+
+| Bug family | Structural deviation? | Empirical Δratio on SP8192 fineweb val |
+|---|---|---|
+| Bug A — leading_space_plus_one | Yes | 0.000000 |
+| Bug B — byte_token_wrong_size | Yes | -0.001476 |
+| Bug C — missing_is_unused | Yes | 0.000000 |
+
+Bug A is empirically a no-op on this val because leading-space y-tokens never
+follow boundary x-tokens (run 1.5 finding); the LUT-baked +1 produces the
+same byte count as the eval-time +1. Bug C is empirically a no-op because
+the SP8192 vocabulary contains zero `sp.is_unused` tokens. Bug B is the only
+deviation that produces measurable inflation, and it shifts the ratio
+*downward* (canonical 1.1671 → yahya 1.1655) because it inflates the
+canonical denominator by 1,346,100 bytes.
+
+This distinction matters because:
+
+* A structurally-buggy LUT may produce zero inflation on a particular val while still being structurally wrong. Correcting it is appropriate because it would inflate on a different val (e.g. one where leading-space tokens follow boundary tokens, or a vocab with `sp.is_unused` populated).
+* Yahya's quoted 1.1746 is 0.0089 *above* canonical 1.1671. No combination of his three LUT bugs can produce a ratio above canonical's on SP8192 — Bug B shrinks the ratio, Bugs A and C are no-ops. The 0.77% gap between his quoted 1.1746 and our reproduction's 1.1655 cannot live in his LUT structure on this val. By corollary with run 4, it lives in tokenizer/val state we cannot replicate.
+
+Empirical decomposition at `audit/empirical_validation/run5_bug_decomposition.py`.
+
 ### Which variant should a reviewer cite?
 
 * To characterize "what does PR #1727's eval pipeline overcount?" — use
