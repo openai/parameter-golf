@@ -1,0 +1,67 @@
+W0429 11:34:22.946000 4138678 torch/distributed/run.py:852] 
+W0429 11:34:22.946000 4138678 torch/distributed/run.py:852] *****************************************
+W0429 11:34:22.946000 4138678 torch/distributed/run.py:852] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0429 11:34:22.946000 4138678 torch/distributed/run.py:852] *****************************************
+train_shards: 128
+val_tokens: 40863744
+model_params:35831962
+gptq:reserving 4s, effective=596000ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 8.9811 val_bpb: 3.5044
+1/20000 train_loss: 8.9821 train_time: 0.0m tok/s: 13855806
+2/20000 train_loss: 12.3195 train_time: 0.0m tok/s: 11213394
+3/20000 train_loss: 11.2687 train_time: 0.0m tok/s: 9726433
+4/20000 train_loss: 9.4418 train_time: 0.0m tok/s: 9093687
+5/20000 train_loss: 8.2475 train_time: 0.0m tok/s: 8844310
+500/20000 train_loss: 3.2731 train_time: 0.8m tok/s: 7994933
+1000/20000 train_loss: 3.2264 train_time: 1.6m tok/s: 7946090
+1500/20000 train_loss: 3.1560 train_time: 2.5m tok/s: 7931729
+2000/20000 train_loss: 3.1894 train_time: 3.3m tok/s: 7922613
+layer_loop:enabled step:2100 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 2.9711 train_time: 4.4m tok/s: 7384100
+3000/20000 train_loss: 2.5932 train_time: 5.7m tok/s: 6939669
+3500/20000 train_loss: 2.8666 train_time: 6.9m tok/s: 6678501
+4000/20000 train_loss: 2.9198 train_time: 8.1m tok/s: 6494243
+4000/20000 val_loss: 2.8506 val_bpb: 1.1123
+4500/20000 train_loss: 2.8079 train_time: 9.3m tok/s: 6359150
+4775/20000 val_loss: 2.7538 val_bpb: 1.0745
+stopping_early: wallclock_cap train_time: 596106ms step: 4775/20000
+peak memory allocated: 41470 MiB reserved: 47186 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.75255228 val_bpb:1.07403388 eval_time:9796ms
+Serialized model: 135186876 bytes
+Code size (uncompressed): 138859 bytes
+Code size (compressed): 31085 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 3.5s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int8)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
+GPTQ:quantized weights in 13.36s
+Serialized model quantized+brotli: 16833771 bytes
+Total submission size quantized+brotli: 16864856 bytes
+diagnostic quantized val_loss:2.77929413 val_bpb:1.08446843 eval_time:10457ms
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (196.4s)
+
+beginning TTT eval timer
+ttt_phased: total_docs:50000 prefix_docs:2000 suffix_docs:48000 num_phases:1 boundaries:[2000]
