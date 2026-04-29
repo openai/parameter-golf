@@ -3087,6 +3087,7 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
         BOS_ID = 1
     TTT_LORA_EMA_DECAY = float(os.environ.get("TTT_LORA_EMA_DECAY", "0.0"))
     ttt_lora_ema_enabled = TTT_LORA_EMA_DECAY > 0.0
+    TTT_UPDATE_EVERY = int(os.environ.get("TTT_UPDATE_EVERY", "1"))
     base_model.eval()
     for p in base_model.parameters():
         p.requires_grad_(False)
@@ -3284,6 +3285,9 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                 )
             if needs_train:
                 activate_chunk_mask = (num_chunks_t - 1 > ci).float()
+                is_last_trained_chunk = (ci == max_nc - 2)
+                is_update_step = (ci % TTT_UPDATE_EVERY == TTT_UPDATE_EVERY - 1) or is_last_trained_chunk
+                is_window_start = (ci % TTT_UPDATE_EVERY == 0)
                 for gi in range(h.ttt_grad_steps):
                     if gi > 0 or ttt_lora_ema_enabled:
                         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
@@ -3291,10 +3295,12 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                     per_doc = per_tok_loss[
                         :, chunk_offset : chunk_offset + chunk_size
                     ].mean(dim=-1)
-                    cur_opt.zero_grad(set_to_none=True)
+                    if is_window_start and gi == 0:
+                        cur_opt.zero_grad(set_to_none=True)
                     (per_doc * activate_chunk_mask).sum().backward()
-                    cur_opt.step()
-                if ttt_lora_ema_enabled:
+                    if is_update_step:
+                        cur_opt.step()
+                if ttt_lora_ema_enabled and is_update_step:
                     with torch.no_grad():
                         decay = TTT_LORA_EMA_DECAY
                         for ema_p, raw_p in zip(cur_ema_lora.parameters(), cur_lora.parameters()):
