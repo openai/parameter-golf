@@ -1,0 +1,25 @@
+{
+  "description": "PR #1855 base (NUM_LOOPS=2 triple recurrence) + Smear Gate + LQER Asym rank-4 + Phased TTT (3 phases, 2500 prefix docs) + ATTN_CLIP=14.0 + Logit Calibration (affine per-category correction on train tokens post-GPTQ)",
+  "val_bpb": 1.06080088,
+  "val_loss": 2.32142554,
+  "val_bpb_std": 0.00095221,
+  "seeds": [314, 42, 1234],
+  "per_seed": {
+    "314":  {"val_bpb": 1.06011095, "val_loss": 2.31991570, "eval_time_s": 479.7, "artifact_bytes": 15789408, "code_bytes": 168434},
+    "42":   {"val_bpb": 1.06040444, "val_loss": 2.32055798, "eval_time_s": 437.9, "artifact_bytes": 15787251, "code_bytes": 168434},
+    "1234": {"val_bpb": 1.06188726, "val_loss": 2.32380294, "eval_time_s": 433.4, "artifact_bytes": 15795987, "code_bytes": 168434}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "train_time_s": 600,
+  "total_eval_time_s": 450.33,
+  "max_artifact_bytes": 15795987,
+  "code_bytes": 168434,
+  "prior_submission": "PR #1797 (val_bpb=1.06412, BOS-fix rebank 2026-04-27)",
+  "key_changes": [
+    "NUM_LOOPS=2 triple recurrence (PR #1855 base)",
+    "ATTN_CLIP_SIGMAS=14.0 (vs 13.0 in PR #1797)",
+    "Logit calibration: affine scale + 14-category bias fitted on 100K train tokens post-GPTQ",
+    "PHASED_TTT_PREFIX_DOCS=2500 (vs 2000 in PR #1797)",
+    "COMPRESSOR=pergroup lrzip+brotli"
+  ]
+}
