@@ -57,8 +57,8 @@ if [[ "$PHASE" == "setup" ]]; then
     python3 -c \"from flash_attn_interface import flash_attn_func; print('FLASH_ATTN_OK')\"
   "
 
-  echo "=== PHASE 3: Download training data (fineweb10B_sp8192, ~15-25 min) ==="
-  ssh_cmd "
+  echo "=== PHASE 3: Download training data (fineweb10B_sp8192, ~15-30 min) ==="
+  timeout 2400 ssh $SSH_OPTS "${RP_HOST}" "
     set -euo pipefail
     cd '${RP_REPO}'
     python3 data/cached_challenge_fineweb.py --variant sp8192
