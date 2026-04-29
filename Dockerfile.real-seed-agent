@@ -32,7 +32,7 @@ RUN cargo build --release --bin seed-agent --locked
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime image with both binaries.
 # -----------------------------------------------------------------------------
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl libssl3 \
