@@ -1,0 +1,40 @@
+{
+  "author": "James Vo",
+  "github_id": "jamesEmerson112",
+  "name": "SP8192 + Headwise Gated Attention + LeakyReLU2 + QK-Gain 5.0 + Legal TTT",
+  "blurb": "SP8192 + headwise gated attention (original technique: sigmoid gate per head post-SDPA, inspired by NeurIPS 2025 Best Paper arxiv.org/abs/2505.06708) + LeakyReLU(0.5)^2 + QK-Gain 5.0 + score-first TTT. 3-seed mean 1.2073 BPB (std 0.0006). MODEL_DIM=448 to fit 16 MB budget.",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_bpb": 1.20731,
+  "val_bpb_std": 0.00060,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 1.20665395, "val_loss": 3.11691247, "artifact_bytes": 15340947},
+    "42":   {"val_bpb": 1.20783103, "val_loss": 3.11995300, "artifact_bytes": 15340685},
+    "2025": {"val_bpb": 1.20745783, "val_loss": 3.11898899, "artifact_bytes": 15337072}
+  },
+  "bytes_total": 15414168,
+  "bytes_code": 73221,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.7.1",
+  "tokenizer": "SentencePiece BPE 8192",
+  "architecture": "9L 448d 8h 4kv GQA headwise-gate LeakyReLU2 QK5.0 tied-embed",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "SP8192": "@kevclark (PR #1394)",
+    "LeakyReLU2": "@abaybektursun (PR #549)",
+    "Score-First TTT": "@dexhunter (PR #1413)",
+    "QK-Gain 5.0": "@dexhunter (PR #1413)",
+    "Headwise Gated Attention": "Original - James Vo (inspired by arxiv.org/abs/2505.06708)"
+  }
+}
