@@ -49,7 +49,7 @@ if [[ "$PHASE" == "setup" ]]; then
     set -euo pipefail
     cd '${RP_REPO}'
     pip install -r requirements.txt -q
-    python3 -c "import flash_attn; print('FLASH_ATTN_OK', flash_attn.__version__)"
+    python3 -c \"import flash_attn; print('FLASH_ATTN_OK', flash_attn.__version__)\"
   "
 
   echo "=== PHASE 3: Download training data (fineweb10B_sp8192, ~15-30 min) ==="
@@ -79,17 +79,7 @@ import torch; print('torch', torch.__version__, 'GPUs:', torch.cuda.device_count
 import ast; ast.parse(open('train_gpt_sota_decoded.py').read()); print('SYNTAX_OK')
 \"
 
-    nohup bash -c '
-      set -u
-      cd ${RP_REPO}
-      echo \"=== SEED 42 START \$(date -u) ===\"
-      bash scripts/sweep_runner.sh scripts/sweeps/h100_mlr015_e7_s42.tsv
-      echo \"=== SEED 314 START \$(date -u) ===\"
-      bash scripts/sweep_runner.sh scripts/sweeps/h100_mlr015_e7_s314.tsv
-      echo \"=== SEED 1337 START \$(date -u) ===\"
-      bash scripts/sweep_runner.sh scripts/sweeps/h100_mlr015_e7_s1337.tsv
-      echo \"=== ALL_DONE \$(date -u) ===\"
-    ' > '${BATCH_LOG}' 2>&1 &
+    nohup bash -c 'cd /workspace/parameter-golf-main && bash scripts/sweep_runner.sh scripts/sweeps/h100_mlr015_e7_s42.tsv && bash scripts/sweep_runner.sh scripts/sweeps/h100_mlr015_e7_s314.tsv && bash scripts/sweep_runner.sh scripts/sweeps/h100_mlr015_e7_s1337.tsv && echo ALL_DONE' > '${BATCH_LOG}' 2>&1 &
     echo MASTER_PID=\$!
     echo BATCH_LOG=${BATCH_LOG}
   "
