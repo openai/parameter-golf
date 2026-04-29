@@ -407,8 +407,7 @@ mod tests {
         let pid = std::process::id();
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
+            .map_or(0, |d| d.as_nanos());
         let path = dir.join(format!("trios-train-shim-{pid}-{nonce}.sh"));
         {
             let mut f = std::fs::File::create(&path).expect("create shim");
