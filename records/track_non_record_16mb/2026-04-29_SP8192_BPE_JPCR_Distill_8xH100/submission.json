@@ -1,0 +1,17 @@
+{
+  "name": "SP8192 BPE + JEPA-Style Distillation (8xH100)",
+  "val_bpb": 1.18746481,
+  "val_loss": 3.06730555,
+  "pre_quant_val_bpb": 1.1797,
+  "pre_quant_val_loss": 3.0472,
+  "bytes_total": 15281273,
+  "bytes_model_int8_zstd": 15062425,
+  "bytes_code": 218848,
+  "step_stop": 11771,
+  "wallclock_seconds": 600.085,
+  "track": "non-record-16mb",
+  "blurb": "SP8192 BPE non-record run on 8xH100 with GPTQ int8+zstd export, packaged with a JEPA-style distillation implementation for autoregressive models: EMA-teacher latent targets over looped mid-depth states, gated residual integration of predicted representations, and a coupled CE+distill+JEPA objective designed for stable post-quant roundtrip behavior under the 16MB cap.",
+  "author": "Dex Hunter",
+  "github_id": "dexhunter",
+  "date": "2026-04-29"
+}
