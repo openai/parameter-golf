@@ -3,27 +3,22 @@
 #
 # Run this from your LOCAL machine after setting the pod SSH address.
 #
-# Usage:
-#   export RP_HOST="<pod-ssh-address>"  # e.g. abc123-64412170@ssh.runpod.io
-#   export RP_KEY="/path/to/your/ssh_private_key"
-#   bash scripts/h100_pod_launch.sh [setup|run|status|logs]
-#
-# Phases:
-#   setup  — clone repo, install deps, download data (run once, ~20-30 min)
-#   run    — launch 3-seed training batch in background (run after setup)
-#   status — tail last 40 lines of the batch log
-#   logs   — stream live batch log (ctrl-c safe)
+# Usage (direct TCP — recommended, supports remote commands):
+#   export RP_HOST="root@<ip>"         # e.g. root@103.207.149.64
+#   export RP_PORT="<port>"            # e.g. 10679  (from pod Connect > SSH over TCP)
+#   export RP_KEY="/path/to/ssh_key"
+#   bash scripts/h100_pod_launch.sh [probe|setup|run|status|logs|results]
 
 set -euo pipefail
 
-RP_HOST="${RP_HOST:?Set RP_HOST to the pod SSH address}"
-RP_KEY="${RP_KEY:?Set RP_KEY to your SSH private key path (e.g. ~/.ssh/id_ed25519)}"
-RP_USER="${RP_HOST%%@*}"
+RP_HOST="${RP_HOST:?Set RP_HOST e.g. root@<ip>}"
+RP_PORT="${RP_PORT:-22}"
+RP_KEY="${RP_KEY:?Set RP_KEY to your SSH private key path}"
 RP_REPO="/workspace/parameter-golf-main"
 FORK_URL="https://github.com/harborglowvintage-oss/parameter-golf.git"
 BATCH_LOG="/workspace/h100_batch.log"
 
-SSH_OPTS="-i ${RP_KEY} -o IdentitiesOnly=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o NumberOfPasswordPrompts=0 -tt"
+SSH_OPTS="-i ${RP_KEY} -p ${RP_PORT} -o IdentitiesOnly=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o NumberOfPasswordPrompts=0"
 
 ssh_cmd() {
   # $1 = remote bash command (single string)
