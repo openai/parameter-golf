@@ -1,0 +1,25 @@
+{
+  "author": "vikrant-akavaram",
+  "github_id": "vikrant-akavaram",
+  "name": "SDPA-Compatible 11L + 1-sqrt Cooldown",
+  "blurb": "Two novel contributions: (1) SDPA fallback enabling non-Hopper GPU training (Blackwell sm_121a verified), (2) 1-sqrt warmdown schedule (-0.019 BPB vs linear on GB10). H100 validation with SDPA: 1.1445 BPB sliding (4,026 steps in 600s). With FA3, expected ~1.10 BPB. Includes extensive ablation and negative results (SSM, MoE, self-distillation).",
+  "date": "2026-04-15",
+  "track": "10min_16mb",
+  "val_bpb": 1.14451845,
+  "val_loss": 1.93246635,
+  "artifact_bytes": 15684720,
+  "train_steps": 4026,
+  "step_avg_ms": 149.05,
+  "hardware": "8xH100 80GB SXM (RunPod spot)",
+  "hardware_dev": "1xNVIDIA GB10 128GB (DGX Spark, sm_121a Blackwell)",
+  "attention_backend": "F.scaled_dot_product_attention (SDPA fallback — FA3 unavailable on pod)",
+  "warmdown_schedule": "1-sqrt (novel contribution)",
+  "calibration": "AR self-generated (64 seqs x 2048 tokens, temp=0.8, no external data)",
+  "technique_summary": "SDPA fallback + 1-sqrt warmdown + 11L XSA-all BigramHash3072 GPTQ-int6 LZMA9",
+  "novel_contributions": [
+    "SDPA fallback for non-Hopper GPUs",
+    "1-sqrt warmdown schedule (-0.019 BPB improvement)",
+    "Extensive hyperparameter ablation (QK-Gain, WD, batch warmup, PTQ)",
+    "Negative results: SSM hybrid, MoE, self-distillation"
+  ]
+}
