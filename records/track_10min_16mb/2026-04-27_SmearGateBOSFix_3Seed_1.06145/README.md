@@ -69,12 +69,23 @@ The training script is byte-identical to PR #1851. To reproduce:
 pip install brotli python-minifier
 
 # 2. Prepare CaseOps SP8192 data
-#    Option A: Download pre-tokenized CaseOps data from HuggingFace
-python3 prepare_caseops_data.py  # downloads from romeerp/parameter-golf-caseops-v1
-#    Option B: Or use the standard data script
-MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192 --skip-manifest
-#    Then apply CaseOps transform:
-python3 lossless_caps.py  # transforms shards with CaseOps encoding
+#    Download the already-tokenized public CaseOps dataset from Hugging Face.
+#    Do not run prepare_caseops_data.py unless rebuilding from docs_selected.jsonl.
+python3 - <<'PYDATA'
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id="romeerp/parameter-golf-caseops-v1",
+    repo_type="dataset",
+    local_dir="data/datasets/fineweb10B_sp8192_caseops",
+    allow_patterns=[
+        "datasets/manifest.json",
+        "datasets/tokenizers/*",
+        "datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin",
+        "datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin",
+        "datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin",
+    ],
+)
+PYDATA
 
 # 3. Run training (replace SEED with 42, 314, or 1234)
 SEED=42 \
