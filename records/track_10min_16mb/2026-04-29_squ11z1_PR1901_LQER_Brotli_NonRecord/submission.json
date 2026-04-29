@@ -1,0 +1,47 @@
+{
+  "author": "squ11z1",
+  "github_id": "squ11z1",
+  "name": "Non-Record: PR #1901 base + LQER Asymmetric + Brotli/Byte-Shuffle Compression",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "submission_type": "non-record",
+  "val_bpb": null,
+  "val_bpb_std": null,
+  "seeds": [],
+  "seed_results": {},
+  "hardware_intended": "8xH100 80GB SXM",
+  "hardware_actual": "no validation completed (compute constraint)",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1901 base (DualHash + LayerScale Recurrence + SharedMoE + AdaMuon + Dynamic SDClip + Score-First TTT, 0.83353 BPB pending) + LQER asymmetric rank-4 top-K=2 post-quantization correction (INT2 A / INT4 B per-group-64 packing) + Brotli-11 with stride-2 byte-shuffle replacing LZMA",
+  "estimated_delta_bpb": {
+    "lqer_asymmetric": -0.003,
+    "brotli_byte_shuffle": -0.003,
+    "combined_estimate": -0.005,
+    "projected_val_bpb": 0.829,
+    "estimate_basis": "PR #1797 LQER asym -0.009 BPB on Hessian-GPTQ scaled down for Sigma-Delta residuals; PR #1855 ~280KB compression saving translated via PR #1901 hidden->BPB curve"
+  },
+  "compliance_intended": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "no_ppm_mixture": true,
+    "score_first_ttt": true,
+    "three_seeds": false
+  },
+  "attribution": {
+    "base_stack_pr1901": "@Karen042009",
+    "lqer_asymmetric": "@dexhunter (PR #1797)",
+    "brotli_byte_shuffle_idea": "@dexhunter (PR #1855)",
+    "lqer_paper": "arXiv:2310.18313 (Lee et al. 2023)"
+  },
+  "code_artifacts": {
+    "patched_train_gpt_lzma_wrapped_bytes": 18204,
+    "patched_train_gpt_raw_bytes": 53586,
+    "code_byte_saving_vs_pr1901_raw": 35239
+  },
+  "compute_status": "non-record submission filed pending compute access for 3-seed validation; partial 50%-data-prefetch log available in HF dataset squ11z1/pgolf-lqer"
+}
