@@ -1,0 +1,10 @@
+torch==2.9.1+cu128
+numpy
+brotli
+sentencepiece
+huggingface-hub
+# FlashAttention 3 (install separately):
+#   pip install --no-deps flash_attn_3 \
+#     --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/
+# System binary required:
+#   apt-get install lrzip
