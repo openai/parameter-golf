@@ -777,6 +777,55 @@ class ShuffledSequenceLoader:
         )
 
 
+class DocStartSequenceLoader:
+    """GPTQ calibration loader yielding windows that begin at BOS positions.
+
+    Matches ShuffledSequenceLoader.next_batch() interface exactly.
+    Used when GPTQ_CALIBRATION_MODE=doc_start to align calibration distribution
+    with eval (which processes document-structured data with BOS-prepended contexts).
+    """
+    _N_SCAN_SHARDS = 8
+
+    def __init__(self, h, device, bos_id=1):
+        self.world_size = h.world_size
+        self.seq_len = h.train_seq_len
+        self.device = device
+        all_files = [Path(p) for p in sorted(glob.glob(h.train_files))]
+        if not all_files:
+            raise FileNotFoundError(f"No files found for pattern: {h.train_files}")
+        rank_files = all_files[h.rank :: h.world_size]
+        self.rng = np.random.Generator(np.random.PCG64(h.rank + 7919))
+        scan_files = rank_files[: self._N_SCAN_SHARDS]
+        self._windows = []  # (path, start_offset) pairs starting at BOS
+        t0 = time.perf_counter()
+        for path in scan_files:
+            mm = _get_shard_memmap(path)
+            n = len(mm)
+            positions = np.where(mm[:] == np.uint16(bos_id))[0]
+            valid = positions[positions + self.seq_len + 1 <= n]
+            for pos in valid.tolist():
+                self._windows.append((path, pos))
+        log(f"DocStartLoader: {len(self._windows)} BOS windows from {len(scan_files)} shards in {time.perf_counter()-t0:.1f}s")
+        if not self._windows:
+            raise RuntimeError("DocStartSequenceLoader: no valid BOS windows found — check BOS_ID and shard files")
+
+    def next_batch(self, global_tokens, grad_accum_steps):
+        device_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        device_batch_size = device_tokens // self.seq_len
+        x = torch.empty((device_batch_size, self.seq_len), dtype=torch.int64)
+        y = torch.empty((device_batch_size, self.seq_len), dtype=torch.int64)
+        idxs = self.rng.integers(0, len(self._windows), size=device_batch_size)
+        for bi, idx in enumerate(idxs):
+            path, start = self._windows[int(idx)]
+            mm = _get_shard_memmap(path)
+            window = torch.as_tensor(
+                np.array(mm[start : start + self.seq_len + 1], dtype=np.int64)
+            )
+            x[bi] = window[:-1]
+            y[bi] = window[1:]
+        return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
+
+
 class RMSNorm(nn.Module):
     def __init__(self, eps=None):
         super().__init__()
@@ -1362,7 +1411,8 @@ class GPT(nn.Module):
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
-            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
+            not_bos = (input_ids[:, 1:] != BOS_ID).to(x.dtype).unsqueeze(-1)
+            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips = []
@@ -1459,7 +1509,8 @@ class GPT(nn.Module):
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
-            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
+            not_bos = (input_ids[:, 1:] != BOS_ID).to(x.dtype).unsqueeze(-1)
+            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips = []
@@ -2631,7 +2682,11 @@ def serialize(h, base_model, code):
         log(f"OptRot: done in {time.perf_counter()-t_rot:.1f}s")
     device = torch.device("cuda", h.local_rank)
     t0 = time.perf_counter()
-    calib_loader = ShuffledSequenceLoader(h, device)
+    calib_mode = os.getenv("GPTQ_CALIBRATION_MODE", "random")
+    if calib_mode == "doc_start":
+        calib_loader = DocStartSequenceLoader(h, device, bos_id=BOS_ID if BOS_ID is not None else 1)
+    else:
+        calib_loader = ShuffledSequenceLoader(h, device)
     log("GPTQ:collecting Hessians from calibration data...")
     hessians = collect_hessians(
         base_model,
