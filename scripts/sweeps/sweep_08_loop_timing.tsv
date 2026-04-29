@@ -1,0 +1,12 @@
+# Sweep 08 — STACKED COMBO tests (EXTENDED 2026-04-19)
+# Independent best: QK=5.5, WARMDOWN_FRAC=0.68. EMA signal within seed noise.
+# Warmdown 0.60-0.68 is a flat plateau — probe the floor below 0.60.
+# Highest-value runs first so queue still delivers if we stop early.
+s8_combo_best		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.68 EMA_DECAY=0.995
+s8_combo_best_seed42	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.68 EMA_DECAY=0.995 SEED=42
+s8_wd_045		WARMDOWN_FRAC=0.45
+s8_wd_040		WARMDOWN_FRAC=0.40
+s8_wd_050		WARMDOWN_FRAC=0.50
+s8_wd_055		WARMDOWN_FRAC=0.55
+s8_combo_aggr		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.50 EMA_DECAY=0.995
+s8_combo_loose		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.60 EMA_DECAY=0.995

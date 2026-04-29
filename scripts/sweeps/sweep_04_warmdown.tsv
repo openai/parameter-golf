@@ -1,0 +1,7 @@
+# Sweep 04 — warmdown fraction
+# SOTA uses 0.72. At 150 iters, warmdown steps = iters*(1-WD). Test tilt.
+s4_wd_060	WARMDOWN_FRAC=0.60
+s4_wd_064	WARMDOWN_FRAC=0.64
+s4_wd_068	WARMDOWN_FRAC=0.68
+s4_wd_076	WARMDOWN_FRAC=0.76
+s4_wd_080	WARMDOWN_FRAC=0.80

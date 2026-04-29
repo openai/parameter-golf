@@ -1,0 +1,11 @@
+# Sweep 10 — Clip sigmas + looping position probes (2026-04-20)
+# Phase 3 probes from original plan — zero experiments from this phase have run.
+# Clip sigmas: default 12.85, trying tight (9.0) and loose (18.0).
+# Looping: default enable_looping_at=0.35; try early (0.10) and late (0.70).
+# Note: clip_default is a fast sanity check that 12.85 is near-optimal.
+s10_clip_tight	MATRIX_CLIP_SIGMAS=9.0
+s10_clip_loose	MATRIX_CLIP_SIGMAS=18.0
+s10_clip_default	MATRIX_CLIP_SIGMAS=12.85
+s10_loop_early	ENABLE_LOOPING_AT=0.10
+s10_loop_late	ENABLE_LOOPING_AT=0.70
+s10_loop_default	ENABLE_LOOPING_AT=0.35

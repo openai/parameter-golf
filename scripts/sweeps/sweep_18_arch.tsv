@@ -1,0 +1,19 @@
+# Sweep 18 — Architecture probes on locked config (2026-04-20)
+# First test of arch variables on Spark SOTA 11L U-Net (SP8192).
+# Nano is probing these too but at 4,400 tok/s (~30 min/run). Spark does this in ~8 min.
+#
+# Params under test (all defaults from SOTA script):
+#   NUM_LOOPS: default=2. Test 3 — adds one extra loop of recurrent layers.
+#   LOOP_START/LOOP_END: default=3,5 (3 layers recur). Test 2,6 — 5 layers recur.
+#   PARALLEL_RESIDUAL_START: default=7. Test 5 — parallel path starts 2 layers earlier.
+#   Combos of above.
+#
+# All use full locked config + default MATRIX_LR=0.022 (sweep_17 still running).
+# After MATRIX_LR is locked, re-run best arch config with updated LR if needed.
+#
+# TIMEOUT_SECS=2400
+s18_loops3		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 NUM_LOOPS=3
+s18_wide_recur		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 LOOP_START=2 LOOP_END=6
+s18_par_res5		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 PARALLEL_RESIDUAL_START=5
+s18_loops3_wide		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 NUM_LOOPS=3 LOOP_START=2 LOOP_END=6
+s18_full_arch		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 NUM_LOOPS=3 LOOP_START=2 LOOP_END=6 PARALLEL_RESIDUAL_START=5

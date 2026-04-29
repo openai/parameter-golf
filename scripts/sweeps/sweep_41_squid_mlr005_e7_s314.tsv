@@ -1,0 +1,4 @@
+# Sweep 41 — Squid floor probe below winner LR
+# PURPOSE: clean solo test of MATRIX_LR=0.005 on Squid after Spark contention runs.
+# Compare against mlr=0.006 winners to see if lower LR improves int7 quant robustness.
+s41_squid_mlr005_e7_s314	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.005 SCALAR_LR=0.030 ITERATIONS=3000 EMBED_BITS=7 MAX_WALLCLOCK_SECONDS=5400 TIMEOUT_SECS=7200 FAST_SMOKE=0 SEED=314

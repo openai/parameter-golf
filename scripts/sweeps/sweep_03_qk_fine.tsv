@@ -1,0 +1,7 @@
+# Sweep 03 — QK gain grid (updated: 5.5 confirmed best so far, search upward)
+# 5.0=1.9640, 5.25=1.9628, 5.5=1.9569. Find the peak.
+s3_qk_560	QK_GAIN_INIT=5.6
+s3_qk_575	QK_GAIN_INIT=5.75
+s3_qk_600	QK_GAIN_INIT=6.0
+s3_qk_650	QK_GAIN_INIT=6.5
+s3_qk_700	QK_GAIN_INIT=7.0

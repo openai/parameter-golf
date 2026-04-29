@@ -1,0 +1,12 @@
+# Sweep — Matrix LR floor probe: 0.004 (2026-04-25)
+#
+# PURPOSE: mlr_floor_scan showed monotonically decreasing BPB from 0.012 → 0.006.
+# Curve has not bottomed. This probes 0.004 to test if the trend continues.
+#
+# Decision rule: if N=2 mean at 0.004 < 0.006 mean (1.39447), curve still descending → lock 0.004, probe 0.002.
+#                if N=2 mean at 0.004 ≥ 0.006 mean → floor is 0.006, lock it.
+#
+# Budget: 2 rows x ~90 min = ~3 hrs
+
+mlr_floor_004_s42	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.004 ITERATIONS=2000 MAX_WALLCLOCK_SECONDS=3600 TIMEOUT_SECS=5400 FAST_SMOKE=0 SEED=42 NOTES=mlr_floor_004
+mlr_floor_004_s314	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.004 ITERATIONS=2000 MAX_WALLCLOCK_SECONDS=3600 TIMEOUT_SECS=5400 FAST_SMOKE=0 SEED=314 NOTES=mlr_floor_004

@@ -1,0 +1,11 @@
+# Sweep 37 — Long clean run: MLR=0.006 + SLR=0.030 @ 3000 iters (2026-04-25)
+# PURPOSE: Test whether combining our two validated winners (MLR floor=0.006 and SLR=0.030)
+#   improves over either alone, at extended 3000-iter budget.
+# Prior stacking failure (s26) was MLR=0.042 + SLR=0.030 -> 1.409 (catastrophic).
+# MLR=0.006 is a very different regime -- interference may not apply.
+# Floor scan used default scalar_lr=0.02, not 0.030, so this combo is untested.
+# BASELINE: floor scan s42 quant_bpb 1.39007 @ 2000 iters.
+# PREVIOUS BEST: s24b_scalar_030_2000 quant_bpb 1.37278.
+# DECISION: if result < 1.37278 -> H100 config. If 1.37-1.38 -> strong candidate.
+# ~75 min training + ~20 min eval ~= 95 min total.
+s37_mlr006_slr030_3000	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.006 SCALAR_LR=0.030 ITERATIONS=3000 MAX_WALLCLOCK_SECONDS=5400 TIMEOUT_SECS=6300 FAST_SMOKE=0 SEED=1337

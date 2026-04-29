@@ -1,0 +1,12 @@
+# AGX Part 6 — Cross-validate Spark floor winner (MLR=0.006)
+#
+# PURPOSE:
+# - EXP-060 Spark floor scan winner is MATRIX_LR=0.006.
+# - EXP-061 AGX part5 completed with 0.008/0.010/0.012; 0.006 is still missing.
+# - This run closes the direct cross-hardware comparison at the Spark-winning point.
+#
+# DECISION:
+# - If agx_part6_mlr_006_s42 beats agx_part5_mlr_010_s42/s314 mean, AGX aligns with Spark floor direction.
+# - If not, keep AGX signal as hardware/seed divergence and avoid locking global MLR floor yet.
+
+agx_part6_mlr_006_s42	SCRIPT=train_gpt_agx.py TIMEOUT_SECS=11500 MAX_WALLCLOCK_SECONDS=9500 DISABLE_TORCH_COMPILE=1 QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 SCALAR_LR=0.030 MATRIX_LR=0.006 TRAIN_BATCH_TOKENS=32768 TRAIN_SEQ_LEN=1024 ITERATIONS=1100 VAL_LOSS_EVERY=200 SEED=42 EMA_BLEND_ALPHA=1.0 VAL_BATCH_TOKENS=8192 EVAL_SEQ_LEN=512 MAX_VAL_TOKENS=2000000 ARCHIVE_CHECKPOINT=1 FAST_SMOKE=0 NOTES=agx_part6_mlr006_crossval

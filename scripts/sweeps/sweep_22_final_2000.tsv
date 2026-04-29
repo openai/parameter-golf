@@ -1,0 +1,14 @@
+# Sweep 22 — Clean 2000-step convergence run (the s13_locked_2000 we never got) (2026-04-20)
+# Previous s13_locked_2000 attempt hit Spark contention, only ~400 steps completed in 9001s.
+# Now Spark is free at 39K tok/s. Run the best stacked config for 2000 steps for real quant_bpb.
+#
+# The winner(s) from sweep_21 should be promoted here. Placeholder: 2 runs, best stack + baseline.
+# Update before launching with the actual sweep_21 winner.
+#
+# 2000 steps × 32K tokens / 39K tok/s = ~1640s train + ~15 min eval/quant = ~42 min/run.
+# TIMEOUT_SECS=3600 (60 min) covers even TTT_LR=0.001 slowdown.
+# MAX_WALLCLOCK_SECONDS=2700 (45 min training cap).
+#
+# TIMEOUT_SECS=3600
+s22_locked_baseline_2000	ITERATIONS=2000 MAX_WALLCLOCK_SECONDS=2700 QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 TIMEOUT_SECS=3600
+s22_scalar_matrix_2000	ITERATIONS=2000 MAX_WALLCLOCK_SECONDS=2700 QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 SCALAR_LR=0.030 MATRIX_LR=0.040 TIMEOUT_SECS=3600

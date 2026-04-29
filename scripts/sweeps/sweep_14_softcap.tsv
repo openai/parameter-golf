@@ -1,0 +1,15 @@
+# Sweep 14 — LOGIT_SOFTCAP probe in locked combo (2026-04-20)
+# AGX found LOGIT_SOFTCAP=20 gave pre_bpb 1.9839 — 0.004 BPB better than no softcap.
+# Never tested on Spark, never tested in full locked combo (QK+WD+TTT+sliding+EMA).
+# This sweep tests: does softcap add on top of the locked config?
+#
+# s14_softcap_20:    Standard probe — locked config + LOGIT_SOFTCAP=20
+# s14_softcap_30:    Wider cap — less aggressive softcap
+# s14_softcap_15:    Tighter cap — more aggressive
+# s14_softcap_combo: Best softcap (20) in full locked+EMA combo if s14_softcap_20 wins
+#
+# TIMEOUT_SECS=2400 set in queue script.
+s14_softcap_20	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 LOGIT_SOFTCAP=20
+s14_softcap_15	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 LOGIT_SOFTCAP=15
+s14_softcap_30	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 LOGIT_SOFTCAP=30
+s14_softcap_combo	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20

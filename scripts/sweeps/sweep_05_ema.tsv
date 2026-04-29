@@ -1,0 +1,6 @@
+# Sweep 05 — EMA decay
+# SOTA uses 0.9965. Test variance window.
+s5_ema_992	EMA_DECAY=0.992
+s5_ema_995	EMA_DECAY=0.995
+s5_ema_998	EMA_DECAY=0.998
+s5_ema_9993	EMA_DECAY=0.9993

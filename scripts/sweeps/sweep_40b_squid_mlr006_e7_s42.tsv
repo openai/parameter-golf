@@ -1,0 +1,7 @@
+# Sweep 40B — Squid: winner profile transfer, seed=42
+# PURPOSE: Third seed of the winning mlr=0.006/int7/3000-step profile.
+#   s40_squid_mlr006_e7_s314 = 1.35644 (Squid, done, new best)
+#   s39_s37_e7_s1337 = 1.35663 (Spark, done)
+#   seed=42 is the remaining seed for a potential 3-seed mean submission.
+# BASELINE: 1.35644 BPB (s40_squid_mlr006_e7_s314)
+s40_squid_mlr006_e7_s42	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.006 SCALAR_LR=0.030 ITERATIONS=3000 EMBED_BITS=7 MAX_WALLCLOCK_SECONDS=5400 TIMEOUT_SECS=7200 FAST_SMOKE=0 SEED=42

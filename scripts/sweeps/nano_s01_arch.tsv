@@ -1,0 +1,19 @@
+# Nano Sweep 01 v3 — Architecture probes (2026-04-20)
+# Jetson Orin Nano Super (ghostmini, 192.168.179.119)
+# Base: locked config (QK=5.5, WD=0.64, TTT, sliding, EMA)
+# LOGIT_SOFTCAP=1000 on all rows — script default is 30 (OOM), 0 raises ValueError.
+# 1000 is mathematically near-identity (x*tanh(x/1000)≈x), effectively disabled.
+# All params above confirmed best on Spark — now probing ARCHITECTURE vars.
+# These have NEVER been tested on any machine.
+#
+# NUM_LOOPS: default=2 (layers loop ×2). Try ×3 — more effective depth, free compute.
+# LOOP_START/END: default=3-5 (3 layers loop). Try 2-6 (5 layers) — wider recurrence.
+# PARALLEL_RESIDUAL_START: default=7. Try 5 — parallel path covers more network.
+# Combo: best of each stacked.
+#
+# TIMEOUT_SECS=2700 — ~150 steps ~50 min on Nano at ~1800 tok/s.
+nano_s01_loops3	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 NUM_LOOPS=3
+nano_s01_wide_recur	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 LOOP_START=2 LOOP_END=6
+nano_s01_par_res5	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 PARALLEL_RESIDUAL_START=5
+nano_s01_loops3_wide	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 NUM_LOOPS=3 LOOP_START=2 LOOP_END=6
+nano_s01_full_arch	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 NUM_LOOPS=3 LOOP_START=2 LOOP_END=6 PARALLEL_RESIDUAL_START=5
