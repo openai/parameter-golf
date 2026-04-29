@@ -974,15 +974,20 @@ def train(args: Hyperparameters):
     # Adam: embeddings, scalars, control params
     attn_2d, spine_params, embed_params, scalar_params = [], [], [], []
     for name, p in raw.named_parameters():
-        if any(x in name for x in ["c_q", "c_k", "c_v", "out_proj"]) and p.ndim == 2:
+        if any(x in name for x in ["c_q", "c_k", "c_v"]) and p.ndim == 2:
             attn_2d.append(p)
-        elif "spines" in name or "out_proj" in name:
+        elif any(k in name for k in [
+            "spine_proj", "P0", "P1",
+            "Pp0", "Pp1",
+            "E0", "E1",
+            "Ep0", "Ep1"
+        ]):
             spine_params.append(p)
         elif "tok_emb" in name or "head_cor" in name:
             embed_params.append(p)
         else:
             scalar_params.append(p)
-
+    print(f"spine params: {len(spine_params)}")
     opts = [
         Muon(attn_2d, lr=args.matrix_lr, momentum=args.muon_momentum,
              ns_steps=args.muon_ns_steps),
