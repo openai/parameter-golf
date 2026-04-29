@@ -2491,11 +2491,15 @@ def serialize(h, base_model, code):
         n_calibration_batches=h.gptq_calibration_batches,
     )
     log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter()-t0:.1f}s")
+    t_quant = time.perf_counter()
     quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
+    log(f"GPTQ:quantized in {time.perf_counter()-t_quant:.1f}s")
     quant_buf = io.BytesIO()
     torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
     quant_raw = quant_buf.getvalue()
+    t_compress = time.perf_counter()
     quant_blob = _compress(quant_raw, h.compressor)
+    log(f"GPTQ:compressed+saved in {time.perf_counter()-t_compress:.1f}s")
     quant_file_bytes = len(quant_blob)
     bytes_total = quant_file_bytes + code_bytes
     if h.is_main_process:
@@ -3158,7 +3162,7 @@ def train_model(h, device, val_data):
     if max_wallclock_ms is not None:
         max_wallclock_ms -= h.gptq_reserve_seconds * 1e3
         log(
-            f"gptq:reserving {h.gptq_reserve_seconds:.0f}s, effective={max_wallclock_ms:.0f}ms"
+            f"gptq:reserving {h.gptq_reserve_seconds:.1f}s, effective={max_wallclock_ms:.0f}ms"
         )
 
     def training_frac(step, elapsed_ms):
@@ -3374,10 +3378,31 @@ def train_and_eval(h, device):
         log(f"ttt_warm_start_a: {BatchedLinearLoRA._WARM_START_A}")
         log(f"ttt_weight_decay: {h.ttt_weight_decay}")
     else:
+        t_artifact_start = time.perf_counter()
         base_model, compiled_model, compiled_forward_logits = train_model(
             h, device, val_data
         )
         torch._dynamo.reset()
+        if os.environ.get("PREQUANT_ONLY", "0") == "1":
+            timed_eval(
+                "diagnostic pre-quantization post-ema",
+                eval_val,
+                h,
+                device,
+                val_data,
+                compiled_model,
+                compiled_forward_logits,
+            )
+            log("PREQUANT_ONLY=1 — skipping serialize/GPTQ/post-quant eval/TTT")
+            return
+        t_serialize_start = time.perf_counter()
+        serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+        serialize_seconds = time.perf_counter() - t_serialize_start
+        log(f"serialize_wallclock: {serialize_seconds:.3f}s")
+        if h.distributed:
+            dist.barrier()
+        artifact_production_seconds = time.perf_counter() - t_artifact_start
+        log(f"artifact_production_wallclock: {artifact_production_seconds:.3f}s (must be < {h.max_wallclock_seconds})")
         timed_eval(
             "diagnostic pre-quantization post-ema",
             eval_val,
@@ -3387,12 +3412,6 @@ def train_and_eval(h, device):
             compiled_model,
             compiled_forward_logits,
         )
-        if os.environ.get("PREQUANT_ONLY", "0") == "1":
-            log("PREQUANT_ONLY=1 — skipping serialize/GPTQ/post-quant eval/TTT")
-            return
-        serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
-        if h.distributed:
-            dist.barrier()
     eval_model = deserialize(h, device)
     if h.num_loops > 0:
         eval_model.looping_active = True
