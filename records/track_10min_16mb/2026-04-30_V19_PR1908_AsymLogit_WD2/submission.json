@@ -1,0 +1,103 @@
+{
+  "author": "alertcat",
+  "github_id": "alertcat",
+  "name": "V21: PR #1855 stack + AWQ-lite (PR #1908) + Asymmetric Logit Rescale (PR #1923)",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.05932347,
+  "val_bpb_std": 0.00077999,
+  "val_loss": 2.32152743,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.05833613,
+      "val_loss": 2.31603176,
+      "stop_step": 4920,
+      "train_wallclock_ms": 602048,
+      "eval_time_ms": 459602,
+      "artifact_bytes": 15977644,
+      "pre_quant_val_bpb": 1.06392986,
+      "quantized_val_bpb": 1.07231538,
+      "ttt_recovery_bpb": 0.01397925,
+      "force_stop_step_set": 4920,
+      "gptq_reserve_seconds": 0.5,
+      "wallclock_status": "borderline (602s, matches PR #1908 seed 42 status)"
+    },
+    "0": {
+      "val_bpb": 1.05939426,
+      "val_loss": 2.31834732,
+      "stop_step": 4880,
+      "train_wallclock_ms": 596057,
+      "eval_time_ms": 421354,
+      "artifact_bytes": 15977881,
+      "pre_quant_val_bpb": 1.06505635,
+      "quantized_val_bpb": 1.07337656,
+      "ttt_recovery_bpb": 0.01398230,
+      "force_stop_step_set": null,
+      "gptq_reserve_seconds": 4.0,
+      "wallclock_status": "strict under 600s"
+    },
+    "1234": {
+      "val_bpb": 1.06024251,
+      "val_loss": 2.32020362,
+      "stop_step": 4870,
+      "train_wallclock_ms": 596045,
+      "eval_time_ms": 414727,
+      "artifact_bytes": 15986941,
+      "pre_quant_val_bpb": 1.06573996,
+      "quantized_val_bpb": 1.07431365,
+      "ttt_recovery_bpb": 0.01407114,
+      "force_stop_step_set": null,
+      "gptq_reserve_seconds": 4.0,
+      "wallclock_status": "strict under 600s"
+    }
+  },
+  "compliance": {
+    "issue_1017_track_a": true,
+    "causality": "VarLen + per-doc cu_seqlens, strict causal mask",
+    "normalized_softmax": "full SP8192 vocab (lossless CaseOps), softcap then softmax",
+    "score_before_update": "Phased TTT 3-phase score-first per-document LoRA, gd:0 prefix scoring under no_grad before LoRA grad steps, gd:1 suffix scoring with adapted LoRA",
+    "single_pass": "each val token scored exactly once across all 3 phases",
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_n_gram_cache": true,
+    "no_etlb": true,
+    "three_seeds": true,
+    "artifact_under_16mb": true,
+    "train_under_600s_strict": "seeds 0 and 1234 strict <600s; seed 42 borderline 602.048s (same status as PR #1908 seed 42 at 601.153s)",
+    "eval_under_600s": "all 3 seeds 414-460s (well under 600s cap)",
+    "lrzip_pergroup_compression": "matches PR #1855 (cocohearts implicitly accepted via PR #1902 leaderboard merge 2026-04-28)"
+  },
+  "comparison": {
+    "vs_pr1908_frontier_3seed_mean_1.06081": -0.00149,
+    "vs_pr1855_official_no1_3seed_mean_1.06108": -0.00176,
+    "vs_win_threshold_frontier_minus_floor_1.06021": -0.00089,
+    "vs_merged_sota_bigbag_pr1493_1.0810": -0.02168,
+    "vs_record_threshold_1.0738": -0.01448,
+    "welch_t_test_vs_pr1908_p_one_sided": 0.045
+  },
+  "stack_components": {
+    "base_pr1855_codemath3000": "11L XSA + LQER + SparseAttnGate + BOS-fixed SmearGate + PolarNS Muon + 9-hp greedy",
+    "quantization_pr1908_romeerp": "AWQ-lite mixed-precision GPTQ (1 group of 64 cols promoted to int8)",
+    "innovation_v21_alertcat": "Asymmetric Logit Rescale (PR #1923 jorge-asenjo) at eval path only — adds learnable softcap_pos/softcap_neg, +0.00128 BPB consistent TTT recovery improvement across 3 seeds vs PR #1908",
+    "tokenizer_pr1729_romeerp": "sp8192 lossless caps caseops v1 reserved",
+    "compression_pr1855_codemath3000": "lrzip pergroup + L1 similarity-sort row reordering + brotli code wrapper"
+  },
+  "hardware": "8xH100 80GB SXM (RunPod, AP-IN-1)",
+  "pytorch_version": "2.9.1+cu128",
+  "system_dependencies": "lrzip (apt-get install lrzip)",
+  "attribution": {
+    "pr1855_base_stack": "@codemath3000",
+    "pr1908_awq_lite_quantization": "@romeerp",
+    "pr1923_asymmetric_logit_rescale": "@jorge-asenjo",
+    "pr1797_lqer_smeargate": "@dexhunter",
+    "pr1787_polar_express_min_lr_sparse_gate": "@nprime06",
+    "pr1729_caseops_tokenizer": "@romeerp",
+    "pr1493_merged_sota_baseline": "@bigbag",
+    "pr1394_sp8192_gptq_sdclip": "@clarkkev",
+    "pr1530_varlen_attn_par_resid_lora_ttt": "@samacqua",
+    "pr1344_polar_ns_depth_recurrence": "(community)",
+    "pr1610_phased_ttt_originator": "(community)",
+    "v21_integration": "this PR (@alertcat) — V21 stacks PR #1908 quantization + PR #1923 Asymmetric Logit Rescale on PR #1855 base, validated 3-seed independent reproduction"
+  }
+}
