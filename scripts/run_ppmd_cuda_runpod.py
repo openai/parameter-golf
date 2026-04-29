@@ -532,7 +532,7 @@ def _bench_snippet(gpu_sku: str, branch: str, commit: str) -> str:
 
 
 def _full_eval_snippet(gpu_sku: str, branch: str, commit: str, positions: int | None) -> str:
-    """Build snippet that downloads FineWeb val data and runs full Path A CUDA eval."""
+    """Build snippet that downloads FineWeb val data and runs full Path A CUDA eval (bundle path)."""
     positions_arg = f"--max-positions {positions}" if positions else ""
     eval_py_path = "/root/rehearsal_src/eval_path_a_ppmd.py"
 
@@ -568,6 +568,53 @@ def _full_eval_snippet(gpu_sku: str, branch: str, commit: str, positions: int | 
     """).rstrip().format(
         commit_q=shlex.quote("bundle:{}".format(commit)),
         eval_py_path=eval_py_path,
+        positions_arg=positions_arg,
+    )
+    return setup_cmd
+
+
+def _full_eval_clone_snippet(gpu_sku: str, branch: str, commit: str, positions: int | None) -> str:
+    """Build snippet that runs the FULL neural+PPM-D Path A eval using a cloned repo.
+
+    Requires:
+      - The clone contains scripts/ppmd_cpp (CUDA backend), scripts/eval_path_a_ppmd.py,
+        results/exp_1876_ppmd/train_gpt_merged.py, results/exp_1876_ppmd/prod_8gpu_s42v2/final_model.int6.ptz,
+        and data/cached_challenge_fineweb.py with data/tokenizer_specs.json.
+      - The pod has CUDA + torch + FA3 already installed (matotezitanka/proteus-pytorch:community).
+    """
+    positions_arg = f"--max-positions {positions}" if positions else ""
+    setup_cmd = textwrap.dedent("""\
+        REPO=/root/rehearsal_src/parameter_golf2
+        cd $REPO
+        pip install --quiet --break-system-packages pybind11 numpy sentencepiece \\
+            >> /root/rehearsal_out/path_a_cuda_full_eval.log 2>&1 || true
+        cd $REPO/scripts/ppmd_cpp
+        set +e
+        PYTHON=$(which python3) make cuda 2>&1 | tee -a /root/rehearsal_out/path_a_cuda_full_eval.log
+        BUILD_CUDA_EC=${{PIPESTATUS[0]}}
+        PYTHON=$(which python3) make 2>&1 | tee -a /root/rehearsal_out/path_a_cuda_full_eval.log
+        BUILD_CPP_EC=${{PIPESTATUS[0]}}
+        set -e
+        cd $REPO
+        # Download FineWeb SP8192 validation split
+        MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \\
+            python3 data/cached_challenge_fineweb.py --variant sp8192 \\
+            >> /root/rehearsal_out/path_a_cuda_full_eval.log 2>&1 || true
+        # Run full Path A CUDA eval (neural NLL + PPM-D scoring)
+        cd $REPO/scripts
+        PYTHONPATH=$REPO/scripts/ppmd_cpp:$REPO/scripts:$REPO \\
+        python3 $REPO/scripts/eval_path_a_ppmd.py \\
+            --backend cuda \\
+            --backend-equiv-check 64 \\
+            --allow-slow-python-full-eval \\
+            {positions_arg} \\
+            --output /root/rehearsal_out/path_a_cuda_full_eval.json \\
+            2>&1 | tee -a /root/rehearsal_out/path_a_cuda_full_eval.log
+        EVAL_EC=${{PIPESTATUS[0]}}
+        sha256sum /root/rehearsal_out/path_a_cuda_full_eval.json \\
+            > /root/rehearsal_out/path_a_cuda_full_eval.sha256 2>&1 || true
+        exit $EVAL_EC
+    """).rstrip().format(
         positions_arg=positions_arg,
     )
     return setup_cmd
@@ -611,6 +658,13 @@ def _build_payload(args: argparse.Namespace) -> str:
     elif mode == "full-eval" and use_bundle:
         positions = getattr(args, "prefix_positions", None)
         lines.append(_full_eval_snippet(gpu_sku, branch, commit, positions=positions))
+    elif mode == "full-eval" and not use_bundle:
+        # Clone-based full eval path: fetch repo (with model + train_gpt_merged.py),
+        # build CUDA backend, download data, run full neural+PPM-D eval.
+        positions = getattr(args, "prefix_positions", None)
+        lines.append(_git_clone_snippet(branch, commit, repo_url))
+        lines.append("")
+        lines.append(_full_eval_clone_snippet(gpu_sku, branch, commit, positions=positions))
     else:
         # Fallback: git clone + checkout + stage stub (for non-bundle runs)
         lines.append(_git_clone_snippet(branch, commit, repo_url))
