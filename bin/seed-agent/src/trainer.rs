@@ -9,10 +9,10 @@
 //!
 //! 2. `ExternalTrainer` — shells out to the IGLA trainer binary
 //!    (`trios-train`, ADR-0001 — src lives in `trios-trainer-igla`,
-//!    we only invoke the compiled binary, never edit it). Reads
-//!    JSONL `{step,bpb,done}` rows from the subprocess stdout and
-//!    treats each row as one logical training step from the pull
-//!    loop's perspective.
+//!    we only invoke the compiled binary, never edit it).  Reads
+//!    text-format `step=N val_bpb=F` lines (and optional `DONE: bpb=F`)
+//!    from the subprocess stdout, matching the actual `trios-train`
+//!    output protocol (see `crates/trios-igla-race/src/bin/seed_agent.rs`).
 //!
 //! The contract is intentionally narrow: `step()` advances one
 //! training step, `eval_bpb()` returns the current BPB. The pull
@@ -21,7 +21,6 @@
 //! Anchor: `phi^2 + phi^-2 = 3`.
 
 use anyhow::{anyhow, Result};
-use serde::Deserialize;
 use serde_json::Value;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
@@ -147,11 +146,10 @@ pub struct ExternalTrainer {
     reader: Option<BufReader<ChildStdout>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug)]
 struct TrainerStepOutput {
     step: i32,
     bpb: f64,
-    #[serde(default)]
     done: bool,
 }
 
@@ -192,21 +190,49 @@ impl ExternalTrainer {
         })
     }
 
+    /// Spawn the trainer subprocess.
+    ///
+    /// Invokes `trios-train` with the same CLI protocol as the old
+    /// `seed_agent.rs`: `--seed N --steps N --hidden N --lr F`.
+    /// The binary writes `step=N val_bpb=F` lines to stdout.
     fn spawn(&mut self) -> Result<()> {
-        let cfg_json = serde_json::to_string(&self.config)
-            .map_err(|e| anyhow!("serialize trainer config: {e}"))?;
+        // Extract hidden/lr from config JSON (ExperimentConfig fields).
+        // Use sensible defaults if fields are absent (e.g. in tests).
+        // hidden is always a small integer (512, 1024, etc.) so truncation is impossible.
+        #[allow(clippy::cast_possible_truncation)]
+        let hidden = self.config["hidden"].as_u64().unwrap_or(512) as usize;
+        let lr = self.config["lr"].as_f64().unwrap_or(0.0004);
+        let workdir: PathBuf = std::env::var("TRAINER_WORKDIR")
+            .unwrap_or_else(|_| "/work".to_string())
+            .into();
+
         let mut cmd = Command::new(&self.trainer_path);
-        cmd.arg("--config")
-            .arg(&cfg_json)
-            .arg("--canon")
-            .arg(&self.canon_name)
-            .arg("--seed")
+        cmd.arg("--seed")
             .arg(self.seed.to_string())
             .arg("--steps")
             .arg(self.max_steps.to_string())
-            .arg("--jsonl")
+            .arg("--hidden")
+            .arg(hidden.to_string())
+            .arg("--lr")
+            .arg(format!("{lr:.6}"))
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit()); // R5: stream stderr to seed-agent logs
+        // Set working directory only when it exists (present in Docker, absent on macOS dev).
+        if workdir.is_dir() {
+            cmd.current_dir(&workdir);
+        }
+
+        tracing::info!(
+            canon = %self.canon_name,
+            seed = self.seed,
+            steps = self.max_steps,
+            hidden,
+            lr = format!("{lr:.6}"),
+            workdir = %workdir.display(),
+            trainer = %self.trainer_path.display(),
+            "spawning trainer subprocess"
+        );
+
         let mut child = cmd
             .spawn()
             .map_err(|e| anyhow!("failed to spawn {}: {e}", self.trainer_path.display()))?;
@@ -235,21 +261,65 @@ impl ExternalTrainer {
             if trimmed.is_empty() {
                 continue;
             }
-            match serde_json::from_str::<TrainerStepOutput>(trimmed) {
-                Ok(out) => return Ok(Some(out)),
-                Err(e) => {
-                    // R5: do not lie. Surface unparseable line to seed-agent log.
-                    tracing::warn!(
-                        canon = %self.canon_name,
-                        seed = self.seed,
-                        line = %trimmed,
-                        "trainer JSONL parse failed: {e}"
-                    );
-                    // fall through to next read_line
-                }
+            // Try parsing "step=N val_bpb=F" (trios-train step output).
+            if let Some(out) = parse_step_output(trimmed) {
+                return Ok(Some(out));
             }
+            // Try parsing "DONE: bpb=F" (trios-train final line).
+            if let Some(bpb) = parse_done_output(trimmed) {
+                return Ok(Some(TrainerStepOutput {
+                    step: self.current_step, // keep last known step
+                    bpb,
+                    done: true,
+                }));
+            }
+            // Unrecognized line — log and skip.
+            tracing::warn!(
+                canon = %self.canon_name,
+                seed = self.seed,
+                line = %trimmed,
+                "trainer output line not recognized as step or done"
+            );
         }
     }
+}
+
+/// Parse `step=N val_bpb=F` line from `trios-train` stdout.
+/// Mirrors `parse_step_line` in `crates/trios-igla-race/src/bin/seed_agent.rs`.
+fn parse_step_output(line: &str) -> Option<TrainerStepOutput> {
+    let step_marker = "step=";
+    let step_pos = line.find(step_marker)?;
+    let after_step = &line[step_pos + step_marker.len()..];
+    let step_end = after_step.find(char::is_whitespace)?;
+    let step: i32 = after_step[..step_end].trim().parse().ok()?;
+
+    let bpb_marker = "val_bpb=";
+    let bpb_pos = line.find(bpb_marker)?;
+    let after_bpb = &line[bpb_pos + bpb_marker.len()..];
+    let bpb_end = after_bpb
+        .find(char::is_whitespace)
+        .unwrap_or(after_bpb.len());
+    let bpb: f64 = after_bpb[..bpb_end].parse().ok()?;
+
+    Some(TrainerStepOutput {
+        step,
+        bpb,
+        done: false,
+    })
+}
+
+/// Parse `DONE: bpb=F` line from `trios-train` stdout.
+/// Mirrors `parse_done_line` in `crates/trios-igla-race/src/bin/seed_agent.rs`.
+fn parse_done_output(line: &str) -> Option<f64> {
+    let lower = line.to_ascii_lowercase();
+    if !lower.starts_with("done:") {
+        return None;
+    }
+    let bpb_prefix = "bpb=";
+    let start = line.find(bpb_prefix)?;
+    let rest = &line[start + bpb_prefix.len()..];
+    let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+    rest[..end].parse().ok()
 }
 
 impl Trainer for ExternalTrainer {
@@ -437,16 +507,17 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn external_trainer_reads_jsonl_stream_from_subprocess() {
+    fn external_trainer_reads_text_stream_from_subprocess() {
         let shim = write_shim(
             r#"#!/bin/sh
-echo '{"step":1,"bpb":3.40,"done":false}'
-echo '{"step":2,"bpb":3.30,"done":false}'
-echo '{"step":3,"bpb":3.20,"done":false}'
-echo '{"step":4,"bpb":3.10,"done":true}'
+echo 'step=1 val_bpb=3.40'
+echo 'step=2 val_bpb=3.30'
+echo 'step=3 val_bpb=3.20'
+echo 'step=4 val_bpb=3.10'
+echo 'DONE: bpb=3.10'
 "#,
         );
-        let cfg = json!({"hidden_dim": 384});
+        let cfg = json!({"hidden": 384, "lr": 0.001});
         let mut tr = ExternalTrainer::with_trainer_path("IGLA-T-INT", 42, 100, &cfg, shim.clone())
             .expect("construct");
 
@@ -460,7 +531,14 @@ echo '{"step":4,"bpb":3.10,"done":true}'
         tr.step().expect("step 4");
         assert_eq!(tr.current_step(), 4);
         assert!((tr.eval_bpb() - 3.10).abs() < 1e-9);
-        assert!(tr.finished(), "done flag should finalize");
+        assert!(!tr.finished(), "step line should not finalize");
+
+        tr.step().expect("DONE line");
+        assert!(
+            (tr.eval_bpb() - 3.10).abs() < 1e-9,
+            "DONE bpb should be 3.10"
+        );
+        assert!(tr.finished(), "DONE line should finalize");
         let _ = std::fs::remove_file(&shim);
     }
 
@@ -469,7 +547,7 @@ echo '{"step":4,"bpb":3.10,"done":true}'
     fn external_trainer_handles_subprocess_crash() {
         let shim = write_shim(
             r#"#!/bin/sh
-echo '{"step":1,"bpb":2.99,"done":false}'
+echo 'step=1 val_bpb=2.99'
 exit 7
 "#,
         );
@@ -490,9 +568,10 @@ exit 7
     fn external_trainer_skips_garbage_lines() {
         let shim = write_shim(
             r#"#!/bin/sh
-echo 'not-json-at-all'
+echo 'not-a-step-line-at-all'
 echo ''
-echo '{"step":1,"bpb":2.50,"done":true}'
+echo 'step=1 val_bpb=2.50'
+echo 'DONE: bpb=2.50'
 "#,
         );
         let cfg = json!({});
@@ -501,7 +580,9 @@ echo '{"step":1,"bpb":2.50,"done":true}'
                 .expect("construct");
         tr.step().expect("step ok");
         assert_eq!(tr.current_step(), 1);
-        assert!(tr.finished());
+        assert!(!tr.finished(), "step line should not finalize");
+        tr.step().expect("DONE line");
+        assert!(tr.finished(), "DONE line should finalize");
         let _ = std::fs::remove_file(&shim);
     }
 }
