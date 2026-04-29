@@ -25,8 +25,9 @@ serde       = { version = "1.0", features = ["derive"] }
 serde_json  = "1.0"
 tokio       = { version = "1", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
 tokio-postgres = { version = "0.7", features = ["with-chrono-0_4", "with-serde_json-1", "with-uuid-1"] }
-openssl = "0.10"
-postgres-openssl = "0.5"
+tokio-postgres-rustls = "0.13"
+rustls = { version = "0.23", features = ["ring", "std"] }
+webpki-roots = "0.26"
 tracing     = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 axum        = "0.8"
