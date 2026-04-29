@@ -7,6 +7,13 @@ It trains the Parameter Golf transformer directly with Model Stack's
 `TrainableBitNetLinear` QAT modules, exports a packed runtime-row BitNet bundle,
 and keeps the packed bundle plus submitted code under the 16MB budget.
 
+Important artifact caveat: the standard `final_model.pt` and
+`final_model.int8.ptz` artifacts emitted by this script are not under 16MB. The
+under-budget artifact is the custom Model Stack BitNet bundle
+`final_model.model_stack_bitnet.pt` plus code. This is therefore a non-record
+Model Stack packed-export artifact until the restore/evaluation path consumes
+that bundle directly as the submission artifact.
+
 ## Result
 
 | Metric | Value |
@@ -18,10 +25,18 @@ and keeps the packed bundle plus submitted code under the 16MB budget.
 | Training steps | 6,466 |
 | Training time | 599,020 ms |
 | Step average at stop | 92.64 ms |
+| Sliding eval time | 401,147 ms |
 | Model Stack BitNet bundle bytes | 15,612,895 |
 | Code bytes | 80,393 |
-| Bundle + code bytes | 15,693,288 |
-| Budget | 15.69MB / 16.00MB |
+| Model Stack bundle + code bytes | 15,693,288 |
+| Raw `final_model.pt` + code bytes | 207,847,742 |
+| Int8+zlib `final_model.int8.ptz` + code bytes | 42,950,518 |
+| Model Stack bundle budget | 15.69MB / 16.00MB |
+
+The sliding-window evaluation time is 401.147s, which is below the competition
+evaluation cap of 10 minutes on 8xH100. The stock raw and int8+zlib artifacts
+are over the 16,000,000-byte artifact cap; only the Model Stack packed bundle is
+under the size limit.
 
 The run improves over the earlier legal Model Stack BitNet MLP2 run:
 
@@ -71,6 +86,9 @@ bash run_mlp2304_overtone_8xh100.sh
 
 This is not a leaderboard record against the SP8192 + legal TTT submissions. It
 is intended as the strongest current Model Stack BitNet PR artifact: the training
-stack uses Model Stack QAT modules, the exported packed BitNet bundle fits the
-track budget, and the run demonstrates a faster and better legal BitNet result
-than the earlier MLP2 baseline.
+stack uses Model Stack QAT modules, the exported packed BitNet bundle plus code
+fits the track budget, and the run demonstrates a faster and better Model Stack
+BitNet result than the earlier MLP2 baseline. To make this competition-valid as
+a submitted artifact, the script still needs a restore/eval path that loads and
+scores the Model Stack bundle directly instead of relying on the oversized
+standard PyTorch or int8+zlib outputs.
