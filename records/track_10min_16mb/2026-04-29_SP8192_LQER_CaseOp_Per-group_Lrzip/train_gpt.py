@@ -11,9 +11,19 @@ import triton
 import triton.language as tl
 from triton.tools.tensor_descriptor import TensorDescriptor
 
+
+# ===== Fused softcapped cross-entropy (Triton) — training-only path =====
+# Replaces the eager
+#     logits_softcap = softcap * tanh(logits / softcap)
+#     F.cross_entropy(logits_softcap.float(), targets, reduction="mean")
+# sequence with a single fused kernel that reads logits_proj once, applies
+# softcap in-register, and computes (LSE, loss) in one streaming pass. The
+# backward kernel mirrors the forward so there's no stored softcapped logits.
+# Numerically identical to the eager path up to fp32 accumulation differences.
 _FUSED_CE_LIBRARY = "pgsubmission1draft7fusedce"
 _FUSED_CE_BLOCK_SIZE = 1024
 _FUSED_CE_NUM_WARPS = 4
+
 
 @triton.jit
 def _softcapped_ce_fwd_kernel(
@@ -222,6 +232,8 @@ class Hyperparameters:
     warmdown_frac = float(os.environ.get("WARMDOWN_FRAC", 0.75))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786432))
+    # Fused softcapped CE (Triton). Training-only — forward_logits eval path still uses
+    # eager softcap+F.cross_entropy. Default ON since validated as at-worst neutral.
     fused_ce_enabled = bool(int(os.environ.get("FUSED_CE_ENABLED", "1")))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 500))
@@ -309,18 +321,45 @@ class Hyperparameters:
     embed_clip_sigmas = float(os.environ.get("EMBED_CLIP_SIGMAS", 2e1))
     mlp_clip_sigmas = float(os.environ.get("MLP_CLIP_SIGMAS", 10.0))
     attn_clip_sigmas = float(os.environ.get("ATTN_CLIP_SIGMAS", 13.0))
+    # AttnOutGate (per-head multiplicative output gate, PR #1667 MarioPaerle).
+    # Zero-init weight: 2*sigmoid(0)=1 -> transparent at start. Source defaults to
+    # block input x ('proj'); 'q' uses raw Q projection output.
     attn_out_gate_enabled = bool(int(os.environ.get("ATTN_OUT_GATE_ENABLED", "0")))
     attn_out_gate_src = os.environ.get("ATTN_OUT_GATE_SRC", "proj")
+    # SmearGate (input-dependent forward-1 token smear, modded-nanogpt @classiclarryd
+    # via PR #1667). x_t <- x_t + lam * sigmoid(W*x_t[:gate_window]) * x_{t-1}.
+    # lam=0 + W=0 -> transparent at init.
     smear_gate_enabled = bool(int(os.environ.get("SMEAR_GATE_ENABLED", "0")))
+    # Window: first GATE_WINDOW dims of the source feed the gate projection.
     gate_window = int(os.environ.get("GATE_WINDOW", 12))
+    # Gated Attention (Qwen, NeurIPS 2025 Best Paper, arXiv:2505.06708;
+    # qiuzh20/gated_attention). Per-head sigmoid gate on SDPA output, BEFORE
+    # out_proj. Gate input = full block input x (paper's headwise G1 variant
+    # driven from hidden_states). W_g shape (num_heads, dim), plain sigmoid.
+    # Near-zero init gives g~0.5 at step 0 (half attention output); per-block
+    # attn_scale (init 1.0) compensates during training. Name contains
+    # "attn_gate" so CONTROL_TENSOR_NAME_PATTERNS routes it to scalar AdamW.
     gated_attn_enabled = bool(int(os.environ.get("GATED_ATTN_ENABLED", "0")))
     gated_attn_init_std = float(os.environ.get("GATED_ATTN_INIT_STD", 0.01))
+    # Dedicated int8-per-row quantization for `attn_gate_w` tensors. These are
+    # small ((num_heads, dim) = (8, 512) = 4096 params) and bypass GPTQ via the
+    # numel<=65536 passthrough branch -> stored as fp16 (8 KB/layer, ~65 KB total
+    # compressed). int8-per-row cuts the raw tensor in half with negligible BPB
+    # impact: scales per head (8 values), symmetric quant over [-127, 127].
+    # No Hessian needed (gate weights not in collect_hessians()).
     gated_attn_quant_gate = bool(int(os.environ.get("GATED_ATTN_QUANT_GATE", "0")))
-    
+    # Sparse Attention Gate (modded-nanogpt-style). Keeps dense SDPA and only
+    # swaps the output-gate input to the first GATE_WINDOW residual dims.
+    # W_g: (num_heads, gate_window) = (8, 12) = 96 params/layer (~44K total),
+    # vs dense GatedAttn's (8, 512) = 4K/layer (~44K diff). Name "attn_gate_w"
+    # is shared so quant routing and int8 gate passthrough Just Work. Gate
+    # passthrough int8 still applies via GATED_ATTN_QUANT_GATE=1.
+    # Mutually exclusive with ATTN_OUT_GATE_ENABLED and GATED_ATTN_ENABLED.
     sparse_attn_gate_enabled = bool(int(os.environ.get("SPARSE_ATTN_GATE_ENABLED", "0")))
     sparse_attn_gate_init_std = float(os.environ.get("SPARSE_ATTN_GATE_INIT_STD", 0.0))
     sparse_attn_gate_scale = float(os.environ.get("SPARSE_ATTN_GATE_SCALE", 1.0))
-
+    # LQER asymmetric rank-k correction on top-K quant-error tensors (PR #1530 v2 port).
+    # Computes SVD of E = W_fp - W_quant, packs top-r A,B as INT2/INT4 (asym) or INTk (sym).
     lqer_enabled = bool(int(os.environ.get("LQER_ENABLED", "1")))
     lqer_rank = int(os.environ.get("LQER_RANK", 4))
     lqer_top_k = int(os.environ.get("LQER_TOP_K", 3))
@@ -333,7 +372,11 @@ class Hyperparameters:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     is_main_process = rank == 0
     grad_accum_steps = 8 // world_size
-
+    # CaseOps integration: optional override of dataset root + tokenizer path.
+    # When CASEOPS_ENABLED=1, the wrapper loads a per-token byte sidecar
+    # (fineweb_val_bytes_*.bin, identical shard layout to val_*.bin) and uses
+    # it as the canonical raw-byte budget for BPB accounting. The sidecar
+    # REPLACES the build_sentencepiece_luts byte-counting path entirely.
     caseops_enabled = bool(int(os.environ.get("CASEOPS_ENABLED", "0")))
     _default_caseops_data = os.path.join(
         data_dir,
@@ -2334,6 +2377,26 @@ def _byte_unshuffle(data):
         src_off += chunk_len
     return out.tobytes()
 
+
+# ── Per-group lrzip compression (ported from train_gpt_new.py @ PR#1586/1667/1729) ───
+# This variant adds an extra compressor option `pergroup`:
+#   - int8 quantized tensors are bucketed by their trailing role key
+#     (e.g. `attn.c_q.weight.q`) across the 11 blocks, then each bucket is
+#     transposed into a contiguous column-major blob and fed through lrzip.
+#   - For a few "rowwise-similar" buckets we additionally apply a greedy L1
+#     similarity permutation to the rows before transpose so lrzip sees
+#     better-correlated byte streams (stored perms go in their own stream).
+#   - Non-int8 tensors and any int8 tensors that don't match a known bucket
+#     (e.g. GatedAttn `attn_gate_w.gq`) land in a brotli-compressed remainder
+#     blob alongside the quant_meta dict, so the roundtrip is lossless.
+#   - Streams are concatenated with a 4-byte `PGRP` magic header + per-stream
+#     lengths so `deserialize()` can auto-detect the format regardless of
+#     what `h.compressor` is set to.
+#
+# The original raw.py `_compress` path (with `_byte_shuffle`) is kept fully
+# intact for brotli / lzma users; pergroup runs an independent pipeline that
+# never goes through `_compress` / `_byte_shuffle`.
+
 _GROUP_ORDER = [
     "_tok_emb.weight.q",
     "attn.c_k.weight.q", "attn.c_q.weight.q",
@@ -2629,10 +2692,10 @@ def _rebank_state_dict(flat_sd, num_layers, model_dim, kv_dim, hidden_dim):
 
 def _compressed_code_size(code):
     code_raw = code.encode("utf-8")
-    # minified = subprocess.run(
-    #     ["pyminify", "--no-rename-locals", "--no-hoist-literals", "--remove-literal-statements", "-"],
-    #     input=code_raw, capture_output=True, check=True,
-    # ).stdout
+    minified = subprocess.run(
+        ["pyminify", "--no-rename-locals", "--no-hoist-literals", "--remove-literal-statements", "-"],
+        input=code_raw, capture_output=True, check=True,
+    ).stdout
     minified = code_raw
     compressed = lzma.compress(minified)
     encoded = base64.b85encode(compressed)
