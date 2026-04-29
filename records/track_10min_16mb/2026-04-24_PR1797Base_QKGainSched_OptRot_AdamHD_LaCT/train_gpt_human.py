@@ -1411,8 +1411,11 @@ class GPT(nn.Module):
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
-            not_bos = (input_ids[:, 1:] != BOS_ID).to(x.dtype).unsqueeze(-1)
-            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
+            if os.environ.get("SMEAR_GATE_BOS_FIX", "0") == "1":
+                not_bos = (input_ids[:, 1:] != BOS_ID).to(x.dtype).unsqueeze(-1)
+                x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
+            else:
+                x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips = []
@@ -1509,8 +1512,11 @@ class GPT(nn.Module):
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
-            not_bos = (input_ids[:, 1:] != BOS_ID).to(x.dtype).unsqueeze(-1)
-            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
+            if os.environ.get("SMEAR_GATE_BOS_FIX", "0") == "1":
+                not_bos = (input_ids[:, 1:] != BOS_ID).to(x.dtype).unsqueeze(-1)
+                x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
+            else:
+                x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         skips = []
@@ -3079,6 +3085,8 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
     global BOS_ID
     if BOS_ID is None:
         BOS_ID = 1
+    TTT_LORA_EMA_DECAY = float(os.environ.get("TTT_LORA_EMA_DECAY", "0.0"))
+    ttt_lora_ema_enabled = TTT_LORA_EMA_DECAY > 0.0
     base_model.eval()
     for p in base_model.parameters():
         p.requires_grad_(False)
@@ -3132,6 +3140,13 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
         h.ttt_batch_size, base_model, h.ttt_lora_rank,
         k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
     ).to(device)
+    reusable_ema_lora = (
+        BatchedTTTLoRA(
+            h.ttt_batch_size, base_model, h.ttt_lora_rank,
+            k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
+        ).to(device)
+        if ttt_lora_ema_enabled else None
+    )
 
     def _build_opt(lora):
         if h.ttt_optimizer == "sgd":
@@ -3169,12 +3184,26 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                         s[k] = 0
             cur_lora = reusable_lora
             cur_opt = reusable_opt
+            if ttt_lora_ema_enabled:
+                reusable_ema_lora.reset()
+                with torch.no_grad():
+                    for ema_p, raw_p in zip(reusable_ema_lora.parameters(), cur_lora.parameters()):
+                        ema_p.data.copy_(raw_p.data)
+                cur_ema_lora = reusable_ema_lora
         else:
             cur_lora = BatchedTTTLoRA(
                 bsz, base_model, h.ttt_lora_rank,
                 k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
             ).to(device)
             cur_opt = _build_opt(cur_lora)
+            if ttt_lora_ema_enabled:
+                cur_ema_lora = BatchedTTTLoRA(
+                    bsz, base_model, h.ttt_lora_rank,
+                    k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
+                ).to(device)
+                with torch.no_grad():
+                    for ema_p, raw_p in zip(cur_ema_lora.parameters(), cur_lora.parameters()):
+                        ema_p.data.copy_(raw_p.data)
         pred_lens = [doc_len - 1 for _, doc_len in batch]
         num_chunks = [(pl + chunk_size - 1) // chunk_size for pl in pred_lens]
         max_nc = max(num_chunks)
@@ -3215,7 +3244,9 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
             y = torch.where(valid, gathered_gpu[:, 1 : context_size + 1], 0)
             ctx_pos = torch.arange(context_size, device=device, dtype=torch.int64)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
+                per_tok_loss = forward_ttt_train(
+                    x, y, lora=cur_ema_lora if ttt_lora_ema_enabled else cur_lora
+                )
             # CaseOps sidecar-driven byte budget. Mirror the index pattern
             # used to build y from all_tokens: y[b, j] corresponds to the
             # token at global position tok_starts[b] + 1 + j (when valid).
@@ -3254,7 +3285,7 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
             if needs_train:
                 activate_chunk_mask = (num_chunks_t - 1 > ci).float()
                 for gi in range(h.ttt_grad_steps):
-                    if gi > 0:
+                    if gi > 0 or ttt_lora_ema_enabled:
                         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                             per_tok_loss = forward_ttt_train(x, y, lora=cur_lora)
                     per_doc = per_tok_loss[
@@ -3263,6 +3294,11 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                     cur_opt.zero_grad(set_to_none=True)
                     (per_doc * activate_chunk_mask).sum().backward()
                     cur_opt.step()
+                if ttt_lora_ema_enabled:
+                    with torch.no_grad():
+                        decay = TTT_LORA_EMA_DECAY
+                        for ema_p, raw_p in zip(cur_ema_lora.parameters(), cur_lora.parameters()):
+                            ema_p.data.mul_(decay).add_(raw_p.data, alpha=1.0 - decay)
             else:
                 del per_tok_loss
         batch_num = orig_batch_idx + 1
@@ -3346,6 +3382,11 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                     k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
                 ).to(device)
                 reusable_opt = _build_opt(reusable_lora)
+                if ttt_lora_ema_enabled:
+                    reusable_ema_lora = BatchedTTTLoRA(
+                        h.ttt_batch_size, base_model, h.ttt_lora_rank,
+                        k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
+                    ).to(device)
                 current_phase += 1
                 if current_phase >= num_phases:
                     global_ttt_done = True
@@ -3361,6 +3402,8 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                 if h.rank == 0:
                     log(f"ttpr: phase:{current_phase}/{num_phases} t:{time.perf_counter() - t_start:.1f}s")
         del cur_lora, cur_opt
+        if ttt_lora_ema_enabled:
+            del cur_ema_lora
     finally:
         pass
     if dist.is_available() and dist.is_initialized():
