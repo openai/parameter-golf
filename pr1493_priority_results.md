@@ -34,8 +34,8 @@ Filled in as each experiment finishes. `pre` = pre-quantization post-EMA val_bpb
 | 0 | baseline_ttt | — | — | — | — | — | — | — | aborted (user requested skip after warmup) |
 | 1 | docshuffle | `DOC_SHUFFLE_ENABLED=1` | 1.09005 | 1.10121 | 1.08448 | **1.08279** | 16,033,898 | 4526/20000 | done |
 | 2 | wd | `WD_SCHEDULE_ENABLED=1` | 1.08650 | 1.09951 | 1.08269 | **1.08029** | 16,031,886 | 4567/20000 | done — small win |
-| 3 | iha | `IHA_ENABLED=1` | — | — | — | — | — | — | running |
-| 4 | mtp | `MTP_WEIGHT=0.10 MTP_STEPS=1` | — | — | — | — | — | — | queued |
+| 3 | iha | `IHA_ENABLED=1` | 1.08820 | — | — | — | — | 4527/20000 | **failed during GPTQ** |
+| 4 | mtp | `MTP_WEIGHT=0.10 MTP_STEPS=1` | — | — | — | — | — | — | running |
 | 5 | evalloop3 | `EVAL_NUM_LOOPS=3` | — | — | — | — | — | — | queued |
 
 ## Per-experiment notes
@@ -86,11 +86,57 @@ Submission size 16,031,886 B — also over the 16M limit by 31,886 B (code itsel
 55,168 B, model+brotli is 15,976,718 B; minification still needed for submit).
 
 **Verdict: keep, but re-run on multiple seeds and combine with another candidate
-(IHA/MTP/evalloop3) to stack toward leaderboard threshold.**
+(MTP/evalloop3) to stack toward leaderboard threshold.**
+
+### iha (failed — harness bug)
+
+`IHA_ENABLED=1` adds `q_mix`/`k_mix` head-mixing parameters and replaces the standard
+`self.c_q(x)` / `self.c_k(x)` calls with `F.linear(x, self._mixed_weight(...))` inside
+`CausalSelfAttention.forward`. Training itself ran normally; pre-quantization
+post-EMA val_bpb landed at **1.08820** (between docshuffle's 1.09005 and wd's 1.08650),
+stop_step 4527/20000.
+
+**Crashed during GPTQ quantization with:**
+
+```
+File "train_pr1493.py", line 309, in gptq_mixed_quantize
+    gptq_quantize_weight(t, hessians[name], ...)
+KeyError: 'blocks.0.attn.c_q.weight'
+```
+
+Root cause: `collect_hessians` registers forward hooks on `nn.Linear` submodules
+(`self.c_q`, `self.c_k`, `self.c_v`). With IHA enabled, those Linear modules are
+bypassed — the forward pass uses `F.linear(x, self._mixed_weight(self.c_q.weight,
+self.q_mix, ...))` directly. So the hook never fires and `hessians[]` has no entry
+for `c_q.weight`/`c_k.weight`/`c_v.weight`. When `gptq_mixed_quantize` then iterates
+the state dict, it looks up the missing key and raises `KeyError`.
+
+**Verdict: harness bug, not a feature evaluation.** Two fixes possible:
+1. Run a no-op `self.c_q(zero)` pass during forward when IHA is on, just to keep the
+   hook hot, OR
+2. Change `collect_hessians` to also handle the IHA path by hooking on the parent
+   attention module and recording the activations directly for c_q/c_k/c_v.
+
+Either way, the experiment as committed doesn't run. Skipping for now; flag for the
+runbook author. No usable q_ttt result.
 
 ## Errors / learnings (live)
 
-- _none yet_
+- **iha is broken at the harness level.** GPTQ's Hessian collection hooks on
+  `nn.Linear` forward, but IHA bypasses those Linears in favor of an inline
+  `F.linear(x, mixed_weight)`. Result: `KeyError: 'blocks.0.attn.c_q.weight'`
+  in `gptq_mixed_quantize`. Needs a fix to either keep the hooks hot or change
+  the calibration path before this idea can be evaluated.
+- **Orchestrator `set -e` doesn't catch torchrun failures** because the run is
+  wrapped in `... | tee log | tail -200 >> orchestrator.log`. Bash only checks the
+  last command in the pipeline, so a failed torchrun leaves exit code 0 at the
+  pipeline level. This is fortunate for us — mtp/evalloop3 still ran after iha
+  crashed — but it means downstream "done at" markers in the orchestrator log
+  do NOT imply success. Use the presence of `quantized_ttt val_loss` in
+  `pr1493_<name>_s42.txt` as the success gate.
+- **Submission size 16,031,886 B / 16,033,898 B is OVER the 16 MB limit by
+  ~30 KB.** The pr1493 train script (~55 KB) is too big as-is — code minification
+  is required before any of these can be submitted, regardless of BPB.
 
 ## How this file is updated
 
