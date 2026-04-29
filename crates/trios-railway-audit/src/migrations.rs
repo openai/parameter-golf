@@ -23,9 +23,15 @@ pub fn ddl_statements() -> &'static [&'static str] {
 /// Returns `Err` on connection failure or if any statement fails.
 /// Never silently swallows errors (R5).
 pub async fn run_migrate(neon_url: &str) -> Result<usize> {
-    let mut builder = openssl::ssl::SslConnector::builder(openssl::ssl::SslMethod::tls())?;
-    builder.set_verify(openssl::ssl::SslVerifyMode::NONE);
-    let connector = postgres_openssl::MakeTlsConnector::new(builder.build());
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok(); // already installed is fine
+    let mut root_store = rustls::RootCertStore::empty();
+    root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let tls_config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    let connector = tokio_postgres_rustls::MakeRustlsConnect::new(tls_config);
     let (client, connection) = tokio_postgres::connect(neon_url, connector)
         .await
         .context("connect to Neon for DDL migration")?;
