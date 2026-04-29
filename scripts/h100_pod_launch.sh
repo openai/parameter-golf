@@ -56,7 +56,7 @@ if [[ "$PHASE" == "setup" ]]; then
   timeout 2400 ssh $SSH_OPTS "${RP_HOST}" "
     set -euo pipefail
     cd '${RP_REPO}'
-    python3 data/cached_challenge_fineweb.py --variant sp8192
+    MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 80
     ls data/datasets/fineweb10B_sp8192/*.bin | wc -l
     ls data/tokenizers/fineweb_8192_bpe.model && echo 'TOKENIZER_OK'
   "
