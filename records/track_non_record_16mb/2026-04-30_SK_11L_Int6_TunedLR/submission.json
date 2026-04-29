@@ -1,0 +1,8 @@
+{
+    "submission_name": "11L Int6 + Tuned LR + FP16 Embed",
+    "track": "non_record_16mb",
+    "val_bpb": 1.30660277,
+    "artifact_bytes": 14987861,
+    "hardware": "1x RTX 4090 (local validation)",
+    "notes": "11-layer transformer with int6 quantization export, FP16 embedding passthrough, tuned Muon LR schedule. Local run on 1xRTX 4090 with batch_tokens=65536 for 10000 steps."
+}
