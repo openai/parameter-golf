@@ -1,0 +1,69 @@
+{
+  "author": "Hetul Patel",
+  "github_id": "Hetul803",
+  "name": "SP8192 SkipQuant Adapter TTT",
+  "date": "2026-04-26",
+  "track": "10min_16mb",
+  "validation": {
+    "type": "1M-token eval slice",
+    "eval_tokens": 1048576,
+    "seeds": [42, 314, 999],
+    "control_bpb_mean": 1.36900499,
+    "variant_bpb_mean": 1.31170838,
+    "delta_bpb_mean": -0.05729661,
+    "seed_results": {
+      "42": {
+        "control_bpb": 1.36603251,
+        "variant_bpb": 1.31100325,
+        "delta_bpb": -0.05502926,
+        "runtime_seconds": 81.6
+      },
+      "314": {
+        "control_bpb": 1.37206818,
+        "variant_bpb": 1.31391062,
+        "delta_bpb": -0.05815756,
+        "runtime_seconds": 83.1
+      },
+      "999": {
+        "control_bpb": 1.36891427,
+        "variant_bpb": 1.31021127,
+        "delta_bpb": -0.05870300,
+        "runtime_seconds": 84.5
+      }
+    }
+  },
+  "full_validation_estimate": {
+    "basis": "Current top score 1.0810 plus measured 1M-slice mean delta -0.05729661",
+    "estimated_mean_bpb": 1.02370,
+    "measured_full_validation": false
+  },
+  "artifact_size": {
+    "code_bytes": 17545,
+    "max_observed_model_bytes": 15981553,
+    "max_observed_total_bytes": 15999098,
+    "under_16000000": true
+  },
+  "hardware": {
+    "validation_pod": "1xH100 80GB",
+    "official_target": "8xH100 80GB"
+  },
+  "technique_summary": "Packs skip_gates and skip_weights as int4 to fit the artifact budget, then applies rank1024 score-first adapter TTT with 4096-token chunks and 4 SGD epochs at eval time.",
+  "compliance": {
+    "train_under_600s_target": true,
+    "eval_under_600s_target": true,
+    "artifact_under_16mb": true,
+    "score_first_ttt": true,
+    "no_future_token_leakage": true,
+    "no_dts": true,
+    "no_adaptive_routing": true,
+    "no_lexical_cache": true,
+    "no_suffix_cache": true,
+    "no_rdc": true,
+    "no_ctr": true,
+    "no_ttla_only": true
+  },
+  "attribution": {
+    "base_stack": "SP8192 looped/parallel-residual legal TTT stack from the experiment branch",
+    "skipquant_adapter_ttt": "Hetul Patel"
+  }
+}
