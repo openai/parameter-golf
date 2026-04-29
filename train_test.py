@@ -452,7 +452,118 @@ class KSplanifoldSpine(nn.Module):
 
         # 8. Splanifold output: spine + transverse
         return psi + delta_out  # (N, D)
+class FusedMultiSpineMLP(nn.Module):
+    def __init__(self, args: Hyperparameters):
+        super().__init__()
+        D = args.model_dim
+        S = args.num_spines
+        assert D % S == 0
 
+        self.S = S
+        self.D = D
+        self.H = D // S   # head_dim
+        R = args.spine_rank
+
+        self.delta_max = args.delta_max
+        self.eps_sigma = args.eps_sigma
+
+        self.input_norm = RMSNorm()
+
+        # ===== spine params (stacked) =====
+        self.spine_proj = nn.Parameter(torch.randn(S, self.H) / math.sqrt(self.H))
+
+        self.P0 = nn.Parameter(torch.zeros(S, self.H))
+        self.P1 = nn.Parameter(torch.randn(S, self.H) * 0.02)
+
+        # low-rank stacks: (S, D, R) and (S, R, D)
+        def lr():
+            return (
+                nn.Parameter(torch.randn(S, self.H, R) / math.sqrt(R)),
+                nn.Parameter(torch.zeros(S, R, self.H))
+            )
+
+        self.Pp0_U, self.Pp0_V = lr()
+        self.Pp1_U, self.Pp1_V = lr()
+
+        self.E0_U, self.E0_V = lr()
+        self.E1_U, self.E1_V = lr()
+
+        self.Ep0_U, self.Ep0_V = lr()
+        self.Ep1_U, self.Ep1_V = lr()
+
+        self.out_proj = CastedLinear(D, D, bias=False)
+        self.out_proj._zero_init = True
+
+        self.gate = nn.Parameter(torch.zeros(1))
+
+    def lr_apply(self, x, U, V):
+        # x: (N, S, D)
+        # U: (S, D, R), V: (S, R, D)
+        tmp = torch.einsum("nsd,srd->nsr", x, V)
+        out = torch.einsum("nsr,sdr->nsd", tmp, U)
+        return out
+
+    def hermite(self, A, B, dA, dB, t):
+        # all shapes (N, S, D), t: (N, S)
+        t = t.unsqueeze(-1)
+        t2 = t * t
+        t3 = t2 * t
+        h00 =  2*t3 - 3*t2 + 1
+        h01 = -2*t3 + 3*t2
+        h10 = t3 - 2*t2 + t
+        h11 = t3 - t2
+        return h00*A + h01*B + h10*dA + h11*dB
+
+    def forward(self, x):
+        B, T, D = x.shape
+        N = B * T
+
+        x_norm = self.input_norm(x)
+        r = (torch.tanh(x_norm) + 1) / 2
+        r = r.view(N, self.S, self.H)
+
+        # ===== spine coordinate =====
+        t = torch.sigmoid(torch.einsum("nsd,sd->ns", r, self.spine_proj))
+
+        # ===== deviation =====
+        sp = F.normalize(self.spine_proj, dim=-1)  # (S, H)
+        proj = torch.einsum("nsd,sd->ns", r, sp)
+        proj = proj.unsqueeze(-1) * sp.unsqueeze(0)
+        delta = r - proj
+
+        # ===== warp =====
+        dn = delta.norm(dim=-1, keepdim=True)
+        delta_tilde = delta / torch.sqrt(1 + (dn / self.delta_max) ** 2)
+
+        # ===== smooth weights =====
+        sigma = r.sum(dim=-1, keepdim=True)
+        eps2 = self.eps_sigma ** 2
+        w = (sigma * r + eps2 / self.H) / (sigma**2 + eps2)
+
+        # ===== spine derivatives =====
+        dV0 = self.lr_apply(w, self.Pp0_U, self.Pp0_V)
+        dV1 = self.lr_apply(w, self.Pp1_U, self.Pp1_V)
+
+        # ===== spine curve =====
+        P0 = self.P0.unsqueeze(0)
+        P1 = self.P1.unsqueeze(0)
+        psi = self.hermite(P0, P1, dV0, dV1, t)
+
+        # ===== transverse =====
+        D0 = self.lr_apply(delta_tilde, self.E0_U, self.E0_V)
+        D1 = self.lr_apply(delta_tilde, self.E1_U, self.E1_V)
+        T0 = self.lr_apply(delta_tilde, self.Ep0_U, self.Ep0_V)
+        T1 = self.lr_apply(delta_tilde, self.Ep1_U, self.Ep1_V)
+
+        delta_out = self.hermite(D0, D1, T0, T1, t)
+
+        out = psi + delta_out  # (N, S, H)
+
+        # reshape back
+        out = out.reshape(B, T, D)
+        proj = self.out_proj(out)
+
+        return x + torch.sigmoid(self.gate) * proj
 
 class MultiSpineMLP(nn.Module):
     """
@@ -541,7 +652,7 @@ class Block(nn.Module):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.attn = CausalSelfAttention(args)
-        self.mlp  = MultiSpineMLP(args)
+        self.mlp = FusedMultiSpineMLP(args)
         self.attn_scale = nn.Parameter(torch.ones(args.model_dim, dtype=torch.float32))
         # resid_mix blends current hidden state with input embedding (U-Net style)
         self.resid_mix = nn.Parameter(
@@ -716,7 +827,27 @@ def load_artifact(path: str, args: Hyperparameters, device):
     model.load_state_dict(state, strict=False)
     return model
 
+@torch.no_grad()
+def eval_fast(args, model, val_tokens, device, max_batches=32):
+    model.eval()
+    losses = []
+    seq_len = args.train_seq_len
 
+    # sample a few chunks instead of full sweep
+    for _ in range(max_batches):
+        i = torch.randint(0, val_tokens.numel() - seq_len - 1, (1,)).item()
+        chunk = val_tokens[i:i+seq_len+1].to(device)
+
+        x = chunk[:-1].unsqueeze(0)
+        y = chunk[1:].unsqueeze(0)
+
+        with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device.type == "cuda"):
+            loss = model(x, y)
+
+        losses.append(loss.item())
+
+    model.train()
+    return sum(losses) / len(losses)
 # ══════════════════════════════════════════════════════════════
 # SLIDING WINDOW EVALUATION (competition standard, stride=16)
 # ══════════════════════════════════════════════════════════════
@@ -820,6 +951,9 @@ def train(args: Hyperparameters):
 
     # ── model ──────────────────────────────────────────────────
     model = GPT(args).to(device).bfloat16()
+
+    if device.type == "cuda":
+        model = torch.compile(model, mode="max-autotune", fullgraph=True)
     model.set_attn_fp32()
     restore_fp32_controls(model)
     if ddp: model = DDP(model, device_ids=[device.index], broadcast_buffers=False)
@@ -892,14 +1026,16 @@ def train(args: Hyperparameters):
         last_step = (step == args.iterations)
         if step % args.val_loss_every == 0 and step > 0 or last_step:
             bk = ema.apply() if ema_on else None
-            _, bpb = eval_sliding(args, raw, val_tokens, bb, hl, ib, rank, ws, device)
+
+            if last_step:
+                # only do expensive eval once
+                _, bpb = eval_sliding(args, raw, val_tokens, bb, hl, ib, rank, ws, device)
+                log(f"[FINAL] BPB={bpb:.4f}")
+            else:
+                val_loss = eval_fast(args, raw, val_tokens, device)
+                log(f"[{step:6d}] val_loss={val_loss:.4f}")
+
             if bk: ema.restore(bk)
-            if master:
-                log(f"[{step:6d}] BPB={bpb:.4f}  t={elapsed:.0f}s")
-                if bpb < best_bpb:
-                    best_bpb = bpb
-                    torch.save(raw.state_dict(), f"best_{args.run_id}.pt")
-        if last_step: break
 
         # LR schedule
         s = lr_scale(step, args)
