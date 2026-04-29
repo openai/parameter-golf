@@ -1,0 +1,38 @@
+{
+  "author": "ndokutovich",
+  "github_id": "ndokutovich",
+  "name": "SP8192 + Improved Parallel Residuals + Muon 0.97 + LR 0.03 + Score-First TTT 5ep + Causal N-gram Tilt + Hessian SDClip",
+  "date": "2026-04-12",
+  "track": "10min_16mb",
+  "val_bpb": 1.07730,
+  "val_bpb_std": 0.00040,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {"val_bpb": 1.07684, "artifact_bytes": 15965495},
+    "314": {"val_bpb": 1.07748, "artifact_bytes": 15965495},
+    "999": {"val_bpb": 1.07757, "artifact_bytes": 15965495}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.4.0",
+  "technique_summary": "SP8192 + Improved Parallel Residuals (cross-lane L7+) + 3-Layer Depth Recurrence (L3-5) + Muon 0.97 + Matrix LR 0.03 + EMA 0.997 + QK-Gain 5.0 + Score-First TTT (SGD 5ep lr=0.005) + Causal N-gram Tilt (beta=2.0 agree=0.1) + Hessian-Aware SDClip (lambda=0.175) + GPTQ int6/int8 + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "no_hash_embed": true,
+    "score_first_ttt": true,
+    "causal_ngram_tilt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base": "PR #1529 msisovic (1.0753 BPB) — improved parallel residuals architecture",
+    "ttt": "Score-first TTT from PR #461 framework",
+    "ngram_tilt": "Causal n-gram tilt from PR #1514 AnirudhRahul",
+    "hessian_sdclip": "Hessian-Aware SDClip from PR #1412 Robby955",
+    "optimizer": "Muon 0.97 + LR 0.03 from PR #1493 bigbag tuning"
+  }
+}
