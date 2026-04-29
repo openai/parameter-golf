@@ -46,7 +46,12 @@ pub struct MockTrainer {
 }
 
 impl MockTrainer {
-    pub fn from_config(canon_name: &str, seed: i32, max_steps: i32, config: &Value) -> Result<Self> {
+    pub fn from_config(
+        canon_name: &str,
+        seed: i32,
+        max_steps: i32,
+        config: &Value,
+    ) -> Result<Self> {
         let initial_bpb = config
             .get("mock_initial_bpb")
             .and_then(Value::as_f64)
@@ -83,8 +88,10 @@ impl Trainer for MockTrainer {
         self.current_step += 1;
         // Deterministic exponential decay toward target_bpb plus a
         // tiny seed-dependent jitter so two seeds aren't identical.
-        let jitter = ((self.seed as f64).sin().abs()) * 0.005;
-        self.bpb = self.target_bpb + (self.bpb - self.target_bpb) * (1.0 - self.decay) + jitter * self.decay;
+        let jitter = f64::from(self.seed).sin().abs() * 0.005;
+        self.bpb = self.target_bpb
+            + (self.bpb - self.target_bpb) * (1.0 - self.decay)
+            + jitter * self.decay;
         Ok(())
     }
 
@@ -114,7 +121,11 @@ mod tests {
         for _ in 0..500 {
             t.step().unwrap();
             let now = t.eval_bpb();
-            assert!(now <= prev + 0.01, "non-monotone at step {}", t.current_step());
+            assert!(
+                now <= prev + 0.01,
+                "non-monotone at step {}",
+                t.current_step()
+            );
             prev = now;
         }
         assert!(t.eval_bpb() < 3.5);

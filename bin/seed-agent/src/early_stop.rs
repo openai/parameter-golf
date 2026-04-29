@@ -69,10 +69,7 @@ pub fn decide(history: &[(i32, f64)], cfg: &EarlyStopConfig) -> EarlyStop {
     }
 
     // Find the BPB at (or just before) the decision step.
-    let Some(&(at_step, at_bpb)) = history
-        .iter()
-        .rev()
-        .find(|&&(s, _)| s <= cfg.decision_step)
+    let Some(&(at_step, at_bpb)) = history.iter().rev().find(|&&(s, _)| s <= cfg.decision_step)
     else {
         return EarlyStop::Continue;
     };
@@ -134,7 +131,10 @@ pub fn fit_power_law_asymptote(history: &[(i32, f64)]) -> Option<f64> {
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = sorted.len();
     let cut = n.saturating_sub(n / 4).max(1); // last quartile by sorted BPB
-    let tail = &sorted[..cut.max(1)];          // lowest-BPB quartile (best)
+    let tail = &sorted[..cut.max(1)]; // lowest-BPB quartile (best)
+                                      // tail.len() is bounded by history.len() (<= 256 in worker.rs);
+                                      // f64 can represent integers up to 2^53 exactly, so the cast is lossless here.
+    #[allow(clippy::cast_precision_loss)]
     let avg = tail.iter().sum::<f64>() / tail.len() as f64;
     Some(avg)
 }
@@ -150,7 +150,16 @@ mod tests {
     fn history_with_bpb_at_1000(bpb: f64) -> Vec<(i32, f64)> {
         // 11 samples at steps 0, 100, 200, ..., 1000.
         (0..=10)
-            .map(|i| (i * 100, if i * 100 == 1000 { bpb } else { 3.5 - 0.2 * i as f64 }))
+            .map(|i| {
+                (
+                    i * 100,
+                    if i * 100 == 1000 {
+                        bpb
+                    } else {
+                        3.5 - 0.2 * f64::from(i)
+                    },
+                )
+            })
             .collect()
     }
 
@@ -165,7 +174,7 @@ mod tests {
         let h = history_with_bpb_at_1000(2.80);
         match decide(&h, &cfg()) {
             EarlyStop::Prune { reason, .. } => assert!(reason.starts_with("hard-ceiling")),
-            other => panic!("expected hard-ceiling prune, got {other:?}"),
+            EarlyStop::Continue => panic!("expected hard-ceiling prune, got Continue"),
         }
     }
 
@@ -191,7 +200,7 @@ mod tests {
         c.gate_slack = 1.0;
         match decide(&h, &c) {
             EarlyStop::Prune { reason, .. } => assert!(reason.starts_with("worse-than-leader")),
-            other => panic!("expected leader-relative prune, got {other:?}"),
+            EarlyStop::Continue => panic!("expected leader-relative prune, got Continue"),
         }
     }
 
@@ -203,7 +212,7 @@ mod tests {
         c.hard_ceiling_bpb = 3.0; // disable signal #1
         match decide(&h, &c) {
             EarlyStop::Prune { reason, .. } => assert!(reason.starts_with("predicted-misses-gate")),
-            other => panic!("expected predicted-miss-gate prune, got {other:?}"),
+            EarlyStop::Continue => panic!("expected predicted-miss-gate prune, got Continue"),
         }
     }
 
@@ -215,7 +224,9 @@ mod tests {
     #[test]
     fn power_law_asymptote_is_robust_to_outliers() {
         // 9 good samples around 1.9, one outlier at 5.0.
-        let mut h: Vec<(i32, f64)> = (0..=8).map(|i| (i * 100, 1.9 + 0.01 * i as f64)).collect();
+        let mut h: Vec<(i32, f64)> = (0..=8)
+            .map(|i| (i * 100, 1.9 + 0.01 * f64::from(i)))
+            .collect();
         h.push((900, 5.0));
         let asymp = fit_power_law_asymptote(&h).unwrap();
         // Outlier is in top quartile; tail mean ≈ 1.9.
@@ -229,18 +240,20 @@ mod tests {
         let mut c = cfg();
         c.decision_step = 500;
         match decide(&h, &c) {
-            EarlyStop::Prune { triggered_by_step, .. } => {
+            EarlyStop::Prune {
+                triggered_by_step, ..
+            } => {
                 assert!(triggered_by_step <= 500);
             }
-            other => panic!("expected prune at custom step, got {other:?}"),
+            EarlyStop::Continue => panic!("expected prune at custom step, got Continue"),
         }
     }
 
     #[test]
     fn default_config_matches_adr_0081() {
         let c = EarlyStopConfig::default();
-        assert_eq!(c.hard_ceiling_bpb, 2.60);
-        assert_eq!(c.gate_target_bpb, 1.85);
+        assert!((c.hard_ceiling_bpb - 2.60).abs() < f64::EPSILON);
+        assert!((c.gate_target_bpb - 1.85).abs() < f64::EPSILON);
         assert_eq!(c.decision_step, 1000);
     }
 }

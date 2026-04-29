@@ -102,7 +102,6 @@ const DDL: &[&str] = &[
         JOIN railway_audit_runs   r ON r.id = e.run_id
         LEFT JOIN railway_services s ON s.id = e.service_id
         WHERE r.id = (SELECT id FROM railway_audit_runs ORDER BY started_at DESC LIMIT 1)",
-
     // AU-02: audit-event telemetry. Written by `event::audit_event()`.
     // NOTE: if the table already exists with a different schema (no `step`
     // column), CREATE IF NOT EXISTS is a no-op. The index below uses
@@ -115,7 +114,6 @@ const DDL: &[&str] = &[
         image_sha   text      NOT NULL,
         recorded_at timestamptz NOT NULL DEFAULT now()
     )",
-
     r"DO $$ BEGIN
         IF EXISTS (
             SELECT 1 FROM information_schema.columns
@@ -125,7 +123,6 @@ const DDL: &[&str] = &[
                 ON igla_race_trials (seed, step);
         END IF;
     END $$",
-
     // Gardener orchestrator run log. Written by tri-gardener neon.rs.
     r"CREATE TABLE IF NOT EXISTS gardener_runs (
         id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -139,10 +136,8 @@ const DDL: &[&str] = &[
         decision      jsonb        NOT NULL,
         audit_run_id  uuid REFERENCES railway_audit_runs(id) ON DELETE SET NULL
     )",
-
     r"CREATE INDEX IF NOT EXISTS gardener_runs_ts_idx
         ON gardener_runs (ts DESC)",
-
     // ===================================================================
     // ADR-0081 — Unified Experiment Loop (issue #81)
     //
@@ -156,7 +151,6 @@ const DDL: &[&str] = &[
     // R5-honest: status transitions are append-only audit (one row per
     // claim attempt) — never UPDATE-in-place silent moves.
     // ===================================================================
-
     r"CREATE TABLE IF NOT EXISTS experiment_queue (
         id              bigserial PRIMARY KEY,
         canon_name      text NOT NULL,
@@ -184,24 +178,20 @@ const DDL: &[&str] = &[
                         CHECK (created_by IN
                               ('gardener','human','auto-mirror','seed-agent'))
     )",
-
     // Pull-queue index — partial, only over rows that are actually
     // claimable. Keeps SKIP LOCKED scans cheap as the table grows.
     // DESC matches claim SQL `ORDER BY priority DESC` for index-only scan.
     r"CREATE INDEX IF NOT EXISTS experiment_queue_pull_idx
         ON experiment_queue (priority DESC, created_at ASC)
         WHERE status = 'pending'",
-
     // Lookup by canon for gardener strategy ticks.
     r"CREATE INDEX IF NOT EXISTS experiment_queue_canon_idx
         ON experiment_queue (canon_name, seed)",
-
     // Stale-claim recovery: gardener resets rows whose claimed_at is
     // older than 5 minutes back to 'pending'. Index keeps that scan O(log n).
     r"CREATE INDEX IF NOT EXISTS experiment_queue_stale_claim_idx
         ON experiment_queue (claimed_at)
         WHERE status = 'claimed'",
-
     // BPB telemetry — one row per (canon, seed, step). Already referenced
     // by `bin/tri-gardener/src/bpb_source.rs`; this DDL is the canonical
     // create. Issue #62 noted Pipedream silently rolls DDL back; apply
@@ -216,13 +206,10 @@ const DDL: &[&str] = &[
         ts          timestamptz NOT NULL DEFAULT now(),
         UNIQUE (canon_name, seed, step)
     )",
-
     r"CREATE INDEX IF NOT EXISTS bpb_samples_canon_seed_step_idx
         ON bpb_samples (canon_name, seed, step DESC)",
-
     r"CREATE INDEX IF NOT EXISTS bpb_samples_recent_idx
         ON bpb_samples (ts DESC)",
-
     // Worker registry. Heartbeat updated by Seed Agent at every Neon
     // poll. Stale workers (no heartbeat > 2 minutes) are evicted by the
     // gardener and their claimed experiments are returned to 'pending'.
@@ -236,10 +223,8 @@ const DDL: &[&str] = &[
         current_exp_id  bigint REFERENCES experiment_queue(id) ON DELETE SET NULL,
         registered_at   timestamptz NOT NULL DEFAULT now()
     )",
-
     r"CREATE INDEX IF NOT EXISTS workers_heartbeat_idx
         ON workers (last_heartbeat DESC)",
-
     // Audit trail of strategic decisions made by the gardener. Append-only.
     r"CREATE TABLE IF NOT EXISTS gardener_decisions (
         id              bigserial PRIMARY KEY,
@@ -252,10 +237,8 @@ const DDL: &[&str] = &[
         reason          text NOT NULL,
         snapshot        jsonb
     )",
-
     r"CREATE INDEX IF NOT EXISTS gardener_decisions_ts_idx
         ON gardener_decisions (ts DESC)",
-
     // Live-leaderboard view: best (lowest) BPB per canon+seed across all
     // samples, joined with experiment status. Used by gardener strategy
     // and `mcp.fleet.snapshot`.
@@ -379,7 +362,7 @@ mod tests {
         );
     }
 
-    /// gardener_decisions.action enum is the single source of truth
+    /// `gardener_decisions.action` enum is the single source of truth
     /// for orchestrator audit-log values.
     #[test]
     fn gardener_decisions_action_enum_is_locked() {

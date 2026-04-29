@@ -29,7 +29,11 @@ mod trainer;
 mod worker;
 
 #[derive(Debug, Parser)]
-#[command(name = "seed-agent", version, about = "ADR-0081 pull-based trainer worker")]
+#[command(
+    name = "seed-agent",
+    version,
+    about = "ADR-0081 pull-based trainer worker"
+)]
 struct Cli {
     /// Railway account this worker runs in (`acc0..acc3`). Falls back
     /// to `acc1` so an operator who set only `NEON_DATABASE_URL` (per
@@ -56,7 +60,7 @@ struct Cli {
 
     /// Step at which the early-stop decision is made.
     #[arg(long, default_value_t = 1000)]
-    early_stop_step: u32,
+    early_stop_step: i32,
 
     /// Early-stop BPB ceiling. Exceeding this at `early_stop_step` →
     /// abandon experiment, mark `pruned`, pull next.
@@ -84,7 +88,9 @@ async fn main() -> Result<()> {
     );
 
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .with_writer(std::io::stdout)
         .compact()
         .init();
@@ -117,8 +123,7 @@ async fn main() -> Result<()> {
     // first connect. We use rustls with the Mozilla CA bundle so no
     // platform certs are required inside the slim debian-slim runtime.
     let mut tls_root_store = rustls::RootCertStore::empty();
-    tls_root_store
-        .extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    tls_root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let tls_config = rustls::ClientConfig::builder()
         .with_root_certificates(tls_root_store)
         .with_no_client_auth();
