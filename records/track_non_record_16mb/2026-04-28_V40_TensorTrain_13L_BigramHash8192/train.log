@@ -1,0 +1,142 @@
+W0428 10:48:27.511000 2590 torch/distributed/run.py:803] 
+W0428 10:48:27.511000 2590 torch/distributed/run.py:803] *****************************************
+W0428 10:48:27.511000 2590 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0428 10:48:27.511000 2590 torch/distributed/run.py:803] *****************************************
+logs/af9c20cc-7d9e-4265-9c3b-687537c27cbf.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:25656937 export_params:25656937
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+xsa_last_n:4 bigram_vocab_size:8192 activation:LeakyReLU(0.5)^2
+ema_enabled:True ema_decay:0.997
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:200 max_wallclock_seconds:600.000
+seed:1337
+tt_enabled:1 tt_apply_to:attn_qkv,attn_out tt_mode_shape:8,8,8 tt_max_rank:8 tt_init_mode:svd tt_muon_mode:reshape tt_cores:78 tt_core_params:133120
+warmup_step:10/200
+warmup_step:20/200
+warmup_step:30/200
+warmup_step:40/200
+warmup_step:50/200
+warmup_step:60/200
+warmup_step:70/200
+warmup_step:80/200
+warmup_step:90/200
+warmup_step:100/200
+warmup_step:110/200
+warmup_step:120/200
+warmup_step:130/200
+warmup_step:140/200
+warmup_step:150/200
+warmup_step:160/200
+warmup_step:170/200
+warmup_step:180/200
+warmup_step:190/200
+warmup_step:200/200
+logit_temp_cal: T*=1.3000 near boundary, fallback to 1.0
+step:0/20000 val_loss:6.9310 val_bpb:4.1049 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9331 train_time:15506ms step_avg:15506.50ms
+step:2/20000 train_loss:10.0120 train_time:15616ms step_avg:7807.76ms
+step:3/20000 train_loss:9.9524 train_time:15717ms step_avg:5239.09ms
+step:4/20000 train_loss:9.5784 train_time:15819ms step_avg:3954.80ms
+step:5/20000 train_loss:8.9273 train_time:15921ms step_avg:3184.18ms
+step:6/20000 train_loss:8.2638 train_time:16023ms step_avg:2670.51ms
+step:7/20000 train_loss:7.5634 train_time:16125ms step_avg:2303.57ms
+step:8/20000 train_loss:7.0287 train_time:16227ms step_avg:2028.39ms
+step:9/20000 train_loss:6.5191 train_time:16329ms step_avg:1814.31ms
+step:10/20000 train_loss:6.2278 train_time:16434ms step_avg:1643.36ms
+step:200/20000 train_loss:2.6450 train_time:36087ms step_avg:180.43ms
+step:400/20000 train_loss:2.5877 train_time:56892ms step_avg:142.23ms
+step:600/20000 train_loss:2.4549 train_time:77714ms step_avg:129.52ms
+step:800/20000 train_loss:2.3147 train_time:98615ms step_avg:123.27ms
+step:1000/20000 train_loss:2.3406 train_time:119473ms step_avg:119.47ms
+logit_temp_cal: T*=1.0052 (CE@T*=2.2855, CE@1=2.2855)
+step:1000/20000 val_loss:2.2931 val_bpb:1.3581 train_time:119476ms step_avg:119.48ms
+step:1200/20000 train_loss:2.4130 train_time:140322ms step_avg:116.94ms
+step:1400/20000 train_loss:2.2298 train_time:161248ms step_avg:115.18ms
+step:1600/20000 train_loss:2.1167 train_time:182121ms step_avg:113.83ms
+step:1800/20000 train_loss:2.2024 train_time:203059ms step_avg:112.81ms
+step:2000/20000 train_loss:2.1156 train_time:223915ms step_avg:111.96ms
+logit_temp_cal: T*=0.9976 (CE@T*=2.1847, CE@1=2.1847)
+[rank0]:W0428 10:55:41.364000 2677 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0428 10:55:41.364000 2677 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1460)
+[rank0]:W0428 10:55:41.364000 2677 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/2: tensor 'input_ids' dispatch key set mismatch. expected DispatchKeySet(CUDA, BackendSelect, ADInplaceOrView, AutocastCUDA), actual DispatchKeySet(CUDA, BackendSelect, AutocastCUDA)
+[rank0]:W0428 10:55:41.364000 2677 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0428 10:55:41.364000 2677 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank2]:W0428 10:55:50.382000 2679 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank2]:W0428 10:55:50.382000 2679 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1460)
+[rank2]:W0428 10:55:50.382000 2679 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 9
+[rank2]:W0428 10:55:50.382000 2679 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank2]:W0428 10:55:50.382000 2679 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank5]:W0428 10:55:50.536000 2682 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank5]:W0428 10:55:50.536000 2682 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1460)
+[rank5]:W0428 10:55:50.536000 2682 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank5]:W0428 10:55:50.536000 2682 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank5]:W0428 10:55:50.536000 2682 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank7]:W0428 10:55:50.563000 2684 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank7]:W0428 10:55:50.563000 2684 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1460)
+[rank7]:W0428 10:55:50.563000 2684 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank7]:W0428 10:55:50.563000 2684 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank7]:W0428 10:55:50.563000 2684 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank4]:W0428 10:55:50.642000 2681 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank4]:W0428 10:55:50.642000 2681 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1460)
+[rank4]:W0428 10:55:50.642000 2681 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 9
+[rank4]:W0428 10:55:50.642000 2681 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank4]:W0428 10:55:50.642000 2681 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank1]:W0428 10:55:50.663000 2678 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank1]:W0428 10:55:50.663000 2678 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1460)
+[rank1]:W0428 10:55:50.663000 2678 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank1]:W0428 10:55:50.663000 2678 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank1]:W0428 10:55:50.663000 2678 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank3]:W0428 10:55:50.745000 2680 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank3]:W0428 10:55:50.745000 2680 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1460)
+[rank3]:W0428 10:55:50.745000 2680 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 10
+[rank3]:W0428 10:55:50.745000 2680 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank3]:W0428 10:55:50.745000 2680 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank6]:W0428 10:55:50.778000 2683 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank6]:W0428 10:55:50.778000 2683 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1460)
+[rank6]:W0428 10:55:50.778000 2683 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 9
+[rank6]:W0428 10:55:50.778000 2683 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank6]:W0428 10:55:50.778000 2683 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+step:2000/20000 val_loss:2.1855 val_bpb:1.2944 train_time:223920ms step_avg:111.96ms
+step:2200/20000 train_loss:2.1837 train_time:244797ms step_avg:111.27ms
+step:2400/20000 train_loss:2.1168 train_time:265613ms step_avg:110.67ms
+step:2600/20000 train_loss:2.1661 train_time:286503ms step_avg:110.19ms
+step:2800/20000 train_loss:2.2111 train_time:307376ms step_avg:109.78ms
+step:3000/20000 train_loss:2.2150 train_time:328215ms step_avg:109.41ms
+logit_temp_cal: T*=1.0212 (CE@T*=2.1474, CE@1=2.1479)
+step:3000/20000 val_loss:2.1491 val_bpb:1.2728 train_time:328219ms step_avg:109.41ms
+step:3200/20000 train_loss:2.2270 train_time:349099ms step_avg:109.09ms
+step:3400/20000 train_loss:2.0743 train_time:369916ms step_avg:108.80ms
+step:3600/20000 train_loss:2.1510 train_time:390814ms step_avg:108.56ms
+step:3800/20000 train_loss:2.1280 train_time:411641ms step_avg:108.33ms
+step:4000/20000 train_loss:2.0382 train_time:432515ms step_avg:108.13ms
+logit_temp_cal: T*=0.9963 (CE@T*=2.1268, CE@1=2.1268)
+step:4000/20000 val_loss:2.1277 val_bpb:1.2602 train_time:432519ms step_avg:108.13ms
+step:4200/20000 train_loss:2.2141 train_time:453369ms step_avg:107.94ms
+step:4400/20000 train_loss:2.0957 train_time:474260ms step_avg:107.79ms
+step:4600/20000 train_loss:1.8958 train_time:495124ms step_avg:107.64ms
+step:4800/20000 train_loss:2.4739 train_time:515917ms step_avg:107.48ms
+step:5000/20000 train_loss:2.1329 train_time:536779ms step_avg:107.36ms
+logit_temp_cal: T*=1.0128 (CE@T*=2.0476, CE@1=2.0478)
+step:5000/20000 val_loss:2.0558 val_bpb:1.2175 train_time:536782ms step_avg:107.36ms
+step:5200/20000 train_loss:2.0556 train_time:557560ms step_avg:107.22ms
+step:5400/20000 train_loss:2.0537 train_time:578399ms step_avg:107.11ms
+step:5600/20000 train_loss:1.9542 train_time:599253ms step_avg:107.01ms
+logit_temp_cal: T*=1.0067 (CE@T*=1.9878, CE@1=1.9878)
+step:5608/20000 val_loss:1.9955 val_bpb:1.1819 train_time:600095ms step_avg:107.01ms
+stopping_early: wallclock_cap train_time:600095ms step:5608/20000
+peak memory allocated: 24347 MiB reserved: 26222 MiB
+ema:applying EMA weights
+Serialized model: 99276047 bytes
+Code size: 126585 bytes
+Serialized model int6+zstd: 14916215 bytes
+Total submission size int6+zstd: 15042800 bytes
+Budget check: FITS (<16MB)
+logit_temp_cal: T*=1.0197 (CE@T*=2.0043, CE@1=2.0047)
+final_int6_roundtrip val_loss:2.0106 val_bpb:1.1908 eval_time:6555ms
+final_int6_roundtrip_exact val_loss:2.01056194 val_bpb:1.19076803
+final_int6_sliding_window val_loss:1.9740 val_bpb:1.1691 stride:64 eval_time:214380ms
+final_int6_sliding_window_exact val_loss:1.97396658 val_bpb:1.16909729
