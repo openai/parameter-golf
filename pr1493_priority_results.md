@@ -34,7 +34,7 @@ Filled in as each experiment finishes. `pre` = pre-quantization post-EMA val_bpb
 | 0 | baseline_ttt | — | — | — | — | — | — | — | aborted (user requested skip after warmup) |
 | 1 | docshuffle | `DOC_SHUFFLE_ENABLED=1` | 1.09005 | 1.10121 | 1.08448 | **1.08279** | 16,033,898 | 4526/20000 | done |
 | 2 | wd | `WD_SCHEDULE_ENABLED=1` | 1.08650 | 1.09951 | 1.08269 | **1.08029** | 16,031,886 | 4567/20000 | done — small win |
-| 3 | iha | `IHA_ENABLED=1` | 1.08820 | — | — | — | — | 4527/20000 | **failed during GPTQ** |
+| 3 | iha | `IHA_ENABLED=1` | 1.08820 | — | — | — | — | 4524/20000 | **failed during GPTQ** |
 | 4 | mtp | `MTP_WEIGHT=0.10 MTP_STEPS=1` | — | — | — | — | — | — | running |
 | 5 | evalloop3 | `EVAL_NUM_LOOPS=3` | — | — | — | — | — | — | queued |
 
@@ -94,7 +94,7 @@ Submission size 16,031,886 B — also over the 16M limit by 31,886 B (code itsel
 `self.c_q(x)` / `self.c_k(x)` calls with `F.linear(x, self._mixed_weight(...))` inside
 `CausalSelfAttention.forward`. Training itself ran normally; pre-quantization
 post-EMA val_bpb landed at **1.08820** (between docshuffle's 1.09005 and wd's 1.08650),
-stop_step 4527/20000.
+stop_step 4524/20000.
 
 **Crashed during GPTQ quantization with:**
 
