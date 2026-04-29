@@ -1,0 +1,152 @@
+FULL RUN AUDIT — parameter-golf training history on this host
+==============================================================
+Generated: 2026-04-22
+
+HEADLINE FINDING
+----------------
+v3.1 (mean BPB 1.36409 across 2 seeds, sliding-64) is NOT our best
+achievable submission.
+
+TWO older runs beat it on raw chunked BPB:
+
+  overnight_int8_best  : 1.34167922 BPB, 13,726,856 B int6+lzma
+                         (UNDER 16 MB cap)
+                         CHECKPOINT EXISTS on disk as
+                         ~/parameter-golf/final_model.int6.ptz (Apr 11).
+                         Read-only load via lzma.decompress + torch.load
+                         succeeds; payload structure {'w','m'} matches
+                         dequantize_mixed_int6 expectation.
+                         NOT in run_history.json (which last-modified
+                         Apr 8, before this run).
+
+  overnight_long_ema_001: 1.34988332 BPB, 19,151,354 B int8+zlib
+                          (OVER 16 MB cap — UNSUBMITTABLE as is)
+                          CHECKPOINT NOT FOUND on disk. No file matches
+                          the 19,151,354-byte size.
+
+If overnight_int8_best's checkpoint were re-evaluated under stride-64
+sliding window (no n-gram), the expected BPB drop is ~0.01 BPB based
+on the seed-314 chunked->sliding delta we already measured (1.37085
+chunked -> 1.36165 sliding = -0.0092). Estimated:
+
+  overnight_int8_best chunked       : 1.34168
+  overnight_int8_best sliding-64 EST: 1.34168 - 0.009 ~= 1.333
+
+That would beat v3.1 by ~0.031 BPB on a single-seed comparison.
+This is a major finding. We did NOT run sliding eval on this
+checkpoint (read-only audit).
+
+==============================================================
+TOP 25 RUNS BY VAL_BPB (ascending = best first)
+==============================================================
+Sources: logs/ scan + run_history.json. Eval method tagged as
+recorded in each log. CHKPT column: YES = file is on disk and
+loads, GONE = referenced in log but no matching file, NO = never
+written or already overwritten.
+
+RANK | VAL_BPB    | EVAL_METHOD              | STEPS | SEED | RUN_ID                                  | CHKPT       | LOG_FILE
+-----|------------|---------------------------|-------|------|------------------------------------------|-------------|------------------------------------------------------
+  1  | 1.34168    | int6+lzma roundtrip      | 2612  | 1337 | overnight_int8_best                     | YES (Apr 11)| logs/overnight_int8_best.txt
+  2  | 1.34988    | int8+zlib roundtrip      | 4775  | 1337 | overnight_long_ema_001                  | GONE        | logs/overnight_long_ema_001.txt
+  3  | 1.36165    | sliding-64 ngram=False   | 1057  | 314  | v3 seed314 (sweep cache)                | YES (locked)| logs/sliding_sweep_s64_ngramFalse.log
+  4  | 1.36179    | sliding-128 ngram=False  | 1057  | 314  | v3 seed314 (sweep cache)                | YES (locked)| logs/sliding_sweep_s128_ngramFalse.log
+  5  | 1.36221    | sliding-64 (R2/v3.1)     | 1057  | 314  | v3.1 seed314 R2                         | YES (locked)| logs/v31_seed314_r2_check.log
+  6  | 1.36238    | sliding-256 ngram=False  | 1057  | 314  | v3 seed314 (sweep cache)                | YES (locked)| logs/sliding_sweep_s256_ngramFalse.log
+  7  | 1.36345    | sliding-64 ngram=True    | 1057  | 314  | v3 seed314 (sweep cache, alpha=0.15,o=5)| YES (locked)| logs/alpha_order_s0.15_o5.log
+  8  | 1.36575    | chunked + ngram          | 1061  | 1337 | v3 seed1337                             | GONE (over- | logs/v3_seed1337_20260416_103916.log
+     |            |                           |       |      |                                          | written)    |
+  9  | 1.36598    | sliding-64 (v3.1)        | 1040  | 1337 | v3.1 seed1337 retrain                   | YES (v31/)  | logs/v31_seed1337_sliding.log
+ 10  | 1.36737    | chunked + ngram          | 1069  | 42   | v3 seed42 (recovery eval)               | GONE (over- | logs/v3_recover_20260414.log
+     |            |                           |       |      |                                          | written)    |
+ 11  | 1.36798    | sliding-64 ngram α=0.20  | 1057  | 314  | v3 seed314 (sweep)                      | YES (locked)| logs/alpha_order_s0.20_o5.log
+ 12  | 1.37085    | chunked + ngram          | 1057  | 314  | v3 seed314                              | YES (locked)| logs/v3_seed314_20260416_160437.log
+ 13  | 1.3734     | chunked, no quant, no EMA| 1069  | 42   | v3 seed42 (mid-training, pre-finalize)  | GONE        | logs/v3_seed42_20260413_214931.log
+ 14  | 1.3780     | chunked, raw at step 1040| 1040  | 1337 | v3.1 seed1337 (in-script, pre-EMA)      | YES (v31/)  | logs/v31_train_seed1337.log
+ 15  | 1.3947     | chunked at step 1000     | 1000  | 1337 | overnight_int8_best (mid-training)      | YES (Apr 11)| logs/overnight_int8_best.txt
+ 16  | 1.39533    | chunked + EMA + int8     | 1040  | 314  | V2 seed 314                             | YES (locked)| logs/v2_seed314.txt
+ 17  | 1.39564    | chunked + EMA + int8     | 1041  | 42   | V2 seed 42                              | GONE        | logs/v2_seed42.txt
+ 18  | 1.39750    | chunked + EMA + int8     | 600   | 1337 | int8_mlp4x_test_001                     | NO          | logs/int8_mlp4x_test_001.txt
+ 19  | 1.39983    | chunked + EMA + int8     | 1033  | 1337 | V2 seed 1337                            | GONE        | logs/v2_seed1337.txt
+ 20  | 1.40314    | chunked                  | 650   | -    | leaky_relu_test_001                     | NO          | logs/leaky_relu_test_001.txt
+ 21  | 1.4426     | chunked                  | -     | -    | autoresearch (multi-trial)              | NO          | logs/autoresearch_stdout.log
+ 22  | 1.46659    | chunked + int6+lzma      | -     | -    | int6_lzma_test_001                      | NO          | logs/int6_lzma_test_001.txt
+ 23  | 1.46951    | chunked                  | -     | -    | optuna_int8_004                         | NO          | logs/optuna_int8_004.txt
+ 24  | 1.47783    | chunked                  | -     | -    | overnight_qat_int6_mlp5x                | NO          | logs/overnight_qat_int6_mlp5x.txt
+ 25  | 1.66017    | chunked                  | -     | -    | optuna_int8_002                         | NO          | logs/optuna_int8_002.txt
+
+(34 runs total in run_history.json + 50+ named log files; only the top
+25 by best-recorded-BPB are shown above. Lower-ranked entries are
+optuna-trial / smoke-test material that produced no usable artifacts.)
+
+==============================================================
+CHECKPOINTS PHYSICALLY ON DISK
+==============================================================
+Filtered to candidate-submission sizes (under 50 MB, .ptz):
+
+  bytes        | path                                                                        | mtime   | identity
+  -------------|------------------------------------------------------------------------------|---------|------------------------------
+  13,726,856   | parameter-golf/final_model.int6.ptz                                          | Apr 11  | overnight_int8_best (1.34168)
+  15,509,631   | parameter-golf/experiments/checkpoints_v31/final_model_seed1337.int8.ptz     | Apr 19  | v3.1 seed 1337 (1.36598 sliding)
+  15,610,091   | parameter-golf/experiments/checkpoints_locked/final_model_seed314.int8.ptz   | Apr 18  | v3/v3.1 seed 314 (1.36165 sliding)
+  15,610,091   | parameter-golf/final_model.int8.ptz                                          | Apr 16  | seed 314 (CWD copy, identical md5)
+
+Larger .pt files in experiments/checkpoints/ are arch-search dump
+files from Apr 5-6 (different model shapes, not int8/int6 quantized,
+not submission candidates).
+
+==============================================================
+ANSWERS TO THE THREE STATED QUESTIONS
+==============================================================
+
+Q1: "Is v3.1 (1.36409 mean) actually our best achievable submission?"
+A1: NO. overnight_int8_best at 1.34168 raw chunked BPB beats v3.1 by
+    ~0.022 BPB even before applying sliding eval. Its checkpoint is
+    on disk, is under the 16 MB cap, and read-only inspection
+    confirms it is a valid int6+lzma payload.
+
+Q2: "Does any surviving checkpoint, if evaluated with stride=64
+    sliding window, potentially beat v3.1?"
+A2: YES. final_model.int6.ptz (the overnight_int8_best checkpoint).
+    Conservative estimate using the seed-314 chunked->sliding delta
+    (-0.0092 BPB): expected sliding-64 BPB on this checkpoint ~1.333,
+    which would beat v3.1's 1.364 by ~0.031 BPB.
+    NOT VERIFIED — would need a 5.5h sliding eval on this host.
+    (PROHIBITIONS forbid launching any eval in this audit.)
+
+Q3: "Specifically: if overnight_long_ema_001 checkpoint exists AND we
+    applied sliding eval to it, estimated BPB would be ~1.34 ...
+    Does the checkpoint exist? YES or NO."
+A3: NO. The 19,151,354-byte int8+zlib artifact for overnight_long_ema_001
+    is not on disk anywhere. The closest sized file is 13,726,856 B
+    (int6+lzma, overnight_int8_best — different run).
+
+    Even if it existed, overnight_long_ema_001 would not be directly
+    submittable: its 19.15 MB artifact is over the 16 MB cap. Sliding
+    eval ~1.34 -> ~1.33 estimate is moot.
+
+==============================================================
+RECOMMENDATIONS (for human, not auto-actioned)
+==============================================================
+1. Before opening the v3.1 PR for review, run ONE stride-64 sliding
+   eval (~5.5 h on GB10) against final_model.int6.ptz. If the
+   resulting BPB is < 1.36 with confidence, the v3.1 PR is no
+   longer the best submission and we should hold it.
+
+2. If overnight_int8_best (1.34168) holds up under sliding eval,
+   build a fresh v4 submission directly from its checkpoint:
+   - The training code at the time of overnight_int8_best is what
+     produced 1.34168. We need to identify which train_gpt_spark.py
+     revision was active on Apr 11. The .txt log preserves the
+     full source preamble — we can reconstruct it bit-exactly if
+     needed.
+   - Reconcile the run_history.json gap: this run isn't tracked
+     because the JSON last-updated Apr 8 (before this Apr 11 run).
+     A v4 submission would need its own training-log + reproduction
+     instructions.
+
+3. If sliding eval on final_model.int6.ptz fails or comes in close
+   to 1.34168 (no improvement), v3.1 remains the best submittable
+   product and the v3.1 PR can stand.
+
+NO ACTIONS TAKEN BEYOND THIS AUDIT. NO CHECKPOINTS MODIFIED.
+NO TRAINING OR EVAL LAUNCHED. v3.1 PR BRANCH UNTOUCHED.
