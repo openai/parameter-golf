@@ -49,14 +49,16 @@ EXPERIMENTS = {
     "docshuffle": {"DOC_SHUFFLE_ENABLED": "1"},
     "wd": {"WD_SCHEDULE_ENABLED": "1"},
     "iha": {"IHA_ENABLED": "1"},
+    "paired": {"PAIRED_HEAD_MUON_ENABLED": "1"},
+    "wd_paired": {"WD_SCHEDULE_ENABLED": "1", "PAIRED_HEAD_MUON_ENABLED": "1"},
+    "wd_paired_iha": {"WD_SCHEDULE_ENABLED": "1", "PAIRED_HEAD_MUON_ENABLED": "1", "IHA_ENABLED": "1"},
+    "wd_evalloop3": {"WD_SCHEDULE_ENABLED": "1", "EVAL_NUM_LOOPS": "3"},
+    "wd_strong": {"WD_SCHEDULE_ENABLED": "1", "WD_SCHED_LOW_FACTOR": "0.50", "WD_SCHED_HIGH_FACTOR": "1.75"},
     "mtp": {"MTP_WEIGHT": "0.10", "MTP_STEPS": "1"},
     "evalloop3": {"EVAL_NUM_LOOPS": "3"},
     "stacked": {
-        "DOC_SHUFFLE_ENABLED": "1",
         "WD_SCHEDULE_ENABLED": "1",
-        "IHA_ENABLED": "1",
-        "MTP_WEIGHT": "0.10",
-        "MTP_STEPS": "1",
+        "PAIRED_HEAD_MUON_ENABLED": "1",
     },
 }
 

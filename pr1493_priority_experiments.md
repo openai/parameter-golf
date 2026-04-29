@@ -27,6 +27,7 @@ All changes are off by default in `train_pr1493.py`.
 | Weight decay schedule | `WD_SCHEDULE_ENABLED=1` |
 | IHA q/k head mixing | `IHA_ENABLED=1` |
 | IHA q/k/v head mixing | `IHA_ENABLED=1 IHA_MIX_V=1` |
+| Paired-head Muon on Q/K matrices | `PAIRED_HEAD_MUON_ENABLED=1` |
 | Train-only MTP auxiliary loss | `MTP_WEIGHT=0.10 MTP_STEPS=1` |
 | Eval-only extra recurrence | `EVAL_NUM_LOOPS=3` |
 
@@ -112,6 +113,21 @@ torchrun --standalone --nproc_per_node=8 train_pr1493.py
 RUN_ID=pr1493_evalloop3_s42 SEED=42 QK_GAIN_INIT=5.25 TTT_ENABLED=1 TTT_LR=0.007 TTT_EPOCHS=5 \
 EVAL_NUM_LOOPS=3 \
 torchrun --standalone --nproc_per_node=8 train_pr1493.py
+
+# 6. Paired-head Muon
+RUN_ID=pr1493_paired_s42 SEED=42 QK_GAIN_INIT=5.25 TTT_ENABLED=1 TTT_LR=0.007 TTT_EPOCHS=5 \
+PAIRED_HEAD_MUON_ENABLED=1 \
+torchrun --standalone --nproc_per_node=8 train_pr1493.py
+
+# 7. Current stack candidate: WD + paired-head Muon
+RUN_ID=pr1493_wd_paired_s42 SEED=42 QK_GAIN_INIT=5.25 TTT_ENABLED=1 TTT_LR=0.007 TTT_EPOCHS=5 \
+WD_SCHEDULE_ENABLED=1 PAIRED_HEAD_MUON_ENABLED=1 \
+torchrun --standalone --nproc_per_node=8 train_pr1493.py
+
+# 8. Fixed IHA harness, only after paired/WD are understood
+RUN_ID=pr1493_wd_paired_iha_s42 SEED=42 QK_GAIN_INIT=5.25 TTT_ENABLED=1 TTT_LR=0.007 TTT_EPOCHS=5 \
+WD_SCHEDULE_ENABLED=1 PAIRED_HEAD_MUON_ENABLED=1 IHA_ENABLED=1 \
+torchrun --standalone --nproc_per_node=8 train_pr1493.py
 ```
 
 Parse results:
@@ -132,8 +148,9 @@ Secondary diagnostics:
 
 ```text
 pre-quantization post-ema val_bpb
+quantized val_bpb
 quantized_sliding_window val_bpb
-quant gap = quantized_sliding_window - pre-quantization post-ema
+clean non-sliding quant gap = quantized - pre-quantization post-ema
 train steps reached before wallclock cap
 Total submission size
 ```
@@ -174,6 +191,11 @@ and the final packed submission is checked under `16,000,000` bytes.
 modal run run_pr1493_modal.py --experiment docshuffle --seed 42
 modal run run_pr1493_modal.py --experiment wd --seed 42
 modal run run_pr1493_modal.py --experiment iha --seed 42
+modal run run_pr1493_modal.py --experiment paired --seed 42
+modal run run_pr1493_modal.py --experiment wd_paired --seed 42
+modal run run_pr1493_modal.py --experiment wd_paired_iha --seed 42
+modal run run_pr1493_modal.py --experiment wd_evalloop3 --seed 42
+modal run run_pr1493_modal.py --experiment wd_strong --seed 42
 modal run run_pr1493_modal.py --experiment mtp --seed 42
 modal run run_pr1493_modal.py --experiment evalloop3 --seed 42
 ```

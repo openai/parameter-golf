@@ -5,7 +5,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import Tensor,nn
 from flash_attn_interface import flash_attn_func as flash_attn_3_func
 class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));etlb_enabled=bool(int(os.environ.get('ETLB_ENABLED','0')));etlb_lr=float(os.environ.get('ETLB_LR',.05));etlb_steps=int(os.environ.get('ETLB_STEPS',5));etlb_clip=float(os.environ.get('ETLB_CLIP',3.));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f"fineweb10B_sp{vocab_size}");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f"fineweb_{vocab_size}_bpe.model");logfile=f"logs/{run_id}.txt";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz'
-Hyperparameters.doc_shuffle_enabled=bool(int(os.environ.get('DOC_SHUFFLE_ENABLED','0')));Hyperparameters.doc_shuffle_bos_id=int(os.environ.get('DOC_SHUFFLE_BOS_ID','-1'));Hyperparameters.wd_schedule_enabled=bool(int(os.environ.get('WD_SCHEDULE_ENABLED','0')));Hyperparameters.wd_sched_hold_frac=float(os.environ.get('WD_SCHED_HOLD_FRAC','.40'));Hyperparameters.wd_sched_ramp_frac=float(os.environ.get('WD_SCHED_RAMP_FRAC','.85'));Hyperparameters.wd_sched_low_factor=float(os.environ.get('WD_SCHED_LOW_FACTOR','.65'));Hyperparameters.wd_sched_high_factor=float(os.environ.get('WD_SCHED_HIGH_FACTOR','1.5'));Hyperparameters.iha_enabled=bool(int(os.environ.get('IHA_ENABLED','0')));Hyperparameters.iha_mix_v=bool(int(os.environ.get('IHA_MIX_V','0')));Hyperparameters.mtp_weight=float(os.environ.get('MTP_WEIGHT','0'));Hyperparameters.mtp_steps=int(os.environ.get('MTP_STEPS','0'));Hyperparameters.eval_num_loops=int(os.environ.get('EVAL_NUM_LOOPS','-1'))
+Hyperparameters.doc_shuffle_enabled=bool(int(os.environ.get('DOC_SHUFFLE_ENABLED','0')));Hyperparameters.doc_shuffle_bos_id=int(os.environ.get('DOC_SHUFFLE_BOS_ID','-1'));Hyperparameters.wd_schedule_enabled=bool(int(os.environ.get('WD_SCHEDULE_ENABLED','0')));Hyperparameters.wd_sched_hold_frac=float(os.environ.get('WD_SCHED_HOLD_FRAC','.40'));Hyperparameters.wd_sched_ramp_frac=float(os.environ.get('WD_SCHED_RAMP_FRAC','.85'));Hyperparameters.wd_sched_low_factor=float(os.environ.get('WD_SCHED_LOW_FACTOR','.65'));Hyperparameters.wd_sched_high_factor=float(os.environ.get('WD_SCHED_HIGH_FACTOR','1.5'));Hyperparameters.iha_enabled=bool(int(os.environ.get('IHA_ENABLED','0')));Hyperparameters.iha_mix_v=bool(int(os.environ.get('IHA_MIX_V','0')));Hyperparameters.paired_head_muon_enabled=bool(int(os.environ.get('PAIRED_HEAD_MUON_ENABLED',os.environ.get('HEAD_PAIR_NS','0'))));Hyperparameters.mtp_weight=float(os.environ.get('MTP_WEIGHT','0'));Hyperparameters.mtp_steps=int(os.environ.get('MTP_STEPS','0'));Hyperparameters.eval_num_loops=int(os.environ.get('EVAL_NUM_LOOPS','-1'))
 _logger_hparams=None
 def set_logging_hparams(h):global _logger_hparams;_logger_hparams=h
 def log(msg,console=True):
@@ -205,6 +205,17 @@ class GPT(nn.Module):
 				if k<target_ids.size(1):aux.append(F.cross_entropy(logits[:,:-k,:].reshape(-1,logits.size(-1)).float(),target_ids[:,k:].reshape(-1),reduction='mean'))
 			if aux:loss=loss+self.mtp_weight*sum(aux)/len(aux)
 		return loss
+def fold_iha_mixes(model):
+	folded=0
+	with torch.no_grad():
+		for block in getattr(model,'blocks',[]):
+			attn=block.attn
+			if not getattr(attn,'iha_enabled',False):continue
+			attn.c_q.weight.copy_(attn._mixed_weight(attn.c_q.weight,attn.q_mix,attn.num_heads));attn.q_mix.copy_(torch.eye(attn.num_heads,device=attn.q_mix.device,dtype=attn.q_mix.dtype))
+			attn.c_k.weight.copy_(attn._mixed_weight(attn.c_k.weight,attn.k_mix,attn.num_kv_heads));attn.k_mix.copy_(torch.eye(attn.num_kv_heads,device=attn.k_mix.device,dtype=attn.k_mix.dtype))
+			if getattr(attn,'v_mix',None)is not None:attn.c_v.weight.copy_(attn._mixed_weight(attn.c_v.weight,attn.v_mix,attn.num_kv_heads));attn.v_mix.copy_(torch.eye(attn.num_kv_heads,device=attn.v_mix.device,dtype=attn.v_mix.dtype))
+			attn.iha_enabled=False;folded+=1
+	if folded:log(f"iha:folded active head mixes into linear weights for {folded} layers before GPTQ")
 def classify_param(name):
 	if'tok_emb'in name or'lm_head'in name:return'embed'
 	if'.mlp.'in name:return'mlp'
@@ -212,10 +223,15 @@ def classify_param(name):
 	return'other'
 @torch.compile
 def zeropower_via_newtonschulz5(G,steps=10,eps=1e-07):
-	a,b,c=3.4445,-4.775,2.0315;X=G.bfloat16();X/=X.norm()+eps;transposed=G.size(0)>G.size(1)
-	if transposed:X=X.T
-	for _ in range(steps):A=X@X.T;B=b*A+c*A@A;X=a*X+B@X
-	return X.T if transposed else X
+	a,b,c=3.4445,-4.775,2.0315;was_2d=G.ndim==2;X=G.unsqueeze(0)if was_2d else G;X=X.bfloat16();transposed=X.size(-2)>X.size(-1)
+	if transposed:X=X.mT
+	X/=X.norm(dim=(-2,-1),keepdim=True)+eps
+	for _ in range(steps):A=X@X.mT;B=b*A+c*A@A;X=a*X+B@X
+	if transposed:X=X.mT
+	return X.squeeze(0)if was_2d else X
+def paired_head_zeropower(g,p,steps):
+	hp=getattr(p,'_head_pair_ns',None)
+	return zeropower_via_newtonschulz5(g,steps=steps)if hp is None else zeropower_via_newtonschulz5(g.reshape(hp['num_pairs'],hp['pair_dim'],-1),steps=steps).reshape_as(g)
 class Muon(torch.optim.Optimizer):
 	def __init__(self,params,lr,momentum,backend_steps,nesterov=True,weight_decay=.0,row_normalize=False):super().__init__(params,dict(lr=lr,momentum=momentum,backend_steps=backend_steps,nesterov=nesterov,weight_decay=weight_decay,row_normalize=row_normalize))
 	@torch.no_grad()
@@ -235,7 +251,7 @@ class Muon(torch.optim.Optimizer):
 					buf=state['momentum_buffer'];buf.mul_(momentum).add_(g)
 					if nesterov:g=g.add(buf,alpha=momentum)
 					if group.get('row_normalize',False):row_norms=g.float().norm(dim=-1,keepdim=True).clamp_min(1e-07);g=g/row_norms.to(g.dtype)
-					g=zeropower_via_newtonschulz5(g,steps=backend_steps);g*=max(1,g.size(0)/g.size(1))**.5;updates_flat[curr:curr+p.numel()]=g.reshape(-1)
+					g=paired_head_zeropower(g,p,steps=backend_steps);g*=max(1,g.size(0)/g.size(1))**.5;updates_flat[curr:curr+p.numel()]=g.reshape(-1)
 				curr+=p.numel()
 			if distributed:dist.all_reduce(updates_flat,op=dist.ReduceOp.SUM)
 			wd=group.get('weight_decay',.0);curr=0
@@ -247,6 +263,12 @@ CONTROL_TENSOR_NAME_PATTERNS=tuple(pattern for pattern in os.environ.get('CONTRO
 class Optimizers:
 	def __init__(self,h,base_model):
 		block_named_params=list(base_model.blocks.named_parameters());matrix_params=[p for(name,p)in block_named_params if p.ndim==2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)];scalar_params=[p for(name,p)in block_named_params if p.ndim<2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)]
+		if h.paired_head_muon_enabled:
+			head_dim=h.model_dim//h.num_heads;tagged=0
+			for block in base_model.blocks:
+				if h.num_heads>=2:block.attn.c_q.weight._head_pair_ns={'num_pairs':h.num_heads//2,'pair_dim':head_dim*2};tagged+=1
+				if h.num_kv_heads>=2:block.attn.c_k.weight._head_pair_ns={'num_pairs':h.num_kv_heads//2,'pair_dim':head_dim*2};tagged+=1
+			log(f"muon:paired-head NS enabled for q/k matrices tagged={tagged}")
 		if base_model.skip_weights.numel()>0:scalar_params.append(base_model.skip_weights)
 		if base_model.skip_gates is not None and base_model.skip_gates.numel()>0:scalar_params.append(base_model.skip_gates)
 		token_lr=h.tied_embed_lr if h.tie_embeddings else h.embed_lr;tok_params=[{'params':[base_model.tok_emb.weight],'lr':token_lr,'base_lr':token_lr,'weight_decay':h.embed_wd,'base_wd':h.embed_wd}];self.optimizer_tok=torch.optim.AdamW(tok_params,betas=(h.beta1,h.beta2),eps=h.adam_eps,weight_decay=h.embed_wd,fused=True);self.optimizer_muon=Muon(matrix_params,lr=h.matrix_lr,momentum=h.muon_momentum,backend_steps=h.muon_backend_steps,weight_decay=h.muon_wd,row_normalize=h.muon_row_normalize)
@@ -496,7 +518,7 @@ def train_model(h,device,val_data):
 		if stop_after_step is None and reached_cap:stop_after_step=step
 	log(f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB");log('ema:applying EMA weights');current_state=base_model.state_dict();avg_state={name:t.to(dtype=current_state[name].dtype)for(name,t)in ema_state.items()};base_model.load_state_dict(avg_state,strict=True);return base_model,compiled_model
 def train_and_eval(h,device):
-	random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
+	random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data);torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);fold_iha_mixes(base_model);serialize(h,base_model,Path(__file__).read_text(encoding='utf-8'))
 	if h.distributed:dist.barrier()
 	eval_model=configure_eval_model(deserialize(h,device),h,'quantized')
 	compiled_model=torch.compile(eval_model,dynamic=False,fullgraph=True);timed_eval('quantized',eval_val,h,device,val_data,compiled_model)
