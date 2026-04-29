@@ -1,0 +1,17 @@
+{
+  "author": "Jacob Rak",
+  "github_id": "jacobrak",
+  "name": "Mamba SSM Golf — SP-1024 8x512 KV4 + int8+zlib export",
+  "blurb": "Mamba SSM non-record submission replacing the standard attention stack with a selective-scan state space backbone. The model integrates mamba-ssm directly into the Parameter Golf training loop, using a depthwise conv → (dt, B, C) projection → selective scan → gated projection pipeline, with learned A_log and D parameters. Architecture is an 8-layer, 512-dim SSM stack with RMSNorm, ReLU^2 MLPs, tied embeddings, and lightweight encoder/decoder-style skip connections. Training follows the standard 8xH100, ~600s setup with 524k token batches and seq_len=1024, using a split optimizer: Muon for matrix parameters (with Newton-Schulz orthogonalization) and Adam for embeddings and scalar/control parameters. Torch compile is used in non-fullgraph mode, with the scan path kept outside Dynamo for stability. Post-training, the model is quantized using per-row int8 for matrices and per-tensor int8 for vectors, with fp16 passthrough for small/control tensors, then compressed with zlib to fit under the 16MB artifact cap. The submission performs full roundtrip validation by reloading and evaluating the compressed artifact, reporting a final val_bpb of 2.0393 (pre-quant peak ~2.0192). The model reaches better performance mid-training and degrades slightly toward the wallclock stop, likely due to limited warmdown and quantization effects. This run is not competitive with current leaderboard entries but demonstrates a complete, reproducible SSM-based pipeline under Parameter Golf constraints.",
+  "date": "2026-04-29T18:42:34Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 3.4433,
+  "val_bpb": 2.0393,
+  "pre_quant_val_loss": 3.4094,
+  "pre_quant_val_bpb": 2.0192,
+  "step_stop": 11578,
+  "wallclock_seconds": 14400.039,
+  "bytes_total": 14887866,
+  "bytes_model_int8_zlib": 14838841,
+  "bytes_code": 49025
+}
