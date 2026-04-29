@@ -1,30 +1,33 @@
-# SP8192 PR #1874 + TTT Chunk=32 — val_bpb 1.06990 (3-seed mean)
+# SP8192 PR #1874 + Optimized Hyperparameters — val_bpb 1.06844 (3-seed mean)
 
 ## Results
 
 | Seed | Pre-quant BPB | Post-quant BPB | **Post-TTT BPB** | Artifact (bytes) | Train time | Eval time |
 |------|---------------|----------------|------------------|-------------------|------------|-----------|
-| 1337 | 1.07132       | 1.08122        | **1.06985**      | 15,943,571        | 596.06s    | 595.5s    |
-| 42   | 1.07169       | 1.08151        | **1.07017**      | 15,950,196        | 596.12s    | 560.8s    |
-| 2025 | 1.07134       | 1.08107        | **1.06968**      | 15,946,736        | 596.11s    | 556.1s    |
-| **Mean** | **1.07145** | **1.08127** | **1.06990**  | **15,946,834**    | **596.10s** | **570.8s** |
-| **Std** | 0.00021    | 0.00022        | **0.00025**      | 3,314             | 0.03s      | 21.5s     |
+| 1337 | 1.06960       | 1.07925        | **1.06798**      | 15,950,405        | 599.64s    | 409.6s    |
+| 42   | 1.06984       | 1.07948        | **1.06824**      | 15,952,215        | 599.65s    | 421.0s    |
+| 2025 | 1.07060       | 1.08028        | **1.06909**      | 15,948,755        | 599.56s    | 381.2s    |
+| **Mean** | **1.07001** | **1.07967** | **1.06844**  | **15,950,458**    | **599.62s** | **403.9s** |
+| **Std** | 0.00053    | 0.00053        | **0.00058**      | 1,730             | 0.05s      | 20.2s     |
 
 ## Configuration
 
-- **Base code:** PR #1874 (AjAnubolu) verbatim
-- **Environment variable:** `TTT_CHUNK_SIZE=32` (default is 48)
+- **Base code:** PR #1874 (AjAnubolu) verbatim — no code modifications
+- **Environment variables:** `MIN_LR=0.10 QK_GAIN_INIT=5.25 GATE_ATTN_WIDTH=24 GPTQ_RESERVE_SECONDS=0.5 VAL_LOSS_EVERY=0`
 - **Hardware:** 8xH100 80GB SXM (RunPod on-demand)
 - **Data template:** `c5dbhtfrrt` (SP8192, 128 train + 1 val shards)
 
-## Techniques (all from PR #1874)
+## Techniques (all from PR #1874, activated via env vars)
 
 1. **LQER Asymmetric Rank-4** — SVD-based low-rank quantization error reduction on top-K=3 highest-error GPTQ residuals
 2. **SmearGate + Attention Output Gate (width 24)** — per-layer smoothing + full-dim attention gating
 3. **Polar Express Newton-Schulz** — 5 per-iteration minimax-tuned coefficient tuples for Muon optimizer
-4. **MIN_LR=0.10** — warmdown LR floor at 10% of max
-5. **Phased Score-First TTT** — 3-phase AdamW LoRA-TTT (rank 128), score-first ordering
-6. **TTT_CHUNK_SIZE=32** — smaller chunks = more gradient updates per document during TTT eval (our addition)
+4. **MIN_LR=0.10** — warmdown LR floor at 10% of max (prevents LR collapse to zero)
+5. **QK_GAIN_INIT=5.25** — per-head query-key attention scaling
+6. **GATE_ATTN_WIDTH=24** — doubled attention gate capacity
+7. **GPTQ_RESERVE_SECONDS=0.5** — maximizes training steps (default 4.0 wastes ~28 steps)
+8. **VAL_LOSS_EVERY=0** — eliminates mid-training eval overhead (~14s saved = ~112 extra steps)
+9. **Phased Score-First TTT** — 3-phase AdamW LoRA-TTT (rank 128), score-first ordering
 
 ## Rule Compliance
 
@@ -32,14 +35,15 @@
 - No pre-quant TTT on validation data
 - No n-gram cache or PPM
 - No CaseOps, no casefold — standard SP8192 UTF-8 byte counting
-- Artifact < 16,000,000 bytes (max 15,950,196 B)
-- Train time < 600s, eval time < 600s
+- Artifact < 16,000,000 bytes (max 15,952,215 B)
+- Train time < 600s (max 599.65s), eval time < 600s (max 421.0s)
 
 ## How to reproduce
 
 ```bash
-# Seeds 1337, 42, 2025
-SEED=1337 TTT_CHUNK_SIZE=32 torchrun --standalone --nproc_per_node=8 train_gpt.py
+SEED=1337 MIN_LR=0.10 QK_GAIN_INIT=5.25 GATE_ATTN_WIDTH=24 \
+  GPTQ_RESERVE_SECONDS=0.5 VAL_LOSS_EVERY=0 \
+  torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 ## Attribution
