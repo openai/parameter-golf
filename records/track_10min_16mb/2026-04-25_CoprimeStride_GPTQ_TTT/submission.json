@@ -1,0 +1,39 @@
+{
+  "author": "Meirzhan Saparov",
+  "github_id": "Meirzhan05",
+  "name": "Coprime-Stride Loader + Full GPTQ + Score-First TTT",
+  "date": "2026-04-25",
+  "track": "10min_16mb",
+  "val_bpb": 1.08008,
+  "val_bpb_std": 0.00088,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 1.07907, "artifact_bytes": 15992892},
+    "42": {"val_bpb": 1.08075, "artifact_bytes": 15996411},
+    "2025": {"val_bpb": 1.08043, "artifact_bytes": 15993485}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "record": true,
+  "technique_summary": "SP8192 + 11L + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + XSA-all + Coprime-Stride Multi-Shard Loader + Full Hessian GPTQ with Cholesky Fallback + EMA 0.9965 + Score-First TTT (SGD 3ep) + Brotli + LZMA Code Compression",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @Christopher-Lee-McClendon (PR #461)",
+    "coprime_stride_loader": "PR #726 style",
+    "lzma_code_compression": "PR #1394",
+    "current_sota_base": "@bigbag (PR for 2026-04-09 SOTA)"
+  }
+}
