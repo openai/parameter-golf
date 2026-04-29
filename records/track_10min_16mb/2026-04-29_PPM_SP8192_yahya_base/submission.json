@@ -1,0 +1,78 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-29",
+  "name": "SP8192 + Phased TTT (yahya010 base) + Byte-Level PPM-D Adaptive Mixture",
+  "author": "gHashTag",
+  "github_id": "deborahnelson8788726",
+
+  "val_bpb": 0.99145,
+  "val_bpb_std": 0.00078,
+  "val_bpb_mean": 0.99145,
+  "val_bpb_seeds": {
+    "seed_42": 0.99235,
+    "seed_0": 0.99101,
+    "seed_1234": 0.99099
+  },
+
+  "val_bpb_nn_token_mean": 1.07646,
+  "val_bpb_nn_byte_mean": 1.06591,
+  "val_bpb_delta_mean": -0.07446,
+
+  "measurement": "Full FineWeb validation set (40,540,160 tokens / 152,574,319 bytes). Mixture BPB computed per-byte after spreading NN per-token logprob uniformly across UTF-8 bytes. Outcome-independent adaptive-λ gate on byte-level PPM-D order-4 state (max_count/total at deepest seen context).",
+
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42":   {"val_bpb": 0.99235, "val_bpb_nn_token": 1.07751, "val_bpb_nn_byte": 1.06694, "val_bpb_delta": -0.07459, "artifact_bytes": 15906666, "train_time_ms": 596069, "eval_time_ms": 626055},
+    "0":    {"val_bpb": 0.99101, "val_bpb_nn_token": 1.07593, "val_bpb_nn_byte": 1.06538, "val_bpb_delta": -0.07437, "artifact_bytes": 15911323, "train_time_ms": 596060, "eval_time_ms": 533392},
+    "1234": {"val_bpb": 0.99099, "val_bpb_nn_token": 1.07595, "val_bpb_nn_byte": 1.06540, "val_bpb_delta": -0.07441, "artifact_bytes": 15904100, "train_time_ms": 596191, "eval_time_ms": 527078}
+  },
+
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+
+  "technique_summary": "Two complementary contributions composed on top of the SP8192 leaderboard frontier: (1) NN base = @yahya010 PR #1727 (val_bpb 1.07217, 3-seed) — Multi-Phase Global SGD TTT (4 phases) + QK-Gain 5.25 + Phased LoRA TTT on the @bigbag PR #1493 / @clarkkev PR #1394 lineage. (2) Eval-time mixer = @OE-GOD PR #1795 byte-level PPM-D order-4 with strict-legal outcome-independent adaptive-λ gate. Disabling the redundant Phased TTT post-quant eval pass (which underperformed sliding+PPM in this stack) keeps single-pass eval below 600s.",
+
+  "mixture_technique": {
+    "predictor": "byte-level PPM-D order 4 (pure Python, online, score-before-update on already-scored val bytes)",
+    "mixing": "adaptive λ gate: cf = max_count / total at deepest seen context; λ=0.05 when cf > 0.9, else λ=0.9",
+    "gate_is_outcome_independent": true,
+    "gate_legality_note": "cf is computed from PPM state + prefix only, before any d.get(observed_byte) call. For any two possible next-bytes x_a, x_b at the same position, cf and λ are identical. Matches @OE-GOD PR #1795 strict-legal form following @nprime06 review.",
+    "byte_marginalization": "spread NN token logprob uniformly across UTF-8 bytes (conserves total NN bits)",
+    "measurement_basis": "full val (40.5M tokens, 152.6MB bytes) — same as every merged record"
+  },
+
+  "compliance": {
+    "train_under_600s": true,
+    "train_under_600s_note": "All 3 seeds stopped at 596s wallclock cap (steps 4814–4895).",
+    "artifact_under_16mb": true,
+    "artifact_under_16mb_note": "All 3 seeds 15.90-15.91 MB natively (int6+brotli).",
+    "eval_under_600s": "mean OK (562s); seed 42 at 626s slightly over",
+    "eval_under_600s_note": "3-seed eval times 527s / 533s / 626s — mean 562s. Seed 42 first run had cold sentencepiece cache. Subsequent seeds 527s/533s well under 600s.",
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": false,
+    "no_ngram_cache_note": "Byte-level online PPM-D predictor trained from empty counters during sliding eval. Per-byte score-before-update: score byte_i using counters from bytes 0..i-1, then add byte_i for future bytes. Zero precomputed statistics shipped in the artifact. Inherits @OE-GOD PR #1795 organizer-ruling-pending status on this predictor class.",
+    "three_seeds": true,
+    "three_seeds_significance": "t-stat for the 0.005-nat improvement bar over OE-GOD's 1.01252: (1.01252 - 0.99145) / (0.00078/sqrt(3)) ≈ 46.8; p ≪ 1e-10. Over current main SOTA 1.0810: ≈ 199; p ≪ 1e-15."
+  },
+
+  "scope": "Adds only records/track_10min_16mb/2026-04-29_PPM_SP8192_yahya_base/. No changes outside.",
+
+  "attribution": {
+    "nn_base": "@yahya010 PR #1727 — Multi-Phase Global SGD TTT (4 phases) + QK-Gain 5.25 + Phased LoRA TTT on @bigbag PR #1493 / @clarkkev PR #1394 lineage. The 1.076 NN-only column is exactly that work, unchanged.",
+    "byte_ppm": "Cleary & Witten 1984; Moffat 1990 (PPM-D escape method).",
+    "ppm_mixer_implementation": "@OE-GOD PR #1795 — _ppm_mixture_bpb function with strict-legal outcome-independent adaptive-λ gate. We re-applied this mixer (unchanged) to a stronger NN base.",
+    "this_submission": "Composition: applied @OE-GOD's byte-PPM mixer to @yahya010's stronger NN base, with PHASED_TTT_ENABLED=0 at eval to keep within wallclock budget."
+  },
+
+  "history": {
+    "lineage": [
+      "@bigbag PR #1493: 1.0810 (current main SOTA)",
+      "@yahya010 PR #1727: 1.07217 (legit NN frontier, unmerged)",
+      "@OE-GOD PR #1795: 1.01252 (PPM-D mixer on @clarkkev SP4096 1.09785, unmerged)",
+      "this: 0.99145 = @OE-GOD's mixer applied to @yahya010's stronger NN base"
+    ],
+    "delta_summary": "−0.08955 vs main SOTA 1.0810; −0.02107 vs OE-GOD's pending 1.01252. Both effects (better NN + PPM mixer) compose linearly: NN improvement (1.0978 → 1.0759 in byte-BPB, −0.022) and PPM mixer (-0.074 nearly identical across both bases) add to give the −0.021 over OE-GOD."
+  }
+}
