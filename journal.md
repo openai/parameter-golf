@@ -8,6 +8,11 @@
 - **Current best (PROMOTED 2026-04-28, 2-seed)**: exp 0076/0077 **2-seed mean val_bpb 1.95141** (cross-seed σ_pair=0.0061). Same architecture as 0069 winner (combined K=3+K=4 static side memory) PLUS: per-context α blend weights (sigmoid of trigram entropy, clip [0.30, 0.85]) + model-confidence gate (skip blend when model max_log2p > -1.0). Path: `winners/2026-04-28_confidence_gated_per_context_alpha_blend/`. Δ vs prior winner (0069 family 1.95990) = **-0.0085 BPB**. Δ vs original 0051 family 2.00503 = **-0.054 BPB**. Δ vs pure-attn baseline (2.088) = **-0.137 BPB**. Step time 8.17 s/step. Artifact 15.91 MB (88 KB safety under 16 MB cap).
 - **Cumulative thread-2 contribution**: -0.054 BPB from canonical 0051 baseline (2.005 → 1.951) via 4 stacked mechanisms: brotli + combined K=3+K=4 static side memory + per-context α + confidence gate.
 - **Thread 1 closed (2026-04-29)**: AR int6 (0081/0082b) cap-busts in our family — int6-packed bytes near-incompressible by brotli, swap LOSES ~5 MB net despite 25% raw saving. All thread-1 free-score levers now tested. Mini-DR / REPEAT_UNTIE_MLP remain untested but require code changes that conflict with our K=3 L=3 looped triple-parallel topology.
+- **2026-04-29 SESSION HEADLINE — v2 packed-ternary serialization is INFRASTRUCTURE**: BitNet b1.58 ternary body via BitLinear + 2-bit packed export (`pack_ternary` / `unpack_ternary` in `experiments/0086_v2_packed_ternary/modules/bitlinear.py`) frees 56% of artifact cap (16.81 → 7.96 MB) and IMPROVES post-quant val by sidestepping int8 lossy round-trip. Combined with MATRIX_LR=0.135 (×3 LR rescue), best ternary stack lands val 1.993 at 8.21 MB (0093). Still +0.045 BPB worse than 0076 fp/int8 baseline (1.948) but at HALF the cap with ~8 MB headroom. Per BitNet paper, ternary needs ~25× more steps to match fp16; expected to close most of the gap at H100 20k steps.
+- **2026-04-29 ternary recipe sensitivity**: BitLinear at default Muon LR=0.045 has +0.10 BPB penalty at 200 MPS steps (0083). LR×3 (0087, 0093) recovers HALF the penalty. Steep recipe slope from a single env var.
+- **2026-04-29 split finding on "200 steps too short" hypothesis**: BitLinear body weights ARE LR-bound (recipe-rescuable). Dendritic content vectors (0092, 0094) are NOT LR-bound — training-duration-bound. Same as 0073/0080 — learnable side-content needs more steps regardless of warm-start or LR.
+- **2026-04-29 brief's strong-form rank-density claim FALSIFIED at our regime (0095)**: replacing per-(ctx, rank) log2p with global rank template at K=4 lookup REGRESSES val by +0.019 BPB. Per-context calibration carries irreducible information. Caveat: tested rank-only override on same storage, not full permutation-coded R=8 (which would also test storage density).
+- **2026-04-29 soft-DP fuzzy K-gram axis closed (0089/0091)**: +40pp coverage gain in offline probe didn't translate to BPB at any FUZZY_DOWNWEIGHT in [0.5, 0.8]. Fuzzy neighbors give noisier predictions than bigram fallback at our regime. Boahen "fringing field" doesn't transfer here.
 - **Pure-attn baseline (anchor for writeup)**: 0058/0059 2-seed mean **val_bpb 2.08759** (cross-seed Δ 0.0002). Pure attention 3-of-3 + recur+SwiGLU+mlp=8 + no-BG. Path: `experiments/0058_pure_attn_3of3_baseline/`.
 - **Starting env.sh for SSM experiments**: `WARMDOWN_ITERS=300, LR_WARMUP_STEPS=30, TIED_EMBED_INIT_STD=0.05, MUON_BACKEND_STEPS=15, TRAIN_BATCH_TOKENS=24576, MATRIX_LR=0.045`. Schedule defaults are architecture-independent transformer wins; inherit verbatim. Regression-sentinel uses canonical defaults exception.
 - **Primer is internally inconsistent**: main body argues SSM is "almost certainly wrong" for parameter golf; the "Another agent's feedback" section disagrees on (a) whether to quantize the SSM, (b) whether BigramHash closes the recall gap. Treat both as research opinions; verify empirically.
@@ -39,25 +44,30 @@
 
 ## Open questions (next session priorities)
 
-**Standing brief**: `scratch/2026-04-28_session_planning.md`. **Thread 1 closed 2026-04-29** — all free-score levers tested. Pivot to thread 2.
+**Standing brief**: `scratch/2026-04-29_session_planning.md` — single-thread, exploratory: SNN / temporal-rank / 1-bit-per-param at LM scale. Read it after `program.md`.
 
-Top leads (ordered by EV):
+Free-score / port work from prior sessions is closed. The session is research, not lever-pulling. The brief is intentionally a question + resources, not a candidate menu — the direction is yours to invent after derivation.
 
-1. **[WORTH_TESTING] Cap-fill: 0065-style asym pos0 + grow K=4 top_N to 280-320K** — only remaining cheap thread-1 win. Env-var only, ~30 min. Predicted -0.004 to -0.005 BPB (offline sweep: `scratch/blend_probe/k4_topn_sweep.py`).
-2. **[WORTH_DERIVING] Dendritic N-gram side memory v1 (thread-2 entry)** — warm-start patterns from frequent fineweb 4-grams, train only content vectors. Plan: `scratch/dendritic_memory_plan.md`. Fixes the gradient-sparsity that broke 0073/0080. Subagent ~250 lines.
-3. **[WORTH_TESTING] 0071 train-time blend bug fix** — MPS bounds error at B=3 L=1024. Notes: `scratch/0071_train_blend_debug_notes.md`. Tests "model adapts to complement static prior."
-4. **[WORTH_DERIVING] H100 transfer of 0076 family at 20k steps** — primary deliverable; specific predictions: kill-selectivity may reverse, conv1d-as-recall + cross-class topology should hold.
-5. **[WORTH_TESTING] K=5 static side memory with hash bucketing** — K=5 has 4M+ contexts; needs hashing. Estimated -0.005 BPB.
-6. **[SPECULATIVE] Dense-attn HSM (0080) at H100 20k-step** — was neutral at 200 steps; mechanism sound, training duration was bottleneck.
-7. **[SPECULATIVE] Bold (e)/(f) from brief** — spike-rank body or dendrocentric layer. Big code, possibly non-record track.
+State of prior thread-2 attempts (so the work isn't repeated unwittingly):
 
-NOTE: pure-learnable on-top-of-static-memory (0073, 0080) NEUTRAL at 200 steps. Don't re-try variants without warm-starting (option d) OR a longer-training plan.
+- **Static N-gram side memory (0067-0077)**: -0.054 BPB cumulative, promoted as 0076/0077, but tagged `[transfer:medium — gain regime-specific]`. Not what the SNN/temporal-rank thread is asking about.
+- **0073 hash-HSM and 0080 dense-attn HSM**: both NEUTRAL at 200 steps. Prior interpretation was "200 steps too short for any learnable on-top." Re-verify if you want to build on this — the conclusion may be load-bearing for directions you take.
+- **0081 (AR self-gen GPTQ int6)**: smoke-OK, NOT launched. It's a thread-1 lever; launching it would re-enter port-mode rhythm. Leave it on the shelf.
+- **Prior-session derivations** (UU#1 temporal-rank capacity sim, UU#2 spike-mapping analysis, dendritic-memory design sketches): archived in `scratch/_archive_prior_sessions/`. They biased the previous session toward the conservative warm-start interpretation. Re-derive in your own context if you want to build on them; don't trust the conclusions because someone wrote them down.
 
-Untested thread-1 levers (NOT free, require code): mini-DR (`RECUR_LAYERS=4,5`, conflicts with K=3 L=3 topology), REPEAT_UNTIE_MLP=full (cap-busts our config; selective version doesn't have a clean mapping in 3-unique × 3-loop scheme).
+Parked architecture sub-bets (independent of the thread-2 frame, still on radar): GLA chunkwise rewrite (`experiments/0049_gla_smoke/`); per-head B_const/C_const in kill-Mamba-2; nheads=16 headdim=32; DeltaNet/RWKV-v6; L=2048; conv1d depthwise-vs-dense ablation. None of these are the thread-2 question.
 
-Parked architecture sub-bets (still on radar, deprioritized): GLA chunkwise rewrite (`experiments/0049_gla_smoke/`); per-head B_const/C_const in kill-Mamba-2; nheads=16 headdim=32; DeltaNet/RWKV-v6; L=2048; conv1d depthwise-vs-dense ablation.
+Untested levers from 2026-04-29 session (worth picking up):
+- **H100 cascade** (highest priority — see `summaries/2026-04-29_bitnet-ternary-v2-packed.md` Tier 1 + `scratch/2026-04-29_h100_experiment_design.md`): 3 experiments × ~10-15 min each on 8×H100. Exp 1 = 0093 stack at 20k steps with `TRIGRAM_SIDE_MEMORY=0` (clean ternary baseline); Exp 2 = + dendritic v1; Exp 3 = + static side memory (full stack vs 0076 H100). H100 hyperparameters need re-tuning (batch, warmdown) per H100 records.
+- **MATRIX_LR ×5 or ×10 on ternary body** (0093 stopped at ×3, recovered half penalty; further LR could close more). Cheap MPS test.
+- **Brief option (f) dendrocentric layer (replace MLP with dendrite bank)**: never built. Subagent task ~250 lines. The most-aligned-with-Boahen swing.
+- **Brief option (c) spike-rank embedding**: never built.
+- **Brief option (e) full spike-rank body**: never built. Hardest swing.
+- **Rank-coded with FULL permutation storage (R=8 token indices, not template override)**: 0095 tested only the decode-semantics form (Option 3). Full storage-density form needs subagent build.
+- **0084 long-kernel conv1d at H100 20k**: regressed at MPS 200 (kernel=4 saturated) but might help at H100 with more training.
 
-**Next session: dispatch the dendritic memory v1 subagent (lead #2) — that's the canonical thread-2 entry point. If a quick free-score warmup is preferred, lead #1 cap-fill experiment is a 30-minute env-var run.**
+**Next session FIRST ACTION**: launch H100 Exp 1 (0093 stack ternary-only at 20k steps) per `scratch/2026-04-29_h100_experiment_design.md`. Need to retune H100 hyperparams from `records/track_10min_16mb/2026-03-31_ParallelResiduals_MiniDepthRecurrence/`. Tells us in ~10-15 min whether ternary scales as BitNet predicts.
+
 
 
 
