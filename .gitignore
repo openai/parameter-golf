@@ -9,3 +9,6 @@ worker.log
 needle_radar*.py
 needle_worker.py
 worker_loop.py
+node_modules
+node_modules
+node_modules

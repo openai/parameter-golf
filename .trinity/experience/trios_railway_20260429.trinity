@@ -15,3 +15,19 @@ AGENT=GENERAL|SOUL=RailRangerOne|ISSUE=#81|PHI_STEP=EXPERIENCE|TASK=Tick #18 R5-
 - commits: d569c6c (zgf r_clean computation)
 - issues: zgf#29 (fp16 reconciliation)
 - phi_step: φ² + φ⁻² = 3
+
+## zgf PR #30 CI fix — 2026-04-29
+- task: Fix 4 pre-existing CI failures in zig-golden-float PR #30 (test-bindings.yml)
+- root_causes:
+  - Rust: gf16_t FFI type violates non_camel_case_types lint (promoted to error by -D warnings)
+  - C++: CMakeCache.txt committed with local macOS path /Users/playra/trinity-w1/...
+  - Python: zig build shared compiles but doesn't install to zig-out/lib (shared_step depends on compile step, not install step)
+  - Go: cgo disabled by default in go test (needs CGO_ENABLED=1)
+- fixes:
+  - Rust: #[allow(non_camel_case_types)] on gf16_t struct (FFI naming convention)
+  - C++: git rm --cached cpp/build/ + add cpp/build/ to .gitignore
+  - Python: zig build shared → zig build (triggers default install step)
+  - Go: env: CGO_ENABLED: 1 in test step
+- commits: d0825f0 (zgf PR #30 CI fix), e802e6f (cpp/build purge by co-agent)
+- issues: zgf#28 (setup-zig typo), zgf#30 (this PR)
+- phi_step: φ² + φ⁻² = 3

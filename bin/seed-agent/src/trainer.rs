@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn external_trainer_constructs_when_binary_exists() {
         let cfg = json!({"hidden_dim": 384});
-        let tr = ExternalTrainer::with_trainer_path("IGLA-X", 42, 100, &cfg, "/bin/true".into())
+        let tr = ExternalTrainer::with_trainer_path("IGLA-X", 42, 100, &cfg, "/usr/bin/true".into())
             .expect("construct");
         assert_eq!(tr.current_step(), 0);
         assert!(!tr.finished());
@@ -395,10 +395,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn external_trainer_finalizes_when_subprocess_exits_silently() {
-        // /bin/true exits 0 with no stdout; first step() should mark finished.
+        // /usr/bin/true exits 0 with no stdout; first step() should mark finished.
         let cfg = json!({});
         let mut tr =
-            ExternalTrainer::with_trainer_path("IGLA-X", 42, 100, &cfg, "/bin/true".into())
+            ExternalTrainer::with_trainer_path("IGLA-X", 42, 100, &cfg, "/usr/bin/true".into())
                 .expect("construct");
         tr.step().expect("step ok");
         assert!(tr.finished(), "trainer should finalize on EOF");
