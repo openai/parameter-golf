@@ -38,6 +38,11 @@ pub trait Trainer: Send {
 /// asymptotically toward `target_bpb` by `step_bpb_delta` per step.
 /// Seeded by the experiment's `seed` so two workers given the same
 /// row produce identical curves — useful for property tests.
+///
+/// **Step F (promotion-path):** gated behind `#[cfg(test)]` so release
+/// builds only carry `ExternalTrainer`. Mock remains available for CI
+/// unit tests and local smoke runs (`cargo test`).
+#[cfg(test)]
 pub struct MockTrainer {
     #[allow(dead_code)] // referenced in audit logs and future trainer backends
     pub canon_name: String,
@@ -51,6 +56,7 @@ pub struct MockTrainer {
     pub decay: f64,
 }
 
+#[cfg(test)]
 impl MockTrainer {
     pub fn from_config(
         canon_name: &str,
@@ -86,6 +92,7 @@ impl MockTrainer {
     }
 }
 
+#[cfg(test)]
 impl Trainer for MockTrainer {
     fn step(&mut self) -> Result<()> {
         if self.current_step >= self.max_steps {

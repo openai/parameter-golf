@@ -71,10 +71,10 @@ struct Cli {
     #[arg(long, env = "NEON_DATABASE_URL")]
     neon_url: String,
 
-    /// Trainer kind. `mock` runs the deterministic in-process simulator
-    /// (used in CI / local smoke). `external` shells out to the IGLA
-    /// trainer (gated behind a future feature flag).
-    #[arg(long, default_value = "mock")]
+    /// Trainer kind. `external` shells out to the IGLA trainer binary
+    /// (`trios-train`). `mock` runs the deterministic in-process simulator
+    /// (test-only, not available in release builds).
+    #[arg(long, default_value = "external")]
     trainer_kind: String,
 }
 

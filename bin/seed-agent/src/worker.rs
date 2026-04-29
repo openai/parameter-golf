@@ -88,12 +88,19 @@ async fn run_experiment(
     claim::mark_running(client, exp.id).await?;
 
     let mut tr: Box<dyn trainer::Trainer> = match cfg.trainer_kind.as_str() {
+        #[cfg(test)]
         "mock" => Box::new(trainer::MockTrainer::from_config(
             &exp.canon_name,
             exp.seed,
             exp.steps_budget,
             &exp.config,
         )?),
+        #[cfg(not(test))]
+        "mock" => {
+            anyhow::bail!(
+                "trainer_kind \"mock\" not available in release builds (use \"external\")"
+            )
+        }
         "external" => Box::new(trainer::ExternalTrainer::new(
             &exp.canon_name,
             exp.seed,
