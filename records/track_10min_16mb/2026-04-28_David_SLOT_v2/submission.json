@@ -1,0 +1,38 @@
+{
+  "author": "davie2009kh",
+  "github_id": "davie2009kh",
+  "name": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Pre-Quant TTT + GPTQ + Scored-Position SLOT",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_bpb": 0.94569,
+  "val_bpb_std": 0.01432,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 0.95036466, "artifact_bytes": 15871970},
+    "42":   {"val_bpb": 0.96014543, "artifact_bytes": 15876500},
+    "2025": {"val_bpb": 0.92656976, "artifact_bytes": 15877027}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "SP8192 + CaseOps tokenizer + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + EMA 0.9965 + Muon with Huber-WD + 3-epoch parallel pre-quant AdamW TTT + GPTQ SDClip + Brotli + Scored-Position SLOT (per-sample delta + logit_bias, AdamW 24 steps cosine LR, cross-batch EMA warmup decay=0.5)",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": false,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_caseops_tokenizer": "@romeerp (PR #1729)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331)",
+    "parallel_residuals": "@Robby955 (PR #1412)",
+    "qk_gain": "@stukenov (PR #1364)",
+    "legal_ttt_framework": "@AjAnubolu (PR #1735)",
+    "base_stack": "@alertcat (PR #1738), @kilojoules",
+    "muon_huber_wd": "@bigbag (PR #1493)",
+    "slot_lineage": "@resouer (PR #1229)"
+  }
+}
