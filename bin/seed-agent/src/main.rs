@@ -79,6 +79,7 @@ struct Cli {
 }
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<()> {
     println!(
         "[seed-agent] boot pid={} acc={} svc={}",
@@ -127,11 +128,30 @@ async fn main() -> Result<()> {
     let tls_config = rustls::ClientConfig::builder()
         .with_root_certificates(tls_root_store)
         .with_no_client_auth();
-    let tls = tokio_postgres_rustls::MakeRustlsConnect::new(tls_config);
-
-    let (client, conn) = tokio_postgres::connect(&cli.neon_url, tls)
-        .await
-        .with_context(|| "connect to NEON_DATABASE_URL")?;
+    // Retry Neon connection. Railway containers may take several seconds
+    // for the network stack to become ready; without retry the process
+    // exits immediately on ENETUNREACH (os error 101) and Railway marks
+    // the deployment CRASHED.
+    let (client, conn) = {
+        let max_attempts: u32 = 30;
+        let mut attempt = 0;
+        loop {
+            let tls = tokio_postgres_rustls::MakeRustlsConnect::new(tls_config.clone());
+            match tokio_postgres::connect(&cli.neon_url, tls).await {
+                Ok(pair) => break pair,
+                Err(e) => {
+                    attempt += 1;
+                    if attempt >= max_attempts {
+                        anyhow::bail!(
+                            "connect to NEON_DATABASE_URL failed after {max_attempts} attempts: {e:#}"
+                        );
+                    }
+                    tracing::warn!(attempt, error = %e, "neon connect failed, retrying in 2s");
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+            }
+        }
+    };
     tokio::spawn(async move {
         if let Err(e) = conn.await {
             tracing::error!(?e, "neon connection lost");
