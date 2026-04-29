@@ -1,35 +1,41 @@
 {
-  "name": "Score-First TTT + PPM-D Byte Mixture + Anti-Hijack Gate + QK-Gain 5.25",
+  "name": "SP8192 + Score-First TTT + QK-Gain 5.25 — Neural-Only 1.0810",
   "author": "G3sparky (Gavin Saunders)",
   "github_id": "G3sparky",
-  "date": "2026-04-28T11:00:00Z",
-  "val_bpb": 0.9727,
-  "val_bpb_note": "PPM-D mixture evaluated on 8M token subset of validation set. Neural-only TTT BPB (full val): 1.0806",
-  "neural_only_bpb": 1.0806,
+  "date": "2026-04-29T04:00:00Z",
+  "val_bpb": 1.08100,
+  "val_bpb_std": 0.00037,
   "bytes_total": 15996321,
   "bytes_code": 20177,
-  "blurb": "Legal score-first TTT (2-epoch SGD per chunk) + PPM-D byte mixture (order-5) with anti-hijack gate (suppress PPM when NN NLL < 0.277 nats). 8xH100 SXM, 3-seed mean 0.9727 BPB on 8M subset (std 0.0004). Gate skips ~30.5% of bytes. Neural-only fallback: 1.0806 BPB (full val). In PPM-D class under Issue #1872 discussion.",
-  "val_bpb_std": 0.0004,
+  "blurb": "Neural-only entry: legal score-first TTT (2-epoch SGD per chunk) on the SP8192 + 3-layer recurrence + parallel residuals stack. 8xH100 SXM, 3-seed mean 1.0810 BPB (std 0.0004). Also includes experimental PPM-D byte mixture (0.9727 on 8M subset, pending Issue #1872 ruling). Cross-platform verification: 1.0886 BPB on SDPA backend.",
   "seeds": {
-    "42": {"mix_bpb": 0.9723, "ttt_bpb": 1.0806, "sliding_bpb": 1.0818, "quantized_bpb": 1.0983, "artifact_bytes": 15996321, "void_fraction": 0.5099, "ttt_eval_seconds": 395, "gate_skip": 0.3056},
-    "314": {"mix_bpb": 0.9728, "ttt_bpb": 1.0810, "sliding_bpb": 1.0823, "quantized_bpb": 1.0990, "artifact_bytes": 15995838, "void_fraction": 0.5103, "ttt_eval_seconds": 358, "gate_skip": 0.3056},
-    "999": {"mix_bpb": 0.9730, "ttt_bpb": 1.0814, "sliding_bpb": 1.0825, "quantized_bpb": 1.0991, "artifact_bytes": 15995930, "void_fraction": 0.5106, "ttt_eval_seconds": 349, "gate_skip": 0.3053}
+    "42": {"ttt_bpb": 1.08062, "sliding_bpb": 1.0818, "quantized_bpb": 1.0983, "artifact_bytes": 15996321, "ttt_eval_seconds": 395, "steps": 3770},
+    "314": {"ttt_bpb": 1.08103, "sliding_bpb": 1.0823, "quantized_bpb": 1.0990, "artifact_bytes": 15995838, "ttt_eval_seconds": 358, "steps": 3770},
+    "999": {"ttt_bpb": 1.08135, "sliding_bpb": 1.0825, "quantized_bpb": 1.0991, "artifact_bytes": 15995930, "ttt_eval_seconds": 349, "steps": 3770}
   },
   "hardware": "8xH100 80GB SXM",
   "training_time_seconds": 588,
-  "ppm_subset_tokens": 8000000,
-  "anti_hijack_gate": {
-    "threshold_nats": 0.277,
-    "threshold_bits": 0.40,
-    "mean_gate_skip": 0.3055,
-    "description": "When NN per-byte NLL < 0.277 nats, PPM mixture is suppressed and pure NN prediction is used. Prevents PPM from compounding on bytes where the NN is already confident."
+  "experimental_ppmd": {
+    "mix_bpb_mean": 0.9727,
+    "mix_bpb_std": 0.0004,
+    "subset_tokens": 8000000,
+    "note": "PPM-D byte mixture (order-5) with anti-hijack gate. Evaluated on 8M token subset. In PPM-D class under Issue #1872 discussion.",
+    "anti_hijack_gate": {
+      "threshold_nats": 0.277,
+      "mean_gate_skip": 0.3055
+    }
   },
-  "issue_1872_disclosure": "This submission is in the PPM-D byte-mixture class under discussion in Issue #1872. If the class is ruled inadmissible under C2, the neural-only fallback is 1.0806 BPB (quantized_ttt, full val).",
+  "cross_platform_verification": {
+    "sdpa_mean_bpb": 1.0886,
+    "sdpa_std": 0.0009,
+    "note": "Same config trained with PyTorch SDPA instead of flash_attn_3. Verifies robustness across attention backends."
+  },
   "key_changes": [
-    "Anti-hijack gate: suppress PPM when NN NLL < 0.277 nats (0.40 bits), inspired by PR #1885",
     "Legal score-first TTT: 2-epoch SGD per chunk on quantized model (Issue #1017 C3 compliant)",
-    "PPM-D byte mixture: order-5 PPM-D with binary-lambda gate (0.05/0.9 at conf 0.9)",
-    "Void fraction compass: post-TTT diagnostic (stable ~0.510 across all seeds)",
+    "Neural-only: no PPM-D required for headline 1.0810 result",
+    "Cross-platform verified: 1.0886 on SDPA, 1.0810 on flash_attn_3",
+    "Experimental PPM-D mixture: 0.9727 on 8M subset (pending #1872)",
+    "Anti-hijack gate: suppress PPM when NN NLL < 0.277 nats",
     "Deterministic LZMA bootstrap: source captured at startup",
     "Brotli-11 model compression"
   ],

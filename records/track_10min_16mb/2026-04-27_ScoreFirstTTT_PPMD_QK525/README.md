@@ -1,16 +1,33 @@
-# Record: Score-First TTT + PPM-D Byte Mixture + QK-Gain 5.25
+# Record: SP8192 + Score-First TTT + QK-Gain 5.25 — Neural-Only 1.0810
 
-**mix_bpb = 0.9946** (3-seed mean, std 0.0002) | **< 16 MB** | 8xH100 SXM
+**val_bpb = 1.0810** (3-seed mean, std 0.0004) | **< 16 MB** | 8xH100 SXM
 
-## 3-Seed Results
+## 3-Seed Results (Neural-Only, flash_attn_3)
 
-| Seed | **Mix BPB** | **TTT BPB** | **Sliding BPB** | **Quantized BPB** | Artifact |
-|------|------------|------------|-----------------|-------------------|----------|
-| 42   | **0.9944** | 1.0807     | 1.0820          | 1.0986            | 15,997,374 |
-| 314  | **0.9947** | 1.0812     | 1.0826          | 1.0992            | 15,997,007 |
-| 999  | **0.9948** | 1.0813     | 1.0827          | 1.0994            | 15,997,375 |
-| **Mean** | **0.9946** | **1.0811** | **1.0824** | **1.0991** | |
-| **Std** | **0.0002** | **0.0003** | **0.0004** | **0.0004** | |
+| Seed | **TTT BPB** | **Sliding BPB** | **Quantized BPB** | Artifact |
+|------|------------|-----------------|-------------------|----------|
+| 42   | **1.0806** | 1.0818          | 1.0983            | 15,996,321 |
+| 314  | **1.0810** | 1.0823          | 1.0990            | 15,995,838 |
+| 999  | **1.0814** | 1.0825          | 1.0991            | 15,995,930 |
+| **Mean** | **1.0810** | **1.0822** | **1.0988** | |
+| **Std** | **0.0004** | **0.0004** | **0.0004** | |
+
+## Cross-Platform Verification (SDPA backend)
+
+Same config trained with PyTorch SDPA instead of flash_attn_3, on a separate 8xH100 instance:
+
+| Seed | TTT BPB |
+|------|---------|
+| 42   | 1.0880  |
+| 314  | 1.0882  |
+| 999  | 1.0896  |
+| **Mean** | **1.0886** |
+
+The ~0.008 BPB difference is attributable to the SDPA vs flash_attn_3 attention backend.
+
+## Experimental: PPM-D Byte Mixture (pending Issue #1872)
+
+When PPM-D is enabled with anti-hijack gate, the mixture achieves 0.9727 BPB on an 8M token validation subset. This result is in the PPM-D class under active discussion in Issue #1872 and is presented as experimental, not the primary result.
 
 ## Key Changes
 
