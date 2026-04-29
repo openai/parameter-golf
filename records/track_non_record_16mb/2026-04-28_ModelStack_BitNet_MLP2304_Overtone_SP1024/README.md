@@ -9,10 +9,10 @@ and keeps the packed bundle plus submitted code under the 16MB budget.
 
 Important artifact caveat: the standard `final_model.pt` and
 `final_model.int8.ptz` artifacts emitted by this script are not under 16MB. The
-under-budget artifact is the custom Model Stack BitNet bundle
-`final_model.model_stack_bitnet.pt` plus code. This is therefore a non-record
-Model Stack packed-export artifact until the restore/evaluation path consumes
-that bundle directly as the submission artifact.
+under-budget artifact is the custom Model Stack BitNet artifact
+`final_model.int1.ptz` plus code. This is therefore a non-record Model Stack
+packed-export artifact until the restore/evaluation path scores that artifact
+directly.
 
 ## Result
 
@@ -27,23 +27,26 @@ that bundle directly as the submission artifact.
 | Step average at stop | 92.64 ms |
 | Sliding eval time | 401,147 ms |
 | Model Stack BitNet bundle bytes | 15,612,895 |
-| Code bytes | 80,393 |
-| Model Stack bundle + code bytes | 15,693,288 |
+| Model Stack int1+zlib bytes | 12,183,763 |
+| Code bytes | 81,500 |
+| Model Stack bundle + code bytes | 15,694,395 |
+| Model Stack int1+zlib + code bytes | 12,265,263 |
 | Raw `final_model.pt` + code bytes | 207,847,742 |
 | Int8+zlib `final_model.int8.ptz` + code bytes | 42,950,518 |
-| Model Stack bundle budget | 15.69MB / 16.00MB |
+| Model Stack int1+zlib budget | 12.27MB / 16.00MB |
 
 The sliding-window evaluation time is 401.147s, which is below the competition
 evaluation cap of 10 minutes on 8xH100. The stock raw and int8+zlib artifacts
-are over the 16,000,000-byte artifact cap; only the Model Stack packed bundle is
-under the size limit.
+are over the 16,000,000-byte artifact cap; only the Model Stack packed BitNet
+artifacts are under the size limit. `final_model.int1.ptz` is the compressed
+packed BitNet submission artifact.
 
 The run improves over the earlier legal Model Stack BitNet MLP2 run:
 
 | Variant | Steps | Step avg | Sliding val_bpb | Bundle + code |
 |---|---:|---:|---:|---:|
 | MLP2 dense-backward | 5,968 | 100.38 ms | 1.2303 | 14,753,017 |
-| MLP2304 + overtone | 6,466 | 92.64 ms | 1.2205 | 15,693,288 |
+| MLP2304 + overtone | 6,466 | 92.64 ms | 1.2205 | 12,265,263 int1+zlib |
 
 ## Technique
 
@@ -78,6 +81,7 @@ bash run_mlp2304_overtone_8xh100.sh
 ## Included Files
 
 - `train_gpt.py`: standalone training/evaluation script used for this run.
+- `final_model.int1.ptz`: generated compressed packed BitNet artifact name.
 - `train.log`: full canonical 8xH100 run log.
 - `run_mlp2304_overtone_8xh100.sh`: exact launcher for the run.
 - `submission.json`: metadata for this non-record submission.
@@ -86,9 +90,10 @@ bash run_mlp2304_overtone_8xh100.sh
 
 This is not a leaderboard record against the SP8192 + legal TTT submissions. It
 is intended as the strongest current Model Stack BitNet PR artifact: the training
-stack uses Model Stack QAT modules, the exported packed BitNet bundle plus code
-fits the track budget, and the run demonstrates a faster and better Model Stack
-BitNet result than the earlier MLP2 baseline. To make this competition-valid as
-a submitted artifact, the script still needs a restore/eval path that loads and
-scores the Model Stack bundle directly instead of relying on the oversized
-standard PyTorch or int8+zlib outputs.
+stack uses Model Stack QAT modules, the exported packed BitNet `int1.ptz` plus
+code fits the track budget, and the run demonstrates a faster and better Model
+Stack BitNet result than the earlier MLP2 baseline. To make this fully
+competition-valid as a submitted artifact, the script still needs the final eval
+roundtrip to instantiate and score from `final_model.int1.ptz`; it currently
+writes and format-validates that artifact, while the existing score lines come
+from the trained model and the oversized generic int8+zlib roundtrip.

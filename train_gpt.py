@@ -1099,6 +1099,16 @@ def export_model_stack_bitnet_bundle(model: nn.Module) -> dict[str, object]:
     }
 
 
+def encode_model_stack_bitnet_int1_artifact(bundle: dict[str, object]) -> bytes:
+    buf = io.BytesIO()
+    torch.save(bundle, buf)
+    return zlib.compress(buf.getvalue(), level=9)
+
+
+def decode_model_stack_bitnet_int1_artifact(blob: bytes) -> dict[str, object]:
+    return torch.load(io.BytesIO(zlib.decompress(blob)), map_location="cpu", weights_only=False)
+
+
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
     # Keep small/control parameters in fp32 even when the model body runs in bf16.
     with torch.no_grad():
@@ -1800,12 +1810,24 @@ def main() -> None:
             bundle = export_model_stack_bitnet_bundle(base_model)
             torch.save(bundle, "final_model.model_stack_bitnet.pt")
             bundle_bytes = os.path.getsize("final_model.model_stack_bitnet.pt")
+            int1_blob = encode_model_stack_bitnet_int1_artifact(bundle)
+            with open("final_model.int1.ptz", "wb") as f:
+                f.write(int1_blob)
+            int1_bytes = os.path.getsize("final_model.int1.ptz")
+            int1_roundtrip = decode_model_stack_bitnet_int1_artifact(int1_blob)
             summary = bundle["summary"]
             log0(
                 f"Serialized Model Stack BitNet bundle: {bundle_bytes} bytes "
                 f"packed_modules:{summary['packed_modules']} "
                 f"packed_params:{summary['packed_params']} "
                 f"floating_tensors:{summary['floating_tensors']}"
+            )
+            log0(f"Serialized model int1+zlib: {int1_bytes} bytes")
+            log0(f"Total submission size int1+zlib: {int1_bytes + code_bytes} bytes")
+            log0(
+                f"final_int1_zlib_roundtrip_format:{int1_roundtrip.get('format')} "
+                f"packed_modules:{int1_roundtrip['summary']['packed_modules']} "
+                f"floating_tensors:{int1_roundtrip['summary']['floating_tensors']}"
             )
 
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
