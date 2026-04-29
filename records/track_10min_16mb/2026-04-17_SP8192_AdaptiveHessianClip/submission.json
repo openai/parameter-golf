@@ -1,0 +1,35 @@
+{
+  "author": "chris-colinsky",
+  "github_id": "chris-colinsky",
+  "name": "SP8192 + Adaptive Hessian-Sensitivity GPTQ Clipping + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25",
+  "date": "2026-04-17",
+  "track": "10min_16mb",
+  "val_bpb": 1.08218,
+  "val_bpb_std": 0.00090,
+  "seeds": [1337, 42, 999],
+  "seed_results": {
+    "1337": {"val_bpb": 1.08114, "artifact_bytes": 15906928},
+    "42": {"val_bpb": 1.08265, "artifact_bytes": 15909023},
+    "999": {"val_bpb": 1.08275, "artifact_bytes": 15911535}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + Hessian-Sensitivity Adaptive GPTQ Clipping (per-tensor clip_sigmas from H_diag * row_var, exponent -0.15, binary-search offset) + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + EMA 0.9965 + WD 0.095 + Sliding Window Eval + GPTQ SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445)",
+    "adaptive_hessian_clip": "Novel contribution (this submission)"
+  }
+}
