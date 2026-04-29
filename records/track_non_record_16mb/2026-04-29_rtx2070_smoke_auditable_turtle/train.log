@@ -898,7 +898,7 @@ def main() -> None:
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0("sdp_backends:cudnn=False flash=False mem_efficient=False math=True")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
@@ -1131,7 +1131,7 @@ if __name__ == "__main__":
 ====================================================================================================
 Running Python 3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]
 Running PyTorch 2.11.0+cu128
-Wed Apr 29 16:52:29 2026       
+Wed Apr 29 23:42:30 2026       
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 595.71.01              Driver Version: 596.36         CUDA Version: 13.2     |
 +-----------------------------------------+------------------------+----------------------+
@@ -1140,7 +1140,7 @@ Wed Apr 29 16:52:29 2026
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA GeForce RTX 2070        On  |   00000000:01:00.0  On |                  N/A |
-|  0%   54C    P2             27W /  175W |    1010MiB /   8192MiB |     13%      Default |
+|  0%   48C    P2             36W /  175W |     939MiB /   8192MiB |      5%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -1150,7 +1150,6 @@ Wed Apr 29 16:52:29 2026
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
 |    0   N/A  N/A              24      G   /Xwayland                             N/A      |
-|    0   N/A  N/A           10920      C   /python3.12                           N/A      |
 +-----------------------------------------------------------------------------------------+
 
 ====================================================================================================
@@ -1159,7 +1158,7 @@ train_loader:dataset:fineweb_smoke_sp1024 train_shards:1
 val_loader:shards pattern=./data/datasets/fineweb_smoke_sp1024/fineweb_val_*.bin tokens:16352
 model_params:394376
 world_size:1 grad_accum_steps:8
-sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+sdp_backends:cudnn=False flash=False mem_efficient=False math=True
 attention_mode:gqa num_heads:4 num_kv_heads:4
 tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
 train_batch_tokens:1024 train_seq_len:32 iterations:1 warmup_steps:20 max_wallclock_seconds:60.000
@@ -1185,13 +1184,13 @@ warmup_step:18/20
 warmup_step:19/20
 warmup_step:20/20
 step:0/1 val_loss:6.9339 val_bpb:4.0567 train_time:0ms step_avg:0.01ms
-step:1/1 train_loss:6.9313 train_time:59ms step_avg:58.63ms
-step:1/1 val_loss:8.3948 val_bpb:4.9114 train_time:59ms step_avg:59.11ms
+step:1/1 train_loss:6.9313 train_time:60ms step_avg:59.93ms
+step:1/1 val_loss:8.3948 val_bpb:4.9114 train_time:60ms step_avg:60.47ms
 peak memory allocated: 24 MiB reserved: 30 MiB
 Serialized model: 1323857 bytes
 Code size: 47847 bytes
 Total submission size: 1371704 bytes
 Serialized model int8+zlib: 456162 bytes (payload:662048 raw_torch:669534 payload_ratio:1.99x)
 Total submission size int8+zlib: 504009 bytes
-final_int8_zlib_roundtrip val_loss:8.4026 val_bpb:4.9159 eval_time:282ms
+final_int8_zlib_roundtrip val_loss:8.4026 val_bpb:4.9159 eval_time:293ms
 final_int8_zlib_roundtrip_exact val_loss:8.40257616 val_bpb:4.91592263
