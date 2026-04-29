@@ -1,0 +1,61 @@
+# Multi-stage Dockerfile for real-seed-agent
+# Builds seed-agent and copies trios-train binary from trainer image.
+#
+# Anchor: phi^2 + phi^-2 = 3
+# ADR-0001: trainer src lives in gHashTag/trios-trainer-igla; seed-agent only
+#           invokes its compiled binary.
+
+# -----------------------------------------------------------------------------
+# Stage 1: Trainer binary stage (image is built by Step D pipeline).
+# -----------------------------------------------------------------------------
+ARG TRAINER_IMAGE=ghcr.io/ghashtag/trios-train:latest
+FROM ${TRAINER_IMAGE} AS trainer-stage
+# Trainer binary is already at /usr/local/bin/trios-train per Step D.
+
+# -----------------------------------------------------------------------------
+# Stage 2: Build seed-agent from source.
+# -----------------------------------------------------------------------------
+FROM rust:1.91-slim AS agent-stage
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        pkg-config libssl-dev ca-certificates build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy entire workspace (seed-agent depends on shared crates).
+COPY . .
+
+# Build seed-agent in release mode.
+RUN cargo build --release --bin seed-agent --locked
+
+# -----------------------------------------------------------------------------
+# Stage 3: Runtime image with both binaries.
+# -----------------------------------------------------------------------------
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+
+# Copy binaries from previous stages.
+COPY --from=trainer-stage /usr/local/bin/trios-train /usr/local/bin/trios-train
+COPY --from=agent-stage   /build/target/release/seed-agent /usr/local/bin/seed-agent
+
+RUN chmod +x /usr/local/bin/trios-train /usr/local/bin/seed-agent
+
+# Default configuration (Railway env vars override these).
+ENV TRAINER_KIND=external \
+    TRAINER_BIN=/usr/local/bin/trios-train \
+    RUST_LOG=info \
+    SEED_AGENT_POLL_INTERVAL_MS=5000 \
+    SEED_AGENT_EARLY_STOP_STEP=2000 \
+    SEED_AGENT_EARLY_STOP_BPB_CEILING=3.0
+
+# Health check: verify seed-agent process is alive.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD pgrep -f seed-agent >/dev/null || exit 1
+
+ENTRYPOINT ["/usr/local/bin/seed-agent"]
