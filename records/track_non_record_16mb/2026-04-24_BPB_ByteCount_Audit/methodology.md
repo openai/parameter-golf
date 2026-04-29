@@ -182,12 +182,22 @@ his LUT inflates his canonical denominator by 1,346,100 bytes relative
 to the #1727 LUT, which decreases the ratio rather than increasing it.
 
 The discrepancy between yahya's quoted 1.1746 and our reproduction's
-1.1655 cannot be closed from his code alone on our val. We have not
-reverse-engineered his `eval_val_sliding` to determine whether it
-applies a different scoring-token subset, a different boundary
-treatment, or other normalization. Possible causes (not investigated):
-val-shard variants, alternate stride/seq_len, or hand-quoted estimate.
-Empirical reproduction at `empirical_validation/run3_yahya_full_lut.py`.
+1.1655 has been bounded by empirical run 4. We replicated yahya's exact
+`eval_val_sliding` scoring formula and tested three windowing
+configurations: seq_len=2048/stride=64 (audit default), seq_len=1024/
+stride=64 (yahya's code default per `train_gdn_7k.py:69`), and
+seq_len=1024/stride=1024 (no overlap). All three produce yahya's ratio
+to within 1.6e-6 of each other. The 0.77% gap is invariant to eval
+pipeline windowing parameters. By elimination across runs 1-4, the gap
+must live in tokenizer or val-shard state that we cannot replicate
+without yahya's exact disclosure-time data — most likely the SP1024
+tokenizer his code defaults to (line 58), a different val shard, or a
+hand-derived estimate in PR #1734 itself. This narrows the unknown
+from "the gap is unexplained" to "the gap is bounded to data state,
+not pipeline structure."
+
+Empirical reproductions at `audit/empirical_validation/run3_yahya_full_lut.py`
+and `audit/empirical_validation/run4_seq_len_1024.py`.
 
 ### Which variant should a reviewer cite?
 

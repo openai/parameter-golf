@@ -250,9 +250,11 @@ fineweb val when applied to the #1727-style LUT shape. Running yahya's
 exact LUT (lines 206-219 of `train_gdn_7k.py`) against the same val
 stream and applying the same canonical/buggy formulation as the audit
 tool gives **1.1655**, not the quoted 1.1746. The 0.77% gap is in the
-opposite direction from what canonical-vs-buggy alone would predict and
-cannot be closed without yahya's exact `eval_val_sliding` pipeline,
-which we have not reverse-engineered. Both reported numbers describe
+opposite direction from what canonical-vs-buggy alone would predict.
+Empirical run 4 has since shown the gap is invariant to eval pipeline
+windowing parameters (seq_len ∈ {1024, 2048}, stride ∈ {64, 1024}),
+ruling out the eval pipeline as the gap's source. The gap lives in
+tokenizer or val-shard state we do not have access to. Both reported numbers describe
 the same underlying defect (leading-space bytes baked into the LUT and
 re-added at eval); the residual numerical disagreement remains
 unresolved. Full analysis and the empirical reproduction in

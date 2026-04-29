@@ -106,3 +106,38 @@ bytes; the mixture's gate legality (an outcome-independent adaptive-λ check)
 was verified separately by @nprime06's review on PR #1795 itself (a target-
 conditioned gate from an earlier commit was flagged and fixed). The audit
 tool does not check gate legality.
+
+## v2.1 addendum — 2026-04-29 — re-check of remaining OBFUSCATED PRs
+
+Re-fetched the three other top-10 OBFUSCATED entries (#1758, #1738, #1771)
+to check whether they had similarly converted to readable source after the
+audit ran on 2026-04-23. They have not. All three remain OBFUSCATED with
+their original wrappers (PRs #1758 and #1738 use the same lzma+exec pattern
+as the original snapshot; PR #1771 uses an lzma+runpy variant). No
+classification changes; the audit's per_pr_v2 entries for these PRs remain
+accurate. Detail in `audit/per_pr_v2/obfuscated_recheck_2026-04-29.md`.
+
+
+## v2.1 second addendum — 2026-04-29 — gap-bounding via SEQ_LEN/STRIDE invariance test
+
+Run 4 tested whether the 0.77% gap between yahya's quoted 1.1746 and
+the audit's 1.1655 reproduction lives in eval pipeline scoring
+parameters. Result: the gap is invariant to seq_len ∈ {1024, 2048} and
+stride ∈ {64, 1024}; all three tested configurations produce the same
+ratio to within 1.6e-6.
+
+The gap therefore does not live in scoring strategy. By elimination
+across runs 1-4 (LUT structure, formula, boundary mask, three scoring
+modes, eval windowing), the gap must live in tokenizer or val-shard
+state. Yahya's `train_gdn_7k.py:58` defaults to SP1024; his audited
+submission overrides to SP8192 (per submission.json). His PR #1734
+disclosure analysis predates that submission and may have been computed
+against the SP1024 default, against a different val shard, or
+hand-derived.
+
+The audit cannot replicate yahya's disclosure-time data. The gap is
+bounded to data state, not pipeline structure. The audit's headline
+numbers are unchanged.
+
+See `audit/empirical_validation/run4_summary.md` and
+`audit/empirical_validation/run4_seq_len_1024.py` for detail.
