@@ -16,6 +16,7 @@ pip install -q -r requirements.txt
 
 # ── 3. Install Flash Attention 3 (FA3) ───────────────────────────────────────
 pip install flash_attn_3 --no-deps \
+  --trusted-host windreamer.github.io \
   --find-links http://windreamer.github.io/flash-attention3-wheels/cu128_torch291/
 
 python3 -c "from flash_attn_interface import flash_attn_func; print('FA3 OK')" \
