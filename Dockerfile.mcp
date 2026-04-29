@@ -25,6 +25,7 @@ COPY crates/trios-railway-audit/Cargo.toml     crates/trios-railway-audit/Cargo.
 COPY crates/trios-railway-experience/Cargo.toml crates/trios-railway-experience/Cargo.toml
 COPY crates/trios-railway-mcp/Cargo.toml       crates/trios-railway-mcp/Cargo.toml
 COPY bin/tri-railway/Cargo.toml                bin/tri-railway/Cargo.toml
+COPY bin/seed-agent/Cargo.toml                 bin/seed-agent/Cargo.toml
 
 # Stub sources to populate dependency cache.
 RUN mkdir -p crates/trios-railway-core/src \
@@ -32,7 +33,9 @@ RUN mkdir -p crates/trios-railway-core/src \
              crates/trios-railway-experience/src \
              crates/trios-railway-mcp/src \
              bin/tri-railway/src \
+             bin/seed-agent/src \
  && echo 'fn main() {}'        > bin/tri-railway/src/main.rs \
+ && echo 'fn main() {}'        > bin/seed-agent/src/main.rs \
  && echo 'fn main() {}'        > crates/trios-railway-mcp/src/main.rs \
  && echo ''                    > crates/trios-railway-core/src/lib.rs \
  && echo ''                    > crates/trios-railway-audit/src/lib.rs \
