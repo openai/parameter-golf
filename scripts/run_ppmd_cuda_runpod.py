@@ -596,9 +596,9 @@ def _full_eval_clone_snippet(gpu_sku: str, branch: str, commit: str, positions: 
         BUILD_CPP_EC=${{PIPESTATUS[0]}}
         set -e
         cd $REPO
-        # Download FineWeb SP8192 validation split
+        # Download FineWeb SP8192 validation split (val shards only — skip 80 training shards)
         MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \\
-            python3 data/cached_challenge_fineweb.py --variant sp8192 \\
+            python3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 0 \\
             >> /root/rehearsal_out/path_a_cuda_full_eval.log 2>&1 || true
         # Run full Path A CUDA eval (neural NLL + PPM-D scoring)
         cd $REPO/scripts
