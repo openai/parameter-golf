@@ -32,3 +32,5 @@ AGENT=GENERAL|SOUL=RailRangerOne|ISSUE=#81|PHI_STEP=EXPERIENCE|TASK=Tick #18 R5-
 - issues: zgf#28 (setup-zig typo), zgf#30 (this PR)
 - phi_step: φ² + φ⁻² = 3
 RAIL=fleet-auth-fix @ project=4acc sha=3a8ffda ts=2026-04-29T17:49:39Z kind=project-token-header-fix services=48
+{"ts":"2026-04-29T17:57:30.838088+00:00","agent":"GENERAL","soul_name":"RailRangerOne","issue":"#5","task":"deploy igla-smoke-test image=ghcr.io/ghashtag/trios-trainer-igla:latest","status":"OK","phi_step":"PUSH","triplet":"RAIL=deploy @ project=da1fb0c7 service=3016040d sha=b71e5e4ea6155291 ts=2026-04-29T17:57:30.838019+00:00"}
+RAIL=fix @ file=Dockerfile.mcp ts=2026-04-29T19:47Z what=added_libssl_dev_for_openssl_sys agent=GENERAL
