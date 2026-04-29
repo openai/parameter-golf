@@ -330,7 +330,7 @@ class Hyperparameters:
     embed_bits = int(os.environ.get("EMBED_BITS", 8))
     matrix_clip_sigmas = float(os.environ.get("MATRIX_CLIP_SIGMAS", 12.85))
     embed_clip_sigmas = float(os.environ.get("EMBED_CLIP_SIGMAS", 2e1))
-    mlp_clip_sigmas = float(os.environ.get("MLP_CLIP_SIGMAS", 6.0))
+    mlp_clip_sigmas = float(os.environ.get("MLP_CLIP_SIGMAS", 10.0))
     attn_clip_sigmas = float(os.environ.get("ATTN_CLIP_SIGMAS", 13.0))
     # AttnOutGate (per-head multiplicative output gate, PR #1667 MarioPaerle).
     # Zero-init weight: 2*sigmoid(0)=1 -> transparent at start. Source defaults to

@@ -81,7 +81,7 @@ SMEAR_GATE_ENABLED=1 \
 SPARSE_ATTN_GATE_ENABLED=1 \
 MIN_LR=0.1 \
 EMBED_CLIP_SIGMAS=15.0 \
-MLP_CLIP_SIGMAS=6.0 \
+MLP_CLIP_SIGMAS=12.0 \
 GPTQ_RESERVE_SECONDS=0.5 \
 PHASED_TTT_NUM_PHASES=3 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
@@ -97,7 +97,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | `SPARSE_ATTN_GATE_ENABLED` | `1` | Enable sparse attention gating |
 | `MIN_LR` | `0.1` | Minimum learning rate |
 | `EMBED_CLIP_SIGMAS` | `15.0` | Embedding clipping threshold (σ) |
-| `MLP_CLIP_SIGMAS` | `6.0` | MLP GPTQ clipping threshold (σ) |
+| `MLP_CLIP_SIGMAS` | `12.0` | MLP clipping threshold (σ) |
 | `GPTQ_RESERVE_SECONDS` | `0.5` | Seconds reserved for GPTQ |
 | `PHASED_TTT_NUM_PHASES` | `3` | Number of TTT phases |
 
@@ -115,10 +115,7 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ### Experimental train-only logit calibration variant
 
-This branch adds two train-only post-training experiments on top of the reproduced #1851/#1868 stack:
-
-- MLP GPTQ clipping is tightened from `12.0` to `6.0`; local FP-vs-quant probes on held-out train slices showed a stable `~0.009 BPB` quantization-gap reduction.
-- Optional logit calibration fits a fixed global temperature plus coarse token-group bias using only training tokens, then applies the frozen affine correction before softmax in both the quantized diagnostic eval and the phased score-first TTT loss.
+This branch adds optional train-only post-training experiments on top of the reproduced #1851/#1868 stack. Logit calibration fits a fixed global temperature plus coarse token-group bias using only training tokens, then applies the frozen affine correction before softmax in both the quantized diagnostic eval and the phased score-first TTT loss.
 
 Default controls:
 
@@ -136,4 +133,4 @@ LOGIT_CALIB_EPOCHS=1
 LOGIT_CALIB_APPLY_TTT_UPDATE=1
 ```
 
-Set `LOGIT_CALIB_ENABLED=0` and `MLP_CLIP_SIGMAS=12.0` to recover the byte-identical #1868 behavior. The calibration pass does not read validation targets or build validation-derived state; rank 0 fits on train shard tokens and broadcasts the frozen scale/bias to all ranks before eval.
+Set `LOGIT_CALIB_ENABLED=0` to recover the byte-identical #1868 behavior. The calibration pass does not read validation targets or build validation-derived state; rank 0 fits on train shard tokens and broadcasts the frozen scale/bias to all ranks before eval.
