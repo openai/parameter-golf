@@ -6,17 +6,21 @@ Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `t
 
 from __future__ import annotations
 
+import argparse
+import contextlib
 import copy
 import glob
 import io
 import math
 import os
 import random
+import re
 import subprocess
 import sys
 import time
 import uuid
 import zlib
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -85,6 +89,36 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+
+
+@dataclass
+class EvalConfig:
+    model_path: str = os.environ.get("MODEL_PATH", "")
+    data_path: str = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
+    val_files: str = os.path.join(
+        os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024"),
+        "fineweb_val_*.bin",
+    )
+    tokenizer_path: str = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
+    seq_len: int = int(os.environ.get("TRAIN_SEQ_LEN", "1024"))
+    val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", "65536"))
+    vocab_size: int = int(os.environ.get("VOCAB_SIZE", "1024"))
+    num_layers: int = int(os.environ.get("NUM_LAYERS", "9"))
+    num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", "4"))
+    model_dim: int = int(os.environ.get("MODEL_DIM", "512"))
+    num_heads: int = int(os.environ.get("NUM_HEADS", "8"))
+    mlp_mult: int = int(os.environ.get("MLP_MULT", "2"))
+    rope_base: float = float(os.environ.get("ROPE_BASE", "10000.0"))
+    logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", "30.0"))
+    qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", "1.5"))
+
+
+@dataclass
+class SophonicConfig:
+    base_bits: int = int(os.environ.get("SOPHONIC_BASE_BITS", "5"))
+    high_bits: int = int(os.environ.get("SOPHONIC_HIGH_BITS", "8"))
+    rank: int = int(os.environ.get("SOPHONIC_RANK", "4"))
+    k: int = int(os.environ.get("SOPHONIC_K", "4"))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -277,6 +311,53 @@ def eval_val(
     model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
+
+@torch.inference_mode()
+def eval_bpb(
+    model,
+    val_tokens,
+    seq_len,
+    batch_size,
+    base_bytes_lut,
+    has_space_lut,
+    is_boundary_lut,
+    device,
+):
+    batch_seqs = max(batch_size // seq_len, 1)
+    total_seqs = (val_tokens.numel() - 1) // seq_len
+    loss_sum = 0.0
+    token_count = 0.0
+    byte_count = 0.0
+
+    model.eval()
+    max_seqs = int(os.environ.get("SOPHONIC_MAX_SEQS", "0"))
+    eval_seqs = min(total_seqs, max_seqs) if max_seqs > 0 else total_seqs
+    for start in range(0, eval_seqs, batch_seqs):
+        end = min(start + batch_seqs, total_seqs)
+        raw_s = start * seq_len
+        raw_e = end * seq_len + 1
+        local = val_tokens[raw_s:raw_e].to(device=device, dtype=torch.int64)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
+        loss = model(x, y).item()
+        n = float(y.numel())
+        loss_sum += loss * n
+        token_count += n
+        prev_ids = x.reshape(-1)
+        tgt_ids = y.reshape(-1)
+        token_bytes = base_bytes_lut[tgt_ids].to(torch.int16)
+        token_bytes += (has_space_lut[tgt_ids] & ~is_boundary_lut[prev_ids]).to(torch.int16)
+        byte_count += token_bytes.to(torch.float32).sum().item()
+
+        if (start // batch_seqs) % 20 == 0:
+            done_pct = 100 * end / eval_seqs
+            print(f"    eval: {done_pct:.0f}% ({end}/{eval_seqs} seqs)", end="\r")
+
+    val_loss = loss_sum / token_count
+    bpb = (val_loss / math.log(2.0)) * (token_count / byte_count)
+    print(f"    eval: 100% ({eval_seqs}/{eval_seqs} seqs)      ")
+    return val_loss, bpb
+
 # -----------------------------
 # POST-TRAINING QUANTIZATION
 # -----------------------------
@@ -306,6 +387,37 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+SMALL_TENSOR_MAX = 65_536
+
+def quant_per_row(t: Tensor, bits: int, clip_q: float = 0.9999984) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    qmax = (1 << (bits - 1)) - 1
+    if t32.ndim == 2:
+        clip_abs = torch.quantile(t32.abs(), clip_q, dim=1) if t32.numel() else torch.empty(t32.shape[0])
+        clipped = torch.clamp(t32, -clip_abs[:, None], clip_abs[:, None])
+        scale = (clip_abs / qmax).clamp_min(1.0 / qmax)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -qmax, qmax).to(torch.int8)
+        return q, scale.to(torch.float16)
+    clip_abs = float(torch.quantile(t32.abs().flatten(), clip_q).item()) if t32.numel() else 0.0
+    scale = torch.tensor(clip_abs / qmax if clip_abs > 0 else 1.0)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -qmax, qmax).to(torch.int8)
+    return q, scale
+
+def dequant(q: Tensor, scale: Tensor, dtype=torch.float32) -> Tensor:
+    if scale.ndim > 0:
+        return (q.float() * scale.float().view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype)
+    return (q.float() * float(scale.item())).to(dtype)
+
+def int8_roundtrip(state_dict: dict[str, Tensor]) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    for name, t in state_dict.items():
+        t = t.detach().cpu()
+        if not t.is_floating_point() or t.numel() <= SMALL_TENSOR_MAX:
+            out[name] = t
+            continue
+        q, s = quant_per_row(t, 8)
+        out[name] = dequant(q, s, t.dtype)
+    return out
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -446,8 +558,10 @@ def load_data_shard(file: Path) -> Tensor:
 class TokenStream:
     # Reads shards sequentially and wraps around forever. The training loop therefore
     # has deterministic, simple streaming behavior with no sampling or workers.
-    def __init__(self, pattern: str):
+    def __init__(self, pattern: str, max_files: int = 0):
         self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        if max_files > 0:
+            self.files = self.files[:max_files]
         if not self.files:
             raise FileNotFoundError(f"No files found for pattern: {pattern}")
         self.file_idx = 0
@@ -492,6 +606,22 @@ class DistributedTokenLoader:
         x = local[:-1].reshape(-1, seq_len)
         y = local[1:].reshape(-1, seq_len)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
+
+
+class LocalTokenLoader:
+    def __init__(self, pattern: str, device: torch.device, max_files: int):
+        self.device = device
+        self.stream = TokenStream(pattern, max_files=max_files)
+
+    def next_batch(self, batch_tokens: int, seq_len: int) -> tuple[Tensor, Tensor]:
+        local_tokens = (batch_tokens // seq_len) * seq_len
+        if local_tokens < seq_len:
+            raise ValueError(f"batch_tokens={batch_tokens} too small for seq_len={seq_len}")
+        chunk = self.stream.take(local_tokens + 1)
+        local = chunk.to(dtype=torch.int64)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
+        return x.to(self.device), y.to(self.device)
 
 # -----------------------------
 # TRANSFORMER MODULES
@@ -648,19 +778,47 @@ class Block(nn.Module):
 class GPT(nn.Module):
     def __init__(
         self,
-        vocab_size: int,
-        num_layers: int,
-        model_dim: int,
-        num_heads: int,
-        num_kv_heads: int,
-        mlp_mult: int,
-        tie_embeddings: bool,
-        tied_embed_init_std: float,
-        logit_softcap: float,
-        rope_base: float,
-        qk_gain_init: float,
+        cfg: EvalConfig | None = None,
+        *,
+        vocab_size: int | None = None,
+        num_layers: int | None = None,
+        model_dim: int | None = None,
+        num_heads: int | None = None,
+        num_kv_heads: int | None = None,
+        mlp_mult: int | None = None,
+        tie_embeddings: bool | None = None,
+        tied_embed_init_std: float | None = None,
+        logit_softcap: float | None = None,
+        rope_base: float | None = None,
+        qk_gain_init: float | None = None,
     ):
         super().__init__()
+        if cfg is not None:
+            vocab_size = cfg.vocab_size
+            num_layers = cfg.num_layers
+            model_dim = cfg.model_dim
+            num_heads = cfg.num_heads
+            num_kv_heads = cfg.num_kv_heads
+            mlp_mult = cfg.mlp_mult
+            tie_embeddings = True
+            tied_embed_init_std = Hyperparameters.tied_embed_init_std
+            logit_softcap = cfg.logit_softcap
+            rope_base = cfg.rope_base
+            qk_gain_init = cfg.qk_gain_init
+        if None in (
+            vocab_size,
+            num_layers,
+            model_dim,
+            num_heads,
+            num_kv_heads,
+            mlp_mult,
+            tie_embeddings,
+            tied_embed_init_std,
+            logit_softcap,
+            rope_base,
+            qk_gain_init,
+        ):
+            raise TypeError("GPT requires either EvalConfig or all explicit architecture arguments")
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.tie_embeddings = tie_embeddings
@@ -725,10 +883,269 @@ class GPT(nn.Module):
 
 
 # -----------------------------
+# SOPHONIC EVAL / REPAIR HELPERS
+# -----------------------------
+
+def choose_device(name: str) -> torch.device:
+    if name == "cuda":
+        return torch.device("cuda")
+    if name == "mps":
+        return torch.device("mps")
+    if name == "cpu":
+        return torch.device("cpu")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def normalize_state_dict(raw_sd: dict[str, Tensor]) -> dict[str, Tensor]:
+    if any(k.startswith("module.") for k in raw_sd):
+        return {k.replace("module.", ""): v for k, v in raw_sd.items()}
+    return raw_sd
+
+
+def quantize_large_tensor(t: Tensor, bits: int) -> Tensor:
+    q, s = quant_per_row(t.detach().cpu(), bits)
+    return dequant(q, s, t.dtype)
+
+
+def quantized_state_dict(raw_sd: dict[str, Tensor], bits: int) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    for name, tensor in raw_sd.items():
+        t = tensor.detach().cpu()
+        if not t.is_floating_point() or t.numel() <= SMALL_TENSOR_MAX:
+            out[name] = t
+        else:
+            out[name] = quantize_large_tensor(t, bits)
+    return out
+
+
+def compute_residual_lr(weight: Tensor, base_bits: int, high_bits: int, rank: int):
+    q_lo, s_lo = quant_per_row(weight, base_bits)
+    q_hi, s_hi = quant_per_row(weight, high_bits)
+    residual = (dequant(q_hi, s_hi) - dequant(q_lo, s_lo)).float()
+    if residual.ndim != 2 or min(residual.shape) < rank:
+        return None, None, {"skipped": True}
+    u, s, vh = torch.linalg.svd(residual, full_matrices=False)
+    u_r = (u[:, :rank] * s[:rank].unsqueeze(0)).half()
+    v_r = vh[:rank, :].T.half()
+    total = (residual ** 2).sum().item()
+    error = ((residual - u_r.float() @ v_r.float().T) ** 2).sum().item()
+    return u_r, v_r, {"energy_pct": 100.0 * (1.0 - error / max(total, 1e-12))}
+
+
+def sophonic_quantize(state_dict: dict[str, Tensor], cfg: SophonicConfig):
+    base_sd = {}
+    residuals = {}
+    energies = []
+    base_bytes = 0
+    res_bytes = 0
+    for name, t in state_dict.items():
+        t = t.detach().cpu()
+        if not t.is_floating_point() or t.numel() <= SMALL_TENSOR_MAX:
+            base_sd[name] = t
+            continue
+        q, s = quant_per_row(t, cfg.base_bits)
+        base_sd[name] = dequant(q, s, t.dtype)
+        base_bytes += q.numel() + s.numel() * 2
+        u_r, v_r, info = compute_residual_lr(t, cfg.base_bits, cfg.high_bits, cfg.rank)
+        if u_r is not None:
+            residuals[name] = (u_r, v_r)
+            res_bytes += (u_r.numel() + v_r.numel()) * 2
+            energies.append(info["energy_pct"])
+    stats = {
+        "base_bytes": base_bytes,
+        "residual_bytes": res_bytes,
+        "n_residuals": len(residuals),
+        "mean_energy_pct": sum(energies) / max(len(energies), 1),
+    }
+    return base_sd, residuals, stats
+
+
+def apply_corrections(base_sd: dict, residuals: dict, active: set[str] | None) -> dict[str, Tensor]:
+    out = {}
+    for name, t in base_sd.items():
+        if active and name in active and name in residuals:
+            u_r, v_r = residuals[name]
+            out[name] = (t.float() + u_r.float() @ v_r.float().T).to(t.dtype)
+        else:
+            out[name] = t
+    return out
+
+
+def _layer_map(residuals: dict, num_layers: int) -> dict[str, int]:
+    mapping = {}
+    for name in residuals:
+        for i in range(num_layers):
+            if f"blocks.{i}." in name:
+                mapping[name] = i
+                break
+    return mapping
+
+
+def select_static(residuals, k, num_layers):
+    layer_map = _layer_map(residuals, num_layers)
+    deepest = sorted(set(layer_map.values()), reverse=True)[:k]
+    return {name for name, i in layer_map.items() if i in deepest}
+
+
+def select_by_norm(residuals, k, num_layers):
+    layer_map = _layer_map(residuals, num_layers)
+    layer_norms = {}
+    layer_names = {}
+    for name, (u, v) in residuals.items():
+        i = layer_map.get(name)
+        if i is not None:
+            layer_norms[i] = layer_norms.get(i, 0.0) + (u.float() @ v.float().T).norm().item()
+            layer_names.setdefault(i, []).append(name)
+    top = sorted(layer_norms, key=layer_norms.get, reverse=True)[:k]
+    out = set()
+    for layer in top:
+        out.update(layer_names.get(layer, []))
+    return out
+
+
+def select_random(residuals, k, num_layers):
+    layer_map = _layer_map(residuals, num_layers)
+    all_layers = sorted(set(layer_map.values()))
+    chosen = set(random.sample(all_layers, min(k, len(all_layers))))
+    return {name for name, i in layer_map.items() if i in chosen}
+
+
+class LoRALinear(nn.Module):
+    def __init__(self, base: nn.Linear, rank: int, alpha: float):
+        super().__init__()
+        self.in_features = base.in_features
+        self.out_features = base.out_features
+        self.rank = rank
+        self.scaling = alpha / rank if rank > 0 else 0.0
+        self.weight = nn.Parameter(base.weight.detach().clone(), requires_grad=False)
+        self.bias = None if base.bias is None else nn.Parameter(base.bias.detach().clone(), requires_grad=False)
+        self.lora_a = nn.Parameter(torch.empty(rank, self.in_features, dtype=torch.float32))
+        self.lora_b = nn.Parameter(torch.zeros(self.out_features, rank, dtype=torch.float32))
+        nn.init.kaiming_uniform_(self.lora_a, a=math.sqrt(5.0))
+
+    def forward(self, x: Tensor) -> Tensor:
+        bias = self.bias.to(x.dtype) if self.bias is not None else None
+        base_out = F.linear(x, self.weight.to(x.dtype), bias)
+        lora_mid = F.linear(x, self.lora_a.to(x.dtype))
+        lora_out = F.linear(lora_mid, self.lora_b.to(x.dtype))
+        return base_out + self.scaling * lora_out
+
+    def merged_weight(self) -> Tensor:
+        delta = self.lora_b.detach().float() @ self.lora_a.detach().float()
+        return self.weight.detach().float() + self.scaling * delta
+
+
+def get_parent_module(root: nn.Module, module_name: str) -> tuple[nn.Module, str]:
+    parts = module_name.split(".")
+    parent = root
+    for part in parts[:-1]:
+        parent = getattr(parent, part)
+    return parent, parts[-1]
+
+
+def install_lora_modules(model: nn.Module, pattern: str, rank: int, alpha: float) -> list[str]:
+    regex = re.compile(pattern)
+    chosen: list[str] = []
+    replacements: list[tuple[str, nn.Module]] = []
+    for name, module in model.named_modules():
+        if name and isinstance(module, nn.Linear) and regex.search(name):
+            replacements.append((name, module))
+    for name, module in replacements:
+        parent, leaf = get_parent_module(model, name)
+        replacement = LoRALinear(module, rank=rank, alpha=alpha).to(
+            device=module.weight.device,
+            dtype=module.weight.dtype,
+        )
+        setattr(parent, leaf, replacement)
+        chosen.append(name)
+    return chosen
+
+
+def freeze_non_lora_params(model: nn.Module) -> list[nn.Parameter]:
+    trainable: list[nn.Parameter] = []
+    for name, param in model.named_parameters():
+        is_lora = name.endswith("lora_a") or name.endswith("lora_b")
+        param.requires_grad_(is_lora)
+        if is_lora:
+            trainable.append(param)
+    return trainable
+
+
+def merged_plain_state_dict(model: nn.Module) -> dict[str, Tensor]:
+    merged = {
+        name: tensor.detach().cpu().clone()
+        for name, tensor in model.state_dict().items()
+        if not (name.endswith("lora_a") or name.endswith("lora_b"))
+    }
+    for module_name, module in model.named_modules():
+        if module_name and isinstance(module, LoRALinear):
+            merged[f"{module_name}.weight"] = module.merged_weight().to(dtype=module.weight.dtype).cpu().contiguous()
+            if module.bias is not None:
+                merged[f"{module_name}.bias"] = module.bias.detach().cpu().clone()
+    return merged
+
+
+def reset_rotary_caches(model: nn.Module) -> None:
+    for module in model.modules():
+        if hasattr(module, "_cache"):
+            module._cache = None
+        if hasattr(module, "_seq_len_cached"):
+            module._seq_len_cached = 0
+
+
+@contextlib.contextmanager
+def temp_eval_limit(max_seqs: int):
+    old = os.environ.get("SOPHONIC_MAX_SEQS")
+    os.environ["SOPHONIC_MAX_SEQS"] = str(max_seqs)
+    try:
+        yield
+    finally:
+        if old is None:
+            os.environ.pop("SOPHONIC_MAX_SEQS", None)
+        else:
+            os.environ["SOPHONIC_MAX_SEQS"] = old
+
+
+def eval_model(
+    label: str,
+    model: nn.Module,
+    val_tokens: Tensor,
+    cfg: EvalConfig,
+    base_bytes_lut: Tensor,
+    has_space_lut: Tensor,
+    is_boundary_lut: Tensor,
+    device: torch.device,
+    eval_max_seqs: int,
+) -> tuple[float, float]:
+    model.eval()
+    with temp_eval_limit(eval_max_seqs):
+        t0 = time.time()
+        val_loss, bpb = eval_bpb(
+            model,
+            val_tokens,
+            cfg.seq_len,
+            cfg.val_batch_size,
+            base_bytes_lut,
+            has_space_lut,
+            is_boundary_lut,
+            device,
+        )
+        dt = time.time() - t0
+    print(f"{label:<44} val_bpb={bpb:.4f}  val_loss={val_loss:.4f}  ({dt:.0f}s)")
+    reset_rotary_caches(model)
+    model.train()
+    return val_loss, bpb
+
+
+# -----------------------------
 # TRAINING
 # -----------------------------
 
-def main() -> None:
+def train_main() -> None:
     global zeropower_via_newtonschulz5
 
     code = Path(__file__).read_text(encoding="utf-8")
@@ -1125,6 +1542,253 @@ def main() -> None:
 
     if distributed:
         dist.destroy_process_group()
+
+
+def build_repair_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="LoRA repair on an intN-quantized base model."
+    )
+    parser.add_argument("--model", default=os.environ.get("MODEL_PATH", "final_model.pt"))
+    parser.add_argument("--device", choices=("auto", "cuda", "mps", "cpu"), default="auto")
+    parser.add_argument("--base-bits", type=int, default=int(os.environ.get("LORA_BASE_BITS", "6")))
+    parser.add_argument("--high-bits", type=int, default=int(os.environ.get("LORA_HIGH_BITS", "8")))
+    parser.add_argument("--rank", type=int, default=int(os.environ.get("LORA_RANK", "8")))
+    parser.add_argument("--alpha", type=float, default=float(os.environ.get("LORA_ALPHA", "16.0")))
+    parser.add_argument(
+        "--target-regex",
+        default=os.environ.get("LORA_TARGET_REGEX", r"^blocks\.[5-8]\.mlp\.(fc|proj)$"),
+    )
+    parser.add_argument("--max-steps", type=int, default=int(os.environ.get("LORA_MAX_STEPS", "300")))
+    parser.add_argument(
+        "--max-wallclock-seconds",
+        type=int,
+        default=int(os.environ.get("LORA_MAX_WALLCLOCK_SECONDS", "600")),
+    )
+    parser.add_argument(
+        "--train-batch-tokens",
+        type=int,
+        default=int(os.environ.get("LORA_TRAIN_BATCH_TOKENS", "8192")),
+    )
+    parser.add_argument("--lr", type=float, default=float(os.environ.get("LORA_LR", "0.002")))
+    parser.add_argument("--weight-decay", type=float, default=float(os.environ.get("LORA_WEIGHT_DECAY", "0.0")))
+    parser.add_argument("--grad-clip", type=float, default=float(os.environ.get("LORA_GRAD_CLIP", "1.0")))
+    parser.add_argument("--eval-every", type=int, default=int(os.environ.get("LORA_EVAL_EVERY", "50")))
+    parser.add_argument("--eval-max-seqs", type=int, default=int(os.environ.get("LORA_EVAL_MAX_SEQS", "256")))
+    parser.add_argument(
+        "--final-eval-max-seqs",
+        type=int,
+        default=int(os.environ.get("LORA_FINAL_EVAL_MAX_SEQS", "0")),
+    )
+    parser.add_argument("--val-batch-size", type=int, default=int(os.environ.get("VAL_BATCH_SIZE", "4096")))
+    parser.add_argument("--max-train-files", type=int, default=int(os.environ.get("LORA_MAX_TRAIN_FILES", "2")))
+    parser.add_argument("--seed", type=int, default=int(os.environ.get("LORA_SEED", "1337")))
+    parser.add_argument(
+        "--save-best-path",
+        default=os.environ.get("LORA_SAVE_BEST_PATH", "lora_repair_best_merged.pt"),
+    )
+    return parser
+
+
+def repair_main(argv: list[str] | None = None) -> None:
+    args = build_repair_parser().parse_args(argv)
+    torch.manual_seed(args.seed)
+
+    cfg = EvalConfig()
+    cfg.model_path = args.model
+    cfg.val_batch_size = args.val_batch_size
+
+    device = choose_device(args.device)
+    print(f"Device: {device}")
+    print(f"Loading model: {cfg.model_path}")
+    raw_sd = normalize_state_dict(torch.load(cfg.model_path, map_location="cpu", weights_only=True))
+
+    print(f"Loading validation tokens: {cfg.val_files}")
+    val_tokens = load_validation_tokens(cfg.val_files, cfg.seq_len)
+    print(f"Validation tokens: {val_tokens.numel() - 1:,}")
+
+    sp = spm.SentencePieceProcessor(model_file=cfg.tokenizer_path)
+    base_bytes_lut, has_space_lut, is_boundary_lut = build_sentencepiece_luts(sp, cfg.vocab_size, device)
+
+    high_sd = quantized_state_dict(raw_sd, args.high_bits)
+    low_sd = quantized_state_dict(raw_sd, args.base_bits)
+
+    int8_model = GPT(cfg).to(device).float()
+    int8_model.load_state_dict(high_sd, strict=False)
+
+    repair_model = GPT(cfg).to(device).float()
+    repair_model.load_state_dict(low_sd, strict=False)
+
+    chosen_modules = install_lora_modules(repair_model, args.target_regex, rank=args.rank, alpha=args.alpha)
+    if not chosen_modules:
+        raise ValueError(f"No modules matched target regex: {args.target_regex}")
+    trainable = freeze_non_lora_params(repair_model)
+    trainable_count = sum(int(p.numel()) for p in trainable)
+
+    print("\n" + "=" * 72)
+    print(f"LoRA REPAIR - int{args.base_bits} base, target=int{args.high_bits}")
+    print("=" * 72)
+    print(f"Target regex: {args.target_regex}")
+    print(f"Chosen modules ({len(chosen_modules)}):")
+    for name in chosen_modules:
+        print(f"  - {name}")
+    print(f"Trainable LoRA params: {trainable_count:,}")
+
+    _, high_bpb = eval_model(
+        f"Uniform int{args.high_bits} baseline",
+        int8_model,
+        val_tokens,
+        cfg,
+        base_bytes_lut,
+        has_space_lut,
+        is_boundary_lut,
+        device,
+        args.eval_max_seqs,
+    )
+    _, low_bpb = eval_model(
+        f"Uniform int{args.base_bits} base",
+        repair_model,
+        val_tokens,
+        cfg,
+        base_bytes_lut,
+        has_space_lut,
+        is_boundary_lut,
+        device,
+        args.eval_max_seqs,
+    )
+
+    gap = low_bpb - high_bpb
+    print(f"Recoverable gap (int{args.base_bits} -> int{args.high_bits}): {gap:+.4f} BPB")
+    reset_rotary_caches(repair_model)
+
+    train_loader = LocalTokenLoader(cfg.data_path + "/fineweb_train_*.bin", device=device, max_files=args.max_train_files)
+    optimizer = torch.optim.AdamW(trainable, lr=args.lr, betas=(0.9, 0.95), weight_decay=args.weight_decay)
+
+    best_bpb = low_bpb
+    best_step = 0
+    best_state_dict = merged_plain_state_dict(repair_model)
+    start = time.time()
+    last_loss = float("nan")
+
+    print("\nStarting LoRA repair training")
+    for step in range(1, args.max_steps + 1):
+        if time.time() - start >= args.max_wallclock_seconds:
+            print(f"Stopping early at step {step - 1}: wallclock cap")
+            break
+
+        x, y = train_loader.next_batch(args.train_batch_tokens, cfg.seq_len)
+        optimizer.zero_grad(set_to_none=True)
+        loss = repair_model(x, y)
+        loss.backward()
+        if args.grad_clip > 0:
+            torch.nn.utils.clip_grad_norm_(trainable, args.grad_clip)
+        optimizer.step()
+        last_loss = float(loss.item())
+
+        if step == 1 or step % 10 == 0:
+            elapsed = time.time() - start
+            print(f"step:{step}/{args.max_steps} train_loss:{last_loss:.4f} elapsed:{elapsed:.1f}s")
+
+        if step == args.max_steps or step % args.eval_every == 0:
+            _, current_bpb = eval_model(
+                f"LoRA repair step {step}",
+                repair_model,
+                val_tokens,
+                cfg,
+                base_bytes_lut,
+                has_space_lut,
+                is_boundary_lut,
+                device,
+                args.eval_max_seqs,
+            )
+            if current_bpb < best_bpb:
+                best_bpb = current_bpb
+                best_step = step
+                best_state_dict = merged_plain_state_dict(repair_model)
+                torch.save(best_state_dict, args.save_best_path)
+                print(f"  saved best merged checkpoint to {args.save_best_path}")
+            improvement = low_bpb - current_bpb
+            recovered = improvement / gap if gap > 0 else 0.0
+            print(
+                f"  repair gain vs int{args.base_bits}: {improvement:+.4f} BPB "
+                f"({100.0 * recovered:.1f}% of int{args.base_bits}->int{args.high_bits} gap)"
+            )
+
+    if best_step == 0:
+        torch.save(best_state_dict, args.save_best_path)
+        print(f"Saved baseline merged checkpoint to {args.save_best_path}")
+
+    if args.final_eval_max_seqs > 0:
+        final_int8_model = GPT(cfg).to(device).float()
+        final_int8_model.load_state_dict(high_sd, strict=False)
+        _, final_high_bpb = eval_model(
+            f"Uniform int{args.high_bits} final baseline",
+            final_int8_model,
+            val_tokens,
+            cfg,
+            base_bytes_lut,
+            has_space_lut,
+            is_boundary_lut,
+            device,
+            args.final_eval_max_seqs,
+        )
+        final_low_model = GPT(cfg).to(device).float()
+        final_low_model.load_state_dict(low_sd, strict=False)
+        _, final_low_bpb = eval_model(
+            f"Uniform int{args.base_bits} final base",
+            final_low_model,
+            val_tokens,
+            cfg,
+            base_bytes_lut,
+            has_space_lut,
+            is_boundary_lut,
+            device,
+            args.final_eval_max_seqs,
+        )
+        final_model = GPT(cfg).to(device).float()
+        final_model.load_state_dict(best_state_dict, strict=False)
+        _, final_bpb = eval_model(
+            "Best merged repair final eval",
+            final_model,
+            val_tokens,
+            cfg,
+            base_bytes_lut,
+            has_space_lut,
+            is_boundary_lut,
+            device,
+            args.final_eval_max_seqs,
+        )
+        final_gap = final_low_bpb - final_high_bpb
+        final_gain = final_low_bpb - final_bpb
+        final_recovered = final_gain / final_gap if final_gap > 0 else 0.0
+        print(
+            f"Final eval recovered: {final_gain:+.4f} BPB "
+            f"({100.0 * final_recovered:.1f}% of final-eval gap)"
+        )
+
+    print("\n" + "=" * 72)
+    print("SUMMARY")
+    print("=" * 72)
+    print(f"Uniform int{args.high_bits}: {high_bpb:.4f} BPB")
+    print(f"Uniform int{args.base_bits}: {low_bpb:.4f} BPB")
+    print(f"Best LoRA repair: {best_bpb:.4f} BPB at step {best_step}")
+    gain = low_bpb - best_bpb
+    recovered = gain / gap if gap > 0 else 0.0
+    print(f"Gap to recover: {gap:+.4f} BPB")
+    print(f"Recovered by LoRA: {gain:+.4f} BPB ({100.0 * recovered:.1f}% of gap)")
+    print(f"Final train loss: {last_loss:.4f}")
+
+
+def main() -> None:
+    mode = os.environ.get("MODE", "train").lower()
+    if len(sys.argv) > 1 and sys.argv[1] in {"train", "repair"}:
+        mode = sys.argv[1]
+        sys.argv.pop(1)
+    if mode == "repair":
+        repair_main()
+    elif mode == "train":
+        train_main()
+    else:
+        raise ValueError(f"Unknown MODE={mode!r}; expected 'train' or 'repair'")
 
 
 if __name__ == "__main__":

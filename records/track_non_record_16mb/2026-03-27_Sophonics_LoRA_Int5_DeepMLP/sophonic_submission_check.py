@@ -10,15 +10,15 @@ from pathlib import Path
 import sentencepiece as spm
 import torch
 
-from sophonic_eval import (
+from train_gpt import (
     EvalConfig,
     GPT,
     build_sentencepiece_luts,
     eval_bpb,
     int8_roundtrip,
     load_validation_tokens,
+    quantize_state_dict_int8,
 )
-from train_gpt import quantize_state_dict_int8
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--val-batch-size", type=int, default=int(os.environ.get("VAL_BATCH_SIZE", "131072")))
     parser.add_argument(
         "--code-files",
-        default="train_gpt.py,sophonic_lora_repair.py,sophonic_eval.py",
+        default="train_gpt.py",
         help="Comma-separated list of code files to count toward artifact size.",
     )
     parser.add_argument(

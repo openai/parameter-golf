@@ -6,17 +6,16 @@ Validation tokens: 62,021,632
 ========================================================================
 FULL-VAL CHECK
 ========================================================================
-    eval: 0% (128/60568 seqs)    eval: 4% (2688/60568 seqs)    eval: 9% (5248/60568 seqs)    eval: 13% (7808/60568 seqs)    eval: 17% (10368/60568 seqs)    eval: 21% (12928/60568 seqs)    eval: 26% (15488/60568 seqs)    eval: 30% (18048/60568 seqs)    eval: 34% (20608/60568 seqs)    eval: 38% (23168/60568 seqs)    eval: 42% (25728/60568 seqs)    eval: 47% (28288/60568 seqs)    eval: 51% (30848/60568 seqs)    eval: 55% (33408/60568 seqs)    eval: 59% (35968/60568 seqs)    eval: 64% (38528/60568 seqs)    eval: 68% (41088/60568 seqs)    eval: 72% (43648/60568 seqs)    eval: 76% (46208/60568 seqs)    eval: 81% (48768/60568 seqs)    eval: 85% (51328/60568 seqs)    eval: 89% (53888/60568 seqs)    eval: 93% (56448/60568 seqs)    eval: 97% (59008/60568 seqs)    eval: 100% (60568/60568 seqs)      
-Merged fp32 checkpoint               val_bpb=1.3522  val_loss=2.2831  (216s)
-    eval: 0% (128/60568 seqs)    eval: 4% (2688/60568 seqs)    eval: 9% (5248/60568 seqs)    eval: 13% (7808/60568 seqs)    eval: 17% (10368/60568 seqs)    eval: 21% (12928/60568 seqs)    eval: 26% (15488/60568 seqs)    eval: 30% (18048/60568 seqs)    eval: 34% (20608/60568 seqs)    eval: 38% (23168/60568 seqs)    eval: 42% (25728/60568 seqs)    eval: 47% (28288/60568 seqs)    eval: 51% (30848/60568 seqs)    eval: 55% (33408/60568 seqs)    eval: 59% (35968/60568 seqs)    eval: 64% (38528/60568 seqs)    eval: 68% (41088/60568 seqs)    eval: 72% (43648/60568 seqs)    eval: 76% (46208/60568 seqs)    eval: 81% (48768/60568 seqs)    eval: 85% (51328/60568 seqs)    eval: 89% (53888/60568 seqs)    eval: 93% (56448/60568 seqs)    eval: 97% (59008/60568 seqs)    eval: 100% (60568/60568 seqs)      
-Merged int8 roundtrip                val_bpb=1.3535  val_loss=2.2854  (216s)
+    eval: 100% (60568/60568 seqs)
+Merged fp32 checkpoint               val_bpb=1.3522  val_loss=2.2831  (211s)
+    eval: 100% (60568/60568 seqs)
+Merged int8 roundtrip                val_bpb=1.3535  val_loss=2.2854  (211s)
 
 ========================================================================
 ARTIFACT SIZE
 ========================================================================
-Saved int8+zlib artifact to artifacts/lora_int5_blocks78_mlp_r16_600_best.int8.ptz
 bytes_model_int8_zlib: 10769165
-bytes_code: 92110
-bytes_total: 10861275
+bytes_code: 73555
+bytes_total: 10842720
 fp32_val_bpb: 1.352204
 int8_val_bpb: 1.353521
