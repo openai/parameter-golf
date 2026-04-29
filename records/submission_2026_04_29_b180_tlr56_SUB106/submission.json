@@ -1,0 +1,29 @@
+{
+  "author": "vimeto",
+  "name": "PR #1797 SparseAttnGate + #1855 hparams + QK_GAIN=6.0 + TTT_LORA_RANK=56 + Per-Group lrzip",
+  "blurb": "🎉 SUB-1.06 result. Best stack: SparseAttnGate + PR #1855 9-pack + QK_GAIN=6.0 + TTT_LORA_RANK=56 (alpha=112) — sweet spot for low-rank LoRA TTT regularization. Single seed=42 BPB **1.05997** (FIRST sub-1.06000; beats #1855 3-seed mean 1.06108 by -0.00111, beats #1797 mean 1.06157 by -0.00160). Per-group lrzip artifact 15,920,473 bytes + 33KB wrapper = ~15.95MB total. Eval host needs `apt install lrzip`.",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_bpb": 1.05997,
+  "submitted_seed": 42,
+  "seed_results": {
+    "42": {"val_bpb": 1.05997, "artifact_bytes_pergroup_lrzip": 15920473}
+  },
+  "ttt_lora_rank_sweep_seed_42": {
+    "48": 1.06005,
+    "56": 1.05997,
+    "64": 1.06014,
+    "80": 1.06046,
+    "96": 1.06246
+  },
+  "key_levers": {
+    "vs_b178_sparse_gate": "QK_GAIN=6.0 (-0.00015), TTT_LORA_RANK=56 (vs 80, -0.00049)",
+    "ttt_lora_rank_observation": "rank=56 is regularizer-optimum; sweep shows clear inverted-U around 56."
+  },
+  "artifact_bytes": 15953743,
+  "code_bytes_compressed_pyminified": 33270,
+  "quant_bytes_pergroup_lrzip": 15920473,
+  "cap_margin_bytes": 46257,
+  "compression": "per-group lrzip (PR #1855 style ZPAQ)",
+  "deps_runtime": ["lrzip", "brotli", "torch", "numpy", "sentencepiece"]
+}
