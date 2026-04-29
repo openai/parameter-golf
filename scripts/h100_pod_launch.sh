@@ -23,7 +23,7 @@ RP_REPO="/workspace/parameter-golf-main"
 FORK_URL="https://github.com/harborglowvintage-oss/parameter-golf.git"
 BATCH_LOG="/workspace/h100_batch.log"
 
-SSH_OPTS="-i ${RP_KEY} -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=5 -tt"
+SSH_OPTS="-i ${RP_KEY} -o IdentitiesOnly=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o NumberOfPasswordPrompts=0 -tt"
 
 ssh_cmd() {
   # $1 = remote bash command (single string)
