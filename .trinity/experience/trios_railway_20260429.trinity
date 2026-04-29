@@ -3,3 +3,15 @@
 {"ts":"2026-04-29T08:49:38.270554+00:00","agent":"GENERAL","soul_name":"RailRangerOne","issue":"#81","task":"MCP tool test — verifying all 6 tools","status":"OK","phi_step":"EXPERIENCE","triplet":"RAIL=experience @ project=e4fe33bb service=- sha=3207c4d473b2b812 ts=2026-04-29T08:49:38.270528+00:00"}
 {"ts":"2026-04-29T08:49:39.309616+00:00","agent":"GENERAL","soul_name":"RailRangerOne","issue":"#20","task":"mcp deploy mcp-test-cleanup image=alpine:latest","status":"OK","phi_step":"PUSH","triplet":"RAIL=deploy @ project=e4fe33bb service=649e3fde sha=5e7441cedb65db99 ts=2026-04-29T08:49:39.309612+00:00"}
 AGENT=GENERAL|SOUL=RailRangerOne|ISSUE=#81|PHI_STEP=EXPERIENCE|TASK=Tick #18 R5-deep: TWO seed-agent binaries exist. bin/seed-agent/ (trios-railway) is mock-only PR-1 scaffold — TRAINER_KIND=external bails at worker.rs:95. crates/trios-igla-race/src/bin/seed_agent.rs is THE REAL worker that shells out to trios-train. Railway services run the mock-only binary. All 123 "done" experiments are mock results (E0058 BPB=1.8618 matches MockTrainer default target_bpb=1.85). Real trainer never deployed to Railway. Attention backward pass reverted 3d25cfb. Trainer repo frozen 24h.|STATUS=OK|VERB=experience
+## BENCH-007b r_clean + fp16 reconciliation
+- ts: 2026-04-29T13:47:00Z
+- agent: OPERATOR
+- task: BENCH-007b R5 corrections per gardener ORDER
+- results:
+    - r_clean (n=4, GF64/GF32/fp16/GF16) = -0.7284 (inversion strengthens without saturating formats)
+    - r_all (n=6, all formats) = -0.6020
+    - Filed zgf#29: fp16 [-100,100] MSE discrepancy (BENCH-007b: 0.000592 vs BENCH-008b: 184, 5 orders magnitude)
+    - Whitepaper §1.1 HELD until reconciliation
+- commits: d569c6c (zgf r_clean computation)
+- issues: zgf#29 (fp16 reconciliation)
+- phi_step: φ² + φ⁻² = 3

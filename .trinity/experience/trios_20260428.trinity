@@ -1,0 +1,1 @@
+[2026-04-28T14:31:02Z] TASK: ring-69 extract public crates | SUCCESS: Created 5 public crates (tri-core, tri-hunt, tri-exp, tri-canon, tri-ledger) + 2 thin shim CLIs (tri, tri-gardener). Clippy zero warnings. PR #86 created.
