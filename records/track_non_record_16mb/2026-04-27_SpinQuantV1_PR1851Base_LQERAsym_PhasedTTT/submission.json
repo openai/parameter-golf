@@ -1,0 +1,33 @@
+{
+  "author": "Abhishek Leji",
+  "github_id": "X-Abhishek-X",
+  "name": "SpinQuant V1 + PR #1851 Base + LQER Asym + Phased TTT",
+  "date": "2026-04-27",
+  "track": "track_non_record_16mb",
+  "val_bpb": 1.06182,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_bpb": 1.06182, "artifact_bytes": 16956923}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1851 base (CaseOps + SparseAttnGate + SmearGate-BOS-fix + LQER-Asym + 3-phase Phased TTT) + SpinQuant V1 (per-layer Hadamard pre-rotation of all Q/K/V/Out/Up/Down weight matrices before GPTQ, zero serialized bytes, seed-regenerated at eval). SpinQuant reduces GPTQ damage from +0.00916 (PR #1851) to +0.00640 (this PR), a 30% improvement in quantization resistance.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": false,
+    "eval_under_600s": true,
+    "smeargate_bos_fix": true,
+    "score_first_ttt": true
+  },
+  "notes": "Artifact is 16,956,923 bytes (956,923 bytes over the 16MB cap) due to Brotli compression being less efficient on Hadamard-rotated weight tensors. Submitted as non-record ablation study demonstrating SpinQuant V1 + LQER composition.",
+  "attribution": {
+    "pr1851_base": "@aquariouseworkman (PR #1851)",
+    "pr1787_base": "@nprime06 (PR #1787)",
+    "caseops": "@romeerp (PR #1729)",
+    "smeargate_lqer": "@dexhunter (PR #1797)",
+    "smeargate_bos_audit": "@cocohearts (PR #1797 audit)",
+    "ttt_framework": "@abaybektursun (PR #549)",
+    "gptq_sdclip": "@clarkkev (PR #1394)",
+    "spinquant_v1": "@X-Abhishek-X (PR #1695)"
+  }
+}
