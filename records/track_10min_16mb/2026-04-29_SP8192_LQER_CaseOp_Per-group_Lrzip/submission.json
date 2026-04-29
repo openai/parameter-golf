@@ -1,0 +1,32 @@
+{
+  "author": "liujshi",
+  "github_id": "liujshi",
+  "name": "PR #1797 base + Smear Gate + LQER Asymmetric + Phased TTT + per-group lrzip",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_bpb": 1.05993,
+  "val_bpb_std": 0.00049,
+  "val_loss": 2.31951,
+  "val_loss_std": 0.00106,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42":  {"val_bpb": 1.05932556, "val_loss": 2.31819699, "pre_ttt_quantized_bpb": 1.07209178, "post_ema_bpb": 1.06369027, "artifact_bytes": 15979215, "train_time_s": 598.91, "total_eval_time_s": 513.3, "steps": 4984},
+    "314": {"val_bpb": 1.05993748, "val_loss": 2.31953610, "pre_ttt_quantized_bpb": 1.07273999, "post_ema_bpb": 1.06436921, "artifact_bytes": 15981858, "train_time_s": 598.91, "total_eval_time_s": 525.7, "steps": 4974},
+    "999": {"val_bpb": 1.06051274, "val_loss": 2.32079499, "pre_ttt_quantized_bpb": 1.07324627, "post_ema_bpb": 1.06507008, "artifact_bytes": 15982243, "train_time_s": 599.04, "total_eval_time_s": 514.1, "steps": 4981}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1797 base (CaseOps + SparseAttnGate + PolarNS + MIN_LR + FusedCE + TTT warm-A) + Smear Gate (window 12) + LQER asymmetric rank-4 (INT2/INT4, top-3, group 64) + Phased TTT (3 phases, 2000-doc prefix, score-first) + int6 GPTQ (ATTN/EMBED/MLP clip 12.0, matrix clip 12.85, embed_wd 0.06) + brotli + PR #1855 per-group lrzip",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "based_on": "PR #1797 by @dexhunter (Smear Gate + LQER Asymmetric), which extends PR #1787 by @nprime06 (SparseAttnGate + PolarNS + MIN_LR + FusedCE); compression from PR #1855 by @codemath3000"
+}
