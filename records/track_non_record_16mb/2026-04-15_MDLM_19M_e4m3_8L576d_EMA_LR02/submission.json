@@ -1,0 +1,59 @@
+{
+  "track": "non_record_16mb",
+  "author": "Lee Butterman",
+  "github_id": "lsb",
+  "name": "19.2M MDLM Text Diffusion — fp8 e4m3 + EMA 0.999 + Muon LR 0.02",
+  "blurb": "8L-576d masked diffusion LM (MDLM) with bidirectional attention, fp8 e4m3 quantization, EMA decay 0.999, and half-rate Muon. First text diffusion submission. 19.2M params in ~15.8MB. NELBO K=256 BPB 1.483 on 5000-seq 3-seed mean; left-to-right chain-rule gives a tighter 1.420.",
+  "date": "2026-04-15",
+  "val_bpb": 1.48306,
+  "val_bpb_std": 0.00034,
+  "val_bpb_estimator": "nelbo_k256",
+  "val_bpb_slice": "5000 val sequences, 3-seed mean",
+  "val_bpb_alt": {
+    "l2r_chain_rule_5kseq_3seed": 1.42032,
+    "conf_order_chain_rule_5kseq_3seed": 1.42965,
+    "nelbo_k256_full_val_3seed": 1.47838
+  },
+  "ar_baseline_bpb_5kseq": 1.23874,
+  "seeds": [314, 42, 999],
+  "seed_results": {
+    "314": {
+      "run_id": "submission-mdlm-seed314-9a32",
+      "val_bpb_full_val": 1.47867,
+      "val_bpb_nelbo_k256_5kseq": 1.48326,
+      "val_bpb_l2r_5kseq": 1.42055,
+      "val_bpb_conf_order_5kseq": 1.43016,
+      "artifact_bytes": 15841510,
+      "step_avg_ms": 64.42,
+      "wall_s": 5903.6
+    },
+    "42": {
+      "run_id": "submission-mdlm-seed42-75dc",
+      "val_bpb_full_val": 1.47864,
+      "val_bpb_nelbo_k256_5kseq": 1.48327,
+      "val_bpb_l2r_5kseq": 1.42267,
+      "val_bpb_conf_order_5kseq": 1.43176,
+      "artifact_bytes": 15830105,
+      "step_avg_ms": 64.36,
+      "wall_s": 5816.6
+    },
+    "999": {
+      "run_id": "submission-mdlm-seed999-5050",
+      "val_bpb_full_val": 1.47782,
+      "val_bpb_nelbo_k256_5kseq": 1.48265,
+      "val_bpb_l2r_5kseq": 1.41775,
+      "val_bpb_conf_order_5kseq": 1.42703,
+      "artifact_bytes": 15829490,
+      "step_avg_ms": 64.27,
+      "wall_s": 5804.4
+    }
+  },
+  "artifact_bytes_mean": 15833702,
+  "artifact_bytes_max": 15841510,
+  "train_steps": 80000,
+  "step_avg_ms_mean": 64.35,
+  "hardware": "8xH100 80GB SXM",
+  "training_time": "~99 min (80K steps, non-record — exceeds 10-min budget)",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "MDLM 8L-576d fp8_e4m3 + EMA 0.999 + matrix_lr 0.02"
+}
