@@ -10,6 +10,10 @@ Configuration:
 - Eval: sliding-window validation with `EVAL_STRIDE_FRAC=0.5`
 - Quant/export: GPTQ int8 + zstd
 
+## Why this direction
+
+This submission targets the “JEPA” idea explicitly listed in the repo’s “Requests for PRs” section. The goal here is signs-of-life and reproducible implementation quality under challenge constraints, not a record claim. This package focuses on a clean JEPA-style latent prediction path (with EMA-teacher distillation coupling) and a reproducible non-record submission artifact.
+
 JEPA/distillation engineering (core modeling ideas):
 - **Latent predictive objective over intra-loop depth**: the model is trained to predict future hidden-state targets in looped middle layers, not just next-token logits. This adds a representation-level learning signal that complements CE.
 - **EMA teacher + delayed activation**: teacher targets come from an EMA trajectory and are activated later in training (step/wallclock-gated) so the model first learns a stable token model before adding latent prediction pressure.
