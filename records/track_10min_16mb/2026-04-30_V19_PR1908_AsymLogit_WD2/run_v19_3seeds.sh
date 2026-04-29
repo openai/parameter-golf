@@ -11,9 +11,17 @@ echo "  V19 3-seed: PR #1908 + AsymLogit + TTT_WD=2.0"
 echo "  Seeds 42 + 314 + 1234   Start: $(date)"
 echo "===================================================="
 
+# 3-seed includes the V19c stacked recipe: AsymLogit + simon-marcus hparams.
+# CRITICAL CASEOPS_ENABLED=1 (matches PR #1908 actual training run).
+# Without this BPB is computed with SP LUT byte counting -> ~0.97 instead of ~1.06
 ENV_VARS="DATA_DIR=/workspace/caseops_data/datasets/ \
+  CASEOPS_ENABLED=1 \
+  DATA_PATH=/workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved \
+  TOKENIZER_PATH=/workspace/caseops_data/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model \
   ASYM_LOGIT_RESCALE=1 \
   TTT_WEIGHT_DECAY=2.0 \
+  MATRIX_LR=0.028 \
+  PHASED_TTT_PREFIX_DOCS=3500 \
   AWQ_LITE_ENABLED=1 \
   AWQ_LITE_BITS=8 \
   AWQ_LITE_GROUP_TOP_K=1 \
@@ -72,10 +80,12 @@ if len(vals) == 3:
     print(f"  3-seed MEAN: {mean:.6f}")
     print(f"  3-seed STD:  {std:.6f}")
     print()
-    print(f"  vs baseline PR #1908 (0.97651 on CaseOps): delta {0.97651 - mean:+.6f}")
-    print(f"  vs V18 (0.97700 same dataset):             delta {0.97700 - mean:+.6f}")
+    print(f"  vs PR #1908 reported (1.06081):    delta {1.06081 - mean:+.6f}")
+    print(f"  vs PR #1855 reported (1.06108):    delta {1.06108 - mean:+.6f}")
+    print(f"  vs PR #1925 reported (1.06049):    delta {1.06049 - mean:+.6f}")
     print()
-    print(f"  Win threshold (< 0.9755): {'WIN' if mean < 0.9755 else 'tied/loss'}")
+    print(f"  Community merge floor: 0.0006 BPB delta")
+    print(f"  Win threshold (< 1.06021): {'WIN' if mean < 1.06021 else 'tied/loss'}")
 PYEOF
 
 echo ""

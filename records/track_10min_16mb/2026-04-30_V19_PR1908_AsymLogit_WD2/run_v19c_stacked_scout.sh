@@ -22,7 +22,14 @@ echo "  V19c STACKED scout: PR #1908 + 3 axes"
 echo "  Seed 42  Start: $(date)"
 echo "===================================================="
 
+# CRITICAL: CASEOPS_ENABLED=1 + explicit DATA_PATH/TOKENIZER_PATH so BPB
+# accounting uses the byte sidecar (fineweb_val_bytes_*.bin) — matches
+# PR #1908's actual training log (caseops_enabled: True). Without this
+# the code falls back to SP LUT byte counting → BPB ~0.97 instead of ~1.06.
 ENV_VARS="DATA_DIR=/workspace/caseops_data/datasets/ \
+  CASEOPS_ENABLED=1 \
+  DATA_PATH=/workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved \
+  TOKENIZER_PATH=/workspace/caseops_data/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model \
   ASYM_LOGIT_RESCALE=1 \
   TTT_WEIGHT_DECAY=2.0 \
   MATRIX_LR=0.028 \
@@ -51,10 +58,11 @@ echo "  V19c scout DONE  $(date)"
 echo "===================================================="
 grep -E "stopping_early|train_time|quantized_ttt_phased|val_bpb" /workspace/scout_v19c_seed42.log | tail -10
 echo ""
-echo "DECISION RULE:"
-echo "  baseline (PR #1908 default on CaseOps): 0.97651"
-echo "  community merge floor: 0.0006 BPB delta"
+echo "DECISION RULE (with CASEOPS_ENABLED=1, byte sidecar BPB):"
+echo "  PR #1908 reported 3-seed mean: 1.06081"
+echo "  community merge floor:         0.0006 BPB"
+echo "  win threshold:                 < 1.06021"
 echo ""
-echo "  if V19c < 0.97591  -> CLEAR WIN (>floor), run 3-seed"
-echo "  if V19c 0.97591-0.9755 -> borderline, ablate (run run_v19_scout.sh AsymLogit alone)"
-echo "  if V19c > 0.9755 -> noise/regression, abandon"
+echo "  if V19c < 1.06021 -> CLEAR WIN (>floor), run 3-seed"
+echo "  if V19c 1.06021-1.0608 -> borderline, ablate (V19a/V19b)"
+echo "  if V19c > 1.0608 -> regression, fallback to Lead B"

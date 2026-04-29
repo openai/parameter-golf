@@ -18,7 +18,11 @@ echo "  V19b ABLATION: PR #1908 + simon-marcus hparams"
 echo "  Seed 42  Start: $(date)"
 echo "===================================================="
 
+# CRITICAL CASEOPS_ENABLED=1 (matches PR #1908 actual training run)
 ENV_VARS="DATA_DIR=/workspace/caseops_data/datasets/ \
+  CASEOPS_ENABLED=1 \
+  DATA_PATH=/workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved \
+  TOKENIZER_PATH=/workspace/caseops_data/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model \
   TTT_WEIGHT_DECAY=2.0 \
   MATRIX_LR=0.028 \
   PHASED_TTT_PREFIX_DOCS=3500 \

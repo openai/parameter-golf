@@ -17,7 +17,14 @@ echo "===================================================="
 # V19 additions (env vars only):
 #   ASYM_LOGIT_RESCALE=1     (turn on PR #1923 asymmetric softcap)
 #   TTT_WEIGHT_DECAY=2.0     (PR #1886 fused-CE stability fix; default in train_gpt.py)
+# CRITICAL: CASEOPS_ENABLED=1 makes the code load the byte sidecar
+# (fineweb_val_bytes_*.bin) for BPB accounting. Without this flag the code
+# falls back to SentencePiece LUT byte-counting which gives ~0.97 BPB instead
+# of the correct ~1.06 BPB. PR #1908's training log shows caseops_enabled: True.
 ENV_VARS="DATA_DIR=/workspace/caseops_data/datasets/ \
+  CASEOPS_ENABLED=1 \
+  DATA_PATH=/workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved \
+  TOKENIZER_PATH=/workspace/caseops_data/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model \
   ASYM_LOGIT_RESCALE=1 \
   TTT_WEIGHT_DECAY=2.0 \
   AWQ_LITE_ENABLED=1 \
@@ -44,10 +51,11 @@ echo "  V19 scout DONE  $(date)"
 echo "===================================================="
 grep -E "stopping_early|train_time|quantized_ttt_phased|val_bpb" /workspace/scout_v19_seed42.log | tail -10
 echo ""
-echo "DECISION RULE:"
-echo "  baseline (PR #1908 default on CaseOps): 0.97651"
-echo "  V18 (PR #1797 hparam tweak):           0.97700  <- V18 = no improvement"
+echo "DECISION RULE (NEW with CASEOPS_ENABLED=1):"
+echo "  PR #1908 reported (3-seed mean):  1.06081"
+echo "  community merge floor:            0.0006 BPB"
+echo "  win threshold:                    < 1.06021"
 echo ""
-echo "  if V19 quantized_ttt_phased < 0.9755  -> TRUE WIN, run run_v19_3seeds.sh"
-echo "  if V19 quantized_ttt_phased 0.9755-0.9770 -> within noise, abandon"
-echo "  if V19 quantized_ttt_phased > 0.9770 -> regression"
+echo "  if V19 quantized_ttt_phased < 1.06021 -> TRUE WIN, run run_v19_3seeds.sh"
+echo "  if V19 quantized_ttt_phased 1.06021-1.0608 -> borderline, ablate"
+echo "  if V19 quantized_ttt_phased > 1.0608 -> regression"
