@@ -1,0 +1,570 @@
+{
+  "all_phase2_coverage_checks_passed": true,
+  "analysis_method": "deterministic CPU simulation of eval_val_ttt sliding windows, chunk ownership, and post-all_reduce PPM selection; no model execution",
+  "audit_dir": "audits/exp_1876_ppmd",
+  "audit_phase": "phase_2_distributed_coverage_audit",
+  "checks": {
+    "selected_ppm_positions_are_exact_prefix": {
+      "expected_range_inclusive": [
+        0,
+        7999999
+      ],
+      "passed": true
+    },
+    "world_size_1_and_8_selected_position_streams_equivalent": {
+      "passed": true
+    },
+    "world_size_1_no_missing_or_duplicate_scored_positions": {
+      "duplicate_count": 0,
+      "missing_count": 0,
+      "passed": true
+    },
+    "world_size_8_no_missing_or_duplicate_scored_positions": {
+      "duplicate_count": 0,
+      "missing_count": 0,
+      "passed": true
+    }
+  },
+  "comparisons": {
+    "world_size_1_vs_8": {
+      "note": "The neural scoring write order is rank-local, but PPM selection is the sorted absolute-position stream produced by np.flatnonzero after all_reduce.",
+      "scored_position_sets_equivalent": true,
+      "selected_position_streams_equivalent": true,
+      "world_size_1_selected_sha256_i64le": "a786c75845b05d605c98b8161085f7e79a1f5271bc726283fa070f0ac46e33b4",
+      "world_size_8_selected_sha256_i64le": "a786c75845b05d605c98b8161085f7e79a1f5271bc726283fa070f0ac46e33b4"
+    }
+  },
+  "generated_at": "2026-04-28T17:16:05+00:00",
+  "hyperparameters": {
+    "eval_seq_len": 2048,
+    "eval_stride": 64,
+    "ppm_subset_tokens": 8000000,
+    "ttt_chunk_tokens": 32768
+  },
+  "source_function": {
+    "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+    "function": "eval_val_ttt"
+  },
+  "total_target_tokens": 40540160,
+  "world_sizes": {
+    "1": {
+      "scored_positions": {
+        "count": 40540160,
+        "covers_exact_target_range": true,
+        "duplicate_count": 0,
+        "event_position_count": 40540160,
+        "first": 0,
+        "last": 40540159,
+        "missing_count": 0,
+        "ranges": [
+          [
+            0,
+            40540160
+          ]
+        ],
+        "ranges_truncated": false,
+        "sha256_i64le": "2ebce6fcca8868f61d9561a0b89d8c05db06d9b1607aae4612b48ad88bbcb3e1",
+        "unique_scored_position_count": 40540160
+      },
+      "selected_positions": {
+        "count": 8000000,
+        "exact_0_to_7999999": true,
+        "first": 0,
+        "last": 7999999,
+        "ranges": [
+          [
+            0,
+            8000000
+          ]
+        ],
+        "ranges_truncated": false,
+        "selection_semantics": "rank 0 uses np.flatnonzero(ppm_written[:subset_cap]) after distributed all_reduce, so selected positions are ascending absolute prediction positions",
+        "sha256_i64le": "a786c75845b05d605c98b8161085f7e79a1f5271bc726283fa070f0ac46e33b4",
+        "subset_cap": 8000000
+      },
+      "simulation": {
+        "chunk_window_count_max": 512,
+        "chunk_window_count_min": 96,
+        "context_size": 1984,
+        "empty_chunk_count": 0,
+        "first_chunk_rank_slices": [
+          {
+            "chunk_index": 0,
+            "rank_slices": [
+              {
+                "first_window_start": 0,
+                "last_window_start": 30720,
+                "rank": 0,
+                "window_count": 481
+              }
+            ],
+            "window_count": 481
+          },
+          {
+            "chunk_index": 1,
+            "rank_slices": [
+              {
+                "first_window_start": 30784,
+                "last_window_start": 63488,
+                "rank": 0,
+                "window_count": 512
+              }
+            ],
+            "window_count": 512
+          },
+          {
+            "chunk_index": 2,
+            "rank_slices": [
+              {
+                "first_window_start": 63552,
+                "last_window_start": 96256,
+                "rank": 0,
+                "window_count": 512
+              }
+            ],
+            "window_count": 512
+          }
+        ],
+        "first_window_start": 0,
+        "last_chunk_rank_slices": [
+          {
+            "chunk_index": 1235,
+            "rank_slices": [
+              {
+                "first_window_start": 40466496,
+                "last_window_start": 40499200,
+                "rank": 0,
+                "window_count": 512
+              }
+            ],
+            "window_count": 512
+          },
+          {
+            "chunk_index": 1236,
+            "rank_slices": [
+              {
+                "first_window_start": 40499264,
+                "last_window_start": 40531968,
+                "rank": 0,
+                "window_count": 512
+              }
+            ],
+            "window_count": 512
+          },
+          {
+            "chunk_index": 1237,
+            "rank_slices": [
+              {
+                "first_window_start": 40532032,
+                "last_window_start": 40538112,
+                "rank": 0,
+                "window_count": 96
+              }
+            ],
+            "window_count": 96
+          }
+        ],
+        "last_window_start": 40538112,
+        "num_chunks": 1238,
+        "rank_window_counts": [
+          633409
+        ],
+        "seq_len": 2048,
+        "stride": 64,
+        "total_windows": 633409,
+        "ttt_chunk_tokens": 32768,
+        "world_size": 1
+      },
+      "world_size": 1
+    },
+    "8": {
+      "scored_positions": {
+        "count": 40540160,
+        "covers_exact_target_range": true,
+        "duplicate_count": 0,
+        "event_position_count": 40540160,
+        "first": 0,
+        "last": 40540159,
+        "missing_count": 0,
+        "ranges": [
+          [
+            0,
+            40540160
+          ]
+        ],
+        "ranges_truncated": false,
+        "sha256_i64le": "2ebce6fcca8868f61d9561a0b89d8c05db06d9b1607aae4612b48ad88bbcb3e1",
+        "unique_scored_position_count": 40540160
+      },
+      "selected_positions": {
+        "count": 8000000,
+        "exact_0_to_7999999": true,
+        "first": 0,
+        "last": 7999999,
+        "ranges": [
+          [
+            0,
+            8000000
+          ]
+        ],
+        "ranges_truncated": false,
+        "selection_semantics": "rank 0 uses np.flatnonzero(ppm_written[:subset_cap]) after distributed all_reduce, so selected positions are ascending absolute prediction positions",
+        "sha256_i64le": "a786c75845b05d605c98b8161085f7e79a1f5271bc726283fa070f0ac46e33b4",
+        "subset_cap": 8000000
+      },
+      "simulation": {
+        "chunk_window_count_max": 512,
+        "chunk_window_count_min": 96,
+        "context_size": 1984,
+        "empty_chunk_count": 0,
+        "first_chunk_rank_slices": [
+          {
+            "chunk_index": 0,
+            "rank_slices": [
+              {
+                "first_window_start": 0,
+                "last_window_start": 3776,
+                "rank": 0,
+                "window_count": 60
+              },
+              {
+                "first_window_start": 3840,
+                "last_window_start": 7616,
+                "rank": 1,
+                "window_count": 60
+              },
+              {
+                "first_window_start": 7680,
+                "last_window_start": 11456,
+                "rank": 2,
+                "window_count": 60
+              },
+              {
+                "first_window_start": 11520,
+                "last_window_start": 15296,
+                "rank": 3,
+                "window_count": 60
+              },
+              {
+                "first_window_start": 15360,
+                "last_window_start": 19136,
+                "rank": 4,
+                "window_count": 60
+              },
+              {
+                "first_window_start": 19200,
+                "last_window_start": 22976,
+                "rank": 5,
+                "window_count": 60
+              },
+              {
+                "first_window_start": 23040,
+                "last_window_start": 26816,
+                "rank": 6,
+                "window_count": 60
+              },
+              {
+                "first_window_start": 26880,
+                "last_window_start": 30720,
+                "rank": 7,
+                "window_count": 61
+              }
+            ],
+            "window_count": 481
+          },
+          {
+            "chunk_index": 1,
+            "rank_slices": [
+              {
+                "first_window_start": 30784,
+                "last_window_start": 34816,
+                "rank": 0,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 34880,
+                "last_window_start": 38912,
+                "rank": 1,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 38976,
+                "last_window_start": 43008,
+                "rank": 2,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 43072,
+                "last_window_start": 47104,
+                "rank": 3,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 47168,
+                "last_window_start": 51200,
+                "rank": 4,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 51264,
+                "last_window_start": 55296,
+                "rank": 5,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 55360,
+                "last_window_start": 59392,
+                "rank": 6,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 59456,
+                "last_window_start": 63488,
+                "rank": 7,
+                "window_count": 64
+              }
+            ],
+            "window_count": 512
+          },
+          {
+            "chunk_index": 2,
+            "rank_slices": [
+              {
+                "first_window_start": 63552,
+                "last_window_start": 67584,
+                "rank": 0,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 67648,
+                "last_window_start": 71680,
+                "rank": 1,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 71744,
+                "last_window_start": 75776,
+                "rank": 2,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 75840,
+                "last_window_start": 79872,
+                "rank": 3,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 79936,
+                "last_window_start": 83968,
+                "rank": 4,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 84032,
+                "last_window_start": 88064,
+                "rank": 5,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 88128,
+                "last_window_start": 92160,
+                "rank": 6,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 92224,
+                "last_window_start": 96256,
+                "rank": 7,
+                "window_count": 64
+              }
+            ],
+            "window_count": 512
+          }
+        ],
+        "first_window_start": 0,
+        "last_chunk_rank_slices": [
+          {
+            "chunk_index": 1235,
+            "rank_slices": [
+              {
+                "first_window_start": 40466496,
+                "last_window_start": 40470528,
+                "rank": 0,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40470592,
+                "last_window_start": 40474624,
+                "rank": 1,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40474688,
+                "last_window_start": 40478720,
+                "rank": 2,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40478784,
+                "last_window_start": 40482816,
+                "rank": 3,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40482880,
+                "last_window_start": 40486912,
+                "rank": 4,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40486976,
+                "last_window_start": 40491008,
+                "rank": 5,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40491072,
+                "last_window_start": 40495104,
+                "rank": 6,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40495168,
+                "last_window_start": 40499200,
+                "rank": 7,
+                "window_count": 64
+              }
+            ],
+            "window_count": 512
+          },
+          {
+            "chunk_index": 1236,
+            "rank_slices": [
+              {
+                "first_window_start": 40499264,
+                "last_window_start": 40503296,
+                "rank": 0,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40503360,
+                "last_window_start": 40507392,
+                "rank": 1,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40507456,
+                "last_window_start": 40511488,
+                "rank": 2,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40511552,
+                "last_window_start": 40515584,
+                "rank": 3,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40515648,
+                "last_window_start": 40519680,
+                "rank": 4,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40519744,
+                "last_window_start": 40523776,
+                "rank": 5,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40523840,
+                "last_window_start": 40527872,
+                "rank": 6,
+                "window_count": 64
+              },
+              {
+                "first_window_start": 40527936,
+                "last_window_start": 40531968,
+                "rank": 7,
+                "window_count": 64
+              }
+            ],
+            "window_count": 512
+          },
+          {
+            "chunk_index": 1237,
+            "rank_slices": [
+              {
+                "first_window_start": 40532032,
+                "last_window_start": 40532736,
+                "rank": 0,
+                "window_count": 12
+              },
+              {
+                "first_window_start": 40532800,
+                "last_window_start": 40533504,
+                "rank": 1,
+                "window_count": 12
+              },
+              {
+                "first_window_start": 40533568,
+                "last_window_start": 40534272,
+                "rank": 2,
+                "window_count": 12
+              },
+              {
+                "first_window_start": 40534336,
+                "last_window_start": 40535040,
+                "rank": 3,
+                "window_count": 12
+              },
+              {
+                "first_window_start": 40535104,
+                "last_window_start": 40535808,
+                "rank": 4,
+                "window_count": 12
+              },
+              {
+                "first_window_start": 40535872,
+                "last_window_start": 40536576,
+                "rank": 5,
+                "window_count": 12
+              },
+              {
+                "first_window_start": 40536640,
+                "last_window_start": 40537344,
+                "rank": 6,
+                "window_count": 12
+              },
+              {
+                "first_window_start": 40537408,
+                "last_window_start": 40538112,
+                "rank": 7,
+                "window_count": 12
+              }
+            ],
+            "window_count": 96
+          }
+        ],
+        "last_window_start": 40538112,
+        "num_chunks": 1238,
+        "rank_window_counts": [
+          79176,
+          79176,
+          79176,
+          79176,
+          79176,
+          79176,
+          79176,
+          79177
+        ],
+        "seq_len": 2048,
+        "stride": 64,
+        "total_windows": 633409,
+        "ttt_chunk_tokens": 32768,
+        "world_size": 8
+      },
+      "world_size": 8
+    }
+  }
+}

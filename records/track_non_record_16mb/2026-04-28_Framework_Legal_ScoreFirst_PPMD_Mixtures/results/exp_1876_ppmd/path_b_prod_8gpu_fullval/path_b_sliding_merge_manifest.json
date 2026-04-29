@@ -1,0 +1,66 @@
+{
+  "created_utc": "2026-04-29T02:42:56+00:00",
+  "path_b_version": "path_b_ppmd_phase3_skeleton_v1",
+  "schema_version": 1,
+  "shards": [
+    {
+      "file_path": "/root/rehearsal_out/path_b_sliding_rank0.npz",
+      "rank": 0,
+      "scored_bytes": 18531261,
+      "scored_tokens": 5069248,
+      "sha256": "21674ae3b867d34304177ee45a50ffbd606c1312d9729cc3f3c3cc70b9ebf4f3"
+    },
+    {
+      "file_path": "/root/rehearsal_out/path_b_sliding_rank1.npz",
+      "rank": 1,
+      "scored_bytes": 18931768,
+      "scored_tokens": 5067264,
+      "sha256": "fc4bf0aacec975f3daefaac244a345a7466739d4987cbb2bab5e6197505f33a6"
+    },
+    {
+      "file_path": "/root/rehearsal_out/path_b_sliding_rank2.npz",
+      "rank": 2,
+      "scored_bytes": 19069232,
+      "scored_tokens": 5067264,
+      "sha256": "048540778afef0bdecfe40a8719bef0859480bcf99eff24d4d22dc421ad92530"
+    },
+    {
+      "file_path": "/root/rehearsal_out/path_b_sliding_rank3.npz",
+      "rank": 3,
+      "scored_bytes": 18588026,
+      "scored_tokens": 5067264,
+      "sha256": "13f2aa57cfe982071f28a64f9e89cbb6badeecac78f627a972efee3030ff9058"
+    },
+    {
+      "file_path": "/root/rehearsal_out/path_b_sliding_rank4.npz",
+      "rank": 4,
+      "scored_bytes": 19053565,
+      "scored_tokens": 5067264,
+      "sha256": "c211f8b9524583d048ee028a6562e7c69303a3f56ed9fdf4e7f24df1c782e4df"
+    },
+    {
+      "file_path": "/root/rehearsal_out/path_b_sliding_rank5.npz",
+      "rank": 5,
+      "scored_bytes": 19081413,
+      "scored_tokens": 5067264,
+      "sha256": "e74d4793e86cd32348026d56145aa057cf964c61b7657ef6b4f628a7821bd48f"
+    },
+    {
+      "file_path": "/root/rehearsal_out/path_b_sliding_rank6.npz",
+      "rank": 6,
+      "scored_bytes": 18632403,
+      "scored_tokens": 5067264,
+      "sha256": "2c6236aa20a1c508858ec7d29e7f99de24cc679569156ad1e3a858efbee67811"
+    },
+    {
+      "file_path": "/root/rehearsal_out/path_b_sliding_rank7.npz",
+      "rank": 7,
+      "scored_bytes": 19190554,
+      "scored_tokens": 5067328,
+      "sha256": "7d3894f6a60c76a8018d48590bdcaa18cdf1f132969fa004f6ec7b00e9b2b6a6"
+    }
+  ],
+  "total_scored_bytes": 151078222,
+  "total_scored_tokens": 40540160,
+  "world_size": 8
+}

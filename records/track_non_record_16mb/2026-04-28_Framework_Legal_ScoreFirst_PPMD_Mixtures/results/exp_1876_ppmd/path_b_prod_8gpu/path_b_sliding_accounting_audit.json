@@ -1,0 +1,13 @@
+{
+  "denominator_formula": "scored_byte_count = sum_{i in scored_positions} (base_bytes_lut[target_id_i] + (has_leading_space[target_id_i] & ~is_boundary_token[prev_id_i]))",
+  "expected_denominator": 29365687,
+  "full_eval": false,
+  "merged_record_count": 29365687,
+  "path_b_version": "path_b_ppmd_phase3_skeleton_v1",
+  "schema_version": 1,
+  "scored_byte_count": 29365687,
+  "scored_token_count": 8000000,
+  "subset_tokens": 8000000,
+  "world_size": 8,
+  "zero_byte_token_count": 9815
+}

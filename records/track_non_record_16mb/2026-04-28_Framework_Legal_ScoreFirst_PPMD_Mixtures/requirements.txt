@@ -1,0 +1,9 @@
+torch>=2.5.0
+sentencepiece
+numpy
+brotli
+
+# Notes:
+# - `zlib` is part of Python's standard library and is intentionally not listed as a pip dependency.
+# - `train_gpt.py` imports `flash_attn_interface`; on the contest image / prebuilt GPU environments this is typically provided by the base environment.
+# - If your environment does not already provide `flash_attn_interface`, install a CUDA/PyTorch-compatible FlashAttention build separately rather than expecting this requirements file to resolve it portably.
