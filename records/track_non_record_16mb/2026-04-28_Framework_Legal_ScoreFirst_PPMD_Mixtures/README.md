@@ -74,19 +74,19 @@ Result JSON: `results/exp_1876_ppmd/path_b_prod_8gpu_local_score/path_b_sliding_
 
 The standard contest metric distributes each token's cross-entropy loss uniformly across its bytes:
 
-$$\text{BPB}_{\text{token}} = \frac{\sum_{t=1}^{T} -\log p_{\text{NN}}(v_t \mid v_{<t})}{\log 2 \cdot B}$$
+$$\text{BPB}_{\text{token}} = \frac{\sum_{t=1}^{T} -\log p_{\text{NN}}(v_t \mid v_{\lt t})}{\log 2 \cdot B}$$
 
-where $T$ is the number of tokens scored, $B$ is the total byte count of scored tokens, and $p_{\text{NN}}(v_t \mid v_{<t})$ is the neural model's softmax probability for token $v_t$.
+where $T$ is the number of tokens scored, $B$ is the total byte count of scored tokens, and $p_{\text{NN}}(v_t \mid v_{\lt t})$ is the neural model's softmax probability for token $v_t$.
 
 ### Byte-Level Neural BPB (Path B)
 
 For each scored token position $t$ with target token $v_t = b_1 b_2 \ldots b_{n_t}$ (the byte sequence), the neural byte probability for each byte $b_k$ is computed via trie-based marginalization over **continuable mass** — i.e., the sum over tokens whose byte sequences strictly extend the current prefix:
 
-$$p_{\text{NN}}^{\text{byte}}(b_k \mid \pi_{<k}) = \frac{\sum_{v \in C(\pi_{<k} b_k)} p_{\text{NN}}(v \mid v_{<t})}{\sum_{v \in C(\pi_{<k})} p_{\text{NN}}(v \mid v_{<t})}$$
+$$p_{\text{NN}}^{\text{byte}}(b_k \mid \pi_{\lt k}) = \frac{\sum_{v \in C(\pi_{\lt k} b_k)} p_{\text{NN}}(v \mid v_{\lt t})}{\sum_{v \in C(\pi_{\lt k})} p_{\text{NN}}(v \mid v_{\lt t})}$$
 
-where $\pi_{<k} = b_1 \ldots b_{k-1}$ is the byte prefix already emitted for this token, $C(\pi)$ denotes the set of tokens whose byte sequences **strictly extend** $\pi$ (i.e., $\pi \sqsubset \text{bytes}(v)$, excluding tokens that terminate exactly at $\pi$), and $\sqsubset$ means "is a proper prefix of".
+where $\pi_{\lt k} = b_1 \ldots b_{k-1}$ is the byte prefix already emitted for this token, $C(\pi)$ denotes the set of tokens whose byte sequences **strictly extend** $\pi$ (i.e., $\pi \sqsubset \text{bytes}(v)$, excluding tokens that terminate exactly at $\pi$), and $\sqsubset$ means "is a proper prefix of".
 
-This is a **proper conditional probability distribution** by construction: for each prefix $\pi_{<k}$, the continuable mass partitions across disjoint next-byte continuations, so the probabilities over all possible next bytes sum to 1. Note that this is a next-byte distribution conditional on continuation within the current token; tokens that terminate exactly at the prefix are excluded from the denominator.
+This is a **proper conditional probability distribution** by construction: for each prefix $\pi_{\lt k}$, the continuable mass partitions across disjoint next-byte continuations, so the probabilities over all possible next bytes sum to 1. Note that this is a next-byte distribution conditional on continuation within the current token; tokens that terminate exactly at the prefix are excluded from the denominator.
 
 ### PPM-D Byte Probability
 
@@ -106,7 +106,7 @@ Since both components are proper distributions and $\lambda \in [0,1]$, the mixt
 
 ### Full-Validation BPB
 
-$$\text{BPB}_{\text{byte}} = \frac{\sum_{i=1}^{B} -\log_2 p_{\text{mix}}(b_i \mid h_{<i})}{B}$$
+$$\text{BPB}_{\text{byte}} = \frac{\sum_{i=1}^{B} -\log_2 p_{\text{mix}}(b_i \mid h_{\lt i})}{B}$$
 
 where $B = 151{,}078{,}222$ bytes.
 
