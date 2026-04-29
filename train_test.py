@@ -953,7 +953,7 @@ def train(args: Hyperparameters):
     model = GPT(args).to(device).bfloat16()
 
     if device.type == "cuda":
-        model = torch.compile(model, mode="max-autotune", fullgraph=True)
+        model = torch.compile(model, mode="max-autotune-no-cudagraphs")
     model.set_attn_fp32()
     restore_fp32_controls(model)
     if ddp: model = DDP(model, device_ids=[device.index], broadcast_buffers=False)
