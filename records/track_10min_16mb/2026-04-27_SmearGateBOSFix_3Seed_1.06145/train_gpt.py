@@ -321,13 +321,16 @@ class Hyperparameters:
     logit_calib_batch_seqs = int(os.environ.get("LOGIT_CALIB_BATCH_SEQS", 8))
     logit_calib_lr = float(os.environ.get("LOGIT_CALIB_LR", 0.003))
     logit_calib_l2 = float(os.environ.get("LOGIT_CALIB_L2", 0.01))
+    logit_calib_token_bias = bool(int(os.environ.get("LOGIT_CALIB_TOKEN_BIAS", "0")))
+    logit_calib_token_l2 = float(os.environ.get("LOGIT_CALIB_TOKEN_L2", 0.05))
+    logit_calib_bias_clamp = float(os.environ.get("LOGIT_CALIB_BIAS_CLAMP", 0.5))
     logit_calib_epochs = int(os.environ.get("LOGIT_CALIB_EPOCHS", 1))
     logit_calib_apply_ttt_update = bool(int(os.environ.get("LOGIT_CALIB_APPLY_TTT_UPDATE", "1")))
     matrix_bits = int(os.environ.get("MATRIX_BITS", 6))
     embed_bits = int(os.environ.get("EMBED_BITS", 8))
     matrix_clip_sigmas = float(os.environ.get("MATRIX_CLIP_SIGMAS", 12.85))
     embed_clip_sigmas = float(os.environ.get("EMBED_CLIP_SIGMAS", 2e1))
-    mlp_clip_sigmas = float(os.environ.get("MLP_CLIP_SIGMAS", 10.0))
+    mlp_clip_sigmas = float(os.environ.get("MLP_CLIP_SIGMAS", 6.0))
     attn_clip_sigmas = float(os.environ.get("ATTN_CLIP_SIGMAS", 13.0))
     # AttnOutGate (per-head multiplicative output gate, PR #1667 MarioPaerle).
     # Zero-init weight: 2*sigmoid(0)=1 -> transparent at start. Source defaults to
@@ -648,6 +651,12 @@ def fit_logit_calibration(h, device, model, val_data):
     group_names, features = build_logit_calib_features(val_data.sp, h.vocab_size, device)
     raw_scale = torch.zeros((), device=device, dtype=torch.float32, requires_grad=True)
     group_w = torch.zeros(len(group_names), device=device, dtype=torch.float32, requires_grad=True)
+    token_b = torch.zeros(
+        h.vocab_size,
+        device=device,
+        dtype=torch.float32,
+        requires_grad=h.logit_calib_token_bias,
+    )
     if h.rank == 0:
         train_files = [Path(p) for p in sorted(glob.glob(h.train_files)) if "_bytes_" not in Path(p).name]
         if not train_files:
@@ -662,7 +671,11 @@ def fit_logit_calibration(h, device, model, val_data):
             f"tokens:{usable} windows:{len(windows)} groups:{len(group_names)} "
             f"stride:{h.logit_calib_stride} batch_seqs:{h.logit_calib_batch_seqs}"
         )
-        opt = torch.optim.AdamW([raw_scale, group_w], lr=h.logit_calib_lr, weight_decay=0.0)
+        opt_params = [raw_scale, group_w]
+        if h.logit_calib_token_bias:
+            opt_params.append(token_b)
+        opt = torch.optim.AdamW(opt_params, lr=h.logit_calib_lr, weight_decay=0.0)
+        token_counts = torch.ones(h.vocab_size, device=device, dtype=torch.float32)
         t0 = time.perf_counter()
         model.eval()
         for ep in range(h.logit_calib_epochs):
@@ -688,18 +701,30 @@ def fit_logit_calibration(h, device, model, val_data):
                             dim=0,
                         ).float()
                 targets = torch.cat(y_parts).to(device=device, dtype=torch.int64)
+                if h.logit_calib_token_bias:
+                    token_counts.index_add_(
+                        0,
+                        targets,
+                        torch.ones_like(targets, dtype=torch.float32),
+                    )
                 cur_scale = 0.9 + 0.2 * torch.sigmoid(raw_scale)
-                cur_bias = features @ group_w
+                cur_bias = features @ group_w + token_b
                 ce = F.cross_entropy(cur_scale * logits + cur_bias, targets)
                 reg = h.logit_calib_l2 * (
                     group_w.square().mean() + (cur_scale - 1.0).square()
                 )
+                if h.logit_calib_token_bias:
+                    rare_weight = (token_counts.max() / token_counts).clamp(max=50.0)
+                    reg = reg + h.logit_calib_token_l2 * (
+                        rare_weight * token_b.square()
+                    ).mean()
                 loss = ce + reg
                 opt.zero_grad(set_to_none=True)
                 loss.backward()
                 opt.step()
                 with torch.no_grad():
-                    group_w.clamp_(-0.5, 0.5)
+                    group_w.clamp_(-h.logit_calib_bias_clamp, h.logit_calib_bias_clamp)
+                    token_b.clamp_(-h.logit_calib_bias_clamp, h.logit_calib_bias_clamp)
                 total_loss += float(ce.detach().cpu()) * int(targets.numel())
                 total_tokens += int(targets.numel())
             cur_scale_val = float((0.9 + 0.2 * torch.sigmoid(raw_scale)).detach().cpu())
@@ -709,13 +734,16 @@ def fit_logit_calibration(h, device, model, val_data):
             )
         with torch.no_grad():
             scale.copy_(0.9 + 0.2 * torch.sigmoid(raw_scale))
-            bias.copy_(features @ group_w)
+            bias.copy_(features @ group_w + token_b)
         elapsed = time.perf_counter() - t0
         gw = group_w.detach().cpu().numpy()
         top = sorted(zip(group_names, gw), key=lambda x: -abs(x[1]))[:8]
         log(
             "logit_calib:done "
             f"scale:{float(scale.detach().cpu()):.8f} elapsed:{elapsed:.1f}s "
+            f"token_bias:{int(h.logit_calib_token_bias)} "
+            f"token_abs_mean:{float(token_b.detach().abs().mean().cpu()):.6f} "
+            f"token_abs_max:{float(token_b.detach().abs().max().cpu()):.6f} "
             + " ".join(f"{n}:{v:+.4f}" for n, v in top)
         )
     if dist.is_available() and dist.is_initialized():
