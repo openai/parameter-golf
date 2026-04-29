@@ -1,0 +1,477 @@
+{
+  "analysis_method": "Formal mathematical proof with synthetic verification; standard-library-only, no GPU",
+  "audit_dir": "audits/exp_1876_ppmd",
+  "audit_phase": "phase_3_normalization_proof",
+  "generated_at": "2026-04-28T17:16:06+00:00",
+  "mixture_counterproof": {
+    "counterexample_found": true,
+    "counterexamples": [
+      {
+        "expected_mixture_sum": "\u03bb * 256 * 0.01^(1/3) + (1-\u03bb) * 1.0 = 0.9 * 55.15352806 + 0.09999999999999998 * 1 = 49.73817526",
+        "is_normalized": false,
+        "lambda": 0.9,
+        "mixture_sum": 49.73817525833461,
+        "n_bytes": 3,
+        "nn_byte_prob": 0.2154434690031884,
+        "nn_component_normalized": false,
+        "nn_component_sum": 55.15352806481623,
+        "ppm_component_normalized": true,
+        "ppm_component_sum": 1.0,
+        "token_prob": 0.01
+      },
+      {
+        "expected_mixture_sum": "\u03bb * 256 * 0.1^(1/2) + (1-\u03bb) * 1.0 = 0.5 * 80.9543081 + 0.5 * 1 = 40.97715405",
+        "is_normalized": false,
+        "lambda": 0.5,
+        "mixture_sum": 40.97715405015526,
+        "n_bytes": 2,
+        "nn_byte_prob": 0.31622776601683794,
+        "nn_component_normalized": false,
+        "nn_component_sum": 80.95430810031051,
+        "ppm_component_normalized": true,
+        "ppm_component_sum": 1.0,
+        "token_prob": 0.1
+      },
+      {
+        "expected_mixture_sum": "\u03bb * 256 * 0.5^(1/4) + (1-\u03bb) * 1.0 = 0.7 * 215.2694823 + 0.30000000000000004 * 1 = 150.9886376",
+        "is_normalized": false,
+        "lambda": 0.7,
+        "mixture_sum": 150.98863761346564,
+        "n_bytes": 4,
+        "nn_byte_prob": 0.8408964152537145,
+        "nn_component_normalized": false,
+        "nn_component_sum": 215.2694823049509,
+        "ppm_component_normalized": true,
+        "ppm_component_sum": 1.0,
+        "token_prob": 0.5
+      },
+      {
+        "expected_mixture_sum": "\u03bb * 256 * 0.001^(1/5) + (1-\u03bb) * 1.0 = 0.3 * 64.30429265 + 0.7 * 1 = 19.99128779",
+        "is_normalized": false,
+        "lambda": 0.3,
+        "mixture_sum": 19.991287793993575,
+        "n_bytes": 5,
+        "nn_byte_prob": 0.251188643150958,
+        "nn_component_normalized": false,
+        "nn_component_sum": 64.30429264664525,
+        "ppm_component_normalized": true,
+        "ppm_component_sum": 1.0,
+        "token_prob": 0.001
+      }
+    ],
+    "method": "Direct computation of sum over 256 bytes with proper PPM and improper neural component",
+    "proof": "Since sum_b ppm(b) = 1 (proved above) but sum_b nn(b) = 256 * p^(1/n) != 1 (proved above), the mixture sum is: lambda * 256 * p^(1/n) + (1 - lambda) * 1.0 != 1 for general p, n, lambda. The mixture is not a probability distribution.",
+    "status": "PROVED_COUNTEREXAMPLE",
+    "theorem": "The mixture lambda*nn_byte + (1-lambda)*ppm_byte is NOT a normalized distribution over {0,...,255}"
+  },
+  "neural_byte_counterproof": {
+    "counterexample_found": true,
+    "counterexamples": [
+      {
+        "constant_across_bytes": true,
+        "explanation": "The neural byte probability exp(log(0.01)/3) = 0.01^(1/3) = 0.215443469 is the same constant for all 256 byte values. Sum = 256 * 0.215443469 = 55.15352806 != 1.",
+        "formula": "0.01^(1/3) = 0.215443469003188",
+        "is_normalized": false,
+        "n_bytes": 3,
+        "nn_byte_prob": 0.2154434690031884,
+        "sum_over_256": 55.15352806481623,
+        "token_prob": 0.01
+      },
+      {
+        "constant_across_bytes": true,
+        "explanation": "The neural byte probability exp(log(0.1)/2) = 0.1^(1/2) = 0.316227766 is the same constant for all 256 byte values. Sum = 256 * 0.316227766 = 80.9543081 != 1.",
+        "formula": "0.1^(1/2) = 0.316227766016838",
+        "is_normalized": false,
+        "n_bytes": 2,
+        "nn_byte_prob": 0.31622776601683794,
+        "sum_over_256": 80.95430810031051,
+        "token_prob": 0.1
+      },
+      {
+        "constant_across_bytes": true,
+        "explanation": "The neural byte probability exp(log(0.5)/4) = 0.5^(1/4) = 0.8408964153 is the same constant for all 256 byte values. Sum = 256 * 0.8408964153 = 215.2694823 != 1.",
+        "formula": "0.5^(1/4) = 0.840896415253715",
+        "is_normalized": false,
+        "n_bytes": 4,
+        "nn_byte_prob": 0.8408964152537145,
+        "sum_over_256": 215.2694823049509,
+        "token_prob": 0.5
+      },
+      {
+        "constant_across_bytes": true,
+        "explanation": "The neural byte probability exp(log(0.001)/5) = 0.001^(1/5) = 0.2511886432 is the same constant for all 256 byte values. Sum = 256 * 0.2511886432 = 64.30429265 != 1.",
+        "formula": "0.001^(1/5) = 0.251188643150958",
+        "is_normalized": false,
+        "n_bytes": 5,
+        "nn_byte_prob": 0.251188643150958,
+        "sum_over_256": 64.30429264664525,
+        "token_prob": 0.001
+      },
+      {
+        "constant_across_bytes": true,
+        "explanation": "The neural byte probability exp(log(0.99)/1) = 0.99^(1/1) = 0.99 is the same constant for all 256 byte values. Sum = 256 * 0.99 = 253.44 != 1.",
+        "formula": "0.99^(1/1) = 0.99",
+        "is_normalized": false,
+        "n_bytes": 1,
+        "nn_byte_prob": 0.99,
+        "sum_over_256": 253.44,
+        "token_prob": 0.99
+      },
+      {
+        "constant_across_bytes": true,
+        "explanation": "The neural byte probability exp(log(0.25)/3) = 0.25^(1/3) = 0.6299605249 is the same constant for all 256 byte values. Sum = 256 * 0.6299605249 = 161.2698944 != 1.",
+        "formula": "0.25^(1/3) = 0.629960524947437",
+        "is_normalized": false,
+        "n_bytes": 3,
+        "nn_byte_prob": 0.6299605249474366,
+        "sum_over_256": 161.26989438654377,
+        "token_prob": 0.25
+      }
+    ],
+    "method": "Direct computation showing the sum over 256 byte values != 1",
+    "proof": "For token probability p and byte count n, the neural 'byte probability' is p^(1/n), which is the SAME constant for all 256 byte values b. Therefore sum_{b=0}^{255} p^(1/n) = 256 * p^(1/n). This equals 1 only when p = (1/256)^n, which is not true for general p. The neural component is not a probability distribution over bytes \u2014 it is the geometric mean decomposition of the realized token's probability.",
+    "status": "PROVED_COUNTEREXAMPLE",
+    "theorem": "The neural byte component exp(log(p_NN(token))/n_bytes) is NOT a valid 256-way byte distribution"
+  },
+  "ppmd_normalization_proof": {
+    "all_histories_normalize": true,
+    "code_variant_non_normalized_examples": [
+      {
+        "code_variant_sum": 0.9930555555555557,
+        "label": "short_hello_order1"
+      },
+      {
+        "code_variant_sum": 0.9930555555555557,
+        "label": "short_hello_order3"
+      },
+      {
+        "code_variant_sum": 0.9930555555555557,
+        "label": "short_hello_order5"
+      },
+      {
+        "code_variant_sum": 0.8869357638888888,
+        "label": "repeated_abc_order1"
+      },
+      {
+        "code_variant_sum": 0.5967339409722222,
+        "label": "repeated_abc_order3"
+      }
+    ],
+    "code_variant_note": "The actual _ppm_mixture_bpb code implements PPM-D WITHOUT exclusion: it uses a fixed 1/256 uniform fallback regardless of which bytes were seen at higher context levels. This simplified variant does NOT normalize in general. 18 of 21 tested states show non-unit sums.",
+    "method": "Exhaustive enumeration of all 256 byte probabilities for diverse synthetic states",
+    "num_verifications": 21,
+    "proof_sketch": "At each context level, the mass assigned to seen symbols is T/(T+u) and the escape mass is u/(T+u), totaling 1. The escape mass is redistributed to the next shorter context, which itself sums to 1. Crucially, the exclusion mechanism ensures that bytes already assigned probability at a longer context are removed from shorter context statistics, so no byte receives double credit. The final uniform fallback distributes remaining escape mass equally among the (256 - already_assigned) bytes. By induction on context length, the full PPM-D probability over {0,...,255} sums to exactly 1.",
+    "status": "PROVED",
+    "synthetic_verifications": [
+      {
+        "code_variant_no_exclusion_sum": 1.0000000000000002,
+        "code_variant_normalizes": true,
+        "history_length": 0,
+        "label": "empty_order1",
+        "max_prob": 0.00390625,
+        "min_prob": 0.00390625,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 1,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 1.0000000000000002,
+        "code_variant_normalizes": true,
+        "history_length": 0,
+        "label": "empty_order3",
+        "max_prob": 0.00390625,
+        "min_prob": 0.00390625,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 3,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 1.0000000000000002,
+        "code_variant_normalizes": true,
+        "history_length": 0,
+        "label": "empty_order5",
+        "max_prob": 0.00390625,
+        "min_prob": 0.00390625,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 5,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.9930555555555557,
+        "code_variant_normalizes": false,
+        "history_length": 5,
+        "label": "short_hello_order1",
+        "max_prob": 0.2222222222222222,
+        "min_prob": 0.001763668430335097,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 1,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.9930555555555557,
+        "code_variant_normalizes": false,
+        "history_length": 5,
+        "label": "short_hello_order3",
+        "max_prob": 0.2222222222222222,
+        "min_prob": 0.001763668430335097,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 3,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.9930555555555557,
+        "code_variant_normalizes": false,
+        "history_length": 5,
+        "label": "short_hello_order5",
+        "max_prob": 0.2222222222222222,
+        "min_prob": 0.001763668430335097,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 5,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.8869357638888888,
+        "code_variant_normalizes": false,
+        "history_length": 6,
+        "label": "repeated_abc_order1",
+        "max_prob": 0.5,
+        "min_prob": 0.0006587615283267456,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 1,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.5967339409722222,
+        "code_variant_normalizes": false,
+        "history_length": 6,
+        "label": "repeated_abc_order3",
+        "max_prob": 0.5,
+        "min_prob": 0.0006587615283267456,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 3,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.5967339409722222,
+        "code_variant_normalizes": false,
+        "history_length": 6,
+        "label": "repeated_abc_order5",
+        "max_prob": 0.5,
+        "min_prob": 0.0006587615283267456,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 5,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.9593191964285713,
+        "code_variant_normalizes": false,
+        "history_length": 43,
+        "label": "pangram_order1",
+        "max_prob": 0.11428571428571428,
+        "min_prob": 0.0016843418590143482,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 1,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.9593191964285713,
+        "code_variant_normalizes": false,
+        "history_length": 43,
+        "label": "pangram_order3",
+        "max_prob": 0.11428571428571428,
+        "min_prob": 0.0016843418590143482,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 3,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.9593191964285713,
+        "code_variant_normalizes": false,
+        "history_length": 43,
+        "label": "pangram_order5",
+        "max_prob": 0.11428571428571428,
+        "min_prob": 0.0016843418590143482,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 5,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.83203125,
+        "code_variant_normalizes": false,
+        "history_length": 512,
+        "label": "all_bytes_x2_order1",
+        "max_prob": 0.5,
+        "min_prob": 0.00196078431372549,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 1,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.5830078125,
+        "code_variant_normalizes": false,
+        "history_length": 512,
+        "label": "all_bytes_x2_order3",
+        "max_prob": 0.5,
+        "min_prob": 0.00196078431372549,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 3,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.520751953125,
+        "code_variant_normalizes": false,
+        "history_length": 512,
+        "label": "all_bytes_x2_order5",
+        "max_prob": 0.5,
+        "min_prob": 0.00196078431372549,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 5,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.9164062500000001,
+        "code_variant_normalizes": false,
+        "history_length": 10,
+        "label": "binary_pattern_order1",
+        "max_prob": 0.8,
+        "min_prob": 0.00013123359580052493,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 1,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.7558203125,
+        "code_variant_normalizes": false,
+        "history_length": 10,
+        "label": "binary_pattern_order3",
+        "max_prob": 0.75,
+        "min_prob": 0.00016404199475065617,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 3,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.6671516927083333,
+        "code_variant_normalizes": false,
+        "history_length": 10,
+        "label": "binary_pattern_order5",
+        "max_prob": 0.6666666666666666,
+        "min_prob": 0.00021872265966754154,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 5,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.928293918918919,
+        "code_variant_normalizes": false,
+        "history_length": 56,
+        "label": "long_english_order1",
+        "max_prob": 0.4,
+        "min_prob": 0.0004481792717086835,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 1,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.928293918918919,
+        "code_variant_normalizes": false,
+        "history_length": 56,
+        "label": "long_english_order3",
+        "max_prob": 0.4,
+        "min_prob": 0.0004481792717086835,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 3,
+        "prob_sum": 1.0
+      },
+      {
+        "code_variant_no_exclusion_sum": 0.928293918918919,
+        "code_variant_normalizes": false,
+        "history_length": 56,
+        "label": "long_english_order5",
+        "max_prob": 0.4,
+        "min_prob": 0.0004481792717086835,
+        "normalizes": true,
+        "num_bytes_scored": 256,
+        "order": 5,
+        "prob_sum": 1.0
+      }
+    ],
+    "theorem": "PPM-D with exclusion defines a valid byte distribution: for any state S and order K, sum_{b=0}^{255} p_PPM(b|S) = 1"
+  },
+  "score_before_update_verification": {
+    "evidence": [
+      {
+        "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+        "label": "_ppm_mixture_bpb.definition",
+        "line": 518,
+        "text": "def _ppm_mixture_bpb(target_ids,prev_ids,nll_nats,token_bytes_lut,has_leading_space_lut_np,is_boundary_token_lut_np,order=5,lambda_hi=0.9,lambda_lo=0.05,conf_threshold=0.9):"
+      },
+      {
+        "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+        "label": "_ppm_mixture_bpb.token_logp_per_byte",
+        "line": 526,
+        "text": "token_logp=-float(nll_nats[i]);per_byte_logp=token_logp/n_bytes"
+      },
+      {
+        "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+        "label": "_ppm_mixture_bpb.score_mix_nll",
+        "line": 546,
+        "text": "mix_nll-=log_mix;ppm_nll-=ppm_log_p;nn_nll-=nn_log_p"
+      },
+      {
+        "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+        "label": "_ppm_mixture_bpb.update_count",
+        "line": 550,
+        "text": "d[b]=d.get(b,0)+1"
+      },
+      {
+        "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+        "label": "_ppm_mixture_bpb.update_window",
+        "line": 551,
+        "text": "window.append(b)"
+      }
+    ],
+    "method": "Static source analysis of _ppm_mixture_bpb: score accumulation (mix_nll -= log_mix) occurs at source offset < context update (d[b] = d.get(b,0)+1)",
+    "passed": true,
+    "positions": {
+      "byte_loop": 1116,
+      "mixture_log_prob": 1950,
+      "neural_realized_scalar": 1749,
+      "probability_from_counts": 1553,
+      "read_counts": 1319,
+      "score_mix_nll": 2001,
+      "score_nn_nll": 2037,
+      "score_ppm_nll": 2018,
+      "update_count": 2206,
+      "update_window": 2226
+    }
+  },
+  "verdict": {
+    "code_ppmd_lacks_exclusion": true,
+    "mixture_is_valid_distribution": false,
+    "neural_byte_component_is_valid_distribution": false,
+    "overall": "Theorem 1: Proper PPM-D with exclusion defines a normalized byte distribution (PROVED). However, the actual code implements PPM-D WITHOUT exclusion, which also fails to normalize. Theorem 2: The neural byte component is NOT a valid 256-way distribution (PROVED \u2014 COUNTEREXAMPLE). Theorem 3: The mixture is NOT normalized (PROVED \u2014 COUNTEREXAMPLE). Theorem 4: Score-before-update ordering IS satisfied (PROVED). The reported mix_bpb is therefore NOT a valid compression rate under the standard definition requiring a proper probability distribution at each scoring position.",
+    "ppmd_defines_valid_byte_distribution": true,
+    "score_before_update_satisfied": true
+  }
+}

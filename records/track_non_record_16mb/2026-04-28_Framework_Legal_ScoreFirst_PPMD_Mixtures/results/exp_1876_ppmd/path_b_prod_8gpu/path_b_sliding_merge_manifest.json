@@ -1,0 +1,66 @@
+{
+  "created_utc": "2026-04-28T19:33:29+00:00",
+  "path_b_version": "path_b_ppmd_phase3_skeleton_v1",
+  "schema_version": 1,
+  "shards": [
+    {
+      "file_path": "results/exp_1876_ppmd/path_b_prod_8gpu/path_b_sliding_rank0.npz",
+      "rank": 0,
+      "scored_bytes": 18531261,
+      "scored_tokens": 5069248,
+      "sha256": "21674ae3b867d34304177ee45a50ffbd606c1312d9729cc3f3c3cc70b9ebf4f3"
+    },
+    {
+      "file_path": "results/exp_1876_ppmd/path_b_prod_8gpu/path_b_sliding_rank1.npz",
+      "rank": 1,
+      "scored_bytes": 10834426,
+      "scored_tokens": 2930752,
+      "sha256": "bf06ccee068ab24b6287e424755a2c27af116cbaff5022471c6142a40b9ee440"
+    },
+    {
+      "file_path": "results/exp_1876_ppmd/path_b_prod_8gpu/path_b_sliding_rank2.npz",
+      "rank": 2,
+      "scored_bytes": 0,
+      "scored_tokens": 0,
+      "sha256": "426955f9d77c14eecc008077af7cf3bbae0c4355a4c223a12faa999a5e76502a"
+    },
+    {
+      "file_path": "results/exp_1876_ppmd/path_b_prod_8gpu/path_b_sliding_rank3.npz",
+      "rank": 3,
+      "scored_bytes": 0,
+      "scored_tokens": 0,
+      "sha256": "426955f9d77c14eecc008077af7cf3bbae0c4355a4c223a12faa999a5e76502a"
+    },
+    {
+      "file_path": "results/exp_1876_ppmd/path_b_prod_8gpu/path_b_sliding_rank4.npz",
+      "rank": 4,
+      "scored_bytes": 0,
+      "scored_tokens": 0,
+      "sha256": "426955f9d77c14eecc008077af7cf3bbae0c4355a4c223a12faa999a5e76502a"
+    },
+    {
+      "file_path": "results/exp_1876_ppmd/path_b_prod_8gpu/path_b_sliding_rank5.npz",
+      "rank": 5,
+      "scored_bytes": 0,
+      "scored_tokens": 0,
+      "sha256": "426955f9d77c14eecc008077af7cf3bbae0c4355a4c223a12faa999a5e76502a"
+    },
+    {
+      "file_path": "results/exp_1876_ppmd/path_b_prod_8gpu/path_b_sliding_rank6.npz",
+      "rank": 6,
+      "scored_bytes": 0,
+      "scored_tokens": 0,
+      "sha256": "426955f9d77c14eecc008077af7cf3bbae0c4355a4c223a12faa999a5e76502a"
+    },
+    {
+      "file_path": "results/exp_1876_ppmd/path_b_prod_8gpu/path_b_sliding_rank7.npz",
+      "rank": 7,
+      "scored_bytes": 0,
+      "scored_tokens": 0,
+      "sha256": "426955f9d77c14eecc008077af7cf3bbae0c4355a4c223a12faa999a5e76502a"
+    }
+  ],
+  "total_scored_bytes": 29365687,
+  "total_scored_tokens": 8000000,
+  "world_size": 8
+}

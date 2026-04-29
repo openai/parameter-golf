@@ -1,0 +1,62 @@
+{
+  "author": "Christopher-Lee-McClendon",
+  "github_id": "Christopher-Lee-McClendon",
+  "name": "SmearGate BOS Fix — 3-Seed Compliance Re-run of PR #1851",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_bpb": 1.06140937,
+  "val_bpb_std": 0.00093,
+  "seeds": [42, 314, 1234],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.06083288,
+      "artifact_bytes": 15949701,
+      "train_time_s": 592.054,
+      "eval_time_s": 525.5,
+      "serialize_time_s": 81.8,
+      "steps": 4942
+    },
+    "314": {
+      "val_bpb": 1.06090748,
+      "artifact_bytes": 15951777,
+      "train_time_s": 592.045,
+      "eval_time_s": 429.5,
+      "serialize_time_s": 81.4,
+      "steps": 4921
+    },
+    "1234": {
+      "val_bpb": 1.06248776,
+      "artifact_bytes": 15951968,
+      "train_time_s": 592.065,
+      "eval_time_s": 481.2,
+      "serialize_time_s": 79.5,
+      "steps": 4902
+    }
+  },
+  "hardware": "8xH100 SXM 80GB",
+  "pytorch_version": "2.9+",
+  "technique_summary": "SmearGate BOS document boundary fix on PR #1787 base + SmearGate + LQER Asymmetric + Phased TTT (3 phases) + CaseOps SP8192",
+  "compliance": {
+    "artifact_bytes_max": 15951968,
+    "train_loop_max_s": 592.065,
+    "train_plus_hessian_max_s": 595.565,
+    "eval_time_max_s": 525.5,
+    "eval_time_incl_compile_warmup_max_s": 709.4,
+    "gptq_hessian_within_budget": true,
+    "gptq_reserve_seconds": 8.0,
+    "note": "eval_time excludes torch.compile warmup (one-time process startup cost, not evaluation work). All submissions using torch.compile have this overhead."
+  },
+  "attribution": {
+    "base_pr": "#1851 by @aquariouseworkman",
+    "reproduced_pr": "#1868 by @Christopher-Lee-McClendon",
+    "technique_prs": [
+      "#1787 @nprime06",
+      "#1797 @dexhunter",
+      "#1729 @romeerp",
+      "#1394 @clarkkev",
+      "#549 @abaybektursun"
+    ],
+    "bug_identification": "@cocohearts (BOS document boundary bug)"
+  },
+  "notes": "Compliance re-run of PR #1868 (originally PR #1851 reproduction). Original submission had GPTQ_RESERVE_SECONDS=0.5 which caused GPTQ hessian collection to extend past the 600s training budget. Re-run uses GPTQ_RESERVE_SECONDS=8.0 so training loop ends at ~592s and GPTQ hessians complete by ~595.5s, well within budget. Code also reordered to serialize artifact before running pre-quant diagnostic. All 3 seeds re-run fresh; results consistent with originals (mean 1.06141 vs 1.06145)."
+}

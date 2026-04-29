@@ -1,0 +1,41 @@
+{
+  "accounting_audit_path": "results/exp_1876_ppmd/path_b_prod_8gpu_fullval/path_b_sliding_accounting_audit.json",
+  "artifact_path": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/results/exp_1876_ppmd/prod_8gpu_s42v2/final_model.int6.ptz",
+  "artifact_size_bytes": 15975706,
+  "claim_ready": true,
+  "created_utc": "2026-04-29T13:14:55+00:00",
+  "denominator_formula": "scored_byte_count = sum_{i in scored_positions} (base_bytes_lut[target_id_i] + (has_leading_space[target_id_i] & ~is_boundary_token[prev_id_i]))",
+  "denominator_match": true,
+  "error": null,
+  "eval_kind": "sliding",
+  "expected_denominator": 151078222,
+  "full_eval": true,
+  "lambda_gating_config": {
+    "ppmd_conf_threshold": 0.9,
+    "ppmd_confidence_gating": true,
+    "ppmd_lambda": 0.35,
+    "ppmd_lambda_hi": 0.9,
+    "ppmd_lambda_lo": 0.05,
+    "prefix_only": true
+  },
+  "mixture_bpb": 1.522083436941375,
+  "neural_only_bpb": 1.5430141193268014,
+  "path_b_version": "path_b_ppmd_phase3_skeleton_v1",
+  "ppm_d_config": {
+    "method": "PPM-D with exclusion over 256 bytes",
+    "order": 5,
+    "score_before_update": true
+  },
+  "ppm_d_only_bpb": 2.031906041587864,
+  "rank": 0,
+  "runtime_seconds": 33731.09136022627,
+  "schema_version": 1,
+  "scored_byte_count": 151078222,
+  "scored_token_count": 40540160,
+  "shard_manifest_path": "results/exp_1876_ppmd/path_b_prod_8gpu_fullval/path_b_sliding_merge_manifest.json",
+  "source_module_path": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/results/exp_1876_ppmd/train_gpt_merged.py",
+  "subset_tokens": null,
+  "warnings": [],
+  "world_size": 8,
+  "zero_byte_token_count": 49999
+}

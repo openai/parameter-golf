@@ -1,0 +1,92 @@
+{
+  "all_phase2_denominator_checks_passed": true,
+  "analysis_method": "local CPU replay of exp_1876 SentencePiece validation byte accounting; no model execution, no RunPod, no SLURM",
+  "audit_dir": "audits/exp_1876_ppmd",
+  "audit_phase": "phase_2_cpu_denominator_audit",
+  "byte_count_formula": "For each prediction position j: base_bytes_lut[val_tokens[j+1]] + int(has_leading_space_lut[val_tokens[j+1]] and not is_boundary_token_lut[val_tokens[j]]).",
+  "checks": {
+    "first_8m_ppm_bytes_match_log": {
+      "base_lut_byte_count": 29365687,
+      "log_ppm_mix_bytes": 29365687,
+      "passed": true,
+      "ppm_stream_byte_count": 29365687
+    },
+    "full_target_bytes_matches_known_reference": {
+      "computed": 151078222,
+      "known_reference": 151078222,
+      "passed": true
+    },
+    "ppm_byte_lengths_match_base_lut_for_subset": {
+      "base_lut_byte_count": 29365687,
+      "passed": true,
+      "ppm_stream_byte_count": 29365687
+    },
+    "ppm_subset_token_count_matches_log": {
+      "computed": 8000000,
+      "log_ppm_time_tokens": 8000000,
+      "passed": true
+    },
+    "target_token_count_matches_log": {
+      "computed": 40540160,
+      "log_val_tokens": 40540160,
+      "passed": true
+    },
+    "tokenizer_vocab_matches_hparam": {
+      "hparam_vocab_size": 8192,
+      "passed": true,
+      "sentencepiece_vocab_size": 8192
+    }
+  },
+  "computed": {
+    "first_8m_ppm_stream_bytes": 29365687,
+    "first_8m_target_position_bytes": 29365687,
+    "full_target_bytes": 151078222,
+    "ppm_subset_tokens": 8000000,
+    "target_token_count": 40540160,
+    "validation_tokens_including_initial_context": 40540161
+  },
+  "generated_at": "2026-04-28T17:16:01+00:00",
+  "hyperparameters": {
+    "eval_seq_len": 2048,
+    "ppm_subset_tokens": 8000000,
+    "vocab_size": 8192
+  },
+  "inputs": {
+    "tokenizer_path": "data/tokenizers/fineweb_8192_bpe.model",
+    "train_smoke_log": "results/exp_1876_ppmd/prod_8gpu_s42v2/train_smoke.log",
+    "validation_pattern": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin"
+  },
+  "ppm_token_byte_lengths_lut": {
+    "byte_token_parse_failures": [],
+    "semantics": "lengths of build_token_bytes_lut entries used by _ppm_mixture_bpb; leading \u2581 space is counted separately",
+    "table_size": 8192
+  },
+  "references": {
+    "known_first_8m_target_bytes": 29365687,
+    "known_full_target_bytes": 151078222,
+    "log_ppm_mix_bytes": 29365687,
+    "log_ppm_time_tokens": 8000000,
+    "log_val_tokens": 40540160
+  },
+  "shards": {
+    "files": [
+      "data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin"
+    ],
+    "loaded_token_count_including_context": 40540161,
+    "pattern": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin",
+    "raw_token_count_including_context": 40540803,
+    "seq_len": 2048,
+    "target_token_count": 40540160,
+    "truncated_tail_tokens": 642
+  },
+  "tokenizer_luts": {
+    "byte_tokens": 256,
+    "leading_space_tokens": 5459,
+    "semantics": "base UTF-8 bytes excluding leading \u2581 plus one literal space byte when target has \u2581 and previous token is not boundary",
+    "sentencepiece_vocab_size": 8192,
+    "skipped_control_unknown_unused_tokens": 4,
+    "space_token_id": 8107,
+    "table_size": 8192,
+    "vocab_size": 8192
+  }
+}

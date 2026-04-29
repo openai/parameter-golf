@@ -1,0 +1,1732 @@
+{
+  "all_phase1_checks_passed": true,
+  "analysis_method": "static standard-library provenance/log/source analysis only; no CUDA, no RunPod, no validation-data access",
+  "artifact_accounting": {
+    "actual_total_bytes": 15995926,
+    "cap_bytes": 16000000,
+    "code_bytes": 20220,
+    "code_path": "results/exp_1876_ppmd/train_gpt.py",
+    "headroom_bytes": 4074,
+    "log_code_bytes": 20220,
+    "log_matches_actual_total": true,
+    "log_model_bytes": 15975706,
+    "log_total_bytes": 15995926,
+    "log_unquantized_model_bytes": 135431033,
+    "model_bytes": 15975706,
+    "model_path": "results/exp_1876_ppmd/prod_8gpu_s42v2/final_model.int6.ptz",
+    "under_cap": true
+  },
+  "audit_dir": "audits/exp_1876_ppmd",
+  "audit_phase": "phase_1_static_and_provenance_audit",
+  "bootstrap": {
+    "decoded_bytes": 58439,
+    "decoded_matches_merged_source": true,
+    "decoded_sha256": "8a387a38b9a37bd25b119605b1ad2f00b9a4ed4c2d482c4c459caec32368304b",
+    "decoder": "ast literal extraction + base64.b85decode + lzma.decompress",
+    "evidence": [
+      {
+        "file": "results/exp_1876_ppmd/train_gpt.py",
+        "label": "bootstrap.b85_lzma_payload",
+        "line": 2,
+        "text": "exec(L.decompress(B.b85decode(\"{Wp48S^xk9=GL@E0stWa761SMbT8$j;N(U=xm^G>n@VT6Qap3bt~@<3h>ok~)Km^%<bI~`7~^@P9dNt*OmJtouSV|m@^}~LJOY#qcoM@9BaGiY8ypPvdJq=NbK}E`t..."
+      }
+    ],
+    "merged_sha256": "8a387a38b9a37bd25b119605b1ad2f00b9a4ed4c2d482c4c459caec32368304b",
+    "payload_literal_bytes": 20155
+  },
+  "checks": {
+    "artifact_total_under_16mb": {
+      "actual_total_bytes": 15995926,
+      "cap_bytes": 16000000,
+      "headroom_bytes": 4074,
+      "passed": true
+    },
+    "bootstrap_decodes_to_merged_source": {
+      "decoded_sha256": "8a387a38b9a37bd25b119605b1ad2f00b9a4ed4c2d482c4c459caec32368304b",
+      "merged_sha256": "8a387a38b9a37bd25b119605b1ad2f00b9a4ed4c2d482c4c459caec32368304b",
+      "passed": true
+    },
+    "required_static_evidence_detected": {
+      "passed": true,
+      "statuses": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ]
+    }
+  },
+  "generated_at": "2026-04-28T17:16:00+00:00",
+  "inputs": {
+    "final_model_int6_ptz": {
+      "absolute_path": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/results/exp_1876_ppmd/prod_8gpu_s42v2/final_model.int6.ptz",
+      "bytes": 15975706,
+      "path": "results/exp_1876_ppmd/prod_8gpu_s42v2/final_model.int6.ptz",
+      "present": true,
+      "sha256": "1ce4b90889f86e4b21ffbdcb2f51d9a3800a99953ac8d5d9d1507f3d7dd61665"
+    },
+    "launcher_state_json": {
+      "absolute_path": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/results/exp_1876_ppmd/prod_8gpu_s42v2/launcher_state.json",
+      "bytes": 1020,
+      "path": "results/exp_1876_ppmd/prod_8gpu_s42v2/launcher_state.json",
+      "present": true,
+      "sha256": "02d000749bf8f621af4f462e0344bbd8c4877eaf0fc33d4b04b8aedc4f3ea19c"
+    },
+    "train_gpt_merged_py": {
+      "absolute_path": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/results/exp_1876_ppmd/train_gpt_merged.py",
+      "bytes": 58439,
+      "path": "results/exp_1876_ppmd/train_gpt_merged.py",
+      "present": true,
+      "sha256": "8a387a38b9a37bd25b119605b1ad2f00b9a4ed4c2d482c4c459caec32368304b"
+    },
+    "train_gpt_py": {
+      "absolute_path": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/results/exp_1876_ppmd/train_gpt.py",
+      "bytes": 20220,
+      "path": "results/exp_1876_ppmd/train_gpt.py",
+      "present": true,
+      "sha256": "5eb40ba66a9aa0629c570ad986bb406946ccfab166f097462fb680329b60dc8f"
+    },
+    "train_smoke_log": {
+      "absolute_path": "/hpfs/scratch/gpfs/mcclec07/parameter_golf2/results/exp_1876_ppmd/prod_8gpu_s42v2/train_smoke.log",
+      "bytes": 5445,
+      "path": "results/exp_1876_ppmd/prod_8gpu_s42v2/train_smoke.log",
+      "present": true,
+      "sha256": "d872a3740cf122ebd186b382b7bd81b30f139627d90a190532f57cab65b90c78"
+    }
+  },
+  "launcher_state": {
+    "bundle_b64_length": 25284,
+    "bundle_b64_sha256": "751fd0f00c570dabf5e9216691ac0f2c21abc646c29a14e0910a18b32e900c9c",
+    "cleanup_attempted": true,
+    "cleanup_finished_at_utc": "2026-04-28T08:06:04Z",
+    "cleanup_reason": "normal_exit",
+    "cleanup_started_at_utc": "2026-04-28T08:06:03Z",
+    "cleanup_status": "succeeded",
+    "command_length": 1160,
+    "command_sha256": "b3c9169fafd1eea7eed47ce9d5ab0b49f5705b595b675294f5455569e416f5b8",
+    "created_at_utc": "2026-04-28T07:31:10Z",
+    "docker_args_length": 4868,
+    "docker_args_sha256": "ef15a7e9ac2e20ba2e18973aad2053a487fe003caa1bfdce9d7b44901be78a4e",
+    "docker_image": null,
+    "gpus": 8,
+    "hard_deadline_sec": 2520,
+    "launcher": "runpod_http_rehearsal",
+    "launcher_pid": 3262217,
+    "max_minutes": 40,
+    "phase": "cleanup_completed",
+    "pod_id": "6751z2381opo49",
+    "pod_name": "pgolf-1876-ppmd-prod-s42v2",
+    "results_dir": "results/exp_1876_ppmd/prod_8gpu_s42v2",
+    "runtime_timeout_sec": 600,
+    "schema_version": 1,
+    "updated_at_utc": "2026-04-28T08:06:04Z"
+  },
+  "log_extracts": {
+    "code_bytes": 20220,
+    "hyperparameters": {
+      "adam_eps": 1e-08,
+      "adam_wd": 0.02,
+      "beta1": 0.9,
+      "beta2": 0.95,
+      "compressor": "brotli",
+      "data_dir": "./",
+      "datasets_dir": "./datasets/fineweb10B_sp8192",
+      "distributed": true,
+      "ema_decay": 0.9965,
+      "embed_bits": 8,
+      "embed_clip_sigmas": 20.0,
+      "embed_lr": 0.6,
+      "embed_wd": 0.085,
+      "embedding_dim": 512,
+      "enable_looping_at": 0.35,
+      "eval_seq_len": 2048,
+      "eval_stride": 64,
+      "gptq_calibration_batches": 64,
+      "gptq_reserve_seconds": 12.0,
+      "grad_accum_steps": 1,
+      "grad_clip_norm": 0.3,
+      "head_lr": 0.008,
+      "is_main_process": true,
+      "iterations": 20000,
+      "ln_scale": true,
+      "local_rank": 0,
+      "logfile": "logs/0fc4c5e3-9811-4eec-98b7-88403e225a2c.txt",
+      "logit_softcap": 30.0,
+      "loop_end": 5,
+      "loop_start": 3,
+      "matrix_bits": 6,
+      "matrix_clip_sigmas": 12.85,
+      "matrix_lr": 0.022,
+      "max_wallclock_seconds": 600.0,
+      "min_lr": 0.0,
+      "mlp_mult": 4.0,
+      "model_dim": 512,
+      "model_path": "final_model.pt",
+      "mtp_loss_weight": 0,
+      "mtp_num_heads": 0,
+      "muon_backend_steps": 5,
+      "muon_beta2": 0.95,
+      "muon_momentum": 0.99,
+      "muon_momentum_warmup_start": 0.92,
+      "muon_momentum_warmup_steps": 1500,
+      "muon_row_normalize": true,
+      "muon_wd": 0.095,
+      "num_heads": 8,
+      "num_kv_heads": 4,
+      "num_layers": 11,
+      "num_loops": 2,
+      "parallel_residual_start": 7,
+      "ppm_conf_threshold": 0.9,
+      "ppm_enabled": true,
+      "ppm_lambda_hi": 0.9,
+      "ppm_lambda_lo": 0.05,
+      "ppm_order": 5,
+      "ppm_subset_tokens": 8000000,
+      "qk_gain_init": 5.0,
+      "quantized_model_path": "final_model.int6.ptz",
+      "rank": 0,
+      "rope_base": 10000.0,
+      "rope_dims": 16,
+      "rope_train_seq_len": 2048,
+      "run_id": "0fc4c5e3-9811-4eec-98b7-88403e225a2c",
+      "scalar_lr": 0.02,
+      "seed": 42,
+      "skip_gates_enabled": true,
+      "sliding_window_enabled": true,
+      "tie_embeddings": true,
+      "tied_embed_init_std": 0.005,
+      "tied_embed_lr": 0.03,
+      "tokenizer_path": "./tokenizers/fineweb_8192_bpe.model",
+      "train_batch_tokens": 786432,
+      "train_files": "./datasets/fineweb10B_sp8192/fineweb_train_*.bin",
+      "train_log_every": 500,
+      "train_seq_len": 2048,
+      "ttt_chunk_tokens": 32768,
+      "ttt_enabled": true,
+      "ttt_epochs": 3,
+      "ttt_lr": 0.005,
+      "ttt_momentum": 0.9,
+      "val_batch_tokens": 524288,
+      "val_files": "./datasets/fineweb10B_sp8192/fineweb_val_*.bin",
+      "val_loss_every": 4000,
+      "vocab_size": 8192,
+      "warmdown_frac": 0.72,
+      "warmup_steps": 20,
+      "world_size": 8,
+      "xsa_last_n": 11
+    },
+    "metrics": {
+      "pre-quantization post-ema": {
+        "eval_time_ms": 7313,
+        "val_bpb": 1.08789777,
+        "val_loss": 2.81015291
+      },
+      "quantized": {
+        "eval_time_ms": 25732,
+        "val_bpb": 1.09987085,
+        "val_loss": 2.84108062
+      },
+      "quantized_sliding_window": {
+        "eval_time_ms": 126608,
+        "val_bpb": 1.0830484,
+        "val_loss": 2.79762651
+      },
+      "quantized_ttt": {
+        "eval_time_ms": 510753,
+        "val_bpb": 1.08121965,
+        "val_loss": 2.79290265
+      }
+    },
+    "model_params": 35944536,
+    "ppm_mix": {
+      "bytes": 29365687,
+      "mix_bpb": 0.994872,
+      "nn_only": 1.086575,
+      "ppm_only": 2.270203
+    },
+    "ppm_time": {
+      "seconds": 129.7,
+      "tokens": 8000000
+    },
+    "quantized_model_bytes": 15975706,
+    "total_submission_bytes": 15995926,
+    "train_shards": 80,
+    "ttt_start": {
+      "chunks": 1238,
+      "ttt_epochs": 3,
+      "ttt_lr": 0.005
+    },
+    "unquantized_model_bytes": 135431033,
+    "val_tokens": 40540160
+  },
+  "production_results_dir": "results/exp_1876_ppmd/prod_8gpu_s42v2",
+  "results_dir": "results/exp_1876_ppmd",
+  "static_evidence": {
+    "_loss_bpb": {
+      "evidence": [
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "_loss_bpb.definition",
+          "line": 495,
+          "text": "def _loss_bpb(loss_sum,token_count,byte_count):val_loss=(loss_sum/token_count).item();val_bpb=val_loss/math.log(2.)*(token_count.item()/byte_count.item());return val_loss,val_bpb"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "_loss_bpb.byte_denominator",
+          "line": 495,
+          "text": "def _loss_bpb(loss_sum,token_count,byte_count):val_loss=(loss_sum/token_count).item();val_bpb=val_loss/math.log(2.)*(token_count.item()/byte_count.item());return val_loss,val_bpb"
+        }
+      ],
+      "function_lines": {
+        "end": 495,
+        "start": 495
+      },
+      "passed": true,
+      "probes": {
+        "computes_val_loss_from_loss_sum_token_count": true,
+        "converts_nats_to_bits": true,
+        "returns_val_loss_and_bpb": true,
+        "uses_byte_denominator": true
+      },
+      "status": "PASS",
+      "summary": "_loss_bpb rescales token NLL by token_count/byte_count to report BPB."
+    },
+    "_ppm_mixture_bpb": {
+      "caveat": "Static text/AST order only; runtime normalization proof is intentionally deferred to later phases.",
+      "evidence": [
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "_ppm_mixture_bpb.definition",
+          "line": 518,
+          "text": "def _ppm_mixture_bpb(target_ids,prev_ids,nll_nats,token_bytes_lut,has_leading_space_lut_np,is_boundary_token_lut_np,order=5,lambda_hi=0.9,lambda_lo=0.05,conf_threshold=0.9):"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "_ppm_mixture_bpb.token_logp_per_byte",
+          "line": 526,
+          "text": "token_logp=-float(nll_nats[i]);per_byte_logp=token_logp/n_bytes"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "_ppm_mixture_bpb.score_mix_nll",
+          "line": 546,
+          "text": "mix_nll-=log_mix;ppm_nll-=ppm_log_p;nn_nll-=nn_log_p"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "_ppm_mixture_bpb.update_count",
+          "line": 550,
+          "text": "d[b]=d.get(b,0)+1"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "_ppm_mixture_bpb.update_window",
+          "line": 551,
+          "text": "window.append(b)"
+        }
+      ],
+      "missing_snippets": [],
+      "passed": true,
+      "positions": {
+        "byte_loop": 1116,
+        "mixture_log_prob": 1950,
+        "neural_realized_scalar": 1749,
+        "probability_from_counts": 1553,
+        "read_counts": 1319,
+        "score_mix_nll": 2001,
+        "score_nn_nll": 2037,
+        "score_ppm_nll": 2018,
+        "update_count": 2206,
+        "update_window": 2226
+      },
+      "probes": {
+        "builds_byte_stream": true,
+        "computes_n_bytes": true,
+        "scores_mix_before_context_update": true,
+        "token_logp_divided_by_n_bytes": true
+      },
+      "score_before_update_order_proved": true,
+      "status": "PASS",
+      "summary": "_ppm_mixture_bpb converts token NLL to per-byte logp and scores bytes before updating PPM counts."
+    },
+    "eval_val_ttt_score_before_update": {
+      "caveat": "Static order only; distributed coverage replay is reserved for Phase 2.",
+      "evidence": [
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "eval_val_ttt.definition",
+          "line": 556,
+          "text": "def eval_val_ttt(h,device,val_data,base_model,batch_seqs=32):"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "eval_val_ttt.score_loss_sum",
+          "line": 573,
+          "text": "wlen=wlens[i];s=0 if ws==0 else context_size;scored_nll=nll[i,s:wlen].to(torch.float64);loss_sum+=scored_nll.sum();token_count+=float(wlen-s);tgt=y_batch[i,s:wlen];prev=x_batch[i,s:wlen];tb=val_data.base_bytes_lut[tgt].to(torch.float64);tb+=(..."
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "eval_val_ttt.score_byte_count",
+          "line": 573,
+          "text": "...es_lut[tgt].to(torch.float64);tb+=(val_data.has_leading_space_lut[tgt]&~val_data.is_boundary_token_lut[prev]).to(torch.float64);byte_count+=tb.sum()"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "eval_val_ttt.ppm_record_nll",
+          "line": 576,
+          "text": "if abs_e>abs_s:n=abs_e-abs_s;ppm_nll_buf[abs_s:abs_e]=scored_nll[:n];ppm_tgt_buf[abs_s:abs_e]=tgt[:n].to(torch.int64);ppm_prev_buf[abs_s:abs_e]=prev[:n].to(torch.int64);ppm_written[abs_s:abs_e]=1"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "eval_val_ttt.training_gate",
+          "line": 578,
+          "text": "if not is_last_chunk and h.ttt_epochs>0:"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "eval_val_ttt.optimizer_step",
+          "line": 594,
+          "text": "torch.nn.utils.clip_grad_norm_(ttt_params,1.);optimizer.step()"
+        }
+      ],
+      "missing_snippets": [],
+      "passed": true,
+      "positions": {
+        "chunk_loop": 1634,
+        "optimizer_step": 4479,
+        "ppm_record_nll": 3148,
+        "ppm_record_written": 3288,
+        "score_byte_count": 3020,
+        "score_loss_sum": 2773,
+        "score_no_grad": 1913,
+        "score_token_count": 2800,
+        "training_gate": 3350
+      },
+      "score_before_update_order_proved": true,
+      "status": "PASS",
+      "summary": "eval_val_ttt scores/records chunk NLL and bytes before the TTT training update gate."
+    },
+    "hyperparameters": {
+      "adam_eps": {
+        "default_source": "1e-08",
+        "default_value": 1e-08,
+        "env_var": "ADAM_EPS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.adam_eps",
+          "line": 7,
+          "text": "...int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.ge..."
+        },
+        "field": "adam_eps",
+        "line": 7,
+        "source": "adam_eps=float(os.environ.get('ADAM_EPS',1e-08))"
+      },
+      "adam_wd": {
+        "default_source": ".02",
+        "default_value": 0.02,
+        "env_var": "ADAM_WD",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.adam_wd",
+          "line": 7,
+          "text": "....get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.08..."
+        },
+        "field": "adam_wd",
+        "line": 7,
+        "source": "adam_wd=float(os.environ.get('ADAM_WD',.02))"
+      },
+      "beta1": {
+        "default_source": ".9",
+        "default_value": 0.9,
+        "env_var": "BETA1",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.beta1",
+          "line": 7,
+          "text": "...s=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));gra..."
+        },
+        "field": "beta1",
+        "line": 7,
+        "source": "beta1=float(os.environ.get('BETA1',.9))"
+      },
+      "beta2": {
+        "default_source": ".95",
+        "default_value": 0.95,
+        "env_var": "BETA2",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.beta2",
+          "line": 7,
+          "text": "...UP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_C..."
+        },
+        "field": "beta2",
+        "line": 7,
+        "source": "beta2=float(os.environ.get('BETA2',.95))"
+      },
+      "compressor": {
+        "default_source": "'brotli'",
+        "default_value": "brotli",
+        "env_var": "COMPRESSOR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.compressor",
+          "line": 7,
+          "text": "...POCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_..."
+        },
+        "field": "compressor",
+        "line": 7,
+        "source": "compressor=os.environ.get('COMPRESSOR','brotli')"
+      },
+      "data_dir": {
+        "default_source": "'./data/'",
+        "default_value": "./data/",
+        "env_var": "DATA_DIR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.data_dir",
+          "line": 7,
+          "text": "class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));it..."
+        },
+        "field": "data_dir",
+        "line": 7,
+        "source": "data_dir=os.environ.get('DATA_DIR','./data/')"
+      },
+      "datasets_dir": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.datasets_dir",
+          "line": 7,
+          "text": "....get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f\"fineweb10B_sp{vocab_size}\");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val..."
+        },
+        "field": "datasets_dir",
+        "line": 7,
+        "source": "datasets_dir=os.path.join(data_dir,'datasets',f\"fineweb10B_sp{vocab_size}\")"
+      },
+      "distributed": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.distributed",
+          "line": 7,
+          "text": "..._clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE..."
+        },
+        "field": "distributed",
+        "line": 7,
+        "source": "distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ"
+      },
+      "ema_decay": {
+        "default_source": ".9965",
+        "default_value": 0.9965,
+        "env_var": "EMA_DECAY",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ema_decay",
+          "line": 7,
+          "text": "...at(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('..."
+        },
+        "field": "ema_decay",
+        "line": 7,
+        "source": "ema_decay=float(os.environ.get('EMA_DECAY',.9965))"
+      },
+      "embed_bits": {
+        "default_source": "8",
+        "default_value": 8,
+        "env_var": "EMBED_BITS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.embed_bits",
+          "line": 7,
+          "text": "...S',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=floa..."
+        },
+        "field": "embed_bits",
+        "line": 7,
+        "source": "embed_bits=int(os.environ.get('EMBED_BITS',8))"
+      },
+      "embed_clip_sigmas": {
+        "default_source": "2e1",
+        "default_value": 20.0,
+        "env_var": "EMBED_CLIP_SIGMAS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.embed_clip_sigmas",
+          "line": 7,
+          "text": "...X_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ..."
+        },
+        "field": "embed_clip_sigmas",
+        "line": 7,
+        "source": "embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1))"
+      },
+      "embed_lr": {
+        "default_source": ".6",
+        "default_value": 0.6,
+        "env_var": "EMBED_LR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.embed_lr",
+          "line": 7,
+          "text": "...NG_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMB..."
+        },
+        "field": "embed_lr",
+        "line": 7,
+        "source": "embed_lr=float(os.environ.get('EMBED_LR',.6))"
+      },
+      "embed_wd": {
+        "default_source": ".085",
+        "default_value": 0.085,
+        "env_var": "EMBED_WD",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.embed_wd",
+          "line": 7,
+          "text": "...at(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('..."
+        },
+        "field": "embed_wd",
+        "line": 7,
+        "source": "embed_wd=float(os.environ.get('EMBED_WD',.085))"
+      },
+      "embedding_dim": {
+        "default_source": "512",
+        "default_value": 512,
+        "env_var": "EMBEDDING_DIM",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.embedding_dim",
+          "line": 7,
+          "text": "...os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_H..."
+        },
+        "field": "embedding_dim",
+        "line": 7,
+        "source": "embedding_dim=int(os.environ.get('EMBEDDING_DIM',512))"
+      },
+      "enable_looping_at": {
+        "default_source": ".35",
+        "default_value": 0.35,
+        "env_var": "ENABLE_LOOPING_AT",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.enable_looping_at",
+          "line": 7,
+          "text": "...ps=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=..."
+        },
+        "field": "enable_looping_at",
+        "line": 7,
+        "source": "enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35))"
+      },
+      "eval_seq_len": {
+        "default_source": "2048",
+        "default_value": 2048,
+        "env_var": "EVAL_SEQ_LEN",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.eval_seq_len",
+          "line": 7,
+          "text": "...lock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(..."
+        },
+        "field": "eval_seq_len",
+        "line": 7,
+        "source": "eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048))"
+      },
+      "eval_stride": {
+        "default_source": "64",
+        "default_value": 64,
+        "env_var": "EVAL_STRIDE",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.eval_stride",
+          "line": 7,
+          "text": "...on.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD'..."
+        },
+        "field": "eval_stride",
+        "line": 7,
+        "source": "eval_stride=int(os.environ.get('EVAL_STRIDE',64))"
+      },
+      "gptq_calibration_batches": {
+        "default_source": "64",
+        "default_value": 64,
+        "env_var": "GPTQ_CALIBRATION_BATCHES",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.gptq_calibration_batches",
+          "line": 7,
+          "text": "..._MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matri..."
+        },
+        "field": "gptq_calibration_batches",
+        "line": 7,
+        "source": "gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64))"
+      },
+      "gptq_reserve_seconds": {
+        "default_source": "12.",
+        "default_value": 12.0,
+        "env_var": "GPTQ_RESERVE_SECONDS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.gptq_reserve_seconds",
+          "line": 7,
+          "text": "...));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.ge..."
+        },
+        "field": "gptq_reserve_seconds",
+        "line": 7,
+        "source": "gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.))"
+      },
+      "grad_accum_steps": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.grad_accum_steps",
+          "line": 7,
+          "text": "...'0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f\"fineweb10B_sp{vocab_size}\");train_files=os.path.join(datasets_dir..."
+        },
+        "field": "grad_accum_steps",
+        "line": 7,
+        "source": "grad_accum_steps=8//world_size"
+      },
+      "grad_clip_norm": {
+        "default_source": ".3",
+        "default_value": 0.3,
+        "env_var": "GRAD_CLIP_NORM",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.grad_clip_norm",
+          "line": 7,
+          "text": "...ta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('M..."
+        },
+        "field": "grad_clip_norm",
+        "line": 7,
+        "source": "grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3))"
+      },
+      "head_lr": {
+        "default_source": ".008",
+        "default_value": 0.008,
+        "env_var": "HEAD_LR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.head_lr",
+          "line": 7,
+          "text": "...viron.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.env..."
+        },
+        "field": "head_lr",
+        "line": 7,
+        "source": "head_lr=float(os.environ.get('HEAD_LR',.008))"
+      },
+      "is_main_process": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.is_main_process",
+          "line": 7,
+          "text": "...t(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f\"fineweb10B_sp{vocab_size}\");train_files=..."
+        },
+        "field": "is_main_process",
+        "line": 7,
+        "source": "is_main_process=rank==0"
+      },
+      "iterations": {
+        "default_source": "20000",
+        "default_value": 20000,
+        "env_var": "ITERATIONS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.iterations",
+          "line": 7,
+          "text": "...ir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.ge..."
+        },
+        "field": "iterations",
+        "line": 7,
+        "source": "iterations=int(os.environ.get('ITERATIONS',20000))"
+      },
+      "ln_scale": {
+        "default_source": "'1'",
+        "default_value": "1",
+        "env_var": "LN_SCALE",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ln_scale",
+          "line": 7,
+          "text": "...OPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('N..."
+        },
+        "field": "ln_scale",
+        "line": 7,
+        "source": "ln_scale=bool(int(os.environ.get('LN_SCALE','1')))"
+      },
+      "local_rank": {
+        "default_source": "'0'",
+        "default_value": "0",
+        "env_var": "LOCAL_RANK",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.local_rank",
+          "line": 7,
+          "text": "...n os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir..."
+        },
+        "field": "local_rank",
+        "line": 7,
+        "source": "local_rank=int(os.environ.get('LOCAL_RANK','0'))"
+      },
+      "logfile": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.logfile",
+          "line": 7,
+          "text": "...ath.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f\"fineweb_{vocab_size}_bpe.model\");logfile=f\"logs/{run_id}.txt\";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz';ppm_enabled=bool(int(os.environ.ge..."
+        },
+        "field": "logfile",
+        "line": 7,
+        "source": "logfile=f\"logs/{run_id}.txt\""
+      },
+      "logit_softcap": {
+        "default_source": "3e1",
+        "default_value": 30.0,
+        "env_var": "LOGIT_SOFTCAP",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.logit_softcap",
+          "line": 7,
+          "text": "...ates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_..."
+        },
+        "field": "logit_softcap",
+        "line": 7,
+        "source": "logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1))"
+      },
+      "loop_end": {
+        "default_source": "5",
+        "default_value": 5,
+        "env_var": "LOOP_END",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.loop_end",
+          "line": 7,
+          "text": "...(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(..."
+        },
+        "field": "loop_end",
+        "line": 7,
+        "source": "loop_end=int(os.environ.get('LOOP_END',5))"
+      },
+      "loop_start": {
+        "default_source": "3",
+        "default_value": 3,
+        "env_var": "LOOP_START",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.loop_start",
+          "line": 7,
+          "text": "...nviron.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_L..."
+        },
+        "field": "loop_start",
+        "line": 7,
+        "source": "loop_start=int(os.environ.get('LOOP_START',3))"
+      },
+      "matrix_bits": {
+        "default_source": "6",
+        "default_value": 6,
+        "env_var": "MATRIX_BITS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.matrix_bits",
+          "line": 7,
+          "text": "...tches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MA..."
+        },
+        "field": "matrix_bits",
+        "line": 7,
+        "source": "matrix_bits=int(os.environ.get('MATRIX_BITS',6))"
+      },
+      "matrix_clip_sigmas": {
+        "default_source": "12.85",
+        "default_value": 12.85,
+        "env_var": "MATRIX_CLIP_SIGMAS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.matrix_clip_sigmas",
+          "line": 7,
+          "text": "...et('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed=..."
+        },
+        "field": "matrix_clip_sigmas",
+        "line": 7,
+        "source": "matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85))"
+      },
+      "matrix_lr": {
+        "default_source": ".022",
+        "default_value": 0.022,
+        "env_var": "MATRIX_LR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.matrix_lr",
+          "line": 7,
+          "text": "...;tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MU..."
+        },
+        "field": "matrix_lr",
+        "line": 7,
+        "source": "matrix_lr=float(os.environ.get('MATRIX_LR',.022))"
+      },
+      "max_wallclock_seconds": {
+        "default_source": "6e2",
+        "default_value": 600.0,
+        "env_var": "MAX_WALLCLOCK_SECONDS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.max_wallclock_seconds",
+          "line": 7,
+          "text": "...NS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len..."
+        },
+        "field": "max_wallclock_seconds",
+        "line": 7,
+        "source": "max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2))"
+      },
+      "min_lr": {
+        "default_source": ".0",
+        "default_value": 0.0,
+        "env_var": "MIN_LR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.min_lr",
+          "line": 7,
+          "text": "...ping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));..."
+        },
+        "field": "min_lr",
+        "line": 7,
+        "source": "min_lr=float(os.environ.get('MIN_LR',.0))"
+      },
+      "mlp_mult": {
+        "default_source": "4.",
+        "default_value": 4.0,
+        "env_var": "MLP_MULT",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.mlp_mult",
+          "line": 7,
+          "text": "...viron.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool..."
+        },
+        "field": "mlp_mult",
+        "line": 7,
+        "source": "mlp_mult=float(os.environ.get('MLP_MULT',4.))"
+      },
+      "model_dim": {
+        "default_source": "512",
+        "default_value": 512,
+        "env_var": "MODEL_DIM",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.model_dim",
+          "line": 7,
+          "text": "...environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NU..."
+        },
+        "field": "model_dim",
+        "line": 7,
+        "source": "model_dim=int(os.environ.get('MODEL_DIM',512))"
+      },
+      "model_path": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.model_path",
+          "line": 7,
+          "text": "...b_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f\"fineweb_{vocab_size}_bpe.model\");logfile=f\"logs/{run_id}.txt\";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz';ppm_enabled=bool(int(os.environ.get('PPM_ENABLED','0')));ppm_order..."
+        },
+        "field": "model_path",
+        "line": 7,
+        "source": "model_path='final_model.pt'"
+      },
+      "mtp_loss_weight": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.mtp_loss_weight",
+          "line": 7,
+          "text": "...=float(os.environ.get('PPM_LAMBDA_LO',0.05));ppm_conf_threshold=float(os.environ.get('PPM_CONF_THRESHOLD',0.9));mtp_num_heads=0;mtp_loss_weight=0"
+        },
+        "field": "mtp_loss_weight",
+        "line": 7,
+        "source": "mtp_loss_weight=0"
+      },
+      "mtp_num_heads": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.mtp_num_heads",
+          "line": 7,
+          "text": "...));ppm_lambda_lo=float(os.environ.get('PPM_LAMBDA_LO',0.05));ppm_conf_threshold=float(os.environ.get('PPM_CONF_THRESHOLD',0.9));mtp_num_heads=0;mtp_loss_weight=0"
+        },
+        "field": "mtp_num_heads",
+        "line": 7,
+        "source": "mtp_num_heads=0"
+      },
+      "muon_backend_steps": {
+        "default_source": "5",
+        "default_value": 5,
+        "env_var": "MUON_BACKEND_STEPS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.muon_backend_steps",
+          "line": 7,
+          "text": "...et('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));..."
+        },
+        "field": "muon_backend_steps",
+        "line": 7,
+        "source": "muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5))"
+      },
+      "muon_beta2": {
+        "default_source": ".95",
+        "default_value": 0.95,
+        "env_var": "MUON_BETA2",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.muon_beta2",
+          "line": 7,
+          "text": "...('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.09..."
+        },
+        "field": "muon_beta2",
+        "line": 7,
+        "source": "muon_beta2=float(os.environ.get('MUON_BETA2',.95))"
+      },
+      "muon_momentum": {
+        "default_source": ".99",
+        "default_value": 0.99,
+        "env_var": "MUON_MOMENTUM",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.muon_momentum",
+          "line": 7,
+          "text": "...'TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_..."
+        },
+        "field": "muon_momentum",
+        "line": 7,
+        "source": "muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99))"
+      },
+      "muon_momentum_warmup_start": {
+        "default_source": ".92",
+        "default_value": 0.92,
+        "env_var": "MUON_MOMENTUM_WARMUP_START",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.muon_momentum_warmup_start",
+          "line": 7,
+          "text": "...',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STE..."
+        },
+        "field": "muon_momentum_warmup_start",
+        "line": 7,
+        "source": "muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92))"
+      },
+      "muon_momentum_warmup_steps": {
+        "default_source": "1500",
+        "default_value": 1500,
+        "env_var": "MUON_MOMENTUM_WARMUP_STEPS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.muon_momentum_warmup_steps",
+          "line": 7,
+          "text": "...=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));b..."
+        },
+        "field": "muon_momentum_warmup_steps",
+        "line": 7,
+        "source": "muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500))"
+      },
+      "muon_row_normalize": {
+        "default_source": "'1'",
+        "default_value": "1",
+        "env_var": "MUON_ROW_NORMALIZE",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.muon_row_normalize",
+          "line": 7,
+          "text": "...nviron.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',..."
+        },
+        "field": "muon_row_normalize",
+        "line": 7,
+        "source": "muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')))"
+      },
+      "muon_wd": {
+        "default_source": ".095",
+        "default_value": 0.095,
+        "env_var": "MUON_WD",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.muon_wd",
+          "line": 7,
+          "text": "....environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY..."
+        },
+        "field": "muon_wd",
+        "line": 7,
+        "source": "muon_wd=float(os.environ.get('MUON_WD',.095))"
+      },
+      "num_heads": {
+        "default_source": "8",
+        "default_value": 8,
+        "env_var": "NUM_HEADS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.num_heads",
+          "line": 7,
+          "text": "...get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SK..."
+        },
+        "field": "num_heads",
+        "line": 7,
+        "source": "num_heads=int(os.environ.get('NUM_HEADS',8))"
+      },
+      "num_kv_heads": {
+        "default_source": "4",
+        "default_value": 4,
+        "env_var": "NUM_KV_HEADS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.num_kv_heads",
+          "line": 7,
+          "text": "...ron.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.)..."
+        },
+        "field": "num_kv_heads",
+        "line": 7,
+        "source": "num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4))"
+      },
+      "num_layers": {
+        "default_source": "11",
+        "default_value": 11,
+        "env_var": "NUM_LAYERS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.num_layers",
+          "line": 7,
+          "text": "...liding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',5..."
+        },
+        "field": "num_layers",
+        "line": 7,
+        "source": "num_layers=int(os.environ.get('NUM_LAYERS',11))"
+      },
+      "num_loops": {
+        "default_source": "2",
+        "default_value": 2,
+        "env_var": "NUM_LOOPS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.num_loops",
+          "line": 7,
+          "text": "..._TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));en..."
+        },
+        "field": "num_loops",
+        "line": 7,
+        "source": "num_loops=int(os.environ.get('NUM_LOOPS',2))"
+      },
+      "parallel_residual_start": {
+        "default_source": "7",
+        "default_value": 7,
+        "env_var": "PARALLEL_RESIDUAL_START",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.parallel_residual_start",
+          "line": 7,
+          "text": "...et('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED..."
+        },
+        "field": "parallel_residual_start",
+        "line": 7,
+        "source": "parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7))"
+      },
+      "ppm_conf_threshold": {
+        "default_source": "0.9",
+        "default_value": 0.9,
+        "env_var": "PPM_CONF_THRESHOLD",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ppm_conf_threshold",
+          "line": 7,
+          "text": "...,8_000_000));ppm_lambda_hi=float(os.environ.get('PPM_LAMBDA_HI',0.9));ppm_lambda_lo=float(os.environ.get('PPM_LAMBDA_LO',0.05));ppm_conf_threshold=float(os.environ.get('PPM_CONF_THRESHOLD',0.9));mtp_num_heads=0;mtp_loss_weight=0"
+        },
+        "field": "ppm_conf_threshold",
+        "line": 7,
+        "source": "ppm_conf_threshold=float(os.environ.get('PPM_CONF_THRESHOLD',0.9))"
+      },
+      "ppm_enabled": {
+        "default_source": "'0'",
+        "default_value": "0",
+        "env_var": "PPM_ENABLED",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ppm_enabled",
+          "line": 7,
+          "text": "...b_{vocab_size}_bpe.model\");logfile=f\"logs/{run_id}.txt\";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz';ppm_enabled=bool(int(os.environ.get('PPM_ENABLED','0')));ppm_order=int(os.environ.get('PPM_ORDER',5));ppm_subset_tokens=int(os.environ.get(..."
+        },
+        "field": "ppm_enabled",
+        "line": 7,
+        "source": "ppm_enabled=bool(int(os.environ.get('PPM_ENABLED','0')))"
+      },
+      "ppm_lambda_hi": {
+        "default_source": "0.9",
+        "default_value": 0.9,
+        "env_var": "PPM_LAMBDA_HI",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ppm_lambda_hi",
+          "line": 7,
+          "text": "...ABLED','0')));ppm_order=int(os.environ.get('PPM_ORDER',5));ppm_subset_tokens=int(os.environ.get('PPM_SUBSET_TOKENS',8_000_000));ppm_lambda_hi=float(os.environ.get('PPM_LAMBDA_HI',0.9));ppm_lambda_lo=float(os.environ.get('PPM_LAMBDA_LO',0.05));ppm_conf_threshold=float(o..."
+        },
+        "field": "ppm_lambda_hi",
+        "line": 7,
+        "source": "ppm_lambda_hi=float(os.environ.get('PPM_LAMBDA_HI',0.9))"
+      },
+      "ppm_lambda_lo": {
+        "default_source": "0.05",
+        "default_value": 0.05,
+        "env_var": "PPM_LAMBDA_LO",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ppm_lambda_lo",
+          "line": 7,
+          "text": "...);ppm_subset_tokens=int(os.environ.get('PPM_SUBSET_TOKENS',8_000_000));ppm_lambda_hi=float(os.environ.get('PPM_LAMBDA_HI',0.9));ppm_lambda_lo=float(os.environ.get('PPM_LAMBDA_LO',0.05));ppm_conf_threshold=float(os.environ.get('PPM_CONF_THRESHOLD',0.9));mtp_num_heads=0;..."
+        },
+        "field": "ppm_lambda_lo",
+        "line": 7,
+        "source": "ppm_lambda_lo=float(os.environ.get('PPM_LAMBDA_LO',0.05))"
+      },
+      "ppm_order": {
+        "default_source": "5",
+        "default_value": 5,
+        "env_var": "PPM_ORDER",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ppm_order",
+          "line": 7,
+          "text": "...odel_path='final_model.pt';quantized_model_path='final_model.int6.ptz';ppm_enabled=bool(int(os.environ.get('PPM_ENABLED','0')));ppm_order=int(os.environ.get('PPM_ORDER',5));ppm_subset_tokens=int(os.environ.get('PPM_SUBSET_TOKENS',8_000_000));ppm_lambda_hi=float(os...."
+        },
+        "field": "ppm_order",
+        "line": 7,
+        "source": "ppm_order=int(os.environ.get('PPM_ORDER',5))"
+      },
+      "ppm_subset_tokens": {
+        "default_source": "8_000_000",
+        "default_value": 8000000,
+        "env_var": "PPM_SUBSET_TOKENS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ppm_subset_tokens",
+          "line": 7,
+          "text": "...th='final_model.int6.ptz';ppm_enabled=bool(int(os.environ.get('PPM_ENABLED','0')));ppm_order=int(os.environ.get('PPM_ORDER',5));ppm_subset_tokens=int(os.environ.get('PPM_SUBSET_TOKENS',8_000_000));ppm_lambda_hi=float(os.environ.get('PPM_LAMBDA_HI',0.9));ppm_lambda_lo=float..."
+        },
+        "field": "ppm_subset_tokens",
+        "line": 7,
+        "source": "ppm_subset_tokens=int(os.environ.get('PPM_SUBSET_TOKENS',8_000_000))"
+      },
+      "qk_gain_init": {
+        "default_source": "5.",
+        "default_value": 5.0,
+        "env_var": "QK_GAIN_INIT",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.qk_gain_init",
+          "line": 7,
+          "text": "...DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START..."
+        },
+        "field": "qk_gain_init",
+        "line": 7,
+        "source": "qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.))"
+      },
+      "quantized_model_path": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.quantized_model_path",
+          "line": 7,
+          "text": "...=os.path.join(data_dir,'tokenizers',f\"fineweb_{vocab_size}_bpe.model\");logfile=f\"logs/{run_id}.txt\";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz';ppm_enabled=bool(int(os.environ.get('PPM_ENABLED','0')));ppm_order=int(os.environ.get('PPM_ORDER',5));pp..."
+        },
+        "field": "quantized_model_path",
+        "line": 7,
+        "source": "quantized_model_path='final_model.int6.ptz'"
+      },
+      "rank": {
+        "default_source": "'0'",
+        "default_value": "0",
+        "env_var": "RANK",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.rank",
+          "line": 7,
+          "text": "...);embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'..."
+        },
+        "field": "rank",
+        "line": 7,
+        "source": "rank=int(os.environ.get('RANK','0'))"
+      },
+      "rope_base": {
+        "default_source": "1e4",
+        "default_value": 10000.0,
+        "env_var": "ROPE_BASE",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.rope_base",
+          "line": 7,
+          "text": "...,'1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROP..."
+        },
+        "field": "rope_base",
+        "line": 7,
+        "source": "rope_base=float(os.environ.get('ROPE_BASE',1e4))"
+      },
+      "rope_dims": {
+        "default_source": "16",
+        "default_value": 16,
+        "env_var": "ROPE_DIMS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.rope_dims",
+          "line": 7,
+          "text": "...IE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.envi..."
+        },
+        "field": "rope_dims",
+        "line": 7,
+        "source": "rope_dims=int(os.environ.get('ROPE_DIMS',16))"
+      },
+      "rope_train_seq_len": {
+        "default_source": "2048",
+        "default_value": 2048,
+        "env_var": "ROPE_TRAIN_SEQ_LEN",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.rope_train_seq_len",
+          "line": 7,
+          "text": "...nviron.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ..."
+        },
+        "field": "rope_train_seq_len",
+        "line": 7,
+        "source": "rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048))"
+      },
+      "run_id": {
+        "default_source": "str(uuid.uuid4())",
+        "default_value": "str(uuid.uuid4())",
+        "env_var": "RUN_ID",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.run_id",
+          "line": 7,
+          "text": "class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.ge..."
+        },
+        "field": "run_id",
+        "line": 7,
+        "source": "run_id=os.environ.get('RUN_ID',str(uuid.uuid4()))"
+      },
+      "scalar_lr": {
+        "default_source": ".02",
+        "default_value": 0.02,
+        "env_var": "SCALAR_LR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.scalar_lr",
+          "line": 7,
+          "text": "...',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.envir..."
+        },
+        "field": "scalar_lr",
+        "line": 7,
+        "source": "scalar_lr=float(os.environ.get('SCALAR_LR',.02))"
+      },
+      "seed": {
+        "default_source": "1337",
+        "default_value": 1337,
+        "env_var": "SEED",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.seed",
+          "line": 7,
+          "text": "class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',2..."
+        },
+        "field": "seed",
+        "line": 7,
+        "source": "seed=int(os.environ.get('SEED',1337))"
+      },
+      "skip_gates_enabled": {
+        "default_source": "'1'",
+        "default_value": "1",
+        "env_var": "SKIP_GATES_ENABLED",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.skip_gates_enabled",
+          "line": 7,
+          "text": "...nt(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softca..."
+        },
+        "field": "skip_gates_enabled",
+        "line": 7,
+        "source": "skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')))"
+      },
+      "sliding_window_enabled": {
+        "default_source": "'1'",
+        "default_value": "1",
+        "env_var": "SLIDING_WINDOW_ENABLED",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.sliding_window_enabled",
+          "line": 7,
+          "text": "...OKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.env..."
+        },
+        "field": "sliding_window_enabled",
+        "line": 7,
+        "source": "sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')))"
+      },
+      "tie_embeddings": {
+        "default_source": "'1'",
+        "default_value": "1",
+        "env_var": "TIE_EMBEDDINGS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.tie_embeddings",
+          "line": 7,
+          "text": "...HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.env..."
+        },
+        "field": "tie_embeddings",
+        "line": 7,
+        "source": "tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')))"
+      },
+      "tied_embed_init_std": {
+        "default_source": ".005",
+        "default_value": 0.005,
+        "env_var": "TIED_EMBED_INIT_STD",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.tied_embed_init_std",
+          "line": 7,
+          "text": "...iron.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ...."
+        },
+        "field": "tied_embed_init_std",
+        "line": 7,
+        "source": "tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005))"
+      },
+      "tied_embed_lr": {
+        "default_source": ".03",
+        "default_value": 0.03,
+        "env_var": "TIED_EMBED_LR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.tied_embed_lr",
+          "line": 7,
+          "text": "...=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=floa..."
+        },
+        "field": "tied_embed_lr",
+        "line": 7,
+        "source": "tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03))"
+      },
+      "tokenizer_path": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.tokenizer_path",
+          "line": 7,
+          "text": "...b_size}\");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f\"fineweb_{vocab_size}_bpe.model\");logfile=f\"logs/{run_id}.txt\";model_path='final_model.pt';..."
+        },
+        "field": "tokenizer_path",
+        "line": 7,
+        "source": "tokenizer_path=os.path.join(data_dir,'tokenizers',f\"fineweb_{vocab_size}_bpe.model\")"
+      },
+      "train_batch_tokens": {
+        "default_source": "786432",
+        "default_value": 786432,
+        "env_var": "TRAIN_BATCH_TOKENS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.train_batch_tokens",
+          "line": 7,
+          "text": "...TERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os..."
+        },
+        "field": "train_batch_tokens",
+        "line": 7,
+        "source": "train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432))"
+      },
+      "train_files": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.train_files",
+          "line": 7,
+          "text": "...main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f\"fineweb10B_sp{vocab_size}\");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.pat..."
+        },
+        "field": "train_files",
+        "line": 7,
+        "source": "train_files=os.path.join(datasets_dir,'fineweb_train_*.bin')"
+      },
+      "train_log_every": {
+        "default_source": "500",
+        "default_value": 500,
+        "env_var": "TRAIN_LOG_EVERY",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.train_log_every",
+          "line": 7,
+          "text": "...0));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_t..."
+        },
+        "field": "train_log_every",
+        "line": 7,
+        "source": "train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500))"
+      },
+      "train_seq_len": {
+        "default_source": "2048",
+        "default_value": 2048,
+        "env_var": "TRAIN_SEQ_LEN",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.train_seq_len",
+          "line": 7,
+          "text": "...',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=floa..."
+        },
+        "field": "train_seq_len",
+        "line": 7,
+        "source": "train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048))"
+      },
+      "ttt_chunk_tokens": {
+        "default_source": "32768",
+        "default_value": 32768,
+        "env_var": "TTT_CHUNK_TOKENS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ttt_chunk_tokens",
+          "line": 7,
+          "text": "...nviron.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os...."
+        },
+        "field": "ttt_chunk_tokens",
+        "line": 7,
+        "source": "ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768))"
+      },
+      "ttt_enabled": {
+        "default_source": "'0'",
+        "default_value": "0",
+        "env_var": "TTT_ENABLED",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ttt_enabled",
+          "line": 7,
+          "text": "...environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPO..."
+        },
+        "field": "ttt_enabled",
+        "line": 7,
+        "source": "ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')))"
+      },
+      "ttt_epochs": {
+        "default_source": "3",
+        "default_value": 3,
+        "env_var": "TTT_EPOCHS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ttt_epochs",
+          "line": 7,
+          "text": "...on.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('..."
+        },
+        "field": "ttt_epochs",
+        "line": 7,
+        "source": "ttt_epochs=int(os.environ.get('TTT_EPOCHS',3))"
+      },
+      "ttt_lr": {
+        "default_source": ".005",
+        "default_value": 0.005,
+        "env_var": "TTT_LR",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ttt_lr",
+          "line": 7,
+          "text": "...t('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOME..."
+        },
+        "field": "ttt_lr",
+        "line": 7,
+        "source": "ttt_lr=float(os.environ.get('TTT_LR',.005))"
+      },
+      "ttt_momentum": {
+        "default_source": ".9",
+        "default_value": 0.9,
+        "env_var": "TTT_MOMENTUM",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ttt_momentum",
+          "line": 7,
+          "text": "...(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));compressor=os.environ.g..."
+        },
+        "field": "ttt_momentum",
+        "line": 7,
+        "source": "ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9))"
+      },
+      "val_batch_tokens": {
+        "default_source": "524288",
+        "default_value": 524288,
+        "env_var": "VAL_BATCH_TOKENS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.val_batch_tokens",
+          "line": 7,
+          "text": "...n_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.envi..."
+        },
+        "field": "val_batch_tokens",
+        "line": 7,
+        "source": "val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288))"
+      },
+      "val_files": {
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.val_files",
+          "line": 7,
+          "text": "...dir=os.path.join(data_dir,'datasets',f\"fineweb10B_sp{vocab_size}\");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f\"fineweb_{vocab_size}_bpe.mod..."
+        },
+        "field": "val_files",
+        "line": 7,
+        "source": "val_files=os.path.join(datasets_dir,'fineweb_val_*.bin')"
+      },
+      "val_loss_every": {
+        "default_source": "4000",
+        "default_value": 4000,
+        "env_var": "VAL_LOSS_EVERY",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.val_loss_every",
+          "line": 7,
+          "text": "...DS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab..."
+        },
+        "field": "val_loss_every",
+        "line": 7,
+        "source": "val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000))"
+      },
+      "vocab_size": {
+        "default_source": "8192",
+        "default_value": 8192,
+        "env_var": "VOCAB_SIZE",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.vocab_size",
+          "line": 7,
+          "text": "...every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_..."
+        },
+        "field": "vocab_size",
+        "line": 7,
+        "source": "vocab_size=int(os.environ.get('VOCAB_SIZE',8192))"
+      },
+      "warmdown_frac": {
+        "default_source": ".72",
+        "default_value": 0.72,
+        "env_var": "WARMDOWN_FRAC",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.warmdown_frac",
+          "line": 7,
+          "text": "....environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.enviro..."
+        },
+        "field": "warmdown_frac",
+        "line": 7,
+        "source": "warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72))"
+      },
+      "warmup_steps": {
+        "default_source": "20",
+        "default_value": 20,
+        "env_var": "WARMUP_STEPS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.warmup_steps",
+          "line": 7,
+          "text": "...,str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os..."
+        },
+        "field": "warmup_steps",
+        "line": 7,
+        "source": "warmup_steps=int(os.environ.get('WARMUP_STEPS',20))"
+      },
+      "world_size": {
+        "default_source": "'1'",
+        "default_value": "1",
+        "env_var": "WORLD_SIZE",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.world_size",
+          "line": 7,
+          "text": "...get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps..."
+        },
+        "field": "world_size",
+        "line": 7,
+        "source": "world_size=int(os.environ.get('WORLD_SIZE','1'))"
+      },
+      "xsa_last_n": {
+        "default_source": "11",
+        "default_value": 11,
+        "env_var": "XSA_LAST_N",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.xsa_last_n",
+          "line": 7,
+          "text": "...LIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING..."
+        },
+        "field": "xsa_last_n",
+        "line": 7,
+        "source": "xsa_last_n=int(os.environ.get('XSA_LAST_N',11))"
+      }
+    },
+    "ppm_subset_selection": {
+      "evidence": [
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ppm_subset_tokens",
+          "line": 7,
+          "text": "...th='final_model.int6.ptz';ppm_enabled=bool(int(os.environ.get('PPM_ENABLED','0')));ppm_order=int(os.environ.get('PPM_ORDER',5));ppm_subset_tokens=int(os.environ.get('PPM_SUBSET_TOKENS',8_000_000));ppm_lambda_hi=float(os.environ.get('PPM_LAMBDA_HI',0.9));ppm_lambda_lo=float..."
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "eval_val_ttt.ppm_subset_cap",
+          "line": 600,
+          "text": "wmask=(ppm_written>0).cpu().numpy();subset_cap=min(h.ppm_subset_tokens,ppm_cap);sel=np.flatnonzero(wmask[:subset_cap])"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "eval_val_ttt.ppm_subset_selection",
+          "line": 600,
+          "text": "wmask=(ppm_written>0).cpu().numpy();subset_cap=min(h.ppm_subset_tokens,ppm_cap);sel=np.flatnonzero(wmask[:subset_cap])"
+        }
+      ],
+      "hparam_default": 8000000,
+      "hparam_source": {
+        "default_source": "8_000_000",
+        "default_value": 8000000,
+        "env_var": "PPM_SUBSET_TOKENS",
+        "evidence": {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "Hyperparameters.ppm_subset_tokens",
+          "line": 7,
+          "text": "...th='final_model.int6.ptz';ppm_enabled=bool(int(os.environ.get('PPM_ENABLED','0')));ppm_order=int(os.environ.get('PPM_ORDER',5));ppm_subset_tokens=int(os.environ.get('PPM_SUBSET_TOKENS',8_000_000));ppm_lambda_hi=float(os.environ.get('PPM_LAMBDA_HI',0.9));ppm_lambda_lo=float..."
+        },
+        "field": "ppm_subset_tokens",
+        "line": 7,
+        "source": "ppm_subset_tokens=int(os.environ.get('PPM_SUBSET_TOKENS',8_000_000))"
+      },
+      "log_ppm_time_tokens": 8000000,
+      "passed": true,
+      "probes": {
+        "hparam_present": true,
+        "log_reports_ppm_time_tokens": true,
+        "selection_uses_wmask_prefix_to_subset_cap": true,
+        "subset_cap_min_hparam_ppm_cap": true
+      },
+      "status": "PASS",
+      "subset_cap_detected": true,
+      "summary": "PPM-D scoring is statically capped by h.ppm_subset_tokens and the log reports the selected-token count."
+    },
+    "target_functions": {
+      "_loss_bpb": {
+        "end_line": 495,
+        "present": true,
+        "start_line": 495
+      },
+      "_ppm_mixture_bpb": {
+        "end_line": 555,
+        "present": true,
+        "start_line": 518
+      },
+      "eval_val_ttt": {
+        "end_line": 606,
+        "present": true,
+        "start_line": 556
+      },
+      "timed_eval": {
+        "end_line": 607,
+        "present": true,
+        "start_line": 607
+      },
+      "train_and_eval": {
+        "end_line": 682,
+        "present": true,
+        "start_line": 672
+      }
+    },
+    "timed_eval_wraps_eval_val_ttt": {
+      "evidence": [
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "train_and_eval.definition",
+          "line": 672,
+          "text": "def train_and_eval(h,device):"
+        },
+        {
+          "file": "results/exp_1876_ppmd/train_gpt_merged.py",
+          "label": "train_and_eval.timed_eval_quantized_ttt",
+          "line": 682,
+          "text": "timed_eval('quantized_ttt',eval_val_ttt,h,device,val_data,ttt_model);del ttt_model"
+        }
+      ],
+      "passed": true,
+      "status": "PASS",
+      "summary": "train_and_eval wraps eval_val_ttt in timed_eval for the quantized_ttt metric.",
+      "wrapped": true
+    }
+  }
+}

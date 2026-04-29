@@ -1,0 +1,8 @@
+-rw-r--r-- 1 root root  15975706 Apr 28 07:54 final_model.int6.ptz
+-rw-r--r-- 1 root root 135431033 Apr 28 07:53 final_model.pt
+
+logs/:
+total 16
+drwxr-xr-x 2 root root   62 Apr 28 07:40 .
+drwxr-xr-x 5 root root 4096 Apr 28 07:54 ..
+-rw-r--r-- 1 root root 9585 Apr 28 08:05 0fc4c5e3-9811-4eec-98b7-88403e225a2c.txt
