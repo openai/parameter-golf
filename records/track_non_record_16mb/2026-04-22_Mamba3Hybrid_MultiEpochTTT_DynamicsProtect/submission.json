@@ -1,0 +1,11 @@
+{
+  "author": "mradassaad",
+  "github_id": "mradassaad",
+  "name": "Mamba-3 Hybrid SSM + SP8192 + Multi-Epoch TTT + Dynamics-Protected Quant",
+  "blurb": "Same 7L Mamba-3 SISO hybrid as PR #1644 with three additions: (1) TTT_EPOCHS=2 (multi-epoch chunk TTT recovers most quant damage), (2) mixed-precision quant protecting dd_A + dd_dt rows of in_proj at INT8, (3) scale-floor bug fix in mixed-precision pipeline. 3-seed mean post-quant+TTT 1.1456 bpb (std 0.0011).",
+  "date": "2026-04-22",
+  "val_loss": 2.95477626,
+  "val_bpb": 1.14408575,
+  "bytes_total": 15930191,
+  "bytes_code": 116783
+}
