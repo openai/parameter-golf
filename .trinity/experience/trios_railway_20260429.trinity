@@ -31,3 +31,4 @@ AGENT=GENERAL|SOUL=RailRangerOne|ISSUE=#81|PHI_STEP=EXPERIENCE|TASK=Tick #18 R5-
 - commits: d0825f0 (zgf PR #30 CI fix), e802e6f (cpp/build purge by co-agent)
 - issues: zgf#28 (setup-zig typo), zgf#30 (this PR)
 - phi_step: φ² + φ⁻² = 3
+RAIL=fleet-auth-fix @ project=4acc sha=3a8ffda ts=2026-04-29T17:49:39Z kind=project-token-header-fix services=48

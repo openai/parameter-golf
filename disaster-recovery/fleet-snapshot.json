@@ -1,13 +1,80 @@
 {
   "anchor": "phi^2 + phi^-2 = 3",
-  "generated_at": "2026-04-29T17:49:39Z",
+  "generated_at": "2026-04-29T17:43:24Z",
   "generator": "tri-railway snapshot fleet",
   "version": "1.0.0",
   "accounts": [
     {
+      "alias": "acc0",
+      "project_label": "kaglerslomaansc",
+      "email": null,
+      "token_secret": "RAILWAY_TOKEN_ACC0",
+      "project_id": "da1fb0c7-199f-42b0-9f08-a84d122feb5b",
+      "project_name": "woody",
+      "environments": [],
+      "services": [
+        {
+          "createdAt": "2026-04-28T19:51:27.955Z",
+          "id": "10fa979c-5356-4071-af23-f4059e5c6dd4",
+          "name": "trios-train-seed-42-gfternary-bulk-quantization"
+        },
+        {
+          "createdAt": "2026-04-28T14:13:25.270Z",
+          "id": "2b674f13-1482-4394-b71a-f50f5c4b01d8",
+          "name": "igla-gf-seed10005"
+        },
+        {
+          "createdAt": "2026-04-29T06:58:22.677Z",
+          "id": "41d169fe-f804-41aa-a7a6-521bbeeef64c",
+          "name": "woody-weed-bot"
+        },
+        {
+          "createdAt": "2026-04-28T19:52:03.717Z",
+          "id": "52d21b16-1b2c-430d-aa5d-39d091f3b683",
+          "name": "trios-train-seed-42-gf16-production-baseline"
+        },
+        {
+          "createdAt": "2026-04-28T14:45:09.726Z",
+          "id": "5c6feec3-c371-456d-882d-5a81358763ed",
+          "name": "igla-gf-seed10001-v2"
+        },
+        {
+          "createdAt": "2026-04-28T19:51:28.689Z",
+          "id": "65c95586-635b-401b-bfda-58f1737a8a84",
+          "name": "trios-train-seed-42-gf32-fp32-dropin-test"
+        },
+        {
+          "createdAt": "2026-04-28T14:12:25.590Z",
+          "id": "6b834e57-fdc2-465b-9ea5-cb7ac56a69ce",
+          "name": "igla-gf-seed10001"
+        },
+        {
+          "createdAt": "2026-04-12T09:11:49.752Z",
+          "id": "6f19cada-fcc3-4151-9c9f-7ca4cc6c83fa",
+          "name": "woody-woodpecker-tma"
+        },
+        {
+          "createdAt": "2026-04-28T14:13:30.028Z",
+          "id": "7a24f811-8a7c-4fb9-8dac-ff4cc738bf70",
+          "name": "igla-gf-seed10009"
+        },
+        {
+          "createdAt": "2026-04-28T19:51:27.737Z",
+          "id": "b1d51dd6-1e24-4891-be35-84fb259d2b8f",
+          "name": "trios-train-seed-42-gf64-double-precision-test"
+        },
+        {
+          "createdAt": "2026-04-28T19:51:27.741Z",
+          "id": "fcd0a544-bd45-4d20-a439-a98e142d3876",
+          "name": "trios-train-seed-42-gf8-ultra-low-power-test"
+        }
+      ],
+      "service_count": 11
+    },
+    {
       "alias": "acc1",
-      "project_label": "IGLA",
-      "email": "rumbodzalaclhdv0@hotmail.com",
+      "project_label": "rumbodzalaclhdv0",
+      "email": null,
       "token_secret": "RAILWAY_TOKEN_ACC1",
       "project_id": "e4fe33bb-3b09-4842-9782-7d2dea1abc9b",
       "project_name": "IGLA",
@@ -127,77 +194,9 @@
       "service_count": 22
     },
     {
-      "alias": "acc1",
-      "project_label": "artistic-beauty",
-      "email": "rumbodzalaclhdv0@hotmail.com",
-      "token_secret": "RAILWAY_TOKEN_ACC1",
-      "project_id": null,
-      "project_name": null,
-      "environments": [],
-      "services": [],
-      "service_count": 0
-    },
-    {
       "alias": "acc2",
-      "project_label": "thriving-eagerness (IGLA-MIRROR-2)",
-      "email": "brabbtjubindt5cug@hotmail.com",
-      "token_secret": "RAILWAY_TOKEN_ACC2",
-      "project_id": "39d833c1-4cb6-4af9-b61b-c204b6733a98",
-      "project_name": "thriving-eagerness",
-      "environments": [],
-      "services": [
-        {
-          "createdAt": "2026-04-22T12:55:53.385Z",
-          "id": "3a0bd62a-e36b-43a7-a1e5-0fc7349f28f1",
-          "name": "guacamole-railway"
-        },
-        {
-          "createdAt": "2026-04-27T19:41:42.693Z",
-          "id": "5e2785ff-037d-43f1-91c5-c739c2535ad3",
-          "name": "trios-train-seed-251-L4lite-h768"
-        },
-        {
-          "createdAt": "2026-04-27T14:34:23.001Z",
-          "id": "63a8a01d-59db-47ea-bb1b-f4f2c450865b",
-          "name": "iglaB-seed-43"
-        },
-        {
-          "createdAt": "2026-04-22T12:55:53.698Z",
-          "id": "916e3de8-88f2-4134-80ce-1da3a2d3af73",
-          "name": "Postgres"
-        },
-        {
-          "createdAt": "2026-04-22T12:55:53.353Z",
-          "id": "98092958-c0da-406d-96df-d2c25f98e13d",
-          "name": "guacd"
-        },
-        {
-          "createdAt": "2026-04-27T19:42:10.075Z",
-          "id": "9c7f2026-b032-4f8b-9ab8-2e04835e9985",
-          "name": "trios-train-seed-252-L4lite-h768"
-        },
-        {
-          "createdAt": "2026-04-27T14:34:06.840Z",
-          "id": "c6675e56-64c6-4629-bf65-c4da77cda6e0",
-          "name": "iglaB-seed-42"
-        },
-        {
-          "createdAt": "2026-04-27T19:41:06.916Z",
-          "id": "f1c6afd6-f1a1-42ed-89da-25a01de85834",
-          "name": "trios-train-seed-250-L4lite-h768"
-        },
-        {
-          "createdAt": "2026-04-27T14:34:43.989Z",
-          "id": "f95cedf4-a4ef-4616-b561-82e017b31a99",
-          "name": "iglaB-seed-44"
-        }
-      ],
-      "service_count": 9
-    },
-    {
-      "alias": "acc2",
-      "project_label": "reasonable-perception",
-      "email": "brabbtjubindt5cug@hotmail.com",
+      "project_label": "brabbtjubindt5cug",
+      "email": null,
       "token_secret": "RAILWAY_TOKEN_ACC2",
       "project_id": "12c508c7-1196-468d-b06d-d8de8cb77e93",
       "project_name": "reasonable-perception",
@@ -225,11 +224,78 @@
         }
       ],
       "service_count": 4
+    },
+    {
+      "alias": "acc3",
+      "project_label": "gondiigamzevup",
+      "email": null,
+      "token_secret": "RAILWAY_TOKEN_ACC3",
+      "project_id": "8ab06401-aa28-4af7-9faf-39a1548b7008",
+      "project_name": "angelic-embrace",
+      "environments": [],
+      "services": [
+        {
+          "createdAt": "2026-04-28T14:11:06.562Z",
+          "id": "0bce8293-afe8-47d5-94ae-20374f8d58b4",
+          "name": "igla-gf-seed10001"
+        },
+        {
+          "createdAt": "2026-04-28T07:58:44.095Z",
+          "id": "3042c5d1-6a87-42a3-b078-379b90ee89e8",
+          "name": "trios-railway"
+        },
+        {
+          "createdAt": "2026-04-28T19:15:50.384Z",
+          "id": "4298bb84-12c9-4db7-87cd-e4b9d00f8995",
+          "name": "trios-train-seed-43-e2-quorum-seed43"
+        },
+        {
+          "createdAt": "2026-04-28T19:16:55.334Z",
+          "id": "49c2809e-c4c8-46fe-83a5-ee4ebe98e05c",
+          "name": "trios-train-seed-42-e4-capacity-push-h1536"
+        },
+        {
+          "createdAt": "2026-04-28T19:15:49.502Z",
+          "id": "78c220c9-4574-4588-96c3-ab51cd290e12",
+          "name": "trios-train-seed-42-e1-champion-reproduce"
+        },
+        {
+          "createdAt": "2026-04-28T14:13:40.930Z",
+          "id": "c2ed3a9f-e06e-40f3-b5b0-4b445d9fa22a",
+          "name": "igla-gf-seed10008"
+        },
+        {
+          "createdAt": "2026-04-28T14:13:35.790Z",
+          "id": "c768f520-b67c-40d6-9c43-486a679def56",
+          "name": "igla-gf-seed10004"
+        },
+        {
+          "createdAt": "2026-04-28T19:15:50.108Z",
+          "id": "cb47a5fb-bbcb-4789-9881-e361b11135d4",
+          "name": "trios-train-seed-42-e6-hybrid-001-test"
+        },
+        {
+          "createdAt": "2026-04-28T19:16:58.448Z",
+          "id": "e864e380-e63d-4513-abc9-e0538fcc1da9",
+          "name": "trios-train-seed-42-e5-gf16-storage-test"
+        },
+        {
+          "createdAt": "2026-04-28T19:15:49.755Z",
+          "id": "f1e2e1b8-ba39-4794-aa96-3cc84dbd9801",
+          "name": "trios-train-seed-44-e3-quorum-seed44"
+        },
+        {
+          "createdAt": "2026-04-28T19:17:01.067Z",
+          "id": "fb85dca3-2868-49d3-8b61-0bfbb0e514a1",
+          "name": "trios-train-seed-42-e7-lr-phi-optimal"
+        }
+      ],
+      "service_count": 11
     }
   ],
   "totals": {
-    "accounts": 2,
+    "accounts": 4,
     "projects": 4,
-    "services": 35
+    "services": 48
   }
 }
