@@ -1,153 +1,86 @@
-## Parameter Golf: S9 + SmearGate + Sparse Attention Gate + LQER
+## S0/PR1851 + Cap Tokenizer + LQER + Global TTT (val_bpb = 1.0713)
 
-**Submitted result: quant+TTT val_bpb = 1.0705, artifact = 15.92 MB** (single seed, 8xH100 SXM).
-Built on PR #1867. Current merged SOTA (PR #1493): 1.0810 BPB. Delta: **-0.0105 BPP**.
+A joint effort by **Billy Li** and **Tim Shen**, with thanks to **Xingyuan Ding** for additional experiments and **Bill (Yiyuan) Li** for meaningful discussions on tokenizers.
 
----
+I started looking at this challenge around 4/20. The merged leaderboard hadn't changed much by then, but the volume of PRs and improvements was absolutely overwhelming. I cleaned up my thoughts and followed a systematic procedure — tackling the problem piece by piece: **data → tokenization → model architecture → optimizer → quantization → test-time compute**.
 
-### Starting Point: Community Baselines
-
-The starting point was `train_gpt_0427.py`, a minified single-file GPT implementation inheriting the community's standard architecture:
-
-- 11L x 512d, 8 heads / 4 KV heads, MLP 4x with LeakyReLU(0.5)^2 activation
-- Tied embeddings (vocab 8192), logit softcap = 30.0, partial RoPE (16/64 dims)
-- Layer looping (layers 3-5, 2 loops), parallel residuals from layer 7+, skip gates (U-Net connections)
-- Muon optimizer (Newton-Schulz orthogonalization, 5 backend steps) for matrix params, AdamW for embeddings/scalars
-- GPTQ int6 quantization + sliding-window eval + optional TTT
-- EMA decay 0.9965, wallclock cap 600s
-
-Key HPs from 0427: `matrix_lr=0.022`, `muon_wd=0.095`, `qk_gain_init=5.0`, `warmdown_frac=0.72`, `muon_momentum=0.99`.
+A more detailed write-up is at: https://www.junchengbillyli.com/llm-notes.html
 
 ---
 
-### Stage 1: 0427 Baseline Results (Apr 26-27)
+### Results
 
-Three seeds on 1-GPU runs:
+**Best result: quant+TTT val_bpb = 1.0713, artifact ≈ 16.09 MB** (seed 1337, 8xH100 SXM, 10min wallclock).
 
-| Variant | Seeds | Post-EMA BPB | Quant+SW BPB | Artifact |
-|---------|-------|-------------|--------------|----------|
-| 0427 baseline | 1337/1338/1339 | ~1.089 | **1.0831** | 16.44 MB |
-| 0409 + TTT | 42/999 | ~1.085 | **1.0782** (quant+TTT) | 15.99 MB |
+| Seed | Steps | EMA BPB | Quant BPB | Quant+TTT BPB | Artifact |
+|------|-------|---------|-----------|---------------|----------|
+| 1337 | 4733 | 1.0746 | 1.0832 | **1.0713** | 16.09 MB |
+| 42 | 4741 | 1.0752 | 1.0834 | **1.0718** | 16.09 MB |
+| 999 | 4775 | 1.0740 | 1.0845 | *(running)* | 16.09 MB |
 
-The 0409 baseline with TTT established that test-time training provides approximately -0.005 BPB improvement over sliding-window eval alone.
-
----
-
-### Stage 2: S9 Stack -- Bank-Mode + Polar-Express Muon (Apr 27)
-
-`train_gpt_s9.py` was a clean rewrite with several key changes:
-
-**Architecture changes:**
-- Flash-attn backend with graceful fallback chain: flash_attn_3 (Hopper) -> flash_attn_2 -> PyTorch SDPA
-- `flash_attn_varlen` document packing support (avoids padding waste)
-- Fused softcapped cross-entropy via custom Triton kernels
-- Bank-mode weight storage (`qo_bank`, `kv_bank`, `mlp_up_bank`, `mlp_down_bank`)
-- Polar-Express Newton-Schulz coefficients for Muon orthogonalization
-
-**HP changes vs 0427:**
-- `matrix_lr`: 0.022 -> **0.026**
-- `muon_momentum`: 0.99 -> **0.97**
-- `warmdown_frac`: 0.72 -> **0.75**
-- `loop_start`: 4 -> **3** (earlier layer looping)
-- `enable_looping_at`: 0.5 -> **0.35** (enable looping earlier in training)
-- `parallel_start_layer`: 7 -> **8**
-- `min_lr`: 0.0 -> **0.1** (nonzero floor)
-
-**TTT overhaul:**
-- Phased LoRA TTT with Adam optimizer (lr=0.0001, beta1=0, beta2=0.999, wd=1.0)
-- LoRA rank 96, alpha 144, applied to K, O, and MLP projections
-- 3-phase scoring with 2000 prefix documents per phase
-- Document-boundary-respecting chunking (chunk size 48 tokens)
-
-**New module catalog (all OFF by default, toggled via env vars):**
-- SmearGate, Sparse Attention Gate, Gated Attention, AttnOutGate, Recur-Alpha, SpinQuant, LQER
-
-**S9 1-GPU results (3 seeds):**
-
-| Seed | Post-EMA BPB | Quant+TTT BPB | Artifact |
-|------|-------------|---------------|----------|
-| 42   | 1.0716      | **1.0683**    | 16.89 MB |
-| 314  | 1.0724      | **1.0696**    | 16.90 MB |
-| 999  | 1.0716      | **1.0684**    | 16.89 MB |
-| **Mean** | **1.0719** | **1.0688** | **16.89 MB** |
-
-Substantial improvement over the 0427 baseline (-0.014 BPB), primarily from the higher matrix LR, earlier looping, better TTT, and the Polar-Express Muon formulation.
-
-**Problem: artifact size.** At 16.89 MB, the S9 vanilla artifact was **0.89 MB over the 16 MB limit**.
+Script: `final_s0_pr1851_mod_gptq_v2.py` (3143 lines, 31 KB compressed).
 
 ---
 
-### Stage 3: Artifact Size Reduction & New Features (Apr 28)
+### Data & Tokenization
 
-#### 3a: S9 + SmearGate + Sparse Attn Gate + LQER + Embed int7
+There was a clear trend across PRs that smaller vocabs have a low ceiling — 8192 seems to be the sweet spot for all the later successful submissions. But relying on the default SentencePiece tokenizer is not the best idea.
 
-The key insight: **instead of just compressing harder, use the freed bytes from better quantization to add architectural features that improve BPB.**
+**What we tried:**
+- **Vocabulary pruning:** Thought tokenizing full words could be wasteful given the time/compute limits. Tried pruning long words that could be covered by combinations of shorter subword tokens. This did not help (+0.001 BPB).
+- **Case folding (lowercasing + capital token):** Lowercasing everything and treating the leading capital letter as a special token — this helped. This is the "cap tokenizer" (SP8192, effective vocab 7972 after folding).
+- **Data normalization:** Getting rid of long URLs and anything rare/difficult in the FineWeb dataset.
 
-- **SmearGate** (gate_window=12, BOS-masked): learned gating that blends neighboring token representations via a sliding window. At init, lambda=0 so transparent; the model learns local context mixing.
-- **Sparse Attention Gate** (init_std=0.0): per-head learned gates allowing selective attention pattern pruning.
-- **LQER** (rank=4, int4 factors, asymmetric, group_size=64, top-3 layers): post-GPTQ error correction. Adds small low-rank correction factors to the 3 weight matrices with highest quantization error.
-- **Embed int7** (clip_sigmas=15.0): 7-bit embedding quantization instead of 8-bit, saving ~1 MB.
-
-| Config | Post-EMA BPB | Quant BPB | Quant+TTT BPB | Artifact |
-|--------|-------------|-----------|---------------|----------|
-| S9+smear+sparse+LQER+embed7 | 1.0720 | 1.0816 | **1.0705** | **15.92 MB** |
-
-The artifact dropped from 16.89 MB to **15.92 MB** (under the 16 MB limit) while BPB only degraded by 0.0017 vs the 1-GPU 3-seed mean. LQER recovered most quality lost from aggressive embedding quantization.
-
-#### 3b: Cap Tokenizer + CaseOps + LQER
-
-Explored a different compression axis: **reducing vocabulary** via case-folding operations. By training a "cap" tokenizer that folds case, vocab can shrink from 8192 to ~7088 tokens, drastically reducing the embedding table.
-
-| Config | Vocab | Quant+TTT BPB | Artifact |
-|--------|-------|---------------|----------|
-| Cap + CaseOps v7088 | 7088 | **1.0715** | **15.62 MB** |
-| Cap + CaseOps v7972 + MLP 4.125x | 7972 | **1.0689** | **16.17 MB** |
-
-The v7972 variant achieved the **best single-seed BPB of any 8-GPU run** (1.0689), but was not selected for submission due to tokenizer compliance risk -- the BPB evaluation pipeline expects the standard sp8192 tokenizer, and CaseOps changes the byte-counting LUT path.
+**Key insight:** The fact that 1024-token vocabs plateau quickly tells us the network tends to stall if tokenization is too easy. The tokenization needs to make the task hard enough for the model to keep learning.
 
 ---
 
-### Stage 4: PR #1851 Exploration (Apr 28)
+### Model Architecture
 
-`train_gpt_s0_pr1851_mod.py` explored the upstream PR #1851 architecture with extensive annotations. Both runs showed competitive pre-quant BPB (base: 1.0722, cap: 1.0748) but **crashed before quantization** due to `pyminify` not being installed and `.int6.ptz` deserialization issues on non-rank-0 workers.
+When I first saw the 9-layer implementation, I thought it was pretty standard. Depth recurrence was clearly proven effective within the community. From there:
 
----
+- **GQA → MHA:** Considered replacing GQA (group size 2) back to MHA to trade a bit more parameters for better performance.
+- **Local attention heads:** Implemented fancy local attention — failed horrendously, since the implementation is inherently inefficient and could never utilize the Flash Attention 3 ecosystem.
+- **DeepSeek Engrams, value embeddings, embedding factorizations:** None worked within the 10-minute wall clock. None of these are as fast as a vanilla attention + MLP combo.
+- **The only thing that helps is making the MLPs wider.** All other architectural tweaks don't see ROI.
 
-### Crash Catalogue
-
-| Issue | Runs Affected | Root Cause |
-|-------|---------------|------------|
-| `pyminify` FileNotFoundError | PR1851 base/cap (2 runs) | All ranks called `subprocess.run(["pyminify", ...])` |
-| `.int6.ptz` deserialization | S9 8-GPU (3 runs) | Each rank generated unique `run_id`, rank N looked for files only rank 0 created |
-| NCCL timeout | 0427 4-GPU (3 runs) | `nvmlDeviceGetHandleByIndex(7) failed` on initial setup |
-| `flash_attn_varlen` missing | S9 early (3 runs) | Nodes without flash_attn_3 installed |
-| Data shard mismatch | Cap tokenizer (1 run) | Incorrect directory layout for re-tokenized shards |
+**Final architecture:** 11L x 512d, 8 heads / 4 KV heads, MLP 4x, tied embeddings (vocab 7972), logit softcap 30.0, partial RoPE (16/64 dims), layer looping (layers 3–5, 2 loops enabled at 35% of training), parallel residuals from layer 8+, skip gates (U-Net connections).
 
 ---
 
-### Why S9+SmearGate+Sparse+LQER Was Selected
+### Optimizer
 
-| Candidate | Quant+TTT BPB | Artifact | Status |
-|-----------|---------------|----------|--------|
-| S9 1-GPU 3-seed mean | **1.0688** | 16.89 MB | Over 16 MB limit |
-| Cap v7972 + MLP4.125 | **1.0689** | 16.17 MB | Tokenizer compliance risk |
-| **S9+smear+sparse+LQER** | **1.0705** | **15.92 MB** | **Submitted** |
-| Cap v7088 + CaseOps | 1.0715 | 15.62 MB | Tokenizer compliance risk |
-| S9 8-GPU vanilla | 1.0719 | 16.89 MB | Over limit |
-| PR1851 base | 1.0722 (pre-quant) | Unknown | Crashed |
+We first ablated Muon vs. AdamW. I thought AdamW wouldn't lag Muon too much on a relatively small dataset — this is not true. **AdamW consistently lags Muon in our experiments.**
 
-The only configuration that fits under 16 MB, uses the standard tokenizer, and completed the full pipeline.
+We then looked into Muon to see what could be improved. The all_reduce communication overhead was something I aimed to reduce, but eventually by the 0427 trick, I was only able to squeeze out ~0.0005 BPB gain.
+
+**Final config:** Muon (Polar-Express Newton-Schulz, 5 backend steps) for matrix params (lr=0.026, momentum=0.97, wd=0.095), AdamW for embeddings (lr=0.6, wd=0.085) and scalars (lr=0.02). Gradient clipping 0.3, warmdown 75%.
 
 ---
 
-### Future Directions
+### Quantization
 
-1. **Multi-seed validation** -- Need 2 additional seeds for statistical significance per submission guidelines.
-2. **CaseOps tokenizer submission** -- The cap v7972 variant (1.0689 BPB) is the strongest known config if tokenizer compliance is confirmed.
-3. **LQER rank sweep** -- Current rank-4 on top-3 layers. Higher rank with more layers might be worth the extra bytes.
-4. **SpinQuant integration** -- Online Hadamard rotation is implemented but untested in the submitted config.
-5. **PR1851 completion** -- Fix pyminify/deserialization crashes to get full quant+TTT numbers.
-6. **Recur-Alpha and Gated Attention ablation** -- Both implemented but not yet enabled.
+Quantization was a bit of a black box, though we've done it before. My intuition was that group quantization should produce a more stable estimate of all parameters and be better suited for GPTQ. However, GPTQ's group statistics also take additional space, which pushes the submission file to go oversize — **the gain does not justify its cost.**
+
+From intuition QAT should work better, but I never got a successful QAT run.
+
+**Final config:**
+- GPTQ int6 for all attention + MLP weight matrices (16 calibration batches)
+- GPTQ int8 for tied embeddings
+- LQER error correction: rank 4, int4 factors, asymmetric (group 64), applied to top-3 highest-error layers
+- Brotli compression
+
+---
+
+### Test-Time Compute
+
+This is absolutely the backdoor lottery ticket. The main theme is to **align the trained distribution with the test-time distribution.**
+
+**Final TTT config:**
+- Phased global TTT: 1 phase, 2000 prefix docs, cosine LR (peak 0.001)
+- 215 gradient chunks over 48K suffix docs (32K tokens/chunk)
+- LoRA rank 96 on K, O, and MLP projections (Adam, beta1=0, beta2=0.999, wd=1.0)
+- TTT consistently drops BPB by ~0.01 from the quantized baseline
 
 ---
 
@@ -156,17 +89,16 @@ The only configuration that fits under 16 MB, uses the standard tokenizer, and c
 ```bash
 pip install brotli sentencepiece
 pip install flash_attn_3 --no-deps --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/
-MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192
 
-SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt.py
+SEED=1337 torchrun --standalone --nproc_per_node=8 final_s0_pr1851_mod_gptq_v2.py
 ```
 
-### Files in this PR
+### Files
 
 | File | Description |
 |------|-------------|
-| `train_gpt_0427.py` | Stage 1: minified 0427 baseline |
-| `train_gpt_s9.py` | Stage 2: S9 bank-mode + Polar-Express Muon stack |
-| `train_gpt_s9_caseops_lqer.py` | Stage 3b: S9 + CaseOps + LQER cap tokenizer variant |
-| `train_gpt_s0_pr1851_mod.py` | Stage 4: annotated PR #1851 exploration |
-| `records/.../2026-04-28_S9_SmearGate_SparseAttn_LQER/` | Submission record (README, submission.json, train_gpt.py, train_seed42.log) |
+| `final_s0_pr1851_mod_gptq_v2.py` | Final training script |
+| `logs/*20260429*.log` | Training logs for all 04/29 runs |
+| `train_gpt_s0_pr1851_mod.py` | Earlier annotated PR #1851 exploration |
+| `train_gpt_s9.py` | Prior S9 stack (bank-mode + Polar-Express Muon) |
+| `train_gpt_s9_caseops_lqer.py` | Prior cap tokenizer variant |
