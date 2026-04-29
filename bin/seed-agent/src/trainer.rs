@@ -276,6 +276,15 @@ impl Trainer for ExternalTrainer {
                             exit = ?s.code(),
                             "trainer subprocess exited non-zero"
                         );
+                    } else if self.current_step == 0 {
+                        // Trainer exited cleanly but produced zero JSONL
+                        // output — likely missing corpus or stub binary.
+                        tracing::warn!(
+                            canon = %self.canon_name,
+                            seed = self.seed,
+                            "trainer exited cleanly but produced no step output \
+                             (step=0, bpb=NaN); experiment will be marked failed"
+                        );
                     }
                 }
             }

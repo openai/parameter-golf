@@ -158,6 +158,24 @@ async fn run_experiment(
 
     let final_bpb = tr.eval_bpb();
     let final_step = tr.current_step();
+
+    // R5: detect trainer that exited without producing any step output.
+    // This happens when `trios-train` exits cleanly (code 0) but writes
+    // no JSONL to stdout — e.g. missing training corpus, bad config, or
+    // a stub binary.  Marking such experiments `done` with step=0 bpb=NaN
+    // would silently corrupt the leaderboard.
+    if final_step == 0 && final_bpb.is_nan() {
+        let reason = "trainer produced zero steps (exited without JSONL output)";
+        tracing::error!(
+            canon = %exp.canon_name,
+            seed = exp.seed,
+            %reason,
+            "marking experiment failed"
+        );
+        claim::mark_failed(client, exp.id, reason).await?;
+        anyhow::bail!("{reason}: canon={}", exp.canon_name);
+    }
+
     claim::mark_done(client, exp.id, final_bpb, final_step).await?;
     Ok(ExpOutcome::Done)
 }
