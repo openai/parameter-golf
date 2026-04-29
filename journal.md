@@ -7,6 +7,7 @@
 - **Anchor baseline**: exp 0001_baseline_repro at val_bpb 2.5212, 6.907 MB. ALL Δ comparisons go here.
 - **Current best (PROMOTED 2026-04-28, 2-seed)**: exp 0076/0077 **2-seed mean val_bpb 1.95141** (cross-seed σ_pair=0.0061). Same architecture as 0069 winner (combined K=3+K=4 static side memory) PLUS: per-context α blend weights (sigmoid of trigram entropy, clip [0.30, 0.85]) + model-confidence gate (skip blend when model max_log2p > -1.0). Path: `winners/2026-04-28_confidence_gated_per_context_alpha_blend/`. Δ vs prior winner (0069 family 1.95990) = **-0.0085 BPB**. Δ vs original 0051 family 2.00503 = **-0.054 BPB**. Δ vs pure-attn baseline (2.088) = **-0.137 BPB**. Step time 8.17 s/step. Artifact 15.91 MB (88 KB safety under 16 MB cap).
 - **Cumulative thread-2 contribution**: -0.054 BPB from canonical 0051 baseline (2.005 → 1.951) via 4 stacked mechanisms: brotli + combined K=3+K=4 static side memory + per-context α + confidence gate.
+- **Thread 1 closed (2026-04-29)**: AR int6 (0081/0082b) cap-busts in our family — int6-packed bytes near-incompressible by brotli, swap LOSES ~5 MB net despite 25% raw saving. All thread-1 free-score levers now tested. Mini-DR / REPEAT_UNTIE_MLP remain untested but require code changes that conflict with our K=3 L=3 looped triple-parallel topology.
 - **Pure-attn baseline (anchor for writeup)**: 0058/0059 2-seed mean **val_bpb 2.08759** (cross-seed Δ 0.0002). Pure attention 3-of-3 + recur+SwiGLU+mlp=8 + no-BG. Path: `experiments/0058_pure_attn_3of3_baseline/`.
 - **Starting env.sh for SSM experiments**: `WARMDOWN_ITERS=300, LR_WARMUP_STEPS=30, TIED_EMBED_INIT_STD=0.05, MUON_BACKEND_STEPS=15, TRAIN_BATCH_TOKENS=24576, MATRIX_LR=0.045`. Schedule defaults are architecture-independent transformer wins; inherit verbatim. Regression-sentinel uses canonical defaults exception.
 - **Primer is internally inconsistent**: main body argues SSM is "almost certainly wrong" for parameter golf; the "Another agent's feedback" section disagrees on (a) whether to quantize the SSM, (b) whether BigramHash closes the recall gap. Treat both as research opinions; verify empirically.
@@ -38,60 +39,27 @@
 
 ## Open questions (next session priorities)
 
-**Standing brief**: `scratch/2026-04-28_session_planning.md`. **2026-04-28 session result**: thread 1 ports completed (brotli kept, asym pos0 neutral, parallel residuals neutral, EMA neutral). Thread 2 produced a clean -0.054 BPB win via static N-gram side memory packed in artifact (0076 promoted, 2-seed mean 1.9514). Tested 2 learnable-on-top-of-side-memory variants (0073 hash-HSM, 0080 dense-attention HSM) — both NEUTRAL at 200 steps. **The 200-step regime is BPB-saturated at ~1.95 by static side memory; further gains need either (a) longer training to let learnable mechanisms converge, OR (b) a fundamentally different prior (cap-multiplier via int6, larger contexts via better quant).** Bold candidates (e)/(f) from the brief still untouched.
+**Standing brief**: `scratch/2026-04-28_session_planning.md`. **Thread 1 closed 2026-04-29** — all free-score levers tested. Pivot to thread 2.
 
-**Concrete next-session leads (ordered by EV, informed by 0080 negative)**:
+Top leads (ordered by EV):
 
-1. **[WORTH_TESTING] AR self-gen GPTQ int6** (thread 1 missed, highest EV now that learnable-HSM is shown to need >200 steps): saves ~25% per layer (~3 MB at our int8 baseline) → frees cap to grow K=4 contexts to top_N=300-400K. Mathematically: more contexts = more BPB drop (extrapolated -0.005 to -0.010 BPB on top of 0076). ~250 lines subagent.
+1. **[WORTH_TESTING] Cap-fill: 0065-style asym pos0 + grow K=4 top_N to 280-320K** — only remaining cheap thread-1 win. Env-var only, ~30 min. Predicted -0.004 to -0.005 BPB (offline sweep: `scratch/blend_probe/k4_topn_sweep.py`).
+2. **[WORTH_DERIVING] Dendritic N-gram side memory v1 (thread-2 entry)** — warm-start patterns from frequent fineweb 4-grams, train only content vectors. Plan: `scratch/dendritic_memory_plan.md`. Fixes the gradient-sparsity that broke 0073/0080. Subagent ~250 lines.
+3. **[WORTH_TESTING] 0071 train-time blend bug fix** — MPS bounds error at B=3 L=1024. Notes: `scratch/0071_train_blend_debug_notes.md`. Tests "model adapts to complement static prior."
+4. **[WORTH_DERIVING] H100 transfer of 0076 family at 20k steps** — primary deliverable; specific predictions: kill-selectivity may reverse, conv1d-as-recall + cross-class topology should hold.
+5. **[WORTH_TESTING] K=5 static side memory with hash bucketing** — K=5 has 4M+ contexts; needs hashing. Estimated -0.005 BPB.
+6. **[SPECULATIVE] Dense-attn HSM (0080) at H100 20k-step** — was neutral at 200 steps; mechanism sound, training duration was bottleneck.
+7. **[SPECULATIVE] Bold (e)/(f) from brief** — spike-rank body or dendrocentric layer. Big code, possibly non-record track.
 
-2. **[WORTH_TESTING] Train-time blend bug fix** (0071): MPS bounds error in trigram_blend_loss at B=3, L=1024. Debug + retry (~1.5h). Tests "model adapts to be complementary to static prior" — different mechanism than learnable HSM.
+NOTE: pure-learnable on-top-of-static-memory (0073, 0080) NEUTRAL at 200 steps. Don't re-try variants without warm-starting (option d) OR a longer-training plan.
 
-3. **[WORTH_DERIVING] H100 transfer test of 0076 family**: estimated -0.01 to -0.02 BPB transfer based on per-token analysis. Crucial validation before writing up.
+Untested thread-1 levers (NOT free, require code): mini-DR (`RECUR_LAYERS=4,5`, conflicts with K=3 L=3 topology), REPEAT_UNTIE_MLP=full (cap-busts our config; selective version doesn't have a clean mapping in 3-unique × 3-loop scheme).
 
-4. **[WORTH_TESTING] Higher-K static side memory**: K=5 with hash bucketing. K=5 has 4M+ contexts, requires hash-pruning. Could fit ~1 MB cap and add -0.005 BPB. Untested.
+Parked architecture sub-bets (still on radar, deprioritized): GLA chunkwise rewrite (`experiments/0049_gla_smoke/`); per-head B_const/C_const in kill-Mamba-2; nheads=16 headdim=32; DeltaNet/RWKV-v6; L=2048; conv1d depthwise-vs-dense ablation.
 
-5. **[SPECULATIVE] Bold (e)/(f) from brief**: full spike-rank body or dendrocentric layer. Massive code changes, best in non-record-track if pursued.
+**Next session: dispatch the dendritic memory v1 subagent (lead #2) — that's the canonical thread-2 entry point. If a quick free-score warmup is preferred, lead #1 cap-fill experiment is a 30-minute env-var run.**
 
-6. **[WORTH_DERIVING] 4-seed sentinel of 0076/0077** if continuing to stack mechanisms — σ widening 0.003 → 0.005 → 0.006 across the stack.
-
-7. **[SPECULATIVE] Dense-attention HSM at H100 20k-step**: 0080 was neutral at 200 steps but the mechanism is sound (UU#4-motivated, smoke clean). Revisit at longer training where the value bank can converge.
-
-NOTE: HSM 0073 and dense-HSM 0080 both NEUTRAL at this regime. The 200-step training duration is the bottleneck for ANY learnable on-top-of-side-memory mechanism. Don't re-try variants without a longer-training plan.
-
-**Next session: dispatch AR self-gen GPTQ int6 subagent first (highest EV — frees ~3 MB cap to grow side-memory contexts; only thread-1 lever still untested at scale).**
-
-Older parked sub-bets (still relevant):
-
-Parked sub-bets (not the current arc, but worth keeping on radar):
-
-1. **GLA chunkwise rewrite** [HIGH EV, big code]. Code exists in `experiments/0049_gla_smoke/train_gpt.py` (token-by-token, verified by 5/5 numerical checks but too slow at L=1024). Replacing inner loop with paper §3.3 chunkwise scan would let us actually test "vector gates per channel" vs Mamba-2's scalar gates. Subagent task ~150-300 lines.
-
-2. **H100 transfer of triple-parallel-kill-Mamba-2 at 20k steps** [HIGH EV — primary deliverable]. Architecture in `winners/2026-04-27_triple_parallel_kill_mamba2_no_bigram_recur3x3/train_gpt.py`. Specific prediction: kill-wins (selectivity-anti-load-bearing) might reverse at 20k steps; conv1d-as-recall and cross-class-topology should hold.
-
-3. **Per-head B_const, C_const in kill-Mamba-2 (ngroups=nheads)** [MEDIUM EV, cheap]. Direct test of "shared-B/C-across-heads" — separate from selectivity. ~10 line code change. Each head gets its own κ_h. Would refine the κ-scalar collapse story.
-
-4. **nheads=16 headdim=32** [MEDIUM EV, cheap env-var or 1-line]. Same params, different timescale distribution.
-
-5. **DeltaNet / RWKV-v6** [HIGH EV, big code]. Different recurrence paradigms. Larger commitments. Subagent territory.
-
-6. **Long-context (L=2048)** [MEDIUM EV]. Tests "selectivity helps with long context" claim from original Mamba — does the parallel-topology gap change?
-
-7. **Conv1d mechanism refinement** [MEDIUM EV, code]: depthwise vs dense conv ablation; tests whether channel-specificity is what makes conv1d load-bearing. Walk 22:22 speculation.
 
 
 ## Entries (newest first)
-
-## 2026-04-28 · 0081 (AR self-gen GPTQ int6) · SMOKE OK, ready to launch — handoff to next session
-
-Subagent completed in 25 min. New module `experiments/0081_ar_gptq_int6/modules/gptq_int6.py` (~340 lines): pack_int6/unpack_int6 (4 vals → 3 bytes), GPTQ Cholesky-blocked weight quant (percdamp=0.01, block_size=64), AR self-gen calibration tokens (greedy, no KV cache), mixed-format serialization extending parent int8.
-
-**Smoke at production shape on MPS** (avoiding 0071 trap):
-- pack/unpack exact round-trip
-- GPTQ (2048×512) takes 155 ms
-- fp32 vs int6 forward rel err **3.32%** (under 5% bar)
-- size ratio **0.7520** (matches predicted 75% / -25% saving)
-- mixed serialize/deserialize round-trip OK
-
-**Status**: ready to launch. Did NOT run `run_experiment.sh` per spec — subagent dispatched at session-end, only smoke validated. **Next session step 1**: launch 0081, observe `final_int8_zlib_roundtrip val_bpb` and artifact bytes. Predicted post-quant val ~1.948 (similar to 0076) with artifact ≥1.5 MB smaller — that freed cap can grow K=4 contexts in 0082 for an additional -0.005 BPB.
-
 
