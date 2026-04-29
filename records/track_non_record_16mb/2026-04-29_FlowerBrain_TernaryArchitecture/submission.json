@@ -1,35 +1,52 @@
 {
-  "name": "Flower Brain: 6-Cell Ternary Architecture (Scaled)",
+  "name": "Flower Brain v3: SmearGate + LoRA-TTT + GPTQ — val_bpb 1.0680",
   "author": "G3sparky (Gavin Saunders)",
   "github_id": "G3sparky",
   "track": "non_record_16mb",
-  "date": "2026-04-29",
-  "val_bpb": 1.1155,
-  "val_bpb_post_quant": 1.7996,
-  "bytes_total": 10402480,
+  "date": "2026-04-30",
+  "val_bpb": 1.0680,
+  "val_bpb_std": null,
+  "bytes_total": 15984000,
   "category": "unlimited_compute",
-  "category_note": "Trained on 1xH100 SXM for ~60 min. NOT eligible for 10-min 8xH100 record track.",
-  "blurb": "Scaled Flower Brain: 6-cell ternary architecture, 32.5M params, 512-dim, 12 layers, depth recurrence. Pre-quant val_bpb 1.1155 (competitive with main leaderboard). Post-quant 1.80 (ternary gap 0.68). Compresses to 10.4MB (35% under 16MB budget). Trained on 1xH100 SXM in ~60 min.",
+  "category_note": "Trained on 1xH100 SXM for 2 hours. Unlimited compute track.",
+  "blurb": "Flower Brain v3: 6-cell architecture with SmearGate, LoRA-TTT (rank-128, 3-phase AdamW), QK-Gain 5.25, GPTQ int6/int8 compression, depth recurrence. Pre-quant 1.0805. Post-quant GPTQ 1.0933. Sliding window 1.0766. LoRA-TTT final 1.0680. Beats Ifrim unlimited compute leader (1.1239) by 0.056. OUR architecture.",
   "hardware": "1x H100 SXM 80GB",
-  "training_time_seconds": 3589,
-  "params": 32539744,
-  "void_fraction": 0.174,
-  "compression": "mixed ternary (2 bits/weight for MLP) + int6 GPTQ (attention) + brotli",
-  "key_changes": [
-    "Scaled from 384-dim/8-layer to 512-dim/12-layer (17.3M → 32.5M params)",
-    "Pre-quant 1.1155 — competitive with main leaderboard entries",
-    "Depth recurrence (2 loops, layers 3-5, 17 virtual layers)",
-    "Mixed ternary + GPTQ compression: 10.4MB (35% under budget)",
-    "Void fraction 17.4% — architecture-determined equilibrium",
-    "Finding: STE makes quantization gap WORSE (0.68 vs 0.29 without STE)"
-  ],
-  "experimental_findings": {
-    "fp16_no_ste_gap": 0.294,
-    "ste_standard_wd_gap": 0.684,
-    "ste_no_wd_gap": 2.67,
-    "conclusion": "Gap B is a projection problem, not a training problem. Void fraction (16-17%) is architecture-determined. Weight decay regularizes for quantization."
+  "training_time_seconds": 7189,
+  "params": 35945048,
+  "compression": "GPTQ int6 (matrices) + int8 (embeddings) + brotli-11",
+  "seeds": {
+    "42": {
+      "pre_quant_post_ema_bpb": 1.0805,
+      "quantized_bpb": 1.0933,
+      "sliding_window_bpb": 1.0766,
+      "lora_ttt_bpb": 1.0680,
+      "steps": 5889,
+      "training_time_ms": 7188708,
+      "eval_time_ms": 3847238
+    }
   },
-  "base": "Novel architecture — not derived from competition baseline",
-  "seed": 42,
-  "attribution": "BitNet b1.58 (Ma et al. 2024), Flower of Life topology (Saunders 2026, AU Patent 2026902541), PNN ternary research (76.5% vs 15.3% binary, p=2.18e-11)"
+  "key_changes": [
+    "SmearGate: learned per-dimension blending with previous token embedding",
+    "LoRA-TTT: rank-128, alpha=144, 3-phase AdamW, score-before-update",
+    "QK-Gain 5.25 (from 5.0)",
+    "TTT_CHUNK_TOKENS=16384 (from 32768)",
+    "GPTQ int6/int8 compression (from mixed ternary)",
+    "SDPA attention (PyTorch native, RunPod compatible)",
+    "EMA checkpoint saved to disk",
+    "LZMA bootstrap code compression"
+  ],
+  "v1_comparison": {
+    "v1_pre_quant": 1.1155,
+    "v3_pre_quant": 1.0805,
+    "improvement": 0.0350,
+    "v1_compression": "mixed ternary",
+    "v3_compression": "GPTQ int6/int8"
+  },
+  "experimental_findings": {
+    "ternary_gap_no_ste": 0.294,
+    "ternary_gap_with_ste": 0.684,
+    "gptq_gap": 0.013,
+    "conclusion": "GPTQ int6 preserves model quality far better than ternary. Ternary research documented as finding."
+  },
+  "base": "Flower Brain 6-Cell Architecture + SP8192 + Depth Recurrence + Parallel Residuals"
 }
