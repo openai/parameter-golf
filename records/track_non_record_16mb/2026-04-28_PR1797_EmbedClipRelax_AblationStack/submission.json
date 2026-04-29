@@ -1,0 +1,69 @@
+{
+  "author": "FijaEE",
+  "github_id": "Fija",
+  "name": "PR #1797 + SmearGate BOS Fix + 9-Hparam + EMBED_CLIP Relax — non-record reproduction with ablation stack",
+  "blurb": "Functional reproduction of the PR #1797 stack on 8xH100 SXM, with the SmearGate BOS-leak fix from PR #1851 inlined and PR #1855's 9-hparam stack adopted, plus a single one-line tweak (EMBED_CLIP_SIGMAS 14 -> 20) that empirically saved ~280 KB of compressed artifact and brought the run under the 16 MB cap. 3-seed mean val_bpb 1.06122 (std 0.00104) is statistically equivalent to PR #1797 (1.06157 +/- 0.00066, Welch t = -0.49, p ~= 0.32). Submitted as non-record because the 0.00091-nat improvement is well below the 0.005-nat record bar. The submission additionally documents five orthogonal ablations whose negative results clarify why several intuitively appealing knobs do not transfer to this 5M-param + 16 MB regime.",
+  "date": "2026-04-28",
+  "track": "non_record_16mb",
+  "val_bpb": 1.06122,
+  "val_bpb_std": 0.00104,
+  "val_loss_nats": 2.43053,
+  "val_loss_nats_std": 0.00229,
+  "seeds": [42, 314, 1234],
+  "seed_results": {
+    "42": {
+      "pre_quant_bpb": 1.06352819,
+      "post_quant_bpb": 1.07359523,
+      "ttt_bpb": 1.06099969,
+      "artifact_bytes": 15862425,
+      "eval_time_s": 521.5
+    },
+    "314": {
+      "pre_quant_bpb": 1.06293518,
+      "post_quant_bpb": 1.07302446,
+      "ttt_bpb": 1.06032332,
+      "artifact_bytes": 15860925,
+      "eval_time_s": 459.9
+    },
+    "1234": {
+      "pre_quant_bpb": 1.06479270,
+      "post_quant_bpb": 1.07514789,
+      "ttt_bpb": 1.06235764,
+      "artifact_bytes": 15861284,
+      "eval_time_s": 457.2
+    }
+  },
+  "artifact_bytes_mean": 15861545,
+  "artifact_bytes_max": 15862425,
+  "eval_time_s_mean": 479.5,
+  "all_artifacts_under_16mb": true,
+  "hardware": "8xH100 80GB HBM3 SXM (RunPod Secure Cloud)",
+  "base_submission": "PR #1797 (dexhunter) + PR #1787 (nprime06) + PR #1729 (romeerp CaseOps) + PR #1851 (aquariouseworkman BOS fix) + PR #1855 (codemath3000 9-hparam stack)",
+  "base_val_bpb": 1.06157,
+  "delta_vs_base_bpb": -0.00035,
+  "delta_vs_base_nats": -0.00091,
+  "welch_t": -0.49,
+  "p_value_one_sided": 0.32,
+  "record_bar_nats": 0.005,
+  "record_bar_bpb": 0.00194,
+  "clears_record_bar": false,
+  "ablations_documented": [
+    {"name": "NGramMixer V1 (bigram + Dirichlet)",      "result": "All configs +0.058 to +1.27 BPB regression",
+     "lesson": "Cold-start uniform q_bi injects noise; backoff is essential."},
+    {"name": "TempScaler V2 (per-doc running entropy)", "result": "Best -0.00003 BPB (negligible)",
+     "lesson": "CE-trained NN already optimally calibrated; temperature has no headroom."},
+    {"name": "TokenPPMMixer V3 (PPM-D order-2 token)",  "result": "+0.0155 BPB regression on eval_val",
+     "lesson": "Token alphabet (V=8192) has too sparse contexts for PPM to fire confidently; byte-level PPM works because 256-symbol alphabet saturates contexts at order-5."},
+    {"name": "SP10240 + CaseOps (vocab progression)",   "result": "Single seed: -0.0015 BPB pre-TTT but +0.0017 BPB post-TTT, artifact 16.49 MB over cap",
+     "lesson": "Larger vocab does not transfer when the parameter budget (5M) cannot absorb the long tail; embedding table grows ~25%."},
+    {"name": "EMBED_BITS=6 (artifact reduction)",       "result": "+3.9 milli-BPB regression on TTT",
+     "lesson": "INT6 embeddings are too lossy for the per-token softmax precision the eval BPB requires."}
+  ],
+  "compressor_findings": {
+    "brotli_q11": "Smallest output for quantized weight blobs in our setting (16,140,160 bytes baseline before EMBED_CLIP relax)",
+    "lzma_p6":    "+1.1 MB worse than brotli q=11 on identical config",
+    "lzma_p9_extreme": "+1.7 MB worse than brotli q=11 on identical config"
+  },
+  "key_takeaway": "PR #1855's 9-hparam stack with EMBED_CLIP_SIGMAS=20 (instead of the published 14) saves ~280 KB of compressed artifact and brings the same training config under the 16 MB cap with 3-seed BPB statistically equivalent to PR #1797.",
+  "reproducibility_notes": "Run runpod/phase_q_embedclip20.sh inside an 8xH100 SXM pod with HF_TOKEN, RUNPOD_API_KEY, RUNPOD_POD_ID set. The script clones this branch, pulls SP8192 CaseOps shards from hf://datasets/FijaEE/parameter-golf-sp8192-caseops, runs all three seeds end-to-end (each ~22 min), pushes per-seed CSV to the HF dataset for out-of-band inspection, and self-stops the pod via runpodctl + GraphQL on completion or on any abort guard (artifact > 16 MB, BPB > 1.061, or hard-deadline 100 min)."
+}
