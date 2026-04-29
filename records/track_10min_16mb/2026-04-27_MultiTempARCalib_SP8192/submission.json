@@ -1,0 +1,37 @@
+{
+  "track": "10min_16mb",
+  "description": "Multi-temperature AR calibration for GPTQ on SP8192 depth recurrence stack",
+  "seeds": [42, 314],
+  "results": [
+    {
+      "seed": 42,
+      "pre_quant_val_bpb": 1.08980746,
+      "quantized_val_bpb": 1.10308886,
+      "quantized_sliding_window_val_bpb": 1.08655681,
+      "quantized_ttt_val_bpb": 1.08467459,
+      "submission_bytes": 16035215,
+      "model_bytes": 15981965,
+      "code_bytes": 53250
+    },
+    {
+      "seed": 314,
+      "pre_quant_val_bpb": 1.09033851,
+      "quantized_val_bpb": 1.10385823,
+      "quantized_sliding_window_val_bpb": 1.08728102,
+      "quantized_ttt_val_bpb": 1.08525334,
+      "submission_bytes": 16040403,
+      "model_bytes": 15987153,
+      "code_bytes": 53250
+    }
+  ],
+  "average_ttt_bpb": 1.08496397,
+  "hardware": "8x H100 SXM 80GB HBM3",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "13.0",
+  "key_changes": [
+    "Multi-temperature AR calibration for GPTQ Hessian collection",
+    "temperatures=[0.5, 0.8, 1.1, 1.4] with seq_counts=[8, 24, 24, 8]",
+    "seq_len=512 for calibration (vs 2048 baseline) — 5x faster, same quality",
+    "Fully self-contained: no external data used post-training"
+  ]
+}
