@@ -71,21 +71,7 @@ pip install brotli python-minifier
 # 2. Prepare CaseOps SP8192 data
 #    Download the already-tokenized public CaseOps dataset from Hugging Face.
 #    Do not run prepare_caseops_data.py unless rebuilding from docs_selected.jsonl.
-python3 - <<'PYDATA'
-from huggingface_hub import snapshot_download
-snapshot_download(
-    repo_id="romeerp/parameter-golf-caseops-v1",
-    repo_type="dataset",
-    local_dir="data/datasets/fineweb10B_sp8192_caseops",
-    allow_patterns=[
-        "datasets/manifest.json",
-        "datasets/tokenizers/*",
-        "datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin",
-        "datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin",
-        "datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin",
-    ],
-)
-PYDATA
+python3 records/track_10min_16mb/2026-04-27_SmearGateBOSFix_3Seed_1.06145/download_caseops_data.py
 
 # 3. Run training (replace SEED with 42, 314, or 1234)
 SEED=42 \
