@@ -1,0 +1,57 @@
+Causal Oscillator LM — physics-native sequence processing
+Token → impulse → causal convolution → oscillator state → attention
+Device: cuda, World size: 1
+Parameters: 14,770,432
+Oscillators: 192
+Layers: 12, Heads: 16
+Muon: 14,745,600, Adam: 24,832
+LR: 0.003
+
+step     0  loss 7.1004  bpb 10.2438  lr 0.00e+00  t 0s
+  VAL  loss 7.0919  bpb 4.2002 * (saved)
+step  1000  loss 2.7785  bpb 4.0085  lr 3.00e-03  t 89s
+step  2000  loss 2.8633  bpb 4.1308  lr 3.00e-03  t 152s
+  VAL  loss 2.7789  bpb 1.6458 * (saved)
+step  4000  loss 2.6131  bpb 3.7698  lr 3.00e-03  t 304s
+  VAL  loss 2.6140  bpb 1.5481 * (saved)
+step  6000  loss 2.5932  bpb 3.7412  lr 3.00e-03  t 456s
+  VAL  loss 2.5448  bpb 1.5072 * (saved)
+step  8000  loss 2.4288  bpb 3.5040  lr 3.00e-03  t 609s
+  VAL  loss 2.4919  bpb 1.4758 * (saved)
+step 10000  loss 2.5335  bpb 3.6550  lr 3.00e-03  t 761s
+  VAL  loss 2.4617  bpb 1.4580 * (saved)
+step 12000  loss 2.3503  bpb 3.3907  lr 3.00e-03  t 913s
+  VAL  loss 2.4394  bpb 1.4448 * (saved)
+step 14000  loss 2.4111  bpb 3.4785  lr 3.00e-03  t 1066s
+  VAL  loss 2.4141  bpb 1.4298 * (saved)
+step 16000  loss 2.3742  bpb 3.4252  lr 3.00e-03  t 1218s
+  VAL  loss 2.4007  bpb 1.4218 * (saved)
+step 18000  loss 2.4806  bpb 3.5787  lr 3.00e-03  t 1369s
+  VAL  loss 2.3891  bpb 1.4149 * (saved)
+step 20000  loss 2.2943  bpb 3.3100  lr 3.00e-03  t 1521s
+  VAL  loss 2.3764  bpb 1.4074 * (saved)
+step 22000  loss 2.4376  bpb 3.5166  lr 3.00e-03  t 1673s
+  VAL  loss 2.3612  bpb 1.3984 * (saved)
+step 24000  loss 2.9144  bpb 4.2045  lr 3.00e-03  t 1825s
+  VAL  loss 2.3576  bpb 1.3963 * (saved)
+step 26000  loss 2.2925  bpb 3.3074  lr 3.00e-03  t 1977s
+  VAL  loss 2.3501  bpb 1.3918 * (saved)
+step 28000  loss 2.3653  bpb 3.4124  lr 3.00e-03  t 2129s
+  VAL  loss 2.3394  bpb 1.3855 * (saved)
+step 30000  loss 2.4277  bpb 3.5024  lr 3.00e-03  t 2281s
+  VAL  loss 2.3307  bpb 1.3804 * (saved)
+step 32000  loss 2.2834  bpb 3.2942  lr 3.00e-03  t 2433s
+  VAL  loss 2.3268  bpb 1.3781 * (saved)
+step 34000  loss 2.2371  bpb 3.2274  lr 2.56e-03  t 2585s
+  VAL  loss 2.3135  bpb 1.3702 * (saved)
+step 36000  loss 2.2707  bpb 3.2759  lr 1.50e-03  t 2736s
+  VAL  loss 2.2839  bpb 1.3527 * (saved)
+step 38000  loss 2.2610  bpb 3.2620  lr 4.39e-04  t 2888s
+  VAL  loss 2.2590  bpb 1.3379 * (saved)
+
+=== Final ===
+Loaded best (val_bpb=1.3379)
+Size: 11,209,808 bytes (limit: 16,000,000)
+Round-trip val_bpb: 1.3402
+Best val_bpb: 1.3379
+Parameters: 14,770,432
