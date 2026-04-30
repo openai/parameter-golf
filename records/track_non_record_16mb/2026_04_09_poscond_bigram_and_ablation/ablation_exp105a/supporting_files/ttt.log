@@ -1,0 +1,27 @@
+Loading quantized model...
+Building model...
+Model loaded. Params: 26,960,991
+TTT: SGD lr=0.001 momentum=0.9 epochs=3 chunks=1893
+TTT: unfrozen=26,956,879 frozen=4,112
+  chunk 1/1893 (0.1%) bpb=1.205605 ETA=2804s
+  chunk 101/1893 (5.3%) bpb=1.121569 ETA=1975s
+  chunk 201/1893 (10.6%) bpb=1.121524 ETA=1862s
+  chunk 301/1893 (15.9%) bpb=1.121632 ETA=1752s
+  chunk 401/1893 (21.2%) bpb=1.123108 ETA=1641s
+  chunk 501/1893 (26.5%) bpb=1.121672 ETA=1531s
+  chunk 601/1893 (31.7%) bpb=1.119814 ETA=1421s
+  chunk 701/1893 (37.0%) bpb=1.116458 ETA=1311s
+  chunk 801/1893 (42.3%) bpb=1.116178 ETA=1201s
+  chunk 901/1893 (47.6%) bpb=1.115411 ETA=1091s
+  chunk 1001/1893 (52.9%) bpb=1.116998 ETA=981s
+  chunk 1101/1893 (58.2%) bpb=1.118942 ETA=871s
+  chunk 1201/1893 (63.4%) bpb=1.117948 ETA=761s
+  chunk 1301/1893 (68.7%) bpb=1.115984 ETA=651s
+  chunk 1401/1893 (74.0%) bpb=1.115312 ETA=541s
+  chunk 1501/1893 (79.3%) bpb=1.116504 ETA=431s
+  chunk 1601/1893 (84.6%) bpb=1.117677 ETA=321s
+  chunk 1701/1893 (89.9%) bpb=1.118582 ETA=211s
+  chunk 1801/1893 (95.1%) bpb=1.117686 ETA=101s
+  chunk 1893/1893 (100.0%) bpb=1.116933 ETA=0s
+
+FINAL TTT (SGD, cosine LR=0.001): val_loss=1.885890 val_bpb=1.116933

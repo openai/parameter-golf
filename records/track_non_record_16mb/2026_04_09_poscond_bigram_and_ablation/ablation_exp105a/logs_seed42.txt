@@ -1,0 +1,184 @@
+logs/exp105a_no-metattt_from_exp101_seed42.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26960991
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+ema:initialized decay=0.998 update_every=10 decay_eff=0.980179
+step:0/7500 val_loss:6.9290 val_bpb:4.1037 train_time:0ms step_avg:0.01ms
+step:1/7500 train_loss:6.9298 train_time:658ms step_avg:658.09ms
+step:2/7500 train_loss:8.3907 train_time:1245ms step_avg:622.73ms
+step:3/7500 train_loss:7.4660 train_time:1910ms step_avg:636.60ms
+step:4/7500 train_loss:7.6125 train_time:2564ms step_avg:640.92ms
+step:5/7500 train_loss:7.4386 train_time:3219ms step_avg:643.83ms
+step:6/7500 train_loss:7.1132 train_time:3878ms step_avg:646.40ms
+step:7/7500 train_loss:6.7981 train_time:4534ms step_avg:647.71ms
+step:8/7500 train_loss:6.6367 train_time:5193ms step_avg:649.12ms
+step:9/7500 train_loss:6.4074 train_time:5892ms step_avg:654.64ms
+step:10/7500 train_loss:6.0814 train_time:6548ms step_avg:654.84ms
+step:500/7500 train_loss:2.3127 train_time:331074ms step_avg:662.15ms
+step:1000/7500 train_loss:2.2630 train_time:662462ms step_avg:662.46ms
+step:1500/7500 train_loss:2.1337 train_time:993886ms step_avg:662.59ms
+step:2000/7500 train_loss:2.0518 train_time:1325657ms step_avg:662.83ms
+adaptive_warmdown:triggered step:2200 loss_ema:2.114333 improvement:-0.000150
+step:2500/7500 train_loss:2.0959 train_time:1657815ms step_avg:663.13ms
+step:3000/7500 train_loss:2.0748 train_time:1989567ms step_avg:663.19ms
+step:3000/7500 val_loss:2.0708 val_bpb:1.2264 train_time:1989632ms step_avg:663.21ms
+step:3500/7500 train_loss:2.0620 train_time:2321048ms step_avg:663.16ms
+step:4000/7500 train_loss:2.1287 train_time:2652783ms step_avg:663.20ms
+step:4500/7500 train_loss:2.1168 train_time:2984973ms step_avg:663.33ms
+step:5000/7500 train_loss:2.0216 train_time:3317171ms step_avg:663.43ms
+step:5500/7500 train_loss:2.0182 train_time:3649138ms step_avg:663.48ms
+late_qat:enabled step:5557 scale:0.2498
+swa:start step:5750
+step:6000/7500 train_loss:1.9160 train_time:3982032ms step_avg:663.67ms
+step:6000/7500 val_loss:1.9457 val_bpb:1.1524 train_time:3982237ms step_avg:663.71ms
+step:6500/7500 train_loss:2.0219 train_time:4314994ms step_avg:663.85ms
+step:7000/7500 train_loss:1.8349 train_time:4648522ms step_avg:664.07ms
+step:7226/7500 val_loss:1.9166 val_bpb:1.1351 train_time:4800153ms step_avg:664.29ms
+stopping_early: wallclock_cap train_time:4800153ms step:7226/7500
+peak memory allocated: 23043 MiB reserved: 23204 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9170 val_bpb:1.1353 eval_time:17445ms
+Serialized model: 106028345 bytes
+Code size: 115044 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 64 sequences in 214.4s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+selective_prune: 4202203 +/-1 candidates, unpruned=15.04MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 15659520 bytes
+Total submission size int6+lzma: 15774564 bytes
+final_int6_roundtrip val_loss:1.9241 val_bpb:1.1396 eval_time:32495ms
+final_int6_roundtrip_exact val_loss:1.92409196 val_bpb:1.13955564
+
+============================================================
+STARTING TTT (Test-Time Training)
+============================================================
+ttt_sliding:start chunks=947 chunk_tokens=65536 total_windows=969088 stride=64 ttt_lr=0.004 ttt_epochs=4 freeze_blocks=2
+ttt_sliding:params unfrozen=26956879 frozen=4112
+  ttt [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0.1% chunk 1/947 bpb=1.158451 ETA=2244s
+  ttt [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   1.2% chunk 11/947 bpb=1.116726 ETA=2237s
+  ttt [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   2.2% chunk 21/947 bpb=1.121922 ETA=2217s
+  ttt [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   3.3% chunk 31/947 bpb=1.126665 ETA=2195s
+  ttt [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   4.3% chunk 41/947 bpb=1.122217 ETA=2165s
+  ttt [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5.4% chunk 51/947 bpb=1.122236 ETA=2141s
+  ttt [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   6.4% chunk 61/947 bpb=1.118248 ETA=2115s
+  ttt [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   7.5% chunk 71/947 bpb=1.116178 ETA=2090s
+  ttt [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   8.6% chunk 81/947 bpb=1.117419 ETA=2064s
+  ttt [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   9.6% chunk 91/947 bpb=1.119260 ETA=2042s
+  ttt [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  10.7% chunk 101/947 bpb=1.121286 ETA=2019s
+  ttt [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  11.7% chunk 111/947 bpb=1.121428 ETA=1995s
+  ttt [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  12.8% chunk 121/947 bpb=1.121157 ETA=1971s
+  ttt [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  13.8% chunk 131/947 bpb=1.120258 ETA=1948s
+  ttt [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  14.9% chunk 141/947 bpb=1.121091 ETA=1924s
+  ttt [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  16.0% chunk 151/947 bpb=1.121176 ETA=1900s
+  ttt [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  17.0% chunk 161/947 bpb=1.122184 ETA=1876s
+  ttt [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  18.1% chunk 171/947 bpb=1.121457 ETA=1852s
+  ttt [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  19.1% chunk 181/947 bpb=1.122637 ETA=1828s
+  ttt [██████░░░░░░░░░░░░░░░░░░░░░░░░]  20.2% chunk 191/947 bpb=1.122769 ETA=1804s
+  ttt [██████░░░░░░░░░░░░░░░░░░░░░░░░]  21.2% chunk 201/947 bpb=1.122716 ETA=1780s
+  ttt [██████░░░░░░░░░░░░░░░░░░░░░░░░]  22.3% chunk 211/947 bpb=1.122169 ETA=1756s
+  ttt [███████░░░░░░░░░░░░░░░░░░░░░░░]  23.3% chunk 221/947 bpb=1.121828 ETA=1732s
+  ttt [███████░░░░░░░░░░░░░░░░░░░░░░░]  24.4% chunk 231/947 bpb=1.121975 ETA=1707s
+  ttt [███████░░░░░░░░░░░░░░░░░░░░░░░]  25.5% chunk 241/947 bpb=1.121269 ETA=1683s
+  ttt [███████░░░░░░░░░░░░░░░░░░░░░░░]  26.5% chunk 251/947 bpb=1.121184 ETA=1659s
+  ttt [████████░░░░░░░░░░░░░░░░░░░░░░]  27.6% chunk 261/947 bpb=1.120101 ETA=1636s
+  ttt [████████░░░░░░░░░░░░░░░░░░░░░░]  28.6% chunk 271/947 bpb=1.121095 ETA=1612s
+  ttt [████████░░░░░░░░░░░░░░░░░░░░░░]  29.7% chunk 281/947 bpb=1.120532 ETA=1588s
+  ttt [█████████░░░░░░░░░░░░░░░░░░░░░]  30.7% chunk 291/947 bpb=1.119937 ETA=1564s
+  ttt [█████████░░░░░░░░░░░░░░░░░░░░░]  31.8% chunk 301/947 bpb=1.119255 ETA=1541s
+  ttt [█████████░░░░░░░░░░░░░░░░░░░░░]  32.9% chunk 311/947 bpb=1.118793 ETA=1517s
+  ttt [██████████░░░░░░░░░░░░░░░░░░░░]  33.9% chunk 321/947 bpb=1.118327 ETA=1493s
+  ttt [██████████░░░░░░░░░░░░░░░░░░░░]  35.0% chunk 331/947 bpb=1.117656 ETA=1469s
+  ttt [██████████░░░░░░░░░░░░░░░░░░░░]  36.0% chunk 341/947 bpb=1.116552 ETA=1445s
+  ttt [███████████░░░░░░░░░░░░░░░░░░░]  37.1% chunk 351/947 bpb=1.115972 ETA=1421s
+  ttt [███████████░░░░░░░░░░░░░░░░░░░]  38.1% chunk 361/947 bpb=1.115793 ETA=1397s
+  ttt [███████████░░░░░░░░░░░░░░░░░░░]  39.2% chunk 371/947 bpb=1.116028 ETA=1373s
+  ttt [████████████░░░░░░░░░░░░░░░░░░]  40.3% chunk 381/947 bpb=1.115864 ETA=1349s
+  ttt [████████████░░░░░░░░░░░░░░░░░░]  41.3% chunk 391/947 bpb=1.115962 ETA=1325s
+  ttt [████████████░░░░░░░░░░░░░░░░░░]  42.4% chunk 401/947 bpb=1.115619 ETA=1302s
+  ttt [█████████████░░░░░░░░░░░░░░░░░]  43.4% chunk 411/947 bpb=1.115617 ETA=1278s
+  ttt [█████████████░░░░░░░░░░░░░░░░░]  44.5% chunk 421/947 bpb=1.115108 ETA=1254s
+  ttt [█████████████░░░░░░░░░░░░░░░░░]  45.5% chunk 431/947 bpb=1.115224 ETA=1230s
+  ttt [█████████████░░░░░░░░░░░░░░░░░]  46.6% chunk 441/947 bpb=1.115414 ETA=1206s
+  ttt [██████████████░░░░░░░░░░░░░░░░]  47.7% chunk 451/947 bpb=1.114865 ETA=1182s
+  ttt [██████████████░░░░░░░░░░░░░░░░]  48.7% chunk 461/947 bpb=1.114923 ETA=1158s
+  ttt [██████████████░░░░░░░░░░░░░░░░]  49.8% chunk 471/947 bpb=1.115059 ETA=1135s
+  ttt [███████████████░░░░░░░░░░░░░░░]  50.8% chunk 481/947 bpb=1.115659 ETA=1111s
+  ttt [███████████████░░░░░░░░░░░░░░░]  51.9% chunk 491/947 bpb=1.116266 ETA=1087s
+  ttt [███████████████░░░░░░░░░░░░░░░]  52.9% chunk 501/947 bpb=1.116387 ETA=1063s
+  ttt [████████████████░░░░░░░░░░░░░░]  54.0% chunk 511/947 bpb=1.116938 ETA=1040s
+  ttt [████████████████░░░░░░░░░░░░░░]  55.0% chunk 521/947 bpb=1.117762 ETA=1016s
+  ttt [████████████████░░░░░░░░░░░░░░]  56.1% chunk 531/947 bpb=1.117728 ETA=992s
+  ttt [█████████████████░░░░░░░░░░░░░]  57.2% chunk 541/947 bpb=1.117916 ETA=968s
+  ttt [█████████████████░░░░░░░░░░░░░]  58.2% chunk 551/947 bpb=1.118386 ETA=944s
+  ttt [█████████████████░░░░░░░░░░░░░]  59.3% chunk 561/947 bpb=1.117788 ETA=921s
+  ttt [██████████████████░░░░░░░░░░░░]  60.3% chunk 571/947 bpb=1.117586 ETA=897s
+  ttt [██████████████████░░░░░░░░░░░░]  61.4% chunk 581/947 bpb=1.117378 ETA=873s
+  ttt [██████████████████░░░░░░░░░░░░]  62.4% chunk 591/947 bpb=1.116983 ETA=849s
+  ttt [███████████████████░░░░░░░░░░░]  63.5% chunk 601/947 bpb=1.117361 ETA=825s
+  ttt [███████████████████░░░░░░░░░░░]  64.6% chunk 611/947 bpb=1.117284 ETA=801s
+  ttt [███████████████████░░░░░░░░░░░]  65.6% chunk 621/947 bpb=1.116974 ETA=777s
+  ttt [████████████████████░░░░░░░░░░]  66.7% chunk 631/947 bpb=1.116158 ETA=754s
+  ttt [████████████████████░░░░░░░░░░]  67.7% chunk 641/947 bpb=1.115588 ETA=730s
+  ttt [████████████████████░░░░░░░░░░]  68.8% chunk 651/947 bpb=1.115274 ETA=706s
+  ttt [████████████████████░░░░░░░░░░]  69.8% chunk 661/947 bpb=1.114734 ETA=682s
+  ttt [█████████████████████░░░░░░░░░]  70.9% chunk 671/947 bpb=1.114437 ETA=658s
+  ttt [█████████████████████░░░░░░░░░]  72.0% chunk 681/947 bpb=1.114454 ETA=634s
+  ttt [█████████████████████░░░░░░░░░]  73.0% chunk 691/947 bpb=1.114894 ETA=610s
+  ttt [██████████████████████░░░░░░░░]  74.1% chunk 701/947 bpb=1.114698 ETA=587s
+  ttt [██████████████████████░░░░░░░░]  75.1% chunk 711/947 bpb=1.114914 ETA=563s
+  ttt [██████████████████████░░░░░░░░]  76.2% chunk 721/947 bpb=1.115289 ETA=539s
+  ttt [███████████████████████░░░░░░░]  77.2% chunk 731/947 bpb=1.115082 ETA=515s
+  ttt [███████████████████████░░░░░░░]  78.3% chunk 741/947 bpb=1.115571 ETA=491s
+  ttt [███████████████████████░░░░░░░]  79.4% chunk 751/947 bpb=1.115875 ETA=467s
+  ttt [████████████████████████░░░░░░]  80.4% chunk 761/947 bpb=1.115975 ETA=443s
+  ttt [████████████████████████░░░░░░]  81.5% chunk 771/947 bpb=1.116292 ETA=419s
+  ttt [████████████████████████░░░░░░]  82.5% chunk 781/947 bpb=1.116582 ETA=395s
+  ttt [█████████████████████████░░░░░]  83.6% chunk 791/947 bpb=1.116878 ETA=372s
+  ttt [█████████████████████████░░░░░]  84.6% chunk 801/947 bpb=1.117103 ETA=348s
+  ttt [█████████████████████████░░░░░]  85.7% chunk 811/947 bpb=1.117169 ETA=324s
+  ttt [██████████████████████████░░░░]  86.7% chunk 821/947 bpb=1.117275 ETA=300s
+  ttt [██████████████████████████░░░░]  87.8% chunk 831/947 bpb=1.117460 ETA=276s
+  ttt [██████████████████████████░░░░]  88.9% chunk 841/947 bpb=1.117753 ETA=252s
+  ttt [██████████████████████████░░░░]  89.9% chunk 851/947 bpb=1.117968 ETA=228s
+  ttt [███████████████████████████░░░]  91.0% chunk 861/947 bpb=1.117801 ETA=204s
+  ttt [███████████████████████████░░░]  92.0% chunk 871/947 bpb=1.117563 ETA=180s
+  ttt [███████████████████████████░░░]  93.1% chunk 881/947 bpb=1.117510 ETA=156s
+  ttt [████████████████████████████░░]  94.1% chunk 891/947 bpb=1.117373 ETA=132s
+  ttt [████████████████████████████░░]  95.2% chunk 901/947 bpb=1.117019 ETA=108s
+  ttt [████████████████████████████░░]  96.3% chunk 911/947 bpb=1.116911 ETA=85s
+  ttt [█████████████████████████████░]  97.3% chunk 921/947 bpb=1.116758 ETA=61s
+  ttt [█████████████████████████████░]  98.4% chunk 931/947 bpb=1.116513 ETA=37s
+  ttt [█████████████████████████████░]  99.4% chunk 941/947 bpb=1.116207 ETA=13s
+  ttt [██████████████████████████████] 100.0% chunk 947/947 bpb=1.116242 ETA=0s
+
+ttt_sliding:done val_loss=1.884723 val_bpb=1.116242 elapsed=2259.0s
+legal_ttt val_loss:1.8847 val_bpb:1.1162
+legal_ttt_exact val_loss:1.88472279 val_bpb:1.11624195

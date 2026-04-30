@@ -1,0 +1,43 @@
+{
+  "author": "Sidhant Thole",
+  "github_id": "SPThole",
+  "name": "Meta-TTT Ablation: FOMAML Off (exp105a)",
+  "blurb": "Pure ablation of exp101: single change META_TTT_ENABLED=1→0. Every other hyperparameter is byte-identical (TRIGRAM=0, POS_CONDITIONAL_BIGRAM=1, XSA-all-11L, VE 7-10, same schedule). Result: legal_ttt 1.11624 vs exp101's 1.11588 — difference of +0.00036 bpb (noise level). Meta-TTT (FOMAML, same-batch inner/outer) adds no meaningful value at 3% extra compute cost; exp105a ran 206 more steps than exp101 in the same wallclock due to eliminated FOMAML overhead. TTT delta identical at ~0.0233 bpb regardless of meta-TTT. This run motivated the exp106 cross-chunk + delta-loss + MetaSGD redesign.",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "val_loss": 1.88472279,
+  "val_bpb": 1.11624195,
+  "pre_quant_val_loss": 1.9170,
+  "pre_quant_val_bpb": 1.1353,
+  "int6_roundtrip_val_loss": 1.92409196,
+  "int6_roundtrip_val_bpb": 1.13955564,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 1.88472279,
+      "val_bpb": 1.11624195,
+      "pre_quant_val_bpb": 1.1353,
+      "int6_roundtrip_val_bpb": 1.13955564,
+      "artifact_bytes": 15774564,
+      "model_bytes": 15659520,
+      "code_bytes": 115044,
+      "steps": 7226,
+      "step_avg_ms": 664.29,
+      "wallclock_s": 4800,
+      "late_qat_step": 5557,
+      "swa_start_step": 5750,
+      "adaptive_warmdown_step": 2200,
+      "peak_gpu_mib": 23043
+    }
+  },
+  "hardware": "1×H100 80GB SXM",
+  "gptq_calibration": "AR self-generated (64 seqs × 2048 tokens, temp=0.8)",
+  "gptq_layers": 68,
+  "selective_prune_candidates": 4202203,
+  "selective_prune_applied": false,
+  "non_record": true,
+  "experiment_type": "ablation",
+  "parent_arch": "11L XSA-all · BigramHash 4096×64 pos-conditional (ws/non-ws split) · trigram · VE7-10 · FOMAML every=4 · SGD+cosine TTT · int6 GPTQ+lzma · legal_ttt 1.11588",
+  "delta_vs_exp101_bpb": 0.00036,
+  "conclusion": "FOMAML meta-TTT (same-batch inner/outer) contributes +0.00036 bpb at 3% compute overhead — not worth it"
+}
