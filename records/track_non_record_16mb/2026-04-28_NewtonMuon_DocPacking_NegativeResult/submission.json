@@ -1,0 +1,42 @@
+{
+  "author": "Saicharan Ramineni",
+  "github_id": "GodlyDonuts",
+  "name": "Newton-Muon × Document-Packing — Negative Result",
+  "blurb": "Grafting hook-based Newton–Schulz residual orthogonalization (Newton-Muon) onto PR #1874's full stack regresses val_bpb by +0.0378 nat in a controlled same-seed A/B. Root cause is dynamo recompile fragmentation: the per-module integer counter `_nm_K_count` is mutated inside a forward-pre-hook, dynamo treats it as a static attribute, every transformer block hits config.recompile_limit=16 within ~10 steps, fullgraph compilation silently breaks, FA3 fused kernels stop emitting cleanly, and step time inflates ~2.4×. Filed as a non-record submission with full diagnostic logs so other competitors don't repeat the dead end.",
+  "date": "2026-04-28",
+  "track": "non_record_16mb",
+  "result": "negative",
+  "result_summary": {
+    "newton_muon_enabled_val_bpb": 1.10705440,
+    "pr_1874_baseline_same_seed_val_bpb": 1.06927777,
+    "regression_nats": 0.03777663,
+    "regression_direction": "Newton-Muon REGRESSES vs baseline by +0.0378 nat",
+    "controlled_for": "identical seed=42, identical SP8192 dataset, identical batch size, identical step count, identical hardware. Only delta is NEWTON_MUON_ENABLED=1."
+  },
+  "root_cause_summary": "Per-module Python int `_nm_K_count` updated inside a forward-pre-hook is treated as a static attribute by torch._dynamo. It mutates every step → every block recompiles → hits config.recompile_limit=16 within ~10 steps → dynamo falls back to eager → fullgraph=True is silently violated → FA3 fused attention kernels stop emitting cleanly → ~2.4× wall-clock slowdown → fewer training steps fit in the 600s budget → final val_bpb regresses by +0.0378 nat.",
+  "diagnostic_evidence": {
+    "log_lines": [
+      "torch._dynamo hit config.recompile_limit (16)",
+      "function: 'forward'",
+      "last reason: 0/15: self._modules['blocks']._modules['0']._modules['attn']._modules['attn_gate_proj']._nm_K_count == 1474560"
+    ],
+    "pytorch_hint": "torch.compile considers integer attributes of the nn.Module to be static. If you are observing recompilation, you might want to make this integer dynamic using torch._dynamo.config.allow_unspec_int_on_nn_module = True, or convert this integer into a tensor.",
+    "we_tried_the_hint": "Setting allow_unspec_int_on_nn_module = True suppressed the recompile warnings but the underlying graph fragmentation persisted, because dynamo still has to reconcile the variable-length cu_seqlens (from PR #1874's document-packed loader) against a now-dynamic counter, and FA3's specialized paths get bypassed regardless."
+  },
+  "compatibility": {
+    "compatible_with_static_seq_len_loaders": "likely yes (untested in this submission)",
+    "compatible_with_pr_1874_document_packing_loader": false,
+    "suggested_fixes": [
+      "Convert _nm_K_count to a torch.Tensor scalar.",
+      "Move K-accumulation outside the compiled region (e.g. trigger preconditioning from optimizer.step() rather than from a forward hook).",
+      "Apply preconditioning post-reduce-scatter on a non-compiled path."
+    ]
+  },
+  "hardware": "8 × H100 80GB SXM (RunPod)",
+  "pytorch_version": "2.9.1+cu128",
+  "compute_spent_usd": 12,
+  "attribution": {
+    "newton_schulz_optimizer_family": "broad community / leaderboard discussion",
+    "base_stack_we_grafted_onto": "@AjAnubolu (PR #1874)"
+  }
+}
