@@ -1,8 +1,8 @@
 {
   "author": "Ishan Godawatta",
   "github_id": "IshanG97",
-  "name": "11L XSA + LQER + SparseAttnGate + BOS-Fixed SmearGate + 9-hparam stack + SWA blend",
-  "blurb": "PR #1855's full stack (11L 512d 8H/4KV transformer with U-Net skips, parallel residuals, partial RoPE, Polar-Express Newton-Schulz Muon, LQER asymmetric int4 rank-4 quant correction, sparse attention head-output gate, BOS-fixed SmearGate, fused LeakyReLU-square MLP, fused softcapped CE Triton kernel, GPTQ int6 + int7 embed + per-row int8 attn-gate, per-group lrzip compression, phased TTT eval (3 phases, prefix=2500 docs), 9 hyperparameter overrides) \u2014 PLUS Stochastic Weight Averaging blended into the EMA shadow before GPTQ. 3-seed mean: 1.06140 BPB (std 0.00044), beating PR #1855 by -0.00032 BPB.",
+  "name": "[Non-record] 11L XSA + LQER + SparseAttnGate + BOS-Fixed SmearGate + 9-hparam stack + SWA blend",
+  "blurb": "Non-record submission. PR #1855's full stack PLUS Stochastic Weight Averaging blended into the EMA shadow before GPTQ. 3-seed mean: 1.06140 BPB (std 0.00044) \u2014 +0.32 mbpb worse than current SOTA (PR #1855, 1.06108). Submitted as non-record to contribute three findings: (1) hardware-calibration shift of +1.25 mbpb measured on this hardware via byte-identical PR #1855 vanilla replication (Pod F, val_bpb 1.06114 vs published 1.05989), confirming PR #1981's calibration observation at smaller magnitude; (2) SWA composes cleanly with the LQER asymmetric int4 + per-group lrzip pipeline, giving ~0.9 mbpb improvement vs vanilla on the same hardware (not enough to overcome the calibration shift and clear the 1.05608 record bar); (3) reproducibility checkpoint within \u00b10.4 mbpb per seed of published numbers.",
   "date": "2026-04-30",
   "track": "10min_16mb",
   "val_loss": 2.322734023333333,
