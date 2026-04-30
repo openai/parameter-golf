@@ -182,18 +182,22 @@ _logger_hparams = None
 def set_logging_hparams(h):
     global _logger_hparams
     _logger_hparams = h
+    return _logger_hparams
 
 
 def log(msg, console=True):
-    if _logger_hparams is None:
+    logger_state = _logger_hparams
+    if logger_state is None:
         print(msg)
         return
-    if _logger_hparams.is_main_process:
-        if console:
-            print(msg)
-        if _logger_hparams.logfile is not None:
-            with open(_logger_hparams.logfile, "a", encoding="utf-8") as f:
-                print(msg, file=f)
+    if not logger_state.is_main_process:
+        return
+    if console:
+        print(msg)
+    log_path = logger_state.logfile
+    if log_path:
+        with open(log_path, "a", encoding="utf-8") as handle:
+            print(msg, file=handle)
 
 
 class ShardCache:
@@ -229,12 +233,12 @@ _SHARD_CACHE = ShardCache()
 
 
 def load_data_shard(file):
-    header_bytes = 256 * np.dtype("<i4").itemsize
+    header_bytes = _SHARD_CACHE.header_bytes
     token_bytes = np.dtype("<u2").itemsize
     header = np.fromfile(file, dtype="<i4", count=256)
     if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
         raise ValueError(f"Unexpected shard header for {file}")
-    num_tokens = int(header[2])
+    num_tokens = _SHARD_CACHE.read_num_tokens(file)
     expected_size = header_bytes + num_tokens * token_bytes
     if file.stat().st_size != expected_size:
         raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
@@ -284,14 +288,15 @@ def build_sentencepiece_luts(sp, vocab_size, device):
 
 class ValidationData:
     def __init__(self, h, device):
-        self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
-        if int(self.sp.vocab_size()) != h.vocab_size:
+        tokenizer = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+        if int(tokenizer.vocab_size()) != h.vocab_size:
             raise ValueError(
-                f"VOCAB_SIZE={h.vocab_size} does not match tokenizer vocab_size={int(self.sp.vocab_size())}"
+                f"VOCAB_SIZE={h.vocab_size} does not match tokenizer vocab_size={int(tokenizer.vocab_size())}"
             )
+        self.sp = tokenizer
         self.val_tokens = load_validation_tokens(h.val_files, h.eval_seq_len)
         self.base_bytes_lut, self.has_leading_space_lut, self.is_boundary_token_lut = build_sentencepiece_luts(
-            self.sp, h.vocab_size, device
+            tokenizer, h.vocab_size, device
         )
 
 
@@ -379,13 +384,15 @@ class RMSNorm(nn.Module):
         self.eps = eps
 
     def forward(self, x):
-        return F.rms_norm(x, (x.size(-1),), eps=self.eps)
+        norm_shape = (x.shape[-1],)
+        return F.rms_norm(x, norm_shape, eps=self.eps)
 
 
 class CastedLinear(nn.Linear):
     def forward(self, x):
-        w = self.weight.to(x.dtype)
-        bias = self.bias.to(x.dtype) if self.bias is not None else None
+        dtype = x.dtype
+        w = self.weight.to(dtype=dtype)
+        bias = None if self.bias is None else self.bias.to(dtype=dtype)
         return F.linear(x, w, bias)
 
 
@@ -403,12 +410,13 @@ class Rotary(nn.Module):
         self._sin_cached = None
 
     def forward(self, seq_len, device, dtype):
-        if (
-                self._cos_cached is None
-                or self._sin_cached is None
-                or self._seq_len_cached != seq_len
-                or self._cos_cached.device != device
-        ):
+        cached_ok = (
+            self._cos_cached is not None
+            and self._sin_cached is not None
+            and self._seq_len_cached == seq_len
+            and self._cos_cached.device == device
+        )
+        if not cached_ok:
             rd = self.rope_dims
             if seq_len > self.train_seq_len:
                 scale = seq_len / self.train_seq_len
@@ -429,11 +437,11 @@ def apply_rotary_emb(x, cos, sin, rope_dims=0):
         x_rope, x_pass = x[..., :rope_dims], x[..., rope_dims:]
         half = rope_dims // 2
         x1, x2 = x_rope[..., :half], x_rope[..., half:]
-        x_rope = torch.cat((x1 * cos + x2 * sin, x1 * -sin + x2 * cos), dim=-1)
+        x_rope = torch.cat((x1 * cos + x2 * sin, x2 * cos - x1 * sin), dim=-1)
         return torch.cat((x_rope, x_pass), dim=-1)
     half = x.size(-1) // 2
     x1, x2 = x[..., :half], x[..., half:]
-    return torch.cat((x1 * cos + x2 * sin, x1 * -sin + x2 * cos), dim=-1)
+    return torch.cat((x1 * cos + x2 * sin, x2 * cos - x1 * sin), dim=-1)
 
 
 class CausalSelfAttention(nn.Module):
@@ -465,12 +473,13 @@ class CausalSelfAttention(nn.Module):
 
     def _xsa_efficient(self, y, v):
         B, T, H, D = y.shape
-        Hkv = v.size(-2)
+        Hkv = v.shape[-2]
         group = H // Hkv
-        y_g = y.reshape(B, T, Hkv, group, D)
-        vn = F.normalize(v, dim=-1).unsqueeze(-2)
-        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
-        return (y_g - proj).reshape(B, T, H, D)
+        y_grouped = y.reshape(B, T, Hkv, group, D)
+        v_unit = F.normalize(v, dim=-1).unsqueeze(-2)
+        proj = (y_grouped * v_unit).sum(dim=-1, keepdim=True) * v_unit
+        cleaned = y_grouped - proj
+        return cleaned.reshape(B, T, H, D)
 
     def forward(self, x):
         bsz, seqlen, dim = x.shape
@@ -511,7 +520,10 @@ class MLP(nn.Module):
         self.proj._zero_init = True
 
     def forward(self, x):
-        return self.proj(F.silu(self.fc(x)).square())
+        hidden = self.fc(x)
+        hidden = F.silu(hidden)
+        hidden = hidden * hidden
+        return self.proj(hidden)
 
 
 class Block(nn.Module):
@@ -540,20 +552,21 @@ class Block(nn.Module):
 
     def forward(self, x, x0):
         mix = self.resid_mix.to(dtype=x.dtype)
-        x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor)
+        resid_a = mix[0][None, None, :]
+        resid_b = mix[1][None, None, :]
+        x_in = resid_a * x + resid_b * x0
+        normed = self.attn_norm(x_in) * self.ln_scale_factor
+        attn_out = self.attn(normed)
+        attn_gain = self.attn_scale.to(dtype=x_in.dtype)[None, None, :]
+        mlp_gain = self.mlp_scale.to(dtype=x_in.dtype)[None, None, :]
         if self.parallel:
-            mlp_out = self.mlp(self.mlp_norm(x_in) * self.ln_scale_factor)
-            x_out = (
-                    x_in
-                    + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
-                    + self.mlp_scale.to(dtype=x_in.dtype)[None, None, :] * mlp_out
-            )
+            mlp_in = self.mlp_norm(x_in) * self.ln_scale_factor
+            mlp_out = self.mlp(mlp_in)
+            x_out = x_in + attn_gain * attn_out + mlp_gain * mlp_out
         else:
-            x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
-            x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(
-                self.mlp_norm(x_out) * self.ln_scale_factor
-            )
+            x_mid = x_in + attn_gain * attn_out
+            mlp_in = self.mlp_norm(x_mid) * self.ln_scale_factor
+            x_out = x_mid + mlp_gain * self.mlp(mlp_in)
         return x_out
 
 
@@ -642,11 +655,12 @@ class GPT(nn.Module):
     def _init_weights(self):
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
-        for name, module in self.named_modules():
+        for _, module in self.named_modules():
             if isinstance(module, nn.Linear):
                 if getattr(module, "_zero_init", False):
                     nn.init.zeros_(module.weight)
-                elif module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
+                    continue
+                if module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
                     nn.init.orthogonal_(module.weight, gain=1.0)
 
     def forward_logits(self, input_ids):
@@ -671,7 +685,8 @@ class GPT(nn.Module):
             skips.append(x)
         for skip_idx, i in enumerate(dec_iter):
             if skip_idx < self.num_skip_weights and skips:
-                scaled_skip = self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                skip_weight = self.skip_weights[skip_idx].to(dtype=x.dtype)[None, None, :]
+                scaled_skip = skip_weight * skips.pop()
                 if self.skip_gates is not None:
                     g = torch.sigmoid(self.skip_gates[skip_idx].to(dtype=x.dtype))[None, None, :]
                     x = torch.lerp(scaled_skip, x, g)
@@ -689,17 +704,18 @@ class GPT(nn.Module):
 
     def forward(self, input_ids, target_ids):
         logits = self.forward_logits(input_ids)
-        return F.cross_entropy(
-            logits.reshape(-1, logits.size(-1)).float(), target_ids.reshape(-1), reduction="mean"
-        )
+        flat_logits = logits.reshape(-1, logits.size(-1)).float()
+        flat_targets = target_ids.reshape(-1)
+        return F.cross_entropy(flat_logits, flat_targets, reduction="mean")
 
 
 def classify_param(name):
-    if "tok_emb" in name or "lm_head" in name:
+    if any(key in name for key in ("tok_emb", "lm_head")):
         return "embed"
     if ".mlp." in name:
         return "mlp"
-    if ".attn." in name or (".proj." in name and ".mlp." not in name):
+    is_attention_proj = ".attn." in name or (".proj." in name and ".mlp." not in name)
+    if is_attention_proj:
         return "attn"
     return "other"
 
@@ -708,15 +724,15 @@ def classify_param(name):
 def zeropower_via_newtonschulz5(G, steps=10, eps=1e-07):
     a, b, c = 3.4445, -4.775, 2.0315
     X = G.bfloat16()
-    X /= X.norm() + eps
-    transposed = G.size(0) > G.size(1)
-    if transposed:
-        X = X.T
+    X = X / (X.norm() + eps)
+    needs_t = G.shape[0] > G.shape[1]
+    if needs_t:
+        X = X.transpose(0, 1)
     for _ in range(steps):
-        A = X @ X.T
-        B = b * A + c * A @ A
-        X = a * X + B @ X
-    return X.T if transposed else X
+        gram = X @ X.transpose(0, 1)
+        poly = b * gram + c * (gram @ gram)
+        X = a * X + poly @ X
+    return X.transpose(0, 1) if needs_t else X
 
 
 class Muon(torch.optim.Optimizer):
@@ -735,52 +751,55 @@ class Muon(torch.optim.Optimizer):
 
     @torch.no_grad()
     def step(self, closure=None):
-        loss = None
+        maybe_loss = None
         if closure is not None:
             with torch.enable_grad():
-                loss = closure()
+                maybe_loss = closure()
         distributed = dist.is_available() and dist.is_initialized()
         world_size = dist.get_world_size() if distributed else 1
         rank = dist.get_rank() if distributed else 0
         for group in self.param_groups:
             params = group["params"]
-            if not params:
+            if len(params) == 0:
                 continue
             lr = group["lr"]
             momentum = group["momentum"]
             backend_steps = group["backend_steps"]
             nesterov = group["nesterov"]
-            total_params = sum(int(p.numel()) for p in params)
-            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
-            curr = 0
-            for i, p in enumerate(params):
-                if i % world_size == rank and p.grad is not None:
-                    g = p.grad
-                    state = self.state[p]
+            total = sum(int(p.numel()) for p in params)
+            packed = torch.zeros(total, device=params[0].device, dtype=torch.bfloat16)
+            cursor = 0
+            for index, param in enumerate(params):
+                param_size = int(param.numel())
+                should_own = index % world_size == rank and param.grad is not None
+                if should_own:
+                    grad = param.grad
+                    state = self.state[param]
                     if "momentum_buffer" not in state:
-                        state["momentum_buffer"] = torch.zeros_like(g)
-                    buf = state["momentum_buffer"]
-                    buf.mul_(momentum).add_(g)
+                        state["momentum_buffer"] = torch.zeros_like(grad)
+                    momentum_buf = state["momentum_buffer"]
+                    momentum_buf.mul_(momentum).add_(grad)
                     if nesterov:
-                        g = g.add(buf, alpha=momentum)
+                        grad = grad.add(momentum_buf, alpha=momentum)
                     if group.get("row_normalize", False):
-                        row_norms = g.float().norm(dim=-1, keepdim=True).clamp_min(1e-07)
-                        g = g / row_norms.to(g.dtype)
-                    g = zeropower_via_newtonschulz5(g, steps=backend_steps)
-                    g *= max(1, g.size(0) / g.size(1)) ** 0.5
-                    updates_flat[curr: curr + p.numel()] = g.reshape(-1)
-                curr += p.numel()
+                        norms = grad.float().norm(dim=-1, keepdim=True).clamp_min(1e-07)
+                        grad = grad / norms.to(grad.dtype)
+                    grad = zeropower_via_newtonschulz5(grad, steps=backend_steps)
+                    grad = grad * max(1, grad.shape[0] / grad.shape[1]) ** 0.5
+                    packed[cursor:cursor + param_size] = grad.reshape(-1)
+                cursor += param_size
             if distributed:
-                dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
+                dist.all_reduce(packed, op=dist.ReduceOp.SUM)
             wd = group.get("weight_decay", 0.0)
-            curr = 0
-            for p in params:
+            cursor = 0
+            for param in params:
+                param_size = int(param.numel())
                 if wd > 0.0:
-                    p.data.mul_(1.0 - lr * wd)
-                g = updates_flat[curr: curr + p.numel()].view_as(p).to(dtype=p.dtype)
-                p.add_(g, alpha=-lr)
-                curr += p.numel()
-        return loss
+                    param.data.mul_(1.0 - lr * wd)
+                update = packed[cursor:cursor + param_size].view_as(param).to(dtype=param.dtype)
+                param.add_(update, alpha=-lr)
+                cursor += param_size
+        return maybe_loss
 
 
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
@@ -854,14 +873,14 @@ class Optimizers:
             self.optimizer_head = None
 
     def __iter__(self):
-        return iter(self.optimizers)
+        yield from self.optimizers
 
     def zero_grad_all(self):
-        for opt in self.optimizers:
+        for opt in tuple(self.optimizers):
             opt.zero_grad(set_to_none=True)
 
     def step(self):
-        for opt in self.optimizers:
+        for opt in tuple(self.optimizers):
             opt.step()
         self.zero_grad_all()
 
@@ -871,8 +890,8 @@ def restore_fp32_params(model):
         if isinstance(module, CastedLinear):
             module.float()
     for name, param in model.named_parameters():
-        if (param.ndim < 2 or any(
-                pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)) and param.dtype != torch.float32:
+        is_control_tensor = param.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+        if is_control_tensor and param.dtype != torch.float32:
             param.data = param.data.float()
 
 
@@ -885,9 +904,11 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
             x = inp[0].detach().float()
             if x.ndim == 3:
                 x = x.reshape(-1, x.shape[-1])
-            if name not in hessians:
-                hessians[name] = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float32, device=device)
-            hessians[name].addmm_(x.T, x)
+            gram = hessians.get(name)
+            if gram is None:
+                gram = torch.zeros(x.shape[1], x.shape[1], dtype=torch.float32, device=device)
+                hessians[name] = gram
+            gram.addmm_(x.T, x)
 
         return hook_fn
 
@@ -1009,18 +1030,20 @@ def dequantize_mixed(result, meta, template_sd):
         info = meta.get(name)
         if info is None:
             continue
-        orig_dtype = orig.dtype
+        target_dtype = orig.dtype
         if "passthrough" in info:
-            t = result[name]
-            if t.dtype == torch.float16 and orig_dtype in (torch.float32, torch.bfloat16):
-                t = t.to(orig_dtype)
-            out[name] = t
+            passthrough = result[name]
+            if passthrough.dtype == torch.float16 and target_dtype in (torch.float32, torch.bfloat16):
+                passthrough = passthrough.to(target_dtype)
+            out[name] = passthrough
             continue
-        q, s = result[name + ".q"], result[name + ".scale"]
-        if s.ndim > 0:
-            out[name] = (q.float() * s.float().view(q.shape[0], *[1] * (q.ndim - 1))).to(orig_dtype)
+        q = result[name + ".q"]
+        s = result[name + ".scale"]
+        if s.ndim:
+            scale = s.float().view(q.shape[0], *([1] * (q.ndim - 1)))
+            out[name] = (q.float() * scale).to(target_dtype)
         else:
-            out[name] = (q.float() * float(s.item())).to(orig_dtype)
+            out[name] = (q.float() * float(s.item())).to(target_dtype)
     return out
 
 
@@ -1031,14 +1054,9 @@ def _byte_shuffle(data, stride=2):
     if stride <= 1 or len(data) < stride:
         return data
     src = np.frombuffer(data, dtype=np.uint8)
-    n = len(src)
-    out = np.empty(n, dtype=np.uint8)
-    dest_off = 0
-    for pos in range(stride):
-        chunk = src[pos::stride]
-        out[dest_off: dest_off + len(chunk)] = chunk
-        dest_off += len(chunk)
-    return _BSHF_MAGIC + bytes([stride]) + out.tobytes()
+    pieces = [src[pos::stride] for pos in range(stride)]
+    payload = np.concatenate(pieces, axis=0)
+    return _BSHF_MAGIC + bytes((stride,)) + payload.tobytes()
 
 
 def _byte_unshuffle(data):
@@ -1048,13 +1066,13 @@ def _byte_unshuffle(data):
     if stride < 2:
         return data[5:]
     payload = np.frombuffer(data, dtype=np.uint8, offset=5)
-    n = len(payload)
+    n = payload.size
     out = np.empty(n, dtype=np.uint8)
-    src_off = 0
+    cursor = 0
     for pos in range(stride):
-        chunk_len = n // stride + (1 if pos < n % stride else 0)
-        out[pos::stride][:chunk_len] = payload[src_off: src_off + chunk_len]
-        src_off += chunk_len
+        block = n // stride + (1 if pos < (n % stride) else 0)
+        out[pos::stride][:block] = payload[cursor:cursor + block]
+        cursor += block
     return out.tobytes()
 
 
@@ -1105,19 +1123,21 @@ def serialize(h, base_model):
 def deserialize(h, device):
     eval_model = GPT(h).to(device).bfloat16()
     restore_fp32_params(eval_model)
-    sd_cpu = {k: v.detach().cpu() for k, v in eval_model.state_dict().items()}
+    template_state = {k: v.detach().cpu() for k, v in eval_model.state_dict().items()}
     with open(h.quantized_model_path, "rb") as f:
-        quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(_decompress(quant_blob_disk, h.compressor)), map_location="cpu")
-    deq_state = dequantize_mixed(quant_state["w"], quant_state["m"], sd_cpu)
-    eval_model.load_state_dict(deq_state, strict=True)
+        packed = f.read()
+    decoded = _decompress(packed, h.compressor)
+    quant_state = torch.load(io.BytesIO(decoded), map_location="cpu")
+    recovered = dequantize_mixed(quant_state["w"], quant_state["m"], template_state)
+    eval_model.load_state_dict(recovered, strict=True)
     return eval_model
 
 
 def _loss_bpb(loss_sum, token_count, byte_count):
-    val_loss = (loss_sum / token_count).item()
-    val_bpb = val_loss / math.log(2.0) * (token_count.item() / byte_count.item())
-    return val_loss, val_bpb
+    mean_loss = (loss_sum / token_count).item()
+    bits_per_token = mean_loss / math.log(2.0)
+    tokens_per_byte = token_count.item() / byte_count.item()
+    return mean_loss, bits_per_token * tokens_per_byte
 
 
 def eval_val(h, device, val_data, model):
@@ -1206,9 +1226,11 @@ def eval_val_sliding(h, device, val_data, base_model, batch_seqs=32):
                 token_count += float(wlen - s)
                 tgt = y_batch[i, s:wlen]
                 prev = x_batch[i, s:wlen]
-                tb = val_data.base_bytes_lut[tgt].to(torch.float64)
-                tb += (val_data.has_leading_space_lut[tgt] & ~val_data.is_boundary_token_lut[prev]).to(torch.float64)
-                byte_count += tb.sum()
+                base_bytes = val_data.base_bytes_lut[tgt].to(torch.float64)
+                lead_space = (val_data.has_leading_space_lut[tgt] & ~val_data.is_boundary_token_lut[prev]).to(
+                    torch.float64
+                )
+                byte_count += (base_bytes + lead_space).sum()
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
@@ -1331,10 +1353,10 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
 
 def timed_eval(label, fn, *args, **kwargs):
     torch.cuda.synchronize()
-    t0 = time.perf_counter()
+    started = time.perf_counter()
     val_loss, val_bpb = fn(*args, **kwargs)
     torch.cuda.synchronize()
-    elapsed_ms = 1e3 * (time.perf_counter() - t0)
+    elapsed_ms = 1e3 * (time.perf_counter() - started)
     log(f"{label} val_loss:{val_loss:.8f} val_bpb:{val_bpb:.8f} eval_time:{elapsed_ms:.0f}ms")
     return val_loss, val_bpb
 
@@ -1352,17 +1374,19 @@ def train_model(h, device, val_data):
     train_loader = ShuffledSequenceLoader(h, device)
     max_wallclock_ms = 1e3 * h.max_wallclock_seconds if h.max_wallclock_seconds > 0 else None
 
-    def training_frac(step, elapsed_ms):
-        if max_wallclock_ms is None:
-            return step / max(h.iterations, 1)
-        return elapsed_ms / max(max_wallclock_ms, 1e-09)
+    def training_progress(step, elapsed_ms):
+        if max_wallclock_ms is not None:
+            return elapsed_ms / max(max_wallclock_ms, 1e-09)
+        return step / max(h.iterations, 1)
 
-    def lr_mul(frac):
+    def lr_scale_from_progress(progress):
         if h.warmdown_frac <= 0:
             return 1.0
-        if frac >= 1.0 - h.warmdown_frac:
-            return max((1.0 - frac) / h.warmdown_frac, h.min_lr)
-        return 1.0
+        warmdown_start = 1.0 - h.warmdown_frac
+        if progress < warmdown_start:
+            return 1.0
+        linear = (1.0 - progress) / h.warmdown_frac
+        return max(linear, h.min_lr)
 
     def muon_momentum_frac(elapsed_ms):
         if h.muon_momentum_warmup_fraction <= 0 or max_wallclock_ms is None:
@@ -1445,8 +1469,8 @@ def train_model(h, device, val_data):
                 )
             break
         elapsed_ms = training_time_ms + 1e3 * (time.perf_counter() - t0)
-        frac = training_frac(step, elapsed_ms)
-        scale = lr_mul(frac)
+        frac = training_progress(step, elapsed_ms)
+        scale = lr_scale_from_progress(frac)
         if h.num_loops > 0 and not base_model.looping_active and frac >= h.enable_looping_at:
             base_model.looping_active = True
             log(
