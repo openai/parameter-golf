@@ -1,0 +1,27 @@
+{
+  "id": "0124_path_a_h200_1hr",
+  "parent": "0121_path_a_h100_5k",
+  "created_at": "2026-04-30T03:38:11Z",
+  "metrics": {
+    "val_bpb_pre_quant": 1.2983,
+    "val_bpb_post_quant": 1.30040229,
+    "val_loss_pre_quant": 2.1921,
+    "val_loss_post_quant": 2.19567479,
+    "quant_tax": 0.002102,
+    "step_avg_ms": 821.94,
+    "num_steps": 4380.0,
+    "artifact_bytes": 12074422.0,
+    "artifact_mb": 12.074,
+    "code_bytes": 104676.0,
+    "compression_ratio": 7.7
+  },
+  "flags": {
+    "crashed": false,
+    "size_violation": false,
+    "has_nan": false,
+    "exit_code": 0,
+    "device": "cuda_h200_x4"
+  },
+  "status": "keep",
+  "description": "Best project result. n=7 long-train SSM at 4×H200 1hr."
+}
