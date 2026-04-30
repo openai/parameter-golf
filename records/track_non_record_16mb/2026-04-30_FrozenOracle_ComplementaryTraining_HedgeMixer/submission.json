@@ -1,0 +1,15 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "Frozen N-gram Oracle + Hedge Mixer + SGD TTT (Research, Not Validated at Scale)",
+  "author": "Dhruv Puri",
+  "github_id": "dhruvpuri",
+  "blurb": "Hybrid system: a frozen multi-order n-gram oracle (built offline from FineWeb training tokens, ~5MB compressed) is bundled into a single artifact alongside the neural model and used as additional experts in the existing Hedge Mixer at TTT/eval time. Adds SGD TTT (PR #967) and LeakyReLU(0.75)^2 (PR #977). End-to-end pipeline validated locally on RTX 4060 (4L/256d toy, 50 steps, 7.6MB artifact). NOT validated at 8xH100 scale — submitted as research/methodology contribution.",
+  "val_bpb": null,
+  "val_loss": null,
+  "bytes_total": null,
+  "hardware_validated": "RTX 4060 (toy run only)",
+  "hardware_intended": "8xH100 SXM (untested)",
+  "base_pr": "#462",
+  "references": ["#803", "#834", "#924", "#967", "#977", "#1019"]
+}

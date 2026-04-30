@@ -1,0 +1,4 @@
+torch>=2.4.0
+numpy>=1.26.0
+sentencepiece>=0.2.0
+zstandard>=0.22.0
