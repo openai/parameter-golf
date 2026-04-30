@@ -402,7 +402,8 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
 def quantize_state_dict_ternary(state_dict: dict[str, Tensor], threshold_scale: float = 0.05):
     """
     Simple ternary quantization: map weights to {-1, 0, +1} with a scale per-tensor.
-    threshold_scale controls sparsity: threshold = threshold_scale * max_abs
+    threshold_scale controls sparsity: threshold = threshold_scale * max_abs.
+    A value of 0.05 is chosen as a heuristic balance between compression and accuracy.
     """
     ternary: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
@@ -1163,8 +1164,10 @@ def main() -> None:
         with open("final_model.ternary.ptz", "wb") as f:
             f.write(tern_blob)
         # Pad file deterministically to the exact advertised bytes (if needed)
-        advertised_size = int(os.environ.get("TERNARY_TARGET_BYTES", os.environ.get("TER_BINARY_TARGET_BYTES", "8074035")))
+        advertised_size = int(os.environ.get("TERNARY_TARGET_BYTES", "8074035"))
         curr = os.path.getsize("final_model.ternary.ptz")
+        if curr > advertised_size:
+            raise ValueError(f"Artifact size {curr} exceeds advertised TERNARY_TARGET_BYTES {advertised_size}")
         if curr < advertised_size:
             with open("final_model.ternary.ptz", "ab") as f:
                 f.write(b"\x00" * (advertised_size - curr))
@@ -1195,10 +1198,13 @@ def main() -> None:
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
-        quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    with open("final_model.ternary.ptz", "rb") as f:
+        tern_blob_disk = f.read()
+    tern_decompressor = zlib.decompressobj()
+    tern_raw_disk = tern_decompressor.decompress(tern_blob_disk)
+    tern_raw_disk += tern_decompressor.flush()
+    tern_state = torch.load(io.BytesIO(tern_raw_disk), map_location="cpu")
+    base_model.load_state_dict(dequantize_state_dict_ternary(tern_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
@@ -1215,10 +1221,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_ternary_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"final_ternary_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()

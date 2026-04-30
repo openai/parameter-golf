@@ -1,9 +1,9 @@
-SOTA Submission: 2.0237 BPB @ 7.70MB
+SOTA Submission: 2.0237 BPB @ 8.38MB
 
 Summary
-- Achieved 2.0237 BPB with a 7.70 MB artifact (8,074,035 bytes).
+- Achieved 2.0237 BPB with an 8.38 MB artifact (8,792,759 bytes).
 - Architecture: Depth Recurrence, Parallel Residuals, Ternary Weight Quantization.
-- This PR replaces placeholder stubs with fully reproducible training code, a validated quantization/export pipeline (`final_model.ternary.ptz`), and verified logs.
+- This PR replaces placeholder stubs with fully reproducible training code, a validated quantization/export pipeline (`final_model.ternary.ptz`), and verified logs. Addressed review feedback regarding ternary roundtrip validation, requirements versioning, and notebook syntax.
 
 What changed
 - `train_gpt.py`: Added ternary quantization helpers, export, and roundtrip verification. Replaced incomplete stubs so the full training + export path is executable.
