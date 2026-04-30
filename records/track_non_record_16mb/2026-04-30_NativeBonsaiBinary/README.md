@@ -2,7 +2,7 @@
 
 **Final candidate:** `4xh100_5x1024_rankoffset_time590_20260430_225727`
 
-This is a **non-record submission**. Only 4xH100s were available for this run, so it is not a valid 8xH100 leaderboard record attempt, and the result is not competitive with current SOTA record-track submissions. It is included to document a native 1-bit grouped-binary direction inside Parameter Golf. I have spent a lot of time analyzing the PrismML Bonsai models (both Binary and Ternary), including some NanoGPT tests, so I adapted the techniques for this competition.
+This is a **non-record submission**. Only 4xH100s were available for this run, so it is not a valid 8xH100 leaderboard record attempt, and the result is not competitive with current SOTA record-track submissions. It is included to document a native 1-bit grouped-binary direction inside Parameter Golf. I have spent a lot of time analyzing the PrismML Bonsai models (both Binary and Ternary), including some NanoGPT tests, so I adapted the techniques for this competition. Credits to Codex for helping me work through these ideas, and Codex CLI being a great RunPod tool as well.
 
 ## Summary
 
