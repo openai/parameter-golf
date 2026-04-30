@@ -1,0 +1,20 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-22",
+  "name": "11L XSA4 + EMA (PR379 base) - SDTTT disabled for legality",
+  "author": "Nathan Maine",
+  "github_id": "NathanMaine",
+  "blurb": "PR379 architecture (XSA4, EMA, int6+zstd). Originally submitted with SDTTT eval-time adaptation, flagged by @MatoTeziTanka on 2026-04-12 as TTT-on-val. Updated to report pre-SDTTT post-swa numbers (3-seed mean 1.1455). SDTTT path remains in the code but defaults to disabled.",
+  "val_loss": 1.9342,
+  "val_bpb": 1.14553,
+  "seed_results": {
+    "7": {"val_loss": 1.9352, "val_bpb": 1.1461, "source": "DIAGNOSTIC post_swa (pre-SDTTT, legal)"},
+    "42": {"val_loss": 1.9344, "val_bpb": 1.1457, "source": "DIAGNOSTIC post_swa (pre-SDTTT, legal)"},
+    "1337": {"val_loss": 1.9329, "val_bpb": 1.1448, "source": "DIAGNOSTIC post_swa (pre-SDTTT, legal)"}
+  },
+  "mean_val_loss": 1.9342,
+  "mean_val_bpb": 1.14553,
+  "bytes_total": 15698717,
+  "bytes_code": 79975,
+  "legality_note": "Previous submission reported final_int6_sliding_window numbers (mean 1.1287) which were computed after SDTTT adapted on val_tokens for 2 epochs. That violates score-first discipline per Issue #402 and Issue #677. Reporting the clean post_swa (pre-SDTTT) numbers from the same 3-seed runs instead. SDTTT path is still in train_gpt.py but defaults to SDTTT_ENABLED=0."
+}
