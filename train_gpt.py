@@ -1050,7 +1050,7 @@ class CausalSelfAttention(nn.Module):
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = None if attention_is_global else CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
@@ -1073,12 +1073,13 @@ class CausalSelfAttention(nn.Module):
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = None if self.c_v is None else self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
+        v = k if v is None else v
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
         if self.attention_is_global:
             y = flash_attn_3_func(q, k, v, causal=True)
