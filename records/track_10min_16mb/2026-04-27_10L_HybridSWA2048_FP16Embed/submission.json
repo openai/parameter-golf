@@ -1,0 +1,11 @@
+{
+    "author": "Jacob Mathew",
+    "github_id": "jmattew",
+    "name": "10L Hybrid SWA 2048 FP16 Embed",
+    "blurb": "10-layer hybrid sliding-window attention run with 2048-token sequences, 1024-token local windows, fp16 tied embedding export, AdamW token/scalar params, and Muon matrix weight decay.",
+    "date": "2026-04-27",
+    "val_loss": 2.02832315,
+    "val_bpb": 1.20128722,
+    "bytes_total": 15551524,
+    "bytes_code": 49790
+}
