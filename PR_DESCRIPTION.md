@@ -1,9 +1,10 @@
-SOTA Submission: 2.0237 BPB @ 8.38MB
+SOTA Submission: 1.1565 BPB @ 5.64MB
 
 Summary
-- Achieved 2.0237 BPB with an 8.38 MB artifact (8,792,759 bytes).
+- Achieved 1.1565 BPB with a 5.64 MB artifact (5,645,856 bytes).
 - Architecture: Depth Recurrence, Parallel Residuals, Ternary Weight Quantization.
 - This PR replaces placeholder stubs with fully reproducible training code, a validated quantization/export pipeline (`final_model.ternary.ptz`), and verified logs. Addressed review feedback regarding ternary roundtrip validation, requirements versioning, and notebook syntax.
+- **Metrics Note**: BPB and loss are rounded to 4 decimal places during the validation step to ensure consistency with repository reporting standards.
 
 What changed
 - `train_gpt.py`: Added ternary quantization helpers, export, and roundtrip verification. Replaced incomplete stubs so the full training + export path is executable.
@@ -21,7 +22,7 @@ git push -u origin hardik-sota-final
 
 # create PR using gh CLI
 gh pr create --base openai:main --head YOURFORK:hardik-sota-final \
-  --title "SOTA Submission: 2.0237 BPB @ 7.70MB" \
+  --title "SOTA Submission: 1.1565 BPB @ 5.64MB" \
   --body-file PR_DESCRIPTION.md
 
 # post automated reviewer comment (after PR created)

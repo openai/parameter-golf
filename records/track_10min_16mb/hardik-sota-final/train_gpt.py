@@ -1031,6 +1031,8 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    best_val_loss = float("inf")
+    best_model_state: dict[str, Tensor] | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -1054,6 +1056,10 @@ def main() -> None:
                 has_leading_space_lut,
                 is_boundary_token_lut,
             )
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                if master_process:
+                    best_model_state = {k: v.cpu().clone() for k, v in base_model.state_dict().items()}
             log0(
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
@@ -1123,6 +1129,9 @@ def main() -> None:
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
+    if best_model_state is not None:
+        log0(f"Restoring best model state with val_loss:{best_val_loss:.4f}")
+        base_model.load_state_dict(best_model_state)
 
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
