@@ -1,0 +1,61 @@
+{
+  "author": "Chris Colinsky",
+  "github_id": "chris-colinsky",
+  "name": "PR #1855 stack + Adaptive Hessian-Sensitivity GPTQ Clip + TTT_LORA_RANK=56",
+  "blurb": "PR #1855's full architecture (11L XSA + LQER asym int4 rank-4 + SparseAttnGate + BOS-fixed SmearGate + Polar-Express Muon + per-group lrzip + CaseOps tokenizer + phased TTT) with two changes: (1) the three hand-tuned per-group GPTQ clip sigmas (MLP_CLIP_SIGMAS=11.5, ATTN_CLIP_SIGMAS=13.0, MATRIX_CLIP_SIGMAS=12.85) replaced by a per-tensor Hessian-sensitivity-driven adaptive selection that auto-chooses each tensor's clip sigma in [6.0, 24.0] from H_diag.mean()*row_var, with a binary-search offset that preserves PR #1855's numel-weighted log-average compression budget; (2) TTT_LORA_RANK=80 → 56 (PR #1935 tweak). 3-seed mean: 1.06310 BPB (seeds 42/1337/999), std 0.00102. Sub-SOTA vs PR #1855's 1.06108 by +0.00203 nats; submitted as a documented ablation showing the adaptive technique reproduces hand-tuned sigmas within ~2σ while eliminating 3 hyperparameters from the search space.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 2.32646441,
+  "val_bpb": 1.06310345,
+  "val_loss_std": 0.00224,
+  "val_bpb_std": 0.00102,
+  "seeds": [42, 1337, 999],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.32435698,
+      "val_bpb": 1.06214044,
+      "artifact_bytes": 15905000,
+      "steps": 4835,
+      "step_avg_ms": 123.3,
+      "eval_time_s": 592.9,
+      "pre_quant_val_bpb": 1.06498069,
+      "post_quant_val_bpb": 1.07479764
+    },
+    "1337": {
+      "val_loss": 2.32878891,
+      "val_bpb": 1.06416566,
+      "artifact_bytes": 15918827,
+      "steps": 4807,
+      "step_avg_ms": 124.0,
+      "eval_time_s": 521.1,
+      "pre_quant_val_bpb": 1.06710520,
+      "post_quant_val_bpb": 1.07695614
+    },
+    "999": {
+      "val_loss": 2.32624735,
+      "val_bpb": 1.06300426,
+      "artifact_bytes": 15901152,
+      "steps": 4805,
+      "step_avg_ms": 124.1,
+      "eval_time_s": 456.5,
+      "pre_quant_val_bpb": 1.06611260,
+      "post_quant_val_bpb": 1.07570206
+    }
+  },
+  "comparison_baseline_bpb": 1.06108,
+  "comparison_baseline_pr": "openai/parameter-golf#1855",
+  "delta_vs_leaderboard_bpb": 0.00203,
+  "delta_vs_leaderboard_nats": 0.00444,
+  "artifact_bytes_mean": 15908326,
+  "artifact_bytes_max": 15918827,
+  "bytes_total": 15918827,
+  "train_steps_mean": 4815.67,
+  "step_avg_ms_mean": 123.8,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "tokenizer": "fineweb_8192_bpe_lossless_caps_caseops_v1_reserved (CaseOps, romeerp/parameter-golf-caseops-v1 on HF)",
+  "technique_summary": "PR #1855 base + adaptive Hessian-sensitivity GPTQ clip (per-tensor sigma in [6,24] from H_diag.mean()*row_var, budget-preserving binary-search offset) + TTT_LORA_RANK=56. The clip technique replaces three hand-tuned hyperparameters (MLP_CLIP_SIGMAS, ATTN_CLIP_SIGMAS, MATRIX_CLIP_SIGMAS) with one automated per-tensor selection. Mixed-precision GPTQ (also Hessian-sensitivity-driven, 25/50/25 int5/int6/int7) was tested in the same codebase but disabled in this submission — ablation finding showed it added +0.0045 quant penalty vs all-int6 + LQER on this stack and is documented as a negative result (gated by MIXED_PRECISION_HESSIAN env var).",
+  "novel_contribution": "Adaptive Hessian-sensitivity GPTQ clipping. Per-tensor clip sigma is chosen from sensitivity = H_diag.mean() * row_var, with a binary-search log-space offset that preserves PR #1855's numel-weighted log-average of (mlp_clip_sigmas, attn_clip_sigmas, matrix_clip_sigmas). Per-tensor sigma is clamped to [6.0, 24.0]. tok_emb is excluded (kept at fixed embed_clip_sigmas=14.0); attn_gate_w uses its own int8-per-row path. Composes mechanically with PR #1855's LQER asymmetric rank-4 correction — LQER picks top-3 highest-error tensors after the adaptive clip is applied. Eliminates 3 hyperparameters from the search space at the cost of ~+0.002 BPB on this heavily-tuned stack."
+}
