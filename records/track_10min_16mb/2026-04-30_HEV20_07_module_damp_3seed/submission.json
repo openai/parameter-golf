@@ -1,0 +1,32 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "Record: PR #1908 base + GPTQ module-damp + AWQ-lite + Asym Logit Rescale - val_bpb 1.06048 (3-seed mean)",
+  "description": "PR #1908 native base (SparseAttnGate + AWQ-lite int8 + LQER asym rank-4 group-64 + BOS-masked SmearGate) + Asymmetric Logit Rescale (PR #1945 lineage) + Phased TTT (3 phases, 2500 prefix docs) + GPTQ per-module damping (HEV20_07 lineage). Per-tensor damp factors GPTQ_DAMP_EMBED=0.005, GPTQ_DAMP_MLP=0.02, GPTQ_DAMP_ATTN=0.01 stabilize the Hessian solve on each tensor class independently and improve quant fidelity. Strict C1-C4: training-only quantization correction; eval-time score-first phased TTT under per-document LoRA; no validation tokens enter any fit.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.06047672,
+  "val_bpb_std": 0.00074396,
+  "val_loss": 2.32071615,
+  "seeds": [314, 42, 7],
+  "per_seed": {
+    "314": {"val_bpb": 1.06006259, "val_loss": 2.31980989, "stop_step": 4939, "train_time_ms": 599056, "eval_time_ms": 404218, "total_eval_time_s": 404.2, "artifact_bytes": 15868104, "code_uncompressed_bytes": 175587, "code_compressed_bytes": 34929, "model_quantized_bytes": 15833175, "post_ema_bpb": 1.06403306, "quantized_bpb": 1.07276538, "ttt_phased_bpb": 1.06006259},
+    "42":  {"val_bpb": 1.06003198, "val_loss": 2.31974289, "stop_step": 4969, "train_time_ms": 599074, "eval_time_ms": 413270, "total_eval_time_s": 413.3, "artifact_bytes": 15869714, "code_uncompressed_bytes": 184869, "code_compressed_bytes": 36496, "model_quantized_bytes": 15833218, "post_ema_bpb": 1.06397419, "quantized_bpb": 1.07271135, "ttt_phased_bpb": 1.06003198},
+    "7":   {"val_bpb": 1.06133559, "val_loss": 2.32259567, "stop_step": 4972, "train_time_ms": 599083, "eval_time_ms": 442397, "total_eval_time_s": 442.4, "artifact_bytes": 15865773, "code_uncompressed_bytes": 195014, "code_compressed_bytes": 38155, "model_quantized_bytes": 15827618, "post_ema_bpb": 1.06519961, "quantized_bpb": 1.07393908, "ttt_phased_bpb": 1.06133559}
+  },
+  "hardware": "8xH100 80GB SXM (PyTorch 2.9.1+cu128)",
+  "train_time_s_max": 599.083,
+  "total_eval_time_s_max": 442.4,
+  "max_artifact_bytes": 15869714,
+  "artifact_headroom_bytes": 130286,
+  "prior_submission_self": "PR #1769 (val_bpb=1.06453 5-seed mean, banked 2026-04-22)",
+  "merged_sota_threshold": "PR #1855 (val_bpb=1.06108 merged 2026-04-29)",
+  "lead_vs_pr1769_bpb": 0.00405,
+  "lead_vs_pr1855_bpb": 0.00060,
+  "key_changes_vs_pr1908_base": [
+    "GPTQ_DAMP_EMBED=0.005 (per-tensor damp for embedding Hessian)",
+    "GPTQ_DAMP_MLP=0.02 (per-tensor damp for MLP Hessian)",
+    "GPTQ_DAMP_ATTN=0.01 (per-tensor damp for attention Hessian)",
+    "ASYM_LOGIT_RESCALE=1 (PR #1945 asymmetric logit rescale at head)"
+  ]
+}
