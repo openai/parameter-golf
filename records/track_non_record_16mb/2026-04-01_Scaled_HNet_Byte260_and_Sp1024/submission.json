@@ -1,0 +1,44 @@
+{
+  "author": "Darius Feher",
+  "github_id": "DariusFeher",
+  "name": "Scaled Byte-level H-Net matches 4-hour subword-level baseline (1.2070 BPB)",
+  "blurb": "12L H-Net (3 Encoder + 6 Main + 3 Decoder) + byte260 + GQA KV4 + INT6 GPTQ + QAT + zstd-22 + Stride-64 Sliding Eval. Closes the gap from 1.36 BPB (PR #1104) to 1.2070 BPB, matching the 4-hour baseline (1.2074) and a comparable sp1024 H-Net (1.2107). Includes byte260 vs sp1024 comparison, analysis of compile-chunking truncation effects, and dynamic chunking at inference.",
+  "date": "2026-04-03",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 0.83842396,
+  "val_bpb": 1.20701869,
+  "step_stop": 153381,
+  "wallclock_seconds": 14400,
+  "step_avg_ms": 93.10,
+  "model_params": 22966880,
+  "bytes_model_int6_gptq_zstd": 15697770,
+  "bytes_code": 83709,
+  "bytes_total": 15781479,
+  "eval_method": "sliding_window_stride64",
+  "quantization": "INT6_GPTQ_zstd22",
+  "qat_threshold": 0.85,
+  "warmdown_iters": 25000,
+  "chunk_divisor": 4,
+  "architecture": {
+    "num_layers": 12,
+    "outer_layers": 3,
+    "main_layers": 6,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 2,
+    "vocab_size": 260,
+    "tokenizer": "byte260",
+    "target_chunk_size": 6
+  },
+  "best_10min_val_bpb": 1.31232470,
+  "sp1024_comparison": {
+    "sp1024_div2_4hr_val_bpb": 1.2107,
+    "sp1024_div4_10min_val_bpb": 1.2754
+  },
+  "previous_submission": {
+    "pr": "#1104",
+    "val_bpb": 1.35945128,
+    "pre_quant_val_bpb": 1.3250
+  }
+}
