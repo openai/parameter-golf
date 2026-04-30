@@ -24,7 +24,10 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except ImportError:  # CPU/Mac dev: forwards that hit attention will fail, but import succeeds.
+    flash_attn_3_func = None  # type: ignore[assignment]
 
 try:
     from tracking import ParameterGolfTracker
@@ -92,6 +95,12 @@ class Hyperparameters:
     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 2048))
     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
     trigram_enabled = bool(int(os.environ.get("TRIGRAM", "0")))  # TrigramHash (off by default, risky)
+    engram_enabled = bool(int(os.environ.get("ENGRAM_ENABLED", "0")))
+    engram_vocab = int(os.environ.get("ENGRAM_VOCAB", 4096))
+    engram_heads = int(os.environ.get("ENGRAM_HEADS", 4))
+    engram_dim = int(os.environ.get("ENGRAM_DIM", 64))
+    engram_max_n = int(os.environ.get("ENGRAM_MAX_N", 3))
+    engram_layers = os.environ.get("ENGRAM_LAYERS", "0,5")
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))  # XSA on ALL layers (our novel contribution)
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
@@ -105,6 +114,17 @@ class Hyperparameters:
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
+    # Legal score-first TTT (off by default; replaces final eval with TTT-aware sliding eval).
+    # Score every token BEFORE any update that could see it -> compliant with the eval rules.
+    # Note: this port does not implement TTT_FREEZE_BLOCKS because sota uses 3D parameter banks
+    # (qo_bank/kv_bank/mlp_*_bank) where per-block freeze isn't natively supported by requires_grad.
+    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "0")))
+    ttt_lr = float(os.environ.get("TTT_LR", 0.002))
+    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 3))
+    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 32768))
+    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
+    ttt_batch_seqs = int(os.environ.get("TTT_BATCH_SEQS", 32))
+    ttt_grad_clip = float(os.environ.get("TTT_GRAD_CLIP", 1.0))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -722,6 +742,68 @@ class BigramHashEmbedding(nn.Module):
             h = self.proj(h)
         return h * self.scale.to(dtype=h.dtype)
 
+class EngramModule(nn.Module):
+    def __init__(self, max_n: int, engram_vocab: int, n_heads: int, engram_dim: int, model_dim: int):
+        super().__init__()
+        if max_n < 2:
+            raise ValueError("engram_max_n must be >= 2")
+        if n_heads < 1:
+            raise ValueError("engram_heads must be >= 1")
+        if engram_dim % n_heads != 0:
+            raise ValueError("engram_dim must be divisible by engram_heads")
+        if engram_vocab < 2:
+            raise ValueError("engram_vocab must be >= 2")
+        self.max_n = max_n
+        self.engram_vocab = engram_vocab
+        self.n_heads = n_heads
+        self.head_dim = engram_dim // n_heads
+        self.out_dim = engram_dim * (max_n - 1)
+        self.tables = nn.ParameterList(
+            [nn.Parameter(torch.zeros(n_heads, engram_vocab, self.head_dim)) for _ in range(max_n - 1)]
+        )
+        for table in self.tables:
+            nn.init.normal_(table, std=0.01)
+        self.key_proj = CastedLinear(model_dim, self.out_dim, bias=False)
+        self.val_proj = CastedLinear(self.out_dim, model_dim, bias=False)
+        self.key_proj._zero_init = True
+        self.val_proj._zero_init = True
+        nn.init.zeros_(self.key_proj.weight)
+        nn.init.zeros_(self.val_proj.weight)
+        self.scale = nn.Parameter(torch.tensor(0.05, dtype=torch.float32))
+        primes = torch.tensor(
+            [36313, 27191, 51497, 43399, 64997, 38873, 57731, 46549],
+            dtype=torch.int32,
+        )
+        self.register_buffer("primes", primes, persistent=False)
+
+    def _hash(self, token_ids: Tensor, n: int) -> Tensor:
+        t = token_ids.to(torch.int32)
+        mod = self.engram_vocab - 1
+        out = torch.empty(*t.shape, self.n_heads, device=t.device, dtype=torch.int32)
+        out[..., : min(n - 1, t.size(-1)), :] = mod
+        if t.size(-1) >= n:
+            vals = torch.zeros(*t.shape[:-1], t.size(-1) - n + 1, self.n_heads, device=t.device, dtype=torch.int32)
+            for j in range(n):
+                p = self.primes[(j * self.n_heads) % self.primes.numel(): (j * self.n_heads) % self.primes.numel() + self.n_heads]
+                if p.numel() < self.n_heads:
+                    p = torch.cat([p, self.primes[: self.n_heads - p.numel()]])
+                vals = vals ^ (p[None, None, :] * t[..., j : t.size(-1) - n + j + 1, None])
+            out[..., n - 1 :, :] = vals % mod
+        return out.long()
+
+    def forward(self, token_ids: Tensor, hidden_state: Tensor) -> Tensor:
+        parts: list[Tensor] = []
+        for order_idx, table in enumerate(self.tables):
+            idx = self._hash(token_ids, order_idx + 2)
+            heads = []
+            for h in range(self.n_heads):
+                heads.append(F.embedding(idx[..., h], table[h]))
+            parts.append(torch.cat(heads, dim=-1))
+        mem = torch.cat(parts, dim=-1)
+        gate = torch.sigmoid(self.key_proj(hidden_state))
+        h = self.val_proj(mem * gate)
+        return h * self.scale.to(dtype=h.dtype)
+
 class ValueEmbedding(nn.Module):
     """Reinject token identity into attention values at specific layers.
     Each table maps vocab tokens to a low-dim embedding, projected to model_dim."""
@@ -816,6 +898,12 @@ class GPT(nn.Module):
         ve_layers: str = "9,10",
         gated_attention: bool = False,
         value_residual: bool = False,
+        engram_enabled: bool = False,
+        engram_vocab: int = 4096,
+        engram_heads: int = 4,
+        engram_dim: int = 64,
+        engram_max_n: int = 3,
+        engram_layers: str = "0,5",
     ):
         super().__init__()
         self._ve_target_dim = num_kv_heads * (model_dim // num_heads)  # kv_dim for value projection
@@ -828,7 +916,9 @@ class GPT(nn.Module):
         self.mtp_num_heads = mtp_num_heads
         self.mtp_loss_weight = mtp_loss_weight
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 and not engram_enabled else None
+        self.engram = EngramModule(engram_max_n, engram_vocab, engram_heads, engram_dim, model_dim) if engram_enabled else None
+        self.engram_layer_indices = [int(x) for x in engram_layers.split(",") if x.strip()] if engram_enabled else []
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -922,6 +1012,10 @@ class GPT(nn.Module):
         ve_base = ve_cache['ve'] if ve_cache is not None else self.ve_shared(input_ids)
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_base * self.ve_layer_scales[ve_idx].to(dtype=ve_base.dtype)
+    def _apply_engram(self, layer_idx: int, input_ids: Tensor, x: Tensor) -> Tensor:
+        if self.engram is not None and layer_idx in self.engram_layer_indices:
+            x = x + self.engram(input_ids, x)
+        return x
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         n = self.num_layers
         x = self.tok_emb(input_ids)
@@ -941,6 +1035,7 @@ class GPT(nn.Module):
                 v_embed=ve, v0=v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
+            x = self._apply_engram(i, input_ids, x)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -951,6 +1046,7 @@ class GPT(nn.Module):
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
                 v_embed=ve, v0=v0)
+            x = self._apply_engram(bi, input_ids, x)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -999,6 +1095,7 @@ class GPT(nn.Module):
                 v_embed=ve, v0=v0)
             if v0 is None and raw_v is not None:
                 v0 = raw_v
+            x = self._apply_engram(i, input_ids, x)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -1009,6 +1106,7 @@ class GPT(nn.Module):
                 self.qo_bank[bi], self.kv_bank[bi], self.kv_bank[n + bi],
                 self.qo_bank[n + bi], self.mlp_up_bank[bi], self.mlp_down_bank[bi],
                 v_embed=ve, v0=v0)
+            x = self._apply_engram(bi, input_ids, x)
         x = self.final_norm(x)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
@@ -1087,6 +1185,181 @@ def eval_val_sliding(
     tokens_per_byte = token_count.item() / byte_count.item()
     base_model.train()
     return val_loss, bits_per_token * tokens_per_byte
+
+
+def assign_chunk_windows(window_starts: list[int], stride: int, seq_len: int,
+                          total_tokens: int, ttt_chunk: int) -> tuple[list[list[int]], int]:
+    """Assign each window to the chunk that contains its first scored token.
+
+    A window [ws, ws+seq_len) scores tokens [scored_start, end) where
+    scored_start = ws if ws == 0 else ws + max(seq_len - stride, 0). The chunk
+    index is floor(scored_start / ttt_chunk). Returned: (chunk_windows, num_chunks).
+    Pure CPU logic; broken out so it is unit-testable without a model.
+    """
+    num_chunks = max(1, (total_tokens + ttt_chunk - 1) // ttt_chunk)
+    chunk_windows: list[list[int]] = [[] for _ in range(num_chunks)]
+    for ws in window_starts:
+        end = min(ws + seq_len, total_tokens)
+        wlen = end - ws
+        s = 0 if ws == 0 else max(wlen - stride, 0)
+        scored_start = ws + s
+        ci = min(scored_start // ttt_chunk, num_chunks - 1)
+        chunk_windows[ci].append(ws)
+    return chunk_windows, num_chunks
+
+
+def eval_val_ttt(
+    args: Hyperparameters,
+    base_model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    stride: int,
+    batch_seqs: int = 32,
+    eval_seq_len: int | None = None,
+    log_fn=print,
+) -> tuple[float, float]:
+    """Legal score-first TTT (PR #461 recipe), ported from
+    records/.../2026-03-23_LeakyReLU_LegalTTT_ParallelMuon. Each chunk:
+      1. SCORE its windows under inference_mode (no parameter updates yet).
+      2. THEN train on the just-scored chunk for ttt_epochs SGD steps.
+    This guarantees every token was scored by weights that had not yet seen it,
+    which is what makes the eval legal under the competition rules.
+
+    Note: this port omits TTT_FREEZE_BLOCKS — sota's GPT uses 3D parameter banks
+    (qo_bank/kv_bank/mlp_*_bank) where per-block freezing isn't natively supported
+    by requires_grad. All trainable params participate in the TTT updates.
+    """
+    seq_len = eval_seq_len or args.train_seq_len
+    total_tokens = val_tokens.numel() - 1
+    ttt_chunk = args.ttt_chunk_tokens
+
+    window_starts = [
+        ws for ws in range(0, total_tokens, stride)
+        if min(ws + seq_len, total_tokens) - ws >= stride or ws == 0
+    ]
+    chunk_windows, num_chunks = assign_chunk_windows(
+        window_starts, stride, seq_len, total_tokens, ttt_chunk
+    )
+
+    log_fn(
+        f"ttt_sliding:start chunks={num_chunks} chunk_tokens={ttt_chunk} "
+        f"total_windows={len(window_starts)} stride={stride} "
+        f"ttt_lr={args.ttt_lr} ttt_epochs={args.ttt_epochs}"
+    )
+
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    ttt_params = [p for p in base_model.parameters() if p.requires_grad]
+    optimizer = torch.optim.SGD(ttt_params, lr=args.ttt_lr, momentum=args.ttt_momentum)
+    t0 = time.perf_counter()
+
+    for ci in range(num_chunks):
+        windows = chunk_windows[ci]
+        if not windows:
+            continue
+        chunk_start = ci * ttt_chunk
+        chunk_end = min((ci + 1) * ttt_chunk, total_tokens)
+
+        # --- Phase 1: SCORE this chunk's windows (no updates yet) ---
+        my_s = (len(windows) * rank) // world_size
+        my_e = (len(windows) * (rank + 1)) // world_size
+        my_windows = windows[my_s:my_e]
+
+        base_model.eval()
+        with torch.inference_mode():
+            for bi in range(0, len(my_windows), batch_seqs):
+                batch_ws = my_windows[bi:bi + batch_seqs]
+                bsz = len(batch_ws)
+                x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
+                wlens: list[int] = []
+                for i, ws in enumerate(batch_ws):
+                    end = min(ws + seq_len, total_tokens)
+                    wlen = end - ws
+                    wlens.append(wlen)
+                    chunk_tok = val_tokens[ws:end + 1].to(dtype=torch.int64, device=device)
+                    x_batch[i, :wlen] = chunk_tok[:-1]
+                    y_batch[i, :wlen] = chunk_tok[1:]
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    logits = base_model.forward_logits(x_batch)
+                nll = F.cross_entropy(
+                    logits.reshape(-1, logits.size(-1)).float(),
+                    y_batch.reshape(-1),
+                    reduction="none",
+                ).reshape(bsz, seq_len)
+                for i, ws in enumerate(batch_ws):
+                    wlen = wlens[i]
+                    s = 0 if ws == 0 else max(wlen - stride, 0)
+                    scored_nll = nll[i, s:wlen].to(torch.float64)
+                    loss_sum += scored_nll.sum()
+                    token_count += float(wlen - s)
+                    tgt = y_batch[i, s:wlen]
+                    prev = x_batch[i, s:wlen]
+                    tb = base_bytes_lut[tgt].to(torch.float64)
+                    tb += (has_leading_space_lut[tgt] & ~is_boundary_token_lut[prev]).to(torch.float64)
+                    byte_count += tb.sum()
+
+        # --- Phase 2: TRAIN on this chunk (already scored = legal) ---
+        is_last_chunk = (ci == num_chunks - 1)
+        if not is_last_chunk and args.ttt_epochs > 0:
+            base_model.train()
+            chunk_seqs = (chunk_end - chunk_start) // seq_len
+            if chunk_seqs > 0:
+                cos_lr = args.ttt_lr * 0.5 * (1.0 + math.cos(math.pi * ci / max(num_chunks - 1, 1)))
+                for pg in optimizer.param_groups:
+                    pg["lr"] = cos_lr
+                my_seq_s = (chunk_seqs * rank) // world_size
+                my_seq_e = (chunk_seqs * (rank + 1)) // world_size
+                my_chunk_seqs = my_seq_e - my_seq_s
+                for _ep in range(args.ttt_epochs):
+                    for bs in range(0, my_chunk_seqs, args.ttt_batch_seqs):
+                        be = min(bs + args.ttt_batch_seqs, my_chunk_seqs)
+                        actual_bs = my_seq_s + bs
+                        start_tok = chunk_start + actual_bs * seq_len
+                        end_tok = chunk_start + (my_seq_s + be) * seq_len + 1
+                        if end_tok > val_tokens.numel():
+                            continue
+                        local = val_tokens[start_tok:end_tok].to(device=device, dtype=torch.int64)
+                        x = local[:-1].reshape(-1, seq_len)
+                        y = local[1:].reshape(-1, seq_len)
+                        optimizer.zero_grad(set_to_none=True)
+                        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                            loss = base_model(x, y)
+                        loss.backward()
+                        if dist.is_available() and dist.is_initialized() and world_size > 1:
+                            for p in ttt_params:
+                                if p.grad is not None:
+                                    dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+                        torch.nn.utils.clip_grad_norm_(ttt_params, args.ttt_grad_clip)
+                        optimizer.step()
+
+        if rank == 0 and (ci % 10 == 0 or ci == num_chunks - 1):
+            elapsed = time.perf_counter() - t0
+            rl = loss_sum.item() / max(token_count.item(), 1)
+            tc = token_count.item(); bc = byte_count.item()
+            rbpb = rl / math.log(2.0) * (tc / max(bc, 1)) if tc > 0 else 0.0
+            log_fn(f"  ttt_chunk [{ci+1}/{num_chunks}] bpb={rbpb:.6f} time={elapsed:.1f}s")
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = (loss_sum / token_count).item()
+    val_bpb = val_loss / math.log(2.0) * (token_count.item() / byte_count.item())
+    base_model.eval()
+    log_fn(
+        f"ttt_sliding:done val_loss={val_loss:.6f} val_bpb={val_bpb:.6f} "
+        f"elapsed={time.perf_counter() - t0:.1f}s"
+    )
+    return val_loss, val_bpb
 
 
 def generate_autoregressive_calib(model, device, num_seqs=64, seq_len=2048,
@@ -1462,13 +1735,17 @@ class _HessianGPT(nn.Module):
                  mlp_mult, tie_embeddings, logit_softcap, rope_base, qk_gain_init,
                  bigram_vocab_size=0, bigram_dim=128, xsa_last_n=0,
                  rope_dims=0, ln_scale=False,
-                 ve_enabled=False, ve_dim=128, ve_layers="9,10"):
+                 ve_enabled=False, ve_dim=128, ve_layers="9,10",
+                 engram_enabled=False, engram_vocab=4096, engram_heads=4,
+                 engram_dim=64, engram_max_n=3, engram_layers="0,5"):
         super().__init__()
         self.tie_embeddings = tie_embeddings
         self.logit_softcap = logit_softcap
         self.num_layers = num_layers
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 else None
+        self.bigram = BigramHashEmbedding(bigram_vocab_size, bigram_dim, model_dim, trigram=bool(int(os.environ.get("TRIGRAM", "0")))) if bigram_vocab_size > 0 and not engram_enabled else None
+        self.engram = EngramModule(engram_max_n, engram_vocab, engram_heads, engram_dim, model_dim) if engram_enabled else None
+        self.engram_layer_indices = [int(x) for x in engram_layers.split(",") if x.strip()] if engram_enabled else []
         self.smear = SmearGate(model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
@@ -1504,6 +1781,10 @@ class _HessianGPT(nn.Module):
             ve_cache['ve'] = self.ve_shared(input_ids)
         ve_idx = self.ve_layer_indices.index(layer_idx)
         return ve_cache['ve'] * self.ve_layer_scales[ve_idx].to(dtype=ve_cache['ve'].dtype)
+    def _apply_engram(self, layer_idx, input_ids, x):
+        if self.engram is not None and layer_idx in self.engram_layer_indices:
+            x = x + self.engram(input_ids, x)
+        return x
     def forward(self, input_ids, target_ids):
         x = self.tok_emb(input_ids)
         if self.bigram is not None:
@@ -1516,6 +1797,7 @@ class _HessianGPT(nn.Module):
         for i in range(self.num_encoder_layers):
             ve = self._get_ve(i, input_ids, ve_cache)
             x = self.blocks[i](x, x0, v_embed=ve)
+            x = self._apply_engram(i, input_ids, x)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             bi = self.num_encoder_layers + i
@@ -1523,6 +1805,7 @@ class _HessianGPT(nn.Module):
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
             ve = self._get_ve(bi, input_ids, ve_cache)
             x = self.blocks[bi](x, x0, v_embed=ve)
+            x = self._apply_engram(bi, input_ids, x)
         x = self.final_norm(x)
         x_flat = x.reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -1758,6 +2041,12 @@ def main() -> None:
         ve_layers=args.ve_layers,
         gated_attention=args.gated_attention,
         value_residual=args.value_residual,
+        engram_enabled=args.engram_enabled,
+        engram_vocab=args.engram_vocab,
+        engram_heads=args.engram_heads,
+        engram_dim=args.engram_dim,
+        engram_max_n=args.engram_max_n,
+        engram_layers=args.engram_layers,
     ).to(device).bfloat16()
     # Banks stay FP32 (like CastedLinear weights), cast to BF16 in forward
     base_model.qo_bank.data = base_model.qo_bank.data.float()
@@ -1799,6 +2088,12 @@ def main() -> None:
         tok_params.append({"params": [base_model.bigram.embed.weight], "lr": token_lr, "base_lr": token_lr})
         if base_model.bigram.proj is not None:
             scalar_params.append(base_model.bigram.proj.weight)
+    if base_model.engram is not None:
+        for table in base_model.engram.tables:
+            tok_params.append({"params": [table], "lr": token_lr, "base_lr": token_lr})
+        scalar_params.append(base_model.engram.key_proj.weight)
+        scalar_params.append(base_model.engram.val_proj.weight)
+        scalar_params.append(base_model.engram.scale)
     if base_model.ve_shared is not None:
         tok_params.append({"params": [base_model.ve_shared.embed.weight], "lr": token_lr, "base_lr": token_lr})
         if base_model.ve_shared.proj is not None:
@@ -1853,6 +2148,11 @@ def main() -> None:
     log0(f"mtp_num_heads:{args.mtp_num_heads} mtp_loss_weight:{args.mtp_loss_weight} mtp_params:{mtp_params}")
     xsa_layers = [i for i, b in enumerate(base_model.blocks) if b.attn.use_xsa]
     log0(f"XSA:last_{args.xsa_last_n} active_layers:{xsa_layers}")
+    log0(
+        f"engram_enabled:{args.engram_enabled} engram_vocab:{args.engram_vocab} "
+        f"engram_heads:{args.engram_heads} engram_dim:{args.engram_dim} "
+        f"engram_max_n:{args.engram_max_n} engram_layers:{base_model.engram_layer_indices}"
+    )
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
@@ -2094,6 +2394,12 @@ def main() -> None:
         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
         xsa_last_n=args.xsa_last_n, rope_dims=args.rope_dims, ln_scale=args.ln_scale,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
+        engram_enabled=args.engram_enabled,
+        engram_vocab=args.engram_vocab,
+        engram_heads=args.engram_heads,
+        engram_dim=args.engram_dim,
+        engram_max_n=args.engram_max_n,
+        engram_layers=args.engram_layers,
     ).to(device).bfloat16()
     for m in hessian_model.modules():
         if isinstance(m, CastedLinear):
@@ -2200,6 +2506,12 @@ def main() -> None:
         rope_dims=args.rope_dims, ln_scale=args.ln_scale, dtg=args.dtg_enabled,
         ve_enabled=args.ve_enabled, ve_dim=args.ve_dim, ve_layers=args.ve_layers,
         gated_attention=args.gated_attention, value_residual=args.value_residual,
+        engram_enabled=args.engram_enabled,
+        engram_vocab=args.engram_vocab,
+        engram_heads=args.engram_heads,
+        engram_dim=args.engram_dim,
+        engram_max_n=args.engram_max_n,
+        engram_layers=args.engram_layers,
     ).to(device).bfloat16()
     eval_model.qo_bank.data = eval_model.qo_bank.data.float()
     eval_model.kv_bank.data = eval_model.kv_bank.data.float()
@@ -2257,6 +2569,23 @@ def main() -> None:
         )
         log0(f"final_int6_sliding_window_s64_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
         log0(f"final_int8_zlib_roundtrip_exact val_loss:{sw64_val_loss:.8f} val_bpb:{sw64_val_bpb:.8f}")
+    if args.ttt_enabled and args.eval_stride > 0 and args.eval_stride < sw_seq_len:
+        torch.cuda.synchronize()
+        t_ttt = time.perf_counter()
+        ttt_val_loss, ttt_val_bpb = eval_val_ttt(
+            args, eval_model, rank, world_size, device,
+            val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+            stride=args.eval_stride,
+            batch_seqs=args.ttt_batch_seqs,
+            eval_seq_len=sw_seq_len,
+            log_fn=log0,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_int6_ttt val_loss:{ttt_val_loss:.4f} val_bpb:{ttt_val_bpb:.4f} "
+            f"stride:{args.eval_stride} eval_time:{1000.0 * (time.perf_counter() - t_ttt):.0f}ms"
+        )
+        log0(f"final_int6_ttt_exact val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f}")
     if tracker is not None:
         tracker.end_run()
     if distributed:

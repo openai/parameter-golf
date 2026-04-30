@@ -79,6 +79,15 @@ class Hyperparameters:
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+    parallel_residuals = bool(int(os.environ.get("PARALLEL_RESIDUALS", "0")))
+    # -1 means "default to num_layers // 2" (decoder side of the U-Net). Set 0 to apply everywhere.
+    parallel_residuals_start = int(os.environ.get("PARALLEL_RESIDUALS_START", "-1"))
+    # Loop each block in [start, end) this many times. 1 = no recurrence (baseline).
+    training_depth_recurrence = int(os.environ.get("TRAINING_DEPTH_RECURRENCE", "1"))
+    eval_depth_recurrence = int(os.environ.get("EVAL_DEPTH_RECURRENCE", "1"))
+    depth_recurrence_layer_start = int(os.environ.get("DEPTH_RECURRENCE_LAYER_START", "0"))
+    # -1 sentinel = num_layers (i.e., span covers all layers from start onward).
+    depth_recurrence_layer_end = int(os.environ.get("DEPTH_RECURRENCE_LAYER_END", "-1"))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.6))
@@ -636,6 +645,7 @@ class Block(nn.Module):
         mlp_mult: int,
         rope_base: float,
         qk_gain_init: float,
+        parallel_residuals: bool = False,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -645,13 +655,23 @@ class Block(nn.Module):
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        self.parallel_residuals = parallel_residuals
 
     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        if self.parallel_residuals:
+            attn_out = self.attn(self.attn_norm(x))
+            mlp_out = self.mlp(self.mlp_norm(x))
+            x = (
+                x
+                + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+                + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * mlp_out
+            )
+        else:
+            attn_out = self.attn(self.attn_norm(x))
+            x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+            x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
 
@@ -669,10 +689,18 @@ class GPT(nn.Module):
         logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
+        parallel_residuals: bool = False,
+        parallel_residuals_start: int = -1,
+        training_depth_recurrence: int = 1,
+        eval_depth_recurrence: int = 1,
+        depth_recurrence_layer_start: int = 0,
+        depth_recurrence_layer_end: int = -1,
     ):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        if training_depth_recurrence < 1 or eval_depth_recurrence < 1:
+            raise ValueError("depth_recurrence values must be >= 1 (1 = baseline, no recurrence)")
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
@@ -681,6 +709,17 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.training_depth_recurrence = training_depth_recurrence
+        self.eval_depth_recurrence = eval_depth_recurrence
+        dr_end = depth_recurrence_layer_end if depth_recurrence_layer_end >= 0 else num_layers
+        if depth_recurrence_layer_start < 0 or dr_end > num_layers or depth_recurrence_layer_start >= dr_end:
+            raise ValueError(
+                f"depth_recurrence span [{depth_recurrence_layer_start}, {dr_end}) is invalid for num_layers={num_layers}"
+            )
+        self.depth_recurrence_layer_start = depth_recurrence_layer_start
+        self.depth_recurrence_layer_end = dr_end
+        # -1 sentinel: default to decoder-side (num_layers // 2). Negative outside that means "all layers".
+        pr_start = parallel_residuals_start if parallel_residuals_start >= 0 else (num_layers // 2)
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -690,6 +729,7 @@ class GPT(nn.Module):
                     mlp_mult,
                     rope_base,
                     qk_gain_init,
+                    parallel_residuals=(parallel_residuals and i >= pr_start),
                 )
                 for i in range(num_layers)
             ]
@@ -713,14 +753,24 @@ class GPT(nn.Module):
         x0 = x
         skips: list[Tensor] = []
 
+        recurrence = self.training_depth_recurrence if self.training else self.eval_depth_recurrence
+        dr_start = self.depth_recurrence_layer_start
+        dr_end = self.depth_recurrence_layer_end
+
+        def _block_call(idx: int, x_in: Tensor) -> Tensor:
+            reps = recurrence if (recurrence > 1 and dr_start <= idx < dr_end) else 1
+            for _ in range(reps):
+                x_in = self.blocks[idx](x_in, x0)
+            return x_in
+
         # First half stores skips; second half reuses them in reverse order.
         for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
+            x = _block_call(i, x)
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
                 x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+            x = _block_call(self.num_encoder_layers + i, x)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
@@ -873,6 +923,12 @@ def main() -> None:
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
+        parallel_residuals=args.parallel_residuals,
+        parallel_residuals_start=args.parallel_residuals_start,
+        training_depth_recurrence=args.training_depth_recurrence,
+        eval_depth_recurrence=args.eval_depth_recurrence,
+        depth_recurrence_layer_start=args.depth_recurrence_layer_start,
+        depth_recurrence_layer_end=args.depth_recurrence_layer_end,
     ).to(device).bfloat16()
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
@@ -935,6 +991,14 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    _pr_start = args.parallel_residuals_start if args.parallel_residuals_start >= 0 else (args.num_layers // 2)
+    log0(f"parallel_residuals:{args.parallel_residuals} parallel_residuals_start:{_pr_start}")
+    _dr_end = args.depth_recurrence_layer_end if args.depth_recurrence_layer_end >= 0 else args.num_layers
+    log0(
+        f"training_depth_recurrence:{args.training_depth_recurrence} "
+        f"eval_depth_recurrence:{args.eval_depth_recurrence} "
+        f"depth_recurrence_span:[{args.depth_recurrence_layer_start},{_dr_end})"
+    )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
