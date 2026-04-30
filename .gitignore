@@ -9,3 +9,35 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+
+# Personal scratch and notes (not part of the submission)
+.claude/
+PARAMETER_GOLF_BATTLE_PLAN_*.md
+chats.md
+program.md
+errors.json
+best_sweep_config.json
+test_oracle.bin
+final_model.int6.ptz
+final_model.pt
+
+# Local working copies that duplicate the canonical files in records/
+/train_gpt.py
+/build_ngram_oracle.py
+/run_h100.sh
+/run_local_test.sh
+/run_3seeds.sh
+/sweep.py
+/ctw_prototype.py
+/ablation_colab.ipynb
+/kaggle_run.ipynb
+
+# Reference / scratch copies of other people's PRs and earlier forks
+reference_pr*_train_gpt.py
+train_gpt_pr*_*.py
+
+# Tooling clones
+autoresearch_ref/
+
+# Older incomplete draft record submission, never finished
+records/track_10min_16mb/2026-03-24_VR_GA_LeakyReLU_LegalTTT/
