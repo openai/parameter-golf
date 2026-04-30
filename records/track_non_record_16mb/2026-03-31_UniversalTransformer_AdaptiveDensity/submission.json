@@ -1,0 +1,1 @@
+{"track":"non_record","title":"Universal Transformer + Adaptive Density","val_bpb":3.2483,"hardware":"1xDGX-Spark-GB10","author":"NathanMaine","notes":"Updated April 11: TTT-on-val disabled per MatoTeziTanka review. Honest no-TTT result from DGX Spark ablation (200 steps, sp1024)."}
