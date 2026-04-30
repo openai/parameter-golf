@@ -1,0 +1,5 @@
+sentencepiece
+brotli
+numpy
+# flash-attn 3 (FA3) for H100 + CUDA 13.0 — install separately:
+# pip install --no-cache-dir "https://download.pytorch.org/whl/cu130/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl"
