@@ -1,0 +1,13 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "MirrorLoop HRC + LexLoRE",
+  "author": "Corben Sorenson",
+  "github_id": "corbensorenson",
+  "val_bpb": 1.35692129,
+  "val_loss": null,
+  "bytes_total": 15658145,
+  "hardware": "1xH100 RunPod scout",
+  "status": "non-record art submission; 8xH100 follow-up pending capacity",
+  "notes": "Best preserved legal 1xH100 result for the MirrorLoop HRC + LexLoRE family. Not claimed as official 8xH100 record."
+}
