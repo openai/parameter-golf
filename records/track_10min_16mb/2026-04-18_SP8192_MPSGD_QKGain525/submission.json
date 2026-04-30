@@ -1,0 +1,51 @@
+{
+  "author": "yahya010",
+  "github_id": "yahya010",
+  "name": "SP8192 Multi-Phase Global SGD TTT (4 phases) + QK-Gain 5.25",
+  "blurb": "Builds on @jorge-asenjo's PR #1700 Multi-Phase Global SGD + Phased LoRA TTT stack (val_bpb 1.07219) with two hyperparameter changes: PHASED_TTT_NUM_PHASES raised from 3 to 4 (using the remaining eval budget for one more SGD adaptation pass), and QK_GAIN_INIT raised from 5.0 to 5.25 (matching merged SOTA PR #1493). No code changes; train_gpt.py is byte-identical to PR #1700.",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": 1.07217,
+  "val_bpb_std": 0.00114,
+  "seeds": [
+    42,
+    0,
+    1234
+  ],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.0731,
+      "artifact_bytes": 15933641
+    },
+    "0": {
+      "val_bpb": 1.0709,
+      "artifact_bytes": 15938690
+    },
+    "1234": {
+      "val_bpb": 1.0725,
+      "artifact_bytes": 15930318
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + 3-Layer Depth Recurrence + Parallel Residuals + QK-Gain 5.25 + EMA 0.9965 + Muon + VarLen Flash Attn3 + fused Triton MLP + GPTQ SDClip (int6 matrices, int7 embeddings) + Brotli + Multi-Phase Global SGD TTT + Phased LoRA TTT",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "full_base_stack": "@jorge-asenjo (PR #1700) \u2014 Multi-Phase Global SGD TTT, Phased LoRA TTT, VarLen attention, fused Triton MLP, SP8192 pipeline",
+    "qk_gain_5_25": "@bigbag (PR #1493, merged SOTA)",
+    "varlen_fused_mlp_base": "@samacqua (PR #1530)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "mp_sgd_ttt_concept": "@dexhunter (PR #1626)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)"
+  }
+}

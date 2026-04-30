@@ -1,0 +1,80 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-23",
+  "name": "Trinity_Ternary_CPU_M1Pro",
+  "author": "gHashTag",
+  "github_id": "deborahnelson8788726",
+  "val_bpb": 1.5117,
+  "val_bpb_note": "Single seed 42, trained 24h on Apple M1 Pro CPU-only. Architecture: 10L × 512d × 8h, 24M params, 47% ternary QAT blend reached. Artifact 5.59 MB LZMA-compressed (base-3 ternary packing).",
+  "val_bpb_alpha_configs": {
+    "alpha_0.47_as_trained": 1.5117,
+    "alpha_1.0_full_ternary": 3.1831,
+    "note": "Best val_bpb at the trained ternary blend (47%). Full ternary (alpha=1.0) degrades significantly — 24h CPU budget insufficient to reach 100% ternary convergence. Further training would close this gap (BitNet b1.58 recipes typically need several days on GPU to fully ternarize a model of this size)."
+  },
+  "compliance": {
+    "track": "non_record (unlimited compute)",
+    "hardware": "Apple MacBook Pro 18,3 — M1 Pro CPU (10 cores, 16 GB RAM)",
+    "no_gpu": true,
+    "no_mps": true,
+    "no_cuda": true,
+    "causal_attention": true,
+    "normalized_softmax": true,
+    "no_slot": true,
+    "no_ttt": true,
+    "no_ngram": true
+  },
+  "description": "First Parameter Golf submission trained entirely on Apple M1 Pro CPU (no GPU, no MPS, no CUDA). BitNet b1.58-style ternary QAT with straight-through estimator. Weights packed via Trinity base-3 encoding (5 trits per byte, 99.06% of theoretical optimum). LZMA-compressed artifact 5.59 MB — leaves 10.4 MB headroom for larger models at future runs.",
+  "base": "Trinity framework (github.com/gHashTag/trinity) + BitNet b1.58 + Parameter Golf SP1024 pipeline",
+  "architecture": "10L × 512d × 8h/8kv MLP 2.5× ReLU² RoPE, RMSNorm, tied embeddings, softcap 30",
+  "training": {
+    "hardware": "Apple M1 Pro, 10 cores CPU, 16 GB RAM",
+    "framework": "PyTorch 2.11.0 (cpu)",
+    "threads": 10,
+    "total_hours": 24.00,
+    "total_steps": 23750,
+    "step_rate": "0.27 steps/sec",
+    "throughput": "4006 tok/sec",
+    "effective_batch": "8 × 4 grad_accum × 512 seq = 16384 tokens/step",
+    "total_tokens_seen": 388_800_000,
+    "optimizer": "AdamW (lr=3e-4, β=(0.9, 0.95), wd=0.05)",
+    "warmup_steps": 200,
+    "grad_clip": 1.0,
+    "ternary_schedule": "fp32 warmup 500 steps → linear ramp to alpha=1.0 over remaining steps (reached alpha=0.47 at 24h cutoff)"
+  },
+  "artifact": {
+    "total_params": 24128000,
+    "ternary_params": 23592960,
+    "fp16_params": 535040,
+    "ternary_raw_bytes": 4718600,
+    "fp16_raw_bytes": 1070080,
+    "pickled_raw_bytes": 5795581,
+    "lzma_compressed_bytes": 5587636,
+    "compression_ratio_vs_fp32": 16.4,
+    "fits_16mb_limit": true,
+    "headroom_bytes": 10412364
+  },
+  "val_metrics": {
+    "val_loss": 2.5454,
+    "bits_per_token": 3.673,
+    "tokens_per_byte": 0.4116,
+    "val_bpb": 1.5117
+  },
+  "techniques": [
+    "BitNet b1.58-style ternary QAT (Straight-Through Estimator)",
+    "Trinity base-3 packing (5 trits/byte, 1.6 bits/trit, 99% of log₂(3) optimum)",
+    "Linear ternary ramp schedule (smooth fp32→ternary transition)",
+    "Apple Silicon AMX (Apple Matrix Extensions) for efficient CPU matmul",
+    "RoPE (full, dim=64), ReLU² MLP, RMSNorm",
+    "Tied input/output embeddings (saves 0.5 MB)",
+    "LZMA preset=9 compression for artifact",
+    "Trinity framework: github.com/gHashTag/trinity"
+  ],
+  "notable_facts": [
+    "🍎 First Parameter Golf submission on Apple Silicon CPU-only (no GPU, no MPS, no CUDA)",
+    "🔺 Ternary QAT from scratch (BitNet b1.58 recipe)",
+    "📦 5.59 MB compressed artifact = 10.4 MB headroom under 16 MB limit",
+    "🏠 Fully reproducible on consumer laptop (16 GB RAM), no cloud required",
+    "🔬 Research demo: ternary QAT needs >24h CPU to fully ternarize this model size — longer runs expected to close alpha=1.0 gap",
+    "⚡ 4006 tokens/sec throughput on M1 Pro (10 cores)"
+  ]
+}

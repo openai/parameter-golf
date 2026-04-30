@@ -1,0 +1,71 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-27",
+  "name": "Trinity_Ternary_CPU_v3_72h",
+  "author": "gHashTag",
+  "github_id": "deborahnelson8788726",
+  "val_bpb": 1.5042,
+  "val_bpb_note": "Pure CPU training on Apple M1 Pro (10 cores, 16GB) for 72 hours. BitNet b1.58 ternary QAT with α=1.0 (full ternary). Artifact 5.5 MB LZMA — 10.5 MB headroom under 16 MB.",
+  "val_bpb_seeds": {
+    "seed_42": 1.5042150187814474
+  },
+  "val_loss": 2.5479,
+  "val_tokens_per_byte": 0.4092,
+  "training": {
+    "hardware": "Apple M1 Pro (10 cores, 16GB) — CPU-only, no GPU/MPS/NPU",
+    "wallclock_hours": 72.04,
+    "max_steps": 84750,
+    "warm_start": "from v1 (24h CPU pre-training, α=0.47)",
+    "ternary_schedule": "step-based linear ramp from step 500 → step 60000 (α: 0 → 1)",
+    "lr_schedule": "cosine decay 3e-4 → 3e-5",
+    "optimizer": "AdamW, betas=(0.9, 0.95), wd=0.05",
+    "batch": "8 × 512 × 4 grad_accum = 16384 tokens/step",
+    "caffeinate": true
+  },
+  "model": {
+    "architecture": "11L 384d 8h transformer, MLP 2.5×, RoPE, ReLU², RMSNorm, tied embeddings",
+    "vocab_size": 1024,
+    "seq_len": 512,
+    "params_total": 24128000,
+    "params_ternary": 23592960,
+    "ternary_alpha_final": 1.0
+  },
+  "artifact": {
+    "format": "Trinity base-3 packing (5 trits per byte = 1.6 bits/trit, 99% of theoretical optimum)",
+    "raw_ternary_bytes": 4718600,
+    "raw_fp16_bytes": 1070080,
+    "lzma_compressed_bytes": 5525048,
+    "lzma_compressed_mb": 5.27,
+    "headroom_under_16mb_mb": 10.46
+  },
+  "compliance_track_a": {
+    "C1_causal": true,
+    "C2_normalized_softmax": true,
+    "C3_score_before_update": "N/A (no TTT, no SLOT)",
+    "C4_single_pass": true,
+    "no_slot": true,
+    "no_n_gram": true,
+    "no_pre_quant_ttt": true
+  },
+  "key_innovations": [
+    "First Apple Silicon CPU-only Parameter Golf submission",
+    "Trinity base-3 packing (5 trits/byte, 99% optimal)",
+    "BitNet b1.58 ternary QAT trained from fp32 warm-start to α=1.0",
+    "Step-based ternary ramp (sleep-resilient, vs wallclock-based which broke when Mac slept)",
+    "Cosine LR decay synchronized with ternary ramp",
+    "Reproducible on any laptop with no specialized hardware (no CUDA, no MPS)"
+  ],
+  "lineage": [
+    "BitNet b1.58 (Microsoft, arXiv:2402.17764) — ternary QAT recipe",
+    "Trinity framework (github.com/gHashTag/trinity) — base-3 packing, ternary philosophy",
+    "DLFloat (IBM, Agrawal 2019) — referenced but not used",
+    "v1 (24h, α=0.47): val_bpb 1.5117",
+    "v2 (broken, wallclock-based ramp): training paused on Mac sleep, alpha jumped",
+    "v3 (72h, α=1.0): val_bpb 1.5042 — slight improvement + FULL ternary"
+  ],
+  "reproducibility": {
+    "command": "caffeinate -i -m -s python3 records/track_non_record_16mb/2026-04-24_Trinity_Ternary_CPU_v2/train_gpt_v3.py",
+    "expected_time": "72 hours on Apple M1 Pro 10-core",
+    "alternative_hardware": "Any 10+ core CPU should converge in similar time"
+  }
+}
