@@ -2512,6 +2512,291 @@ def _decompress(data, compressor):
     return raw
 
 
+# ---------------------------------------------------------------------------
+# COMPRESSOR=pergroup  — role-bucketed lrzip/ZPAQ compression
+#
+# Splits the quantized state dict into two sections before serialization:
+#   1. Q section  – the large int8 GPTQ weight tensors (.weight.q keys).
+#      Each tensor's rows are sorted by L1 nearest-neighbour similarity so
+#      adjacent rows are numerically close, then transposed for better run-
+#      length regularity.  All sorted+transposed blobs are concatenated and
+#      compressed with lrzip ZPAQ (-z -L 9).  If lrzip is absent the section
+#      falls back to brotli automatically — never crashes.
+#   2. Remainder – scales, LQER factors, passthrough tensors, quant_meta.
+#      Serialized with torch.save + byte_shuffle + brotli-11 (same as the
+#      default brotli path).
+#
+# Frame format (little-endian):
+#   [4B] magic b"PGRP"
+#   [4B] uint32 version = 2
+#   [4B] uint32 n_q_tensors
+#   Per Q tensor (sorted by name):
+#     [2B] uint16 name_len
+#     [name_len B] name (UTF-8)
+#     [4B] uint32 rows   (original shape[0] before sort+transpose)
+#     [4B] uint32 cols   (original shape[1] before sort+transpose)
+#     [rows*2 B] uint16 row-permutation indices
+#   [1B] uint8  q_method  (0 = brotli fallback, 1 = lrzip)
+#   [4B] uint32 q_data_size
+#   [q_data_size B] compressed Q blob
+#   [4B] uint32 remainder_size
+#   [remainder_size B] brotli-compressed remainder
+# ---------------------------------------------------------------------------
+
+import struct as _struct
+
+_PGRP_MAGIC   = b"PGRP"
+_PGRP_VERSION = 2
+
+# Only the large int8 weight tensors go through the pergroup path.
+_PGRP_Q_SUFFIXES = (
+    ".mlp.fc.weight.q",
+    ".mlp.proj.weight.q",
+    ".attn.c_q.weight.q",
+    ".attn.proj.weight.q",
+    ".attn.c_k.weight.q",
+    ".attn.c_v.weight.q",
+    "tok_emb.weight.q",
+)
+
+
+def _similarity_sort_l1(W):
+    """Greedy L1 nearest-neighbour row sort.  Returns uint16 permutation array.
+
+    O(n²·cols) numpy – takes ~3-6 s on the largest tensors (2048 rows).
+    """
+    n = W.shape[0]
+    if n <= 1:
+        return np.arange(n, dtype=np.uint16)
+    W16 = W.astype(np.int16)
+    used = np.zeros(n, dtype=bool)
+    order = np.empty(n, dtype=np.int32)
+    order[0] = 0
+    used[0] = True
+    for i in range(1, n):
+        d = np.abs(W16 - W16[order[i - 1]]).sum(axis=1)
+        d[used] = 2 ** 30
+        nxt = int(d.argmin())
+        order[i] = nxt
+        used[nxt] = True
+    return order.astype(np.uint16)
+
+
+def _lrzip_compress_bytes(data):
+    """Compress bytes with lrzip ZPAQ via temp files.  Returns bytes or None."""
+    import tempfile
+    in_fd, in_path = tempfile.mkstemp(suffix=".bin")
+    out_path = in_path + ".lrz"
+    try:
+        os.write(in_fd, data)
+        os.close(in_fd)
+        in_fd = -1
+        r = subprocess.run(
+            ["lrzip", "-z", "-L", "9", "-o", out_path, in_path],
+            capture_output=True, timeout=300,
+        )
+        if r.returncode == 0 and os.path.exists(out_path):
+            with open(out_path, "rb") as fh:
+                return fh.read()
+        log(f"pergroup:lrzip exit {r.returncode}: {r.stderr.decode()[:200]}")
+    except FileNotFoundError:
+        log("pergroup:lrzip not found — falling back to brotli for Q section")
+    except subprocess.TimeoutExpired:
+        log("pergroup:lrzip timed out — falling back to brotli for Q section")
+    except Exception as e:
+        log(f"pergroup:lrzip error ({e}) — falling back to brotli for Q section")
+    finally:
+        if in_fd != -1:
+            try: os.close(in_fd)
+            except OSError: pass
+        for p in (in_path, out_path):
+            try: os.unlink(p)
+            except OSError: pass
+    return None
+
+
+def _lrzip_decompress_bytes(data):
+    """Decompress lrzip ZPAQ bytes via temp files."""
+    import tempfile
+    lrz_fd, lrz_path = tempfile.mkstemp(suffix=".lrz")
+    # lrzip strips .lrz → output name is lrz_path[:-4]
+    out_path = lrz_path[:-4]
+    try:
+        os.write(lrz_fd, data)
+        os.close(lrz_fd)
+        lrz_fd = -1
+        r = subprocess.run(
+            ["lrzip", "-d", "-k", "-o", out_path, lrz_path],
+            capture_output=True, timeout=300,
+        )
+        if r.returncode != 0:
+            raise RuntimeError(f"lrzip -d failed (exit {r.returncode}): {r.stderr.decode()[:400]}")
+        with open(out_path, "rb") as fh:
+            return fh.read()
+    finally:
+        if lrz_fd != -1:
+            try: os.close(lrz_fd)
+            except OSError: pass
+        for p in (lrz_path, out_path):
+            try: os.unlink(p)
+            except OSError: pass
+
+
+def _pack_pergroup(quant_result, quant_meta):
+    """Serialize quantized state dict using the PGRP frame format.
+
+    Q tensors → similarity-sorted, transposed, lrzip ZPAQ (brotli fallback).
+    Everything else → torch.save + byte_shuffle + brotli-11.
+    """
+    import brotli
+
+    # --- split Q tensors from remainder ---
+    q_items   = {}  # name → int8 numpy array
+    remainder = {}  # name → tensor (scales, LQER, passthrough)
+    for name, t in quant_result.items():
+        if any(name.endswith(sfx) for sfx in _PGRP_Q_SUFFIXES):
+            q_items[name] = (t.numpy() if hasattr(t, "numpy") else np.asarray(t))
+        else:
+            remainder[name] = t
+
+    q_names = sorted(q_items.keys())
+
+    # --- similarity sort + transpose per Q tensor ---
+    q_perms  = {}   # name → uint16 perm array
+    q_shapes = {}   # name → (rows, cols)
+    q_blobs  = []   # sorted+transposed int8 bytes, concatenated later
+
+    t_sort = time.perf_counter()
+    for name in q_names:
+        W = q_items[name]
+        assert W.ndim == 2, f"pergroup: Q tensor {name} is not 2D: {W.shape}"
+        rows, cols = W.shape
+        q_shapes[name] = (rows, cols)
+        perm = _similarity_sort_l1(W)
+        q_perms[name] = perm
+        # sort rows then transpose → (cols, rows); adjacent values more similar
+        W_st = W[perm.astype(np.int32)].T.astype(np.int8)
+        q_blobs.append(W_st.tobytes())
+    log(f"pergroup:similarity sort done in {time.perf_counter()-t_sort:.1f}s ({len(q_names)} tensors)")
+
+    q_data_raw = b"".join(q_blobs)
+
+    # --- compress Q section (lrzip ZPAQ, brotli fallback) ---
+    q_compressed = _lrzip_compress_bytes(q_data_raw)
+    if q_compressed is not None:
+        q_method = 1  # lrzip
+    else:
+        q_compressed = brotli.compress(q_data_raw, quality=11)
+        q_method = 0  # brotli fallback
+    log(
+        f"pergroup:Q {len(q_data_raw)} raw → {len(q_compressed)} "
+        f"({'lrzip' if q_method else 'brotli'}) "
+        f"({100*len(q_compressed)/max(len(q_data_raw),1):.1f}%)"
+    )
+
+    # --- remainder section: torch.save + byte_shuffle + brotli ---
+    rem_buf = io.BytesIO()
+    torch.save({"w": remainder, "m": quant_meta}, rem_buf)
+    rem_compressed = brotli.compress(_byte_shuffle(rem_buf.getvalue()), quality=11)
+    log(f"pergroup:remainder {rem_buf.tell()} raw → {len(rem_compressed)} brotli")
+
+    # --- assemble PGRP frame ---
+    out = io.BytesIO()
+    out.write(_PGRP_MAGIC)
+    out.write(_struct.pack("<I", _PGRP_VERSION))
+    out.write(_struct.pack("<I", len(q_names)))
+    for name in q_names:
+        rows, cols = q_shapes[name]
+        perm = q_perms[name]
+        nb = name.encode()
+        out.write(_struct.pack("<H", len(nb)))
+        out.write(nb)
+        out.write(_struct.pack("<II", rows, cols))
+        out.write(perm.astype("<u2").tobytes())   # rows * 2 bytes
+    out.write(_struct.pack("<B", q_method))
+    out.write(_struct.pack("<I", len(q_compressed)))
+    out.write(q_compressed)
+    out.write(_struct.pack("<I", len(rem_compressed)))
+    out.write(rem_compressed)
+
+    result = out.getvalue()
+    log(f"pergroup:total frame {len(result)} bytes")
+
+    # --- optional round-trip safety check (set PERGROUP_ROUNDTRIP_CHECK=1) ---
+    if os.environ.get("PERGROUP_ROUNDTRIP_CHECK", "0") == "1":
+        log("pergroup:running round-trip check…")
+        recovered = _unpack_pergroup(result)
+        for name in q_names:
+            W_orig = torch.from_numpy(q_items[name])
+            W_rec  = recovered["w"].get(name)
+            if W_rec is None:
+                raise RuntimeError(f"pergroup round-trip: missing key {name!r}")
+            if not torch.equal(W_orig, W_rec):
+                raise RuntimeError(f"pergroup round-trip: mismatch at {name!r}")
+        for name in remainder:
+            if not torch.equal(quant_result[name], recovered["w"].get(name, None)):
+                raise RuntimeError(f"pergroup round-trip: remainder mismatch at {name!r}")
+        log("pergroup:round-trip check PASSED ✓")
+
+    return result
+
+
+def _unpack_pergroup(data):
+    """Deserialize a PGRP frame.  Returns {\"w\": quant_result, \"m\": quant_meta}."""
+    import brotli
+
+    r = io.BytesIO(data)
+
+    magic = r.read(4)
+    if magic != _PGRP_MAGIC:
+        raise ValueError(f"_unpack_pergroup: bad magic {magic!r}")
+    version = _struct.unpack("<I", r.read(4))[0]
+    if version != _PGRP_VERSION:
+        raise ValueError(f"_unpack_pergroup: unsupported version {version}")
+    n_q = _struct.unpack("<I", r.read(4))[0]
+
+    q_meta = []  # list of (name, rows, cols, perm_uint16)
+    for _ in range(n_q):
+        name_len = _struct.unpack("<H", r.read(2))[0]
+        name = r.read(name_len).decode()
+        rows, cols = _struct.unpack("<II", r.read(8))
+        perm = np.frombuffer(r.read(rows * 2), dtype="<u2").copy()
+        q_meta.append((name, rows, cols, perm))
+
+    q_method       = _struct.unpack("<B", r.read(1))[0]
+    q_data_size    = _struct.unpack("<I", r.read(4))[0]
+    q_data_comp    = r.read(q_data_size)
+    rem_size       = _struct.unpack("<I", r.read(4))[0]
+    rem_comp       = r.read(rem_size)
+
+    # --- decompress Q section ---
+    if q_method == 1:
+        q_data_raw = _lrzip_decompress_bytes(q_data_comp)
+    else:
+        q_data_raw = brotli.decompress(q_data_comp)
+
+    # --- reconstruct each Q tensor ---
+    q_result = {}
+    offset = 0
+    for name, rows, cols, perm in q_meta:
+        nbytes = cols * rows
+        arr = np.frombuffer(q_data_raw[offset: offset + nbytes], dtype=np.int8).copy()
+        offset += nbytes
+        # stored as (cols, rows) after transpose; reverse: T → (rows, cols)
+        W_sorted = arr.reshape(cols, rows).T  # (rows, cols)
+        # undo row permutation
+        invperm = np.argsort(perm.astype(np.int32))
+        q_result[name] = torch.from_numpy(W_sorted[invperm].copy())
+
+    # --- decompress remainder ---
+    rem_state = torch.load(
+        io.BytesIO(_byte_unshuffle(brotli.decompress(rem_comp))),
+        map_location="cpu",
+    )
+    rem_state["w"].update(q_result)
+    return rem_state
+
+
 def _unbank_state_dict(state_dict, num_layers):
     sd = {}
     n = num_layers
@@ -2703,10 +2988,13 @@ def serialize(h, base_model, code):
     )
     log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter()-t0:.1f}s")
     quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
-    quant_buf = io.BytesIO()
-    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
-    quant_raw = quant_buf.getvalue()
-    quant_blob = _compress(quant_raw, h.compressor)
+    if h.compressor == "pergroup":
+        quant_blob = _pack_pergroup(quant_result, quant_meta)
+    else:
+        quant_buf = io.BytesIO()
+        torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+        quant_raw = quant_buf.getvalue()
+        quant_blob = _compress(quant_raw, h.compressor)
     quant_file_bytes = len(quant_blob)
     bytes_total = quant_file_bytes + code_bytes
     if h.is_main_process:
@@ -2723,9 +3011,12 @@ def deserialize(h, device):
     flat_template = _unbank_state_dict(eval_model.state_dict(), h.num_layers)
     with open(h.quantized_model_path, "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(
-        io.BytesIO(_decompress(quant_blob_disk, h.compressor)), map_location="cpu"
-    )
+    if h.compressor == "pergroup":
+        quant_state = _unpack_pergroup(quant_blob_disk)
+    else:
+        quant_state = torch.load(
+            io.BytesIO(_decompress(quant_blob_disk, h.compressor)), map_location="cpu"
+        )
     deq_flat = dequantize_mixed(quant_state["w"], quant_state["m"], flat_template)
     head_dim = h.model_dim // h.num_heads
     kv_dim = h.num_kv_heads * head_dim
