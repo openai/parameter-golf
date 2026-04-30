@@ -1,3 +1,58 @@
+# V22: V21 base + PR #1953's 7 levers + EVAL_SEQ_LEN=2816 — val_bpb 1.05877 (3-seed mean, all strict <600s)
+
+> **V22 update (2026-05-01)** layers PR #1953 (@andrewbaggio1)'s 7 hparam levers on top of V21's PR #1908+AWQ-lite+AsymLogit+WD=2.0 base, with `EVAL_SEQ_LEN` raised from PR #1953's 2560 to **2816** (longer eval context). All 3 seeds strict <600s train wallclock (596.087-596.152s) and 475-522s eval (well under 600s cap).
+
+## V22 results (3-seed)
+
+| Seed | Stop step | Train wallclock | Eval time | Pre-quant | Quantized | **Post-TTT** | Artifact |
+|------|----------:|----------------:|----------:|----------:|----------:|-------------:|---------:|
+| 42   | 4,984 | 596.152s ✅ | 522.21s | 1.05952 | 1.06791 | **1.057334** | 15,981,259 |
+| 0    | 4,934 | 596.103s ✅ | 479.95s | 1.06204 | 1.07029 | **1.059588** | 15,981,985 |
+| 1234 | 4,935 | 596.087s ✅ | 475.58s | 1.06149 | 1.07015 | **1.059375** | 15,982,315 |
+| **Mean** | **4,951** | **596.11s** | **492.58s** | **1.06102** | **1.06945** | **1.058769** | **15,981,853** |
+
+**3-seed mean val_bpb: 1.05877** (std 0.00102) | **~15.98 MB** | 8×H100 SXM5 80GB (Hyperbolic eu-north-4) | full TTT eval
+
+## V22 vs leaderboard (2026-04-30)
+
+| | V22 mean | Δ vs V22 |
+|---|---:|---:|
+| PR #1967 ndokutovich (N-gram Tilt) | 1.05851 | +0.00026 |
+| PR #1953 andrewbaggio (7 levers) | 1.05855 | +0.00022 |
+| **V22 (this submission)** | **1.05877** | — |
+| PR #1965 himanshudongre | 1.05875 | -0.00002 |
+| PR #2007 elubrazione | 1.05899 | -0.00022 |
+| **V21 v2 alertcat (this PR's prior version)** | **1.05943** | **-0.00066** ✅ |
+| PR #1908 romeerp (AWQ-lite frontier) | 1.06081 | -0.00204 |
+| PR #1855 codemath3000 (cocohearts-merged #1) | 1.06108 | -0.00231 |
+| MERGED SOTA bigbag PR #1493 | 1.0810 | -0.02223 |
+
+**V22 improves over V21 v2 by −0.00066 BPB** (within the community's 0.0006 floor for meaningful improvement). V22 falls 0.00022 BPB short of PR #1953/1967 — within seed noise but technically behind on 3-seed mean. The +66µ delta from V21 came primarily from seed 42's pre-quant dropping to 1.05952 (vs PR #1953's 1.06163 at the same seed), made possible by the longer eval context (EVAL_SEQ_LEN=2816 vs 2560).
+
+## V22 stack (in addition to V21)
+
+7 hparam levers from [PR #1953](https://github.com/openai/parameter-golf/pull/1953) by **@andrewbaggio1**, with EVAL_SEQ_LEN raised:
+
+```
+EVAL_SEQ_LEN=2816          # V22 raised from PR #1953's 2560
+TTT_EVAL_SEQ_LEN=2816      # matched
+TTT_MASK=no_qv             # K/MLP/O LoRA active, Q/V LoRA disabled at TTT
+TTT_Q_LORA=0
+TTT_V_LORA=0
+TTT_LOCAL_LR_MULT=0.75     # local LR multiplier for per-doc adapter
+QK_GAIN_INIT=5.25          # init for QK gain scalar
+```
+
+All other V21 settings (PR #1908 base + AWQ-lite + AsymLogit + WD=2.0) carried over verbatim.
+
+## V22 revisions
+
+- **v3 (2026-05-01)**: V22 = V21 v2 stack + 7 PR #1953 levers + EVAL_SEQ_LEN=2816. 3-seed mean 1.05877. All 3 seeds strict <600s. Run on Hyperbolic eu-north-4 Iceland VM (8×H100 SXM5 80GB).
+
+---
+
+# Original V21 submission (preserved below for context)
+
 # V21: PR #1855 stack + AWQ-lite + Asymmetric Logit Rescale — val_bpb 1.05943 (3-seed mean, all strict <600s)
 
 **3-seed mean val_bpb: 1.05943** (std 0.00064) | **~15.98 MB** | 8×H100 SXM | full TTT eval
