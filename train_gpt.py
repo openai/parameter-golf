@@ -87,6 +87,8 @@ class Hyperparameters:
     loop_end = int(os.environ.get("LOOP_END", 5))
     enable_looping_at = float(os.environ.get("ENABLE_LOOPING_AT", 0.5))
     skip_gates_enabled = bool(int(os.environ.get("SKIP_GATES_ENABLED", "1")))
+    per_layer_embed_dim = int(os.environ.get("PER_LAYER_EMBED_DIM", 64))
+    per_layer_embed_init_std = float(os.environ.get("PER_LAYER_EMBED_INIT_STD", 0.02))
 
     # Optimizer hyperparameters.
     min_lr = float(os.environ.get("MIN_LR", 0.0))
@@ -548,8 +550,10 @@ def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
 
 def classify_param(name: str) -> str:
-    if "tok_emb" in name or "lm_head" in name:
+    if "tok_emb" in name or "lm_head" in name or "embed_tokens_per_layer" in name:
         return "embed"
+    if "per_layer_" in name:
+        return "ple"
     if ".mlp." in name:
         return "mlp"
     if ".attn." in name or (".proj." in name and ".mlp." not in name):
@@ -582,7 +586,7 @@ def collect_hessians(
     for name, module in model.named_modules():
         if isinstance(module, CastedLinear) and module.weight.numel() > 65_536:
             category = classify_param(f"{name}.weight")
-            if category in {"mlp", "attn"}:
+            if category in {"mlp", "attn", "ple"}:
                 hooks.append(module.register_forward_hook(make_hook(f"{name}.weight")))
 
     if getattr(model, "tie_embeddings", False):
@@ -658,6 +662,14 @@ def gptq_quantize_weight(
     return quantized[:, invperm], scale
 
 
+def rowwise_quantize_weight(weight: Tensor, clip_sigmas: float, clip_range: int) -> tuple[Tensor, Tensor]:
+    weight_f32 = weight.float()
+    row_std = weight_f32.std(dim=1)
+    scale = (clip_sigmas * row_std / clip_range).clamp_min(1e-10).to(torch.float16)
+    q = torch.clamp(torch.round(weight_f32 / scale.float().unsqueeze(1)), -clip_range, clip_range).to(torch.int8)
+    return q, scale
+
+
 def gptq_mixed_quantize(
     state_dict: dict[str, Tensor],
     hessians: dict[str, Tensor],
@@ -676,6 +688,18 @@ def gptq_mixed_quantize(
     for name, tensor in state_dict.items():
         t = tensor.detach().cpu().contiguous()
         stats["baseline_tensor_bytes"] += tensor_nbytes(t)
+        if name == "embed_tokens_per_layer.weight":
+            q, scale = rowwise_quantize_weight(
+                t,
+                clip_sigmas=args.embed_clip_sigmas,
+                clip_range=2 ** (args.embed_bits - 1) - 1,
+            )
+            result[f"{name}.q"] = q
+            result[f"{name}.scale"] = scale
+            meta[name] = f"rowwise (int{args.embed_bits})"
+            stats["quant_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(scale)
+            stats["num_gptq_tensors"] += 1
+            continue
         if not t.is_floating_point() or t.numel() <= 65_536 or name not in hessians:
             out_t = t.to(torch.float16) if t.is_floating_point() else t
             result[name] = out_t
@@ -925,6 +949,15 @@ class CastedLinear(nn.Linear):
         return F.linear(x, self.weight.to(x.dtype), bias)
 
 
+class ScaledEmbedding(nn.Embedding):
+    def __init__(self, num_embeddings: int, embedding_dim: int, embed_scale: float):
+        super().__init__(num_embeddings, embedding_dim)
+        self.register_buffer("embed_scale", torch.tensor(embed_scale, dtype=torch.float32), persistent=False)
+
+    def forward(self, input_ids: Tensor) -> Tensor:
+        return super().forward(input_ids) * self.embed_scale.to(dtype=self.weight.dtype)
+
+
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
     # Keep small/control parameters in fp32 even when the model body runs in bf16.
     with torch.no_grad():
@@ -1069,6 +1102,7 @@ class Block(nn.Module):
         rope_dims: int,
         layer_idx: int,
         ln_scale: bool,
+        per_layer_embed_dim: int,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -1079,8 +1113,13 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
+        self.per_layer_embed_dim = per_layer_embed_dim
+        if self.per_layer_embed_dim > 0:
+            self.per_layer_input_gate = CastedLinear(dim, self.per_layer_embed_dim, bias=False)
+            self.per_layer_projection = CastedLinear(self.per_layer_embed_dim, dim, bias=False)
+            self.post_per_layer_input_norm = RMSNorm()
 
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+    def forward(self, x: Tensor, x0: Tensor, per_layer_input: Tensor | None = None) -> Tensor:
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor)
@@ -1088,6 +1127,16 @@ class Block(nn.Module):
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(
             self.mlp_norm(x_out) * self.ln_scale_factor
         )
+        if self.per_layer_embed_dim > 0:
+            if per_layer_input is None:
+                raise RuntimeError("per_layer_input is required when PER_LAYER_EMBED_DIM > 0")
+            residual = x_out
+            ple = self.per_layer_input_gate(x_out)
+            ple = F.gelu(ple, approximate="tanh")
+            ple = ple * per_layer_input
+            ple = self.per_layer_projection(ple)
+            ple = self.post_per_layer_input_norm(ple)
+            x_out = residual + ple
         return x_out
 
 
@@ -1099,6 +1148,9 @@ class GPT(nn.Module):
         self.tie_embeddings = args.tie_embeddings
         self.tied_embed_init_std = args.tied_embed_init_std
         self.logit_softcap = args.logit_softcap
+        self.num_layers = args.num_layers
+        self.per_layer_embed_dim = args.per_layer_embed_dim
+        self.per_layer_embed_init_std = args.per_layer_embed_init_std
         self.tok_emb = nn.Embedding(args.vocab_size, args.embedding_dim)
         if args.embedding_dim != args.model_dim:
             self.embed_proj = CastedLinear(args.embedding_dim, args.model_dim, bias=False)
@@ -1106,6 +1158,26 @@ class GPT(nn.Module):
         else:
             self.embed_proj = None
             self.head_proj = None
+        if self.per_layer_embed_dim > 0:
+            self.embed_tokens_per_layer = ScaledEmbedding(
+                args.vocab_size,
+                args.num_layers * self.per_layer_embed_dim,
+                embed_scale=self.per_layer_embed_dim**0.5,
+            )
+            self.per_layer_input_scale = 2.0**-0.5
+            self.per_layer_model_projection = CastedLinear(
+                args.model_dim,
+                args.num_layers * self.per_layer_embed_dim,
+                bias=False,
+            )
+            self.per_layer_model_projection_scale = args.model_dim**-0.5
+            self.per_layer_projection_norm = RMSNorm()
+        else:
+            self.embed_tokens_per_layer = None
+            self.per_layer_input_scale = 1.0
+            self.per_layer_model_projection = None
+            self.per_layer_model_projection_scale = 1.0
+            self.per_layer_projection_norm = None
         self.num_encoder_layers = args.num_layers // 2
         self.num_decoder_layers = args.num_layers - self.num_encoder_layers
         self.blocks = nn.ModuleList(
@@ -1121,6 +1193,7 @@ class GPT(nn.Module):
                     args.rope_dims,
                     layer_idx=i,
                     ln_scale=args.ln_scale,
+                    per_layer_embed_dim=args.per_layer_embed_dim,
                 )
                 for i in range(args.num_layers)
             ]
@@ -1157,6 +1230,8 @@ class GPT(nn.Module):
     def _init_weights(self) -> None:
         if self.tie_embeddings:
             nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
+        if self.embed_tokens_per_layer is not None:
+            nn.init.normal_(self.embed_tokens_per_layer.weight, mean=0.0, std=self.per_layer_embed_init_std)
         for module in self.modules():
             if isinstance(module, nn.Linear):
                 if getattr(module, "_zero_init", False):
@@ -1164,11 +1239,37 @@ class GPT(nn.Module):
                 elif module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
                     nn.init.orthogonal_(module.weight, gain=1.0)
 
+    def get_per_layer_inputs(self, input_ids: Tensor) -> Tensor:
+        if self.embed_tokens_per_layer is None:
+            raise RuntimeError("PER_LAYER_EMBED_DIM must be positive to compute per-layer inputs")
+        return self.embed_tokens_per_layer(input_ids).reshape(
+            *input_ids.shape,
+            self.num_layers,
+            self.per_layer_embed_dim,
+        )
+
+    def project_per_layer_inputs(self, inputs_embeds: Tensor, per_layer_inputs: Tensor | None = None) -> Tensor:
+        if self.per_layer_model_projection is None or self.per_layer_projection_norm is None:
+            raise RuntimeError("PER_LAYER_EMBED_DIM must be positive to project per-layer inputs")
+        projection = self.per_layer_model_projection(inputs_embeds) * self.per_layer_model_projection_scale
+        projection = projection.reshape(
+            *inputs_embeds.shape[:-1],
+            self.num_layers,
+            self.per_layer_embed_dim,
+        )
+        projection = self.per_layer_projection_norm(projection)
+        if per_layer_inputs is None:
+            return projection
+        return (projection + per_layer_inputs) * self.per_layer_input_scale
+
     def forward_logits(self, input_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         if self.embed_proj is not None:
             x = self.embed_proj(x)
+        per_layer_inputs = None
+        if self.per_layer_embed_dim > 0:
+            per_layer_inputs = self.project_per_layer_inputs(x, self.get_per_layer_inputs(input_ids))
         x0 = x
         skips: list[Tensor] = []
 
@@ -1179,7 +1280,8 @@ class GPT(nn.Module):
             else range(self.num_encoder_layers, self.num_encoder_layers + self.num_decoder_layers)
         )
         for i in enc_iter:
-            x = self.blocks[i](x, x0)
+            per_layer_input = per_layer_inputs[:, :, i, :] if per_layer_inputs is not None else None
+            x = self.blocks[i](x, x0, per_layer_input)
             skips.append(x)
         for skip_idx, i in enumerate(dec_iter):
             if skip_idx < self.num_skip_weights and skips:
@@ -1189,7 +1291,8 @@ class GPT(nn.Module):
                     x = torch.lerp(scaled_skip, x, gate)
                 else:
                     x = x + scaled_skip
-            x = self.blocks[i](x, x0)
+            per_layer_input = per_layer_inputs[:, :, i, :] if per_layer_inputs is not None else None
+            x = self.blocks[i](x, x0, per_layer_input)
 
         x = self.final_norm(x)
         if self.head_proj is not None:
@@ -1242,6 +1345,10 @@ def main() -> None:
         raise ValueError(f"MTP must be >= 1, got {args.mtp}")
     if args.layer_freeze_per_step < 0:
         raise ValueError(f"LAYER_FREEZE_PER_STEP must be >= 0, got {args.layer_freeze_per_step}")
+    if args.per_layer_embed_dim < 0:
+        raise ValueError(f"PER_LAYER_EMBED_DIM must be >= 0, got {args.per_layer_embed_dim}")
+    if args.per_layer_embed_dim > 0 and args.per_layer_embed_init_std <= 0.0:
+        raise ValueError(f"PER_LAYER_EMBED_INIT_STD must be positive, got {args.per_layer_embed_init_std}")
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
@@ -1392,6 +1499,8 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
+    if base_model.per_layer_model_projection is not None:
+        matrix_params.append(base_model.per_layer_model_projection.weight)
     scalar_params = [
         p
         for name, p in block_named_params
@@ -1407,8 +1516,11 @@ def main() -> None:
         if module is not None
     ]
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    token_params = [base_model.tok_emb.weight]
+    if base_model.embed_tokens_per_layer is not None:
+        token_params.append(base_model.embed_tokens_per_layer.weight)
     optimizer_tok = torch.optim.AdamW(
-        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
+        [{"params": token_params, "lr": token_lr, "base_lr": token_lr}],
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
         weight_decay=args.embed_wd,
@@ -1460,6 +1572,10 @@ def main() -> None:
         input_param_names = ["tok_emb.weight"]
         if base_model.embed_proj is not None:
             input_param_names.append("embed_proj.weight")
+        if base_model.embed_tokens_per_layer is not None:
+            input_param_names.append("embed_tokens_per_layer.weight")
+        if base_model.per_layer_model_projection is not None:
+            input_param_names.append("per_layer_model_projection.weight")
         add_freeze_group("input", input_param_names)
         for layer_idx in range(len(base_model.blocks)):
             add_freeze_group(
@@ -1494,6 +1610,10 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"ple:enabled:{args.per_layer_embed_dim > 0} dim:{args.per_layer_embed_dim} "
+        f"init_std:{args.per_layer_embed_init_std}"
+    )
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
         f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
