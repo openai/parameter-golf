@@ -1,8 +1,14 @@
 # Record: Leaky ReLU Slope + GPTQ Reverse-Cholesky Speedup + PR #1938 (val_bpb = 1.06242)
 
+> **Note:** This README captures only the bare submission record. The full
+> set of insights from our parameter-golf run — every PR iteration we tried,
+> the hyperparameter-tuning experiments behind each design choice, and the
+> ablation results that drove our decisions — is being compiled into a
+> detailed write-up. A more detailed write-up is at: https://www.junchengbillyli.com/llm-notes.html
+
 **val_bpb (3-seed mean) = 1.06242** | σ ≈ 0.00013 | **~15.95 MB** | 8×H100 SXM | 600 s training + 600 s eval
 
-A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Billy Li ([@lijuncheng16](https://github.com/lijuncheng16))**, with thanks to **Prof. Lin Hao (Fordham University)** for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used in this submission, and **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** for project discussions.
+A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Billy Li ([@lijuncheng16](https://github.com/lijuncheng16))**, with thanks to **Prof. Lin Hao (Fordham University)** for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used in this submission, Xingyuan Ding for additional experiments, Bill (Yiyuan) Li for meaningful discussions on tokenizers, **Liju Yu ([@Lijun-Yu](https://github.com/Lijun-Yu))** for his invaluable insights, and **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** for project discussions.
 
 ## TL;DR
 
@@ -21,6 +27,22 @@ Both are hardcoded inside `train_gpt.py` (the variant from [PR #1867](https://gi
 | 42   | **1.06232**                  | 15,945,920     |
 | 999  | **1.06237**                  | 15,946,532     |
 | **Mean** | **1.06242** (σ ≈ 0.00013) | **15,946,705** |
+
+
+## GPTQ reserve-time accounting
+> **(04-30):** We've noticed that several
+> leaderboard submissions appear to exceed the 10-minute training cap once the
+> full GPTQ pipeline (Hessian collection, quantization, serialize, compress) is
+> accounted for. From our own measurements, `gptq_reserve_seconds=0.5s` is
+> **far insufficient**: GPTQ Hessian collection takes **~3.5-4 s** (depending
+> on calibration batch size), GPTQ quantization itself **~10 s**, and the
+> serialize+compress step adds another **~60-70 s for Brotli** or **~90-100 s
+> for lrzip pergroup**. Among the top leaderboard PRs we surveyed, observed
+> `gptq_reserve_seconds` values range across **0.5 / 4 / 8 s**; this submission
+> uses **16 s** so that the full pipeline completes inside the 600 s training
+> cap with margin. The few-second discrepancy is unlikely to be large enough
+> to materially change the leaderboard score or ranking, but we think it's
+> worth flagging.
 
 ## Key Change 1: Leaky ReLU² slope = 0.3
 
@@ -158,8 +180,11 @@ A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Bi
 
 With thanks to:
 
-- **Prof. Lin Hao (Fordham University)** — for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used to produce all sweep, training, and microbench results in this record.
-- **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** — for project discussions and for the concurrent auto-research agent infrastructure that drove the Stage 1–7 ablation sweeps in parallel.
+- **Prof. Lin Hao (Fordham University)** — for sponsoring the 8×H100 SXM and 4×RTX 4090 compute used to produce all sweep, training, and microbench results in this record.
+- **Xingyuan Ding** — for experiments and A100 support.
+- **Bill (Yiyuan) Li** — for meaningful discussions on tokenizers.
+- **Liju Yu ([@Lijun-Yu](https://github.com/Lijun-Yu))** - for his invaluable insights.
+- **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** — for project discussions and for the concurrent auto-research agent infrastructure.
 
 Additional credits (technique stack):
 
