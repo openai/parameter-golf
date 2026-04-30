@@ -1,0 +1,44 @@
+{
+  "name": "Robert Walmsley",
+  "github_user": "robbiebusinessacc",
+  "val_bpb": 1.067773,
+  "val_bpb_std": 0.001062,
+  "seeds": [42, 314, 1337],
+  "per_seed_val_bpb": {
+    "42": 1.06686141,
+    "1337": 1.06893377,
+    "314": 1.06751568
+  },
+  "per_seed_eval_time_seconds": {
+    "42": 374.6,
+    "1337": 371.0,
+    "314": 327.7
+  },
+  "per_seed_total_artifact_bytes": {
+    "42": 15952086,
+    "1337": 15949941,
+    "314": 15951195
+  },
+  "track": "track_10min_16mb",
+  "base_pr": 1854,
+  "techniques": [
+    "PR #1854 neural stack (PR #1797 base + Phased TTT score-first)",
+    "Budget-compliant trim: PHASED_TTT_PREFIX_DOCS=1500 (vs PR #1854's 2000) to fit 600s eval"
+  ],
+  "exploratory_not_claimed": [
+    "Multibin-lambda PPM-D byte mixer (included in train_gpt.py; mix_bpb ~0.861) — not claimed as headline val_bpb due to open community question on byte-spread normalization vs Kraft compliance"
+  ],
+  "compliance": {
+    "track": "Track A/B (claim is on the standard token-level val_bpb, identical under both interpretations)",
+    "issue_1017_C1_causality": "Sliding-window eval scores each token from prefix only; Phased TTT is score-first",
+    "issue_1017_C2_normalized": "Standard val_bpb is total token NLL / log(2) / bytes; the underlying SP8192 softmax is a proper normalized token distribution",
+    "issue_1017_C3_score_before_update": "Phased TTT scores each chunk under no_grad before any optimizer step",
+    "issue_1017_C4_single_pass": "Single left-to-right pass over the val token stream",
+    "no_token_ngram_cache": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_logit_bias": true,
+    "byte_ppm_mixture_claimed": false
+  },
+  "delta_vs_merged_sota_pr1493": 0.013227
+}
