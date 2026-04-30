@@ -21,6 +21,12 @@ Hardware:
 8xH100
 ```
 
+Data interface:
+
+```text
+Set TOKENIZER_PATH to the tokenizer model. Set DATA_DIR to a directory containing datasets/fineweb10B_sp8192/fineweb_train_*.bin and fineweb_val_*.bin, or set TRAIN_FILES and VAL_FILES directly. Run with torchrun --standalone --nproc_per_node=8 train.py.
+```
+
 FineWeb validation:
 
 | Seed | val_bpb |

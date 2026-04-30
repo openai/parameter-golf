@@ -1631,7 +1631,7 @@ def main():
         log("=" * 100, console=False)
     if _SMOKE_TEST:
         log(f"[SMOKE_TEST] attention_backend=sdpa_fallback  FA3=False  smoke_test=True")
-        log(f"[SMOKE_TEST] val_bpb from this run is NOT comparable to proxy/full runs")
+        log(f"[SMOKE_TEST] val_bpb from this run is NOT comparable to full 8x runs")
     log(f"attention_backend:{'flash_attn_3' if _USE_FA3 else 'sdpa_fallback(smoke)'} smoke_test:{_SMOKE_TEST}")
     train_and_eval(h, device)
     if distributed:
