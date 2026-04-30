@@ -1,0 +1,36 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-30",
+  "name": "OptE_SlidingWindow_CondPPM",
+  "author": "Anmar Hindi",
+  "github_id": "anmarhindi",
+  "val_bpb": 1.027004,
+  "val_bpb_std": 0.000622,
+  "val_bpb_per_seed": {
+    "42": 1.02640209,
+    "1337": 1.02764368,
+    "314": 1.02696665
+  },
+  "diagnostic_pre_ema_3seed_mean": 1.168647,
+  "diagnostic_pre_ema_3seed_std": 0.000561,
+  "diagnostic_quantized_3seed_mean": 1.179078,
+  "diagnostic_quantized_3seed_std": 0.000564,
+  "diagnostic_post_ttt_3seed_mean": 1.027004,
+  "diagnostic_post_ttt_3seed_std": 0.000622,
+  "headline_metric": "cond_ppm",
+  "headline_metric_description": "byte-level conditional-PPM mixture BPB on FULL val (all 9,662,464 tokens, gathered across all 8 ranks before rank-0 PPM byte-state advancement). Sigmoid gate alpha=15 beta=0.80. Pre-quant post-EMA was 1.168; post-quant 1.179; sliding-window 1.184; cond-PPM mixture lands at 1.027 mean.",
+  "artifact_bytes_max": 15542968,
+  "wrapped_code_bytes": 49895,
+  "total_submission_bytes_max": 15592863,
+  "compliant_max_under_16mb": true,
+  "seeds": [
+    42,
+    1337,
+    314
+  ],
+  "hardware": "8xH100 80GB SXM",
+  "sliding_window_3seed_mean": 1.184435,
+  "sliding_window_3seed_std": 0.001035,
+  "eval_token_count_per_seed": 9662464,
+  "eval_full_val_verified": true
+}
