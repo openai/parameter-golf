@@ -1,4 +1,5 @@
 numpy
+brotli
 tqdm
 torch
 huggingface-hub
