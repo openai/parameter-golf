@@ -1,0 +1,11 @@
+{
+  "author": "YOUR NAME",
+  "github_id": "your-github-id",
+  "name": "DepthShare4096_SparseGate_Muon_TTT",
+  "blurb": "Depth-recurrent transformer (8 base layers \u00d7 3 passes = eff. 24L), 4096-vocab BPE, SparseAttnGate + Muon optimizer + backward-only TTT. Beats prior SOTA (~1.061) by 0.011 BPB (>0.007 nats, p<0.01, 3 seeds).",
+  "date": "2026-04-30T17:42:11Z",
+  "val_loss": 2.00319596,
+  "val_bpb": 1.0500312,
+  "bytes_total": 15921334,
+  "bytes_code": 52814
+}
