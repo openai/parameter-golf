@@ -16,17 +16,7 @@ except ImportError:
 				bsz,seqlen,nh,hd=q.shape;nkv=k.size(2);qh=q.transpose(1,2);kh=k.transpose(1,2);vh=v.transpose(1,2)
 				if nh!=nkv:rep=nh//nkv;kh=kh.repeat_interleave(rep,dim=1);vh=vh.repeat_interleave(rep,dim=1)
 				y=F.scaled_dot_product_attention(qh,kh,vh,is_causal=causal);return y.transpose(1,2).contiguous()
-try:
-	import triton,triton.language as tl
-	try:
-		from triton.tools.tensor_descriptor import TensorDescriptor
-		_HAS_TMA=True
-	except ImportError:
-		_HAS_TMA=False
-	_HAS_TRITON=True
-except ImportError:
-	_HAS_TRITON=False;_HAS_TMA=False
-class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));skip_redundant_evals=bool(int(os.environ.get('SKIP_REDUNDANT_EVALS','0')));fused_mlp_enabled=bool(int(os.environ.get('FUSED_MLP_ENABLED','0')));fused_mlp_full=bool(int(os.environ.get('FUSED_MLP_FULL','0')));ttt_e2e_mode=bool(int(os.environ.get('TTT_E2E_MODE','0')));ttt_e2e_last_frac=float(os.environ.get('TTT_E2E_LAST_FRAC','.25'));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));etlb_enabled=bool(int(os.environ.get('ETLB_ENABLED','0')));etlb_lr=float(os.environ.get('ETLB_LR',.05));etlb_steps=int(os.environ.get('ETLB_STEPS',5));etlb_clip=float(os.environ.get('ETLB_CLIP',3.));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f"fineweb10B_sp{vocab_size}");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f"fineweb_{vocab_size}_bpe.model");logfile=f"logs/{run_id}.txt";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz'
+class Hyperparameters:data_dir=os.environ.get('DATA_DIR','./data/');seed=int(os.environ.get('SEED',1337));run_id=os.environ.get('RUN_ID',str(uuid.uuid4()));iterations=int(os.environ.get('ITERATIONS',20000));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',6e2));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.0));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_steps=int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS',1500));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.02));muon_wd=float(os.environ.get('MUON_WD',.095));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));skip_redundant_evals=bool(int(os.environ.get('SKIP_REDUNDANT_EVALS','0')));ttt_e2e_mode=bool(int(os.environ.get('TTT_E2E_MODE','0')));ttt_e2e_last_frac=float(os.environ.get('TTT_E2E_LAST_FRAC','.25'));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',3));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',32768));etlb_enabled=bool(int(os.environ.get('ETLB_ENABLED','0')));etlb_lr=float(os.environ.get('ETLB_LR',.05));etlb_steps=int(os.environ.get('ETLB_STEPS',5));etlb_clip=float(os.environ.get('ETLB_CLIP',3.));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));gptq_reserve_seconds=float(os.environ.get('GPTQ_RESERVE_SECONDS',12.));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=8//world_size;datasets_dir=os.path.join(data_dir,'datasets',f"fineweb10B_sp{vocab_size}");train_files=os.path.join(datasets_dir,'fineweb_train_*.bin');val_files=os.path.join(datasets_dir,'fineweb_val_*.bin');tokenizer_path=os.path.join(data_dir,'tokenizers',f"fineweb_{vocab_size}_bpe.model");logfile=f"logs/{run_id}.txt";model_path='final_model.pt';quantized_model_path='final_model.int6.ptz'
 _logger_hparams=None
 def set_logging_hparams(h):global _logger_hparams;_logger_hparams=h
 def log(msg,console=True):
@@ -123,84 +113,15 @@ class CausalSelfAttention(nn.Module):
 		bsz,seqlen,dim=x.shape;q=self.c_q(x).reshape(bsz,seqlen,self.num_heads,self.head_dim);k=self.c_k(x).reshape(bsz,seqlen,self.num_kv_heads,self.head_dim);v=self.c_v(x).reshape(bsz,seqlen,self.num_kv_heads,self.head_dim);q=F.rms_norm(q,(q.size(-1),));k=F.rms_norm(k,(k.size(-1),));cos,sin=self.rotary(seqlen,x.device,q.dtype);q=apply_rotary_emb(q,cos,sin,self.rope_dims);k=apply_rotary_emb(k,cos,sin,self.rope_dims);q=q*self.q_gain.to(dtype=q.dtype)[None,None,:,None];y=flash_attn_3_func(q,k,v,causal=True)
 		if self.use_xsa:y=self._xsa_efficient(y,v)
 		y=y.reshape(bsz,seqlen,dim);return self.proj(y)
-if _HAS_TRITON and _HAS_TMA:
-	@triton.jit
-	def _rms_inv_kernel(x_ptr,inv_rms_ptr,M,K:tl.constexpr,eps,BLOCK_K:tl.constexpr):
-		pid=tl.program_id(0)
-		if pid<M:
-			cols=tl.arange(0,BLOCK_K);mask=cols<K;x=tl.load(x_ptr+pid*K+cols,mask=mask,other=0.0).to(tl.float32);sum_sq=tl.sum(x*x);inv_rms=1.0/tl.sqrt(sum_sq/K+eps);tl.store(inv_rms_ptr+pid,inv_rms)
-	@triton.jit
-	def _fused_rms_linear_lrs_kernel(a_desc,b_desc,c_desc,aux_desc,inv_rms_ptr,ln_scale,M,N,K,BLOCK_SIZE_M:tl.constexpr,BLOCK_SIZE_N:tl.constexpr,BLOCK_SIZE_K:tl.constexpr,GROUP_SIZE_M:tl.constexpr,NUM_SMS:tl.constexpr,FORWARD:tl.constexpr,FUSE_RMS:tl.constexpr):
-		dtype=tl.bfloat16;start_pid=tl.program_id(axis=0);num_pid_m=tl.cdiv(M,BLOCK_SIZE_M);num_pid_n=tl.cdiv(N,BLOCK_SIZE_N);k_tiles=tl.cdiv(K,BLOCK_SIZE_K);num_tiles=num_pid_m*num_pid_n;num_pid_in_group=GROUP_SIZE_M*num_pid_n
-		for tile_id in tl.range(start_pid,num_tiles,NUM_SMS,flatten=True):
-			group_id=tile_id//num_pid_in_group;first_pid_m=group_id*GROUP_SIZE_M;group_size_m=min(num_pid_m-first_pid_m,GROUP_SIZE_M);pid_m=first_pid_m+(tile_id%group_size_m);pid_n=(tile_id%num_pid_in_group)//group_size_m;offs_am=pid_m*BLOCK_SIZE_M;offs_bn=pid_n*BLOCK_SIZE_N
-			accumulator=tl.zeros((BLOCK_SIZE_M,BLOCK_SIZE_N),dtype=tl.float32)
-			for ki in range(k_tiles):
-				offs_k=ki*BLOCK_SIZE_K;a=a_desc.load([offs_am,offs_k]);b=b_desc.load([offs_bn,offs_k]);accumulator=tl.dot(a,b.T,accumulator)
-			if FUSE_RMS:
-				rows=offs_am+tl.arange(0,BLOCK_SIZE_M);row_mask=rows<M;inv_rms=tl.load(inv_rms_ptr+rows,mask=row_mask,other=0.0);row_scale=inv_rms*ln_scale;accumulator=accumulator*row_scale[:,None]
-			offs_am_c=offs_am;offs_bn_c=offs_bn;acc=tl.reshape(accumulator,(BLOCK_SIZE_M,2,BLOCK_SIZE_N//2));acc=tl.permute(acc,(0,2,1));acc0,acc1=tl.split(acc)
-			if not FORWARD:
-				ag0_bf=aux_desc.load([offs_am_c,offs_bn_c]);ag1_bf=aux_desc.load([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2]);ag0=ag0_bf.to(tl.float32);ag1=ag1_bf.to(tl.float32)
-				c0=(acc0*ag0).to(dtype);c1=(acc1*ag1).to(dtype)
-			else:
-				lrs0=tl.where(acc0>0,acc0,0.5*acc0);lrs1=tl.where(acc1>0,acc1,0.5*acc1);c0=(lrs0*lrs0).to(dtype);c1=(lrs1*lrs1).to(dtype)
-			c_desc.store([offs_am_c,offs_bn_c],c0);c_desc.store([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2],c1)
-			if FORWARD:
-				ag0=tl.where(acc0>0,2.0*acc0,0.5*acc0);ag1=tl.where(acc1>0,2.0*acc1,0.5*acc1);aux_desc.store([offs_am_c,offs_bn_c],ag0.to(dtype));aux_desc.store([offs_am_c,offs_bn_c+BLOCK_SIZE_N//2],ag1.to(dtype))
-	def _compute_inv_rms(x_flat,eps=1e-6):
-		M,K=x_flat.shape;BLOCK_K=triton.next_power_of_2(K);inv_rms=torch.empty(M,device=x_flat.device,dtype=torch.float32);_rms_inv_kernel[(M,)](x_flat,inv_rms,M,K,eps,BLOCK_K=BLOCK_K);return inv_rms
-	def _fused_linear_lrs(a,b,aux=None,inv_rms=None,ln_scale=1.0):
-		M,K=a.shape;N,K2=b.shape;assert K==K2,"K mismatch";c=torch.empty((M,N),device=a.device,dtype=a.dtype);forward=aux is None
-		if aux is None:aux=torch.empty((M,N),device=a.device,dtype=a.dtype)
-		fuse_rms=inv_rms is not None
-		if inv_rms is None:inv_rms=torch.empty(0,device=a.device,dtype=torch.float32)
-		num_sms=torch.cuda.get_device_properties(a.device).multi_processor_count;BLOCK_SIZE_M,BLOCK_SIZE_N,BLOCK_SIZE_K=128,256,64;GROUP_SIZE_M=8;num_stages=4 if forward else 3
-		a_desc=TensorDescriptor.from_tensor(a,[BLOCK_SIZE_M,BLOCK_SIZE_K]);b_desc=TensorDescriptor.from_tensor(b,[BLOCK_SIZE_N,BLOCK_SIZE_K]);c_desc=TensorDescriptor.from_tensor(c,[BLOCK_SIZE_M,BLOCK_SIZE_N//2]);aux_desc=TensorDescriptor.from_tensor(aux,[BLOCK_SIZE_M,BLOCK_SIZE_N//2])
-		grid=lambda _:(min(num_sms,triton.cdiv(M,BLOCK_SIZE_M)*triton.cdiv(N,BLOCK_SIZE_N)),)
-		_fused_rms_linear_lrs_kernel[grid](a_desc,b_desc,c_desc,aux_desc,inv_rms,float(ln_scale),M,N,K,BLOCK_SIZE_M=BLOCK_SIZE_M,BLOCK_SIZE_N=BLOCK_SIZE_N,BLOCK_SIZE_K=BLOCK_SIZE_K,GROUP_SIZE_M=GROUP_SIZE_M,NUM_SMS=num_sms,FORWARD=forward,FUSE_RMS=fuse_rms,num_stages=num_stages,num_warps=8)
-		return (c,aux) if forward else c
-	class _FusedRMSMLPFn(torch.autograd.Function):
-		@staticmethod
-		def forward(ctx,x,w1,w2,ln_scale,eps):
-			x_flat=x.reshape(-1,x.shape[-1]).contiguous();inv_rms=_compute_inv_rms(x_flat,eps);post,act_grad=_fused_linear_lrs(x_flat,w1,inv_rms=inv_rms,ln_scale=ln_scale);out=F.linear(post,w2);ctx.save_for_backward(x_flat,w1,w2,post,act_grad,inv_rms);ctx.ln_scale=float(ln_scale);ctx.eps=eps;ctx.x_shape=x.shape;return out.view(*x.shape[:-1],out.shape[-1])
-		@staticmethod
-		def backward(ctx,grad_output):
-			x_flat,w1,w2,post,act_grad,inv_rms=ctx.saved_tensors;ln_scale=ctx.ln_scale;go_flat=grad_output.reshape(-1,grad_output.shape[-1]).contiguous();dw2=go_flat.T@post;dpre=_fused_linear_lrs(go_flat,w2.T.contiguous(),aux=act_grad)
-			K=x_flat.shape[-1];inv_rms_f=inv_rms.to(torch.float32);x_normed=(x_flat.to(torch.float32)*inv_rms_f[:,None]*ln_scale).to(x_flat.dtype);dw1=dpre.T@x_normed;dxn=dpre@w1
-			dxn_f=dxn.to(torch.float32);x_f=x_flat.to(torch.float32);c=(dxn_f*x_f).sum(dim=-1,keepdim=True)/K;dx=(ln_scale*inv_rms_f[:,None]*(dxn_f-x_f*inv_rms_f[:,None]*inv_rms_f[:,None]*c)).to(x_flat.dtype)
-			return dx.view(ctx.x_shape),dw1,dw2,None,None
-	class _FusedSimpleMLPFn(torch.autograd.Function):
-		@staticmethod
-		def forward(ctx,x,w1,w2,ln_scale,eps):
-			x_flat=x.reshape(-1,x.shape[-1]).contiguous();x_normed=(F.rms_norm(x_flat,(x_flat.size(-1),),eps=eps)*ln_scale).contiguous();post,act_grad=_fused_linear_lrs(x_normed,w1);out=F.linear(post,w2);ctx.save_for_backward(x_flat,x_normed,w1,w2,post,act_grad);ctx.ln_scale=float(ln_scale);ctx.eps=eps;ctx.x_shape=x.shape;return out.view(*x.shape[:-1],out.shape[-1])
-		@staticmethod
-		def backward(ctx,grad_output):
-			x_flat,x_normed,w1,w2,post,act_grad=ctx.saved_tensors;ln_scale=ctx.ln_scale;eps=ctx.eps;go_flat=grad_output.reshape(-1,grad_output.shape[-1]).contiguous();dw2=go_flat.T@post;dpre=_fused_linear_lrs(go_flat,w2.T.contiguous(),aux=act_grad);dw1=dpre.T@x_normed;dxn=(dpre@w1)*ln_scale
-			K=x_flat.shape[-1];x_f=x_flat.to(torch.float32);mean_sq=(x_f*x_f).mean(dim=-1,keepdim=True);inv_rms_f=1.0/(mean_sq+eps).sqrt();dxn_f=dxn.to(torch.float32);c=(dxn_f*x_f).sum(dim=-1,keepdim=True)/K;dx=(inv_rms_f*(dxn_f-x_f*inv_rms_f*inv_rms_f*c)).to(x_flat.dtype)
-			return dx.view(ctx.x_shape),dw1,dw2,None,None
-	_fused_rms_mlp_apply=_FusedRMSMLPFn.apply
-	_fused_simple_mlp_apply=_FusedSimpleMLPFn.apply
-else:
-	_fused_rms_mlp_apply=None
-	_fused_simple_mlp_apply=None
 class MLP(nn.Module):
-	def __init__(self,dim,mlp_mult):super().__init__();hidden=int(mlp_mult*dim);self.fc=CastedLinear(dim,hidden,bias=False);self.proj=CastedLinear(hidden,dim,bias=False);self.proj._zero_init=True;self.use_fused=False;self.use_simple_fused=False
-	def forward(self,x,ln_scale=None):
-		if self.use_fused and self.training and ln_scale is not None:
-			if self.use_simple_fused and _fused_simple_mlp_apply is not None:
-				return _fused_simple_mlp_apply(x,self.fc.weight.to(x.dtype),self.proj.weight.to(x.dtype),ln_scale,1e-6)
-			if _fused_rms_mlp_apply is not None:
-				return _fused_rms_mlp_apply(x,self.fc.weight.to(x.dtype),self.proj.weight.to(x.dtype),ln_scale,1e-6)
-		return self.proj(F.leaky_relu(self.fc(x),negative_slope=.5).square())
+	def __init__(self,dim,mlp_mult):super().__init__();hidden=int(mlp_mult*dim);self.fc=CastedLinear(dim,hidden,bias=False);self.proj=CastedLinear(hidden,dim,bias=False);self.proj._zero_init=True
+	def forward(self,x):return self.proj(F.leaky_relu(self.fc(x),negative_slope=.5).square())
 class Block(nn.Module):
 	def __init__(self,dim,num_heads,num_kv_heads,mlp_mult,rope_base,qk_gain_init,train_seq_len,layer_idx=0,ln_scale=False):super().__init__();self.attn_norm=RMSNorm();self.mlp_norm=RMSNorm();self.attn=CausalSelfAttention(dim,num_heads,num_kv_heads,rope_base,qk_gain_init,train_seq_len);self.mlp=MLP(dim,mlp_mult);self.attn_scale=nn.Parameter(torch.ones(dim,dtype=torch.float32));self.mlp_scale=nn.Parameter(torch.ones(dim,dtype=torch.float32));self.resid_mix=nn.Parameter(torch.stack((torch.ones(dim),torch.zeros(dim))).float());self.ln_scale_factor=1./math.sqrt(layer_idx+1)if ln_scale else 1.;self.parallel=False
 	def forward(self,x,x0):
-		mix=self.resid_mix.to(dtype=x.dtype);x_in=mix[0][None,None,:]*x+mix[1][None,None,:]*x0;attn_out=self.attn(self.attn_norm(x_in)*self.ln_scale_factor);use_fused=self.mlp.use_fused and _fused_rms_mlp_apply is not None and self.training
-		if self.parallel:mlp_in=x_in if use_fused else (self.mlp_norm(x_in)*self.ln_scale_factor);mlp_out=self.mlp(mlp_in,self.ln_scale_factor) if use_fused else self.mlp(mlp_in);x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[None,None,:]*attn_out+self.mlp_scale.to(dtype=x_in.dtype)[None,None,:]*mlp_out
-		else:
-			x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[None,None,:]*attn_out
-			mlp_in=x_out if use_fused else (self.mlp_norm(x_out)*self.ln_scale_factor);mlp_out=self.mlp(mlp_in,self.ln_scale_factor) if use_fused else self.mlp(mlp_in);x_out=x_out+self.mlp_scale.to(dtype=x_out.dtype)[None,None,:]*mlp_out
+		mix=self.resid_mix.to(dtype=x.dtype);x_in=mix[0][None,None,:]*x+mix[1][None,None,:]*x0;attn_out=self.attn(self.attn_norm(x_in)*self.ln_scale_factor)
+		if self.parallel:mlp_out=self.mlp(self.mlp_norm(x_in)*self.ln_scale_factor);x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[None,None,:]*attn_out+self.mlp_scale.to(dtype=x_in.dtype)[None,None,:]*mlp_out
+		else:x_out=x_in+self.attn_scale.to(dtype=x_in.dtype)[None,None,:]*attn_out;x_out=x_out+self.mlp_scale.to(dtype=x_out.dtype)[None,None,:]*self.mlp(self.mlp_norm(x_out)*self.ln_scale_factor)
 		return x_out
 class GPT(nn.Module):
 	def __init__(self,h):
@@ -219,8 +140,6 @@ class GPT(nn.Module):
 			for i in range(max(0,h.num_layers-h.xsa_last_n),h.num_layers):self.blocks[i].attn.use_xsa=True
 		if h.parallel_residual_start>=0:
 			for i in range(h.parallel_residual_start,h.num_layers):self.blocks[i].parallel=True
-		if h.fused_mlp_enabled and _fused_rms_mlp_apply is not None:
-			for block in self.blocks:block.mlp.use_fused=True;block.mlp.use_simple_fused=h.fused_mlp_full
 		self.looping_active=False
 		if h.num_loops>0:
 			loop_seg=list(range(h.loop_start,h.loop_end+1));all_indices=list(range(h.loop_start))
