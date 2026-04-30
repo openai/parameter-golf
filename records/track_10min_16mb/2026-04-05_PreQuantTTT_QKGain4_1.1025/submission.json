@@ -1,0 +1,13 @@
+{
+  "author": "stukenov",
+  "github": "stukenov",
+  "val_bpb": 1.1025,
+  "val_bpb_exact": [1.10232227, 1.10369838, 1.10158726],
+  "num_seeds": 3,
+  "seeds": [1337, 42, 2025],
+  "training_time_seconds": 600,
+  "eval_time_seconds": 500,
+  "gpu": "8xH100 SXM 80GB",
+  "artifact_bytes_max": 15985137,
+  "description": "Pre-quant AdamW TTT (6 epochs on EMA before GPTQ) + QK-Gain 4.0 + XSA-all + Full Hessian GPTQ"
+}
