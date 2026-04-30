@@ -1,0 +1,11 @@
+{
+  "author": "Peyton Tolbert",
+  "github_id": "peytontolbert",
+  "name": "Model Stack Runtime-Row BitNet 65M, SP1024, Context 4096",
+  "blurb": "Non-record BitNet-style ternary run using runtime-row scales so the trained Parameter Golf artifact exports exactly into Model Stack's packed BitNet runtime. 64.5M parameters, 4096-token context, 14.41MB total submission size, and exact packed runtime export verification.",
+  "date": "2026-04-25T02:48:05Z",
+  "val_loss": 2.0515,
+  "val_bpb": 1.2350,
+  "bytes_total": 14405069,
+  "bytes_code": 74361
+}
