@@ -1,0 +1,10 @@
+numpy>=1.24
+tqdm>=4.65
+torch>=2.2.0
+huggingface-hub>=0.21.0
+kernels
+setuptools
+typing-extensions==4.15.0
+datasets
+tiktoken
+sentencepiece>=0.1.99

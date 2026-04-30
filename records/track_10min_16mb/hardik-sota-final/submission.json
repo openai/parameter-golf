@@ -1,0 +1,20 @@
+{
+  "author": "Hardik Bhalekar",
+  "github_id": "hardik-bhalekar",
+  "name": "Hardik Final SOTA Submission (ternary)",
+  "track": "10min_16mb",
+  "method": "Depth Recurrence, Parallel Residuals, Ternary Weight Quantization",
+  "val_bpb": 2.0237,
+  "val_loss": 1.4023,
+  "bytes_total": 8792759,
+  "notes": "Final SOTA submission using depth recurrence + parallel residuals with ternary quantization. Artifact: final_model.ternary.ptz",
+  "run_config": {
+    "num_layers": 9,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "qk_gain_init": 1.5,
+    "quantization": "ternary_per_tensor_v1",
+    "artifact": "final_model.ternary.ptz"
+  }
+}
