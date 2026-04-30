@@ -1,0 +1,152 @@
+{
+  "phase0_rerun_package_v8": {
+    "hybrid_current_public_winner": {
+      "layout": "AAAASASSS",
+      "ssm_core": "s4d",
+      "ssm_kernel_size": 96,
+      "ssm_rank": 14,
+      "smear_enabled": 1,
+      "export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
+      "runs": [
+        {
+          "name": "full_anchor_s4d_aaaasasss_rank14_k96_corefp16_smear_2200steps_blackwell_seed2027",
+          "seed": 2027,
+          "val_bpb": 1.50465667,
+          "bytes_total": 15260268,
+          "train_time_ms": 609292,
+          "eval_time_ms": 141595
+        },
+        {
+          "name": "full_anchor_s4d_aaaasasss_rank14_k96_corefp16_smear_2200steps_blackwell_seed1337",
+          "seed": 1337,
+          "val_bpb": 1.506156,
+          "bytes_total": 15253233,
+          "train_time_ms": 612509,
+          "eval_time_ms": 142381
+        },
+        {
+          "name": "full_anchor_s4d_aaaasasss_rank14_k96_corefp16_smear_2200steps_blackwell_seed4242",
+          "seed": 4242,
+          "val_bpb": 1.50126339,
+          "bytes_total": 15272426,
+          "train_time_ms": 1207089,
+          "eval_time_ms": 124606
+        }
+      ],
+      "val_bpb_stats": {
+        "min": 1.50126339,
+        "max": 1.506156,
+        "mean": 1.50402535,
+        "std": 0.00250666,
+        "n": 3
+      }
+    },
+    "strongest_legal_control": {
+      "layout": "AAAAAAAAA",
+      "export_policy": "tok_emb,blocks.8. -> float16",
+      "runs": [
+        {
+          "name": "full_baseline_1420steps_blackwell_seed2027_top1blockfp16_v7",
+          "seed": 2027,
+          "val_bpb": 1.56658161,
+          "bytes_total": 15993409,
+          "train_time_ms": 442368,
+          "eval_time_ms": 222490
+        },
+        {
+          "name": "full_baseline_1420steps_blackwell_seed1337_top1blockfp16_v7",
+          "seed": 1337,
+          "val_bpb": 1.56865945,
+          "bytes_total": 15999957,
+          "train_time_ms": 494628,
+          "eval_time_ms": 219370
+        },
+        {
+          "name": "full_baseline_1420steps_blackwell_seed4242_top1blockfp16_v8",
+          "seed": 4242,
+          "val_bpb": 1.56838339,
+          "bytes_total": 15996880,
+          "train_time_ms": 431256,
+          "eval_time_ms": 190006
+        }
+      ],
+      "val_bpb_stats": {
+        "min": 1.56658161,
+        "max": 1.56865945,
+        "mean": 1.56787482,
+        "std": 0.00112842,
+        "n": 3
+      }
+    },
+    "paired_edge_stats_hybrid_minus_control": {
+      "runs": [
+        {
+          "seed": 2027,
+          "delta_bpb": -0.06192494
+        },
+        {
+          "seed": 1337,
+          "delta_bpb": -0.06250345
+        },
+        {
+          "seed": 4242,
+          "delta_bpb": -0.06712
+        }
+      ],
+      "mean": -0.06384946,
+      "std": 0.0028471,
+      "n": 3
+    }
+  },
+  "phase1_realism_package_v8": {
+    "local_dataset": {
+      "dataset_dir": "C:/Users/GreQ/.codex_playground/OpenAIGolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+      "local_train_shards_detected": 1,
+      "local_train_shard_names": [
+        "fineweb_train_000000.bin"
+      ],
+      "manifest_train_shards_total": 195
+    },
+    "remote_probe": {
+      "modal_h100_multishard_path": {
+        "available": true,
+        "volume": "pg-data",
+        "view_name": "fineweb10B_sp1024_train080",
+        "train_shards_visible": 80,
+        "continuation_run_name": "modal_hybrid_aaaasasss_rank14_k96_smear_train080_400steps_seed4242_v8",
+        "iterations": 400,
+        "seed": 4242,
+        "val_bpb": 1.84995753,
+        "val_loss": 3.12357579,
+        "bytes_total": 9265387,
+        "train_time_ms": 88650,
+        "eval_time_ms": 79800,
+        "duration_s": 264.98174287700004,
+        "run_dir": "/pg-results/state_space_hybrid_v8/runs/modal_hybrid_aaaasasss_rank14_k96_smear_train080_400steps_seed4242_v8"
+      },
+      "runpod": {
+        "configured": false
+      },
+      "alternate_hosts": [
+        {
+          "host": "vm-ubuntu-pitlab",
+          "reachable": true,
+          "gpu": "none_detected",
+          "train_shards_detected": 0
+        },
+        {
+          "host": "ubuntu-dev",
+          "reachable": true,
+          "gpu": "none_detected",
+          "train_shards_detected": 0
+        },
+        {
+          "host": "widelab-mac",
+          "reachable": true,
+          "gpu": "Apple M4",
+          "train_shards_detected": 0
+        }
+      ]
+    }
+  }
+}

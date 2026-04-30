@@ -1,0 +1,243 @@
+{
+  "author": "Greg / Codex AutoResearch",
+  "github_id": "greqone",
+  "name": "Non-record: state-space hybrid with attention anchors",
+  "track_label": "fixed-predictor",
+  "classification": "STRONGER_VALID_STATE_SPACE_HYBRID_NON_RECORD_V8",
+  "blurb": "Local Blackwell continuation on the standard scorer path. The kept run uses layout AAAASASSS, a fixed-predictor 5A/4S S4D-style hybrid, modestly larger recurrent rank, retained SmearGate, targeted recurrent-core fp16 export, and seed 4242. It remains a fixed-predictor non-record result with no eval-time adaptation or TTT. The realism package now also includes a bounded Modal H100 continuation over an 80-shard cached train view.",
+  "date": "2026-04-09T00:00:00Z",
+  "metric_name": "final_int8_zlib_roundtrip_exact val_bpb",
+  "val_loss": 2.53482035,
+  "val_bpb": 1.50126339,
+  "baseline_val_loss": 2.64510742,
+  "baseline_val_bpb": 1.56658161,
+  "kept_vs_baseline_delta_bpb": -0.06531822,
+  "previous_promoted_val_bpb": 1.50465667,
+  "previous_promoted_delta_bpb": -0.00339328,
+  "artifact_bytes": {
+    "code": 57941,
+    "model_int8_zlib": 15214485,
+    "total": 15272426,
+    "remaining_headroom": 727574
+  },
+  "wallclock_ms": {
+    "training": 1207089,
+    "evaluation": 124606,
+    "export_roundtrip_estimate": 5764,
+    "end_to_end_estimate": 1337459
+  },
+  "compile_settings": {
+    "enable_torch_compile": 0,
+    "sdp_backend": "math"
+  },
+  "kept_config": {
+    "block_layout": "AAAASASSS",
+    "ssm_core": "s4d",
+    "ssm_kernel_size": 96,
+    "ssm_rank": 14,
+    "smear_enabled": 1,
+    "smear_init": 0,
+    "qk_gain_init": 1.5,
+    "int8_force_float_name_patterns": "ssm_coeff,ssm_log_decay,ssm_d",
+    "train_batch_tokens": 32768,
+    "train_seq_len": 1024,
+    "val_batch_size": 262144,
+    "iterations": 2200,
+    "seed": 4242,
+    "save_raw_model": 0,
+    "final_prequant_eval": 0
+  },
+  "baseline_match": {
+    "type": "strongest_legal_all_attention_control_same_blackwell_lane",
+    "block_layout": "AAAAAAAAA",
+    "iterations": 1420,
+    "seed": 2027,
+    "int8_force_float_name_patterns": "tok_emb,blocks.8.",
+    "train_time_ms": 442368,
+    "evaluation_time_ms": 222490,
+    "artifact_bytes_total": 15993409
+  },
+  "phase0_variance_package": {
+    "hybrid": {
+      "layout": "AAAASASSS",
+      "export_policy": "ssm_coeff,ssm_log_decay,ssm_d -> float16",
+      "runs": [
+        {
+          "seed": 2027,
+          "val_bpb": 1.50465667,
+          "bytes_total": 15260268,
+          "train_time_ms": 609292,
+          "eval_time_ms": 141595
+        },
+        {
+          "seed": 1337,
+          "val_bpb": 1.506156,
+          "bytes_total": 15253233,
+          "train_time_ms": 612509,
+          "eval_time_ms": 142381
+        },
+        {
+          "seed": 4242,
+          "val_bpb": 1.50126339,
+          "bytes_total": 15272426,
+          "train_time_ms": 1207089,
+          "eval_time_ms": 124606
+        }
+      ],
+      "val_bpb_stats": {
+        "min": 1.50126339,
+        "max": 1.506156,
+        "mean": 1.50402535,
+        "std": 0.00250666,
+        "n": 3
+      }
+    },
+    "control": {
+      "layout": "AAAAAAAAA",
+      "export_policy": "tok_emb,blocks.8. -> float16",
+      "runs": [
+        {
+          "seed": 2027,
+          "val_bpb": 1.56658161,
+          "bytes_total": 15993409,
+          "train_time_ms": 442368,
+          "eval_time_ms": 222490
+        },
+        {
+          "seed": 1337,
+          "val_bpb": 1.56865945,
+          "bytes_total": 15999957,
+          "train_time_ms": 494628,
+          "eval_time_ms": 219370
+        },
+        {
+          "seed": 4242,
+          "val_bpb": 1.56838339,
+          "bytes_total": 15996880,
+          "train_time_ms": 431256,
+          "eval_time_ms": 190006
+        }
+      ],
+      "val_bpb_stats": {
+        "min": 1.56658161,
+        "max": 1.56865945,
+        "mean": 1.56787482,
+        "std": 0.00112842,
+        "n": 3
+      }
+    },
+    "paired_edge_bpb_stats": {
+      "mean": -0.06384946,
+      "std": 0.0028471,
+      "n": 3
+    }
+  },
+  "strong_control_frontier": {
+    "strongest_legal_control_val_bpb": 1.56658161,
+    "strongest_legal_control_iterations": 1420,
+    "strongest_legal_control_bytes_total": 15993409,
+    "nearest_illegal_boundary_val_bpb": 1.56591641,
+    "nearest_illegal_boundary_iterations": 1425,
+    "nearest_illegal_boundary_bytes_total": 16006424,
+    "previous_strongest_legal_control_val_bpb": 1.65376228,
+    "previous_strongest_legal_control_iterations": 730,
+    "previous_strongest_legal_control_bytes_total": 15979462
+  },
+  "export_granularity_finding": {
+    "narrow_core_fp16_val_bpb": 1.59674695,
+    "top_block_full_ssm_fp16_val_bpb": 1.59674681,
+    "delta_bpb_top_block_minus_narrow": -1.4e-07,
+    "delta_bytes_top_block_minus_narrow": 865213
+  },
+  "ssm_headroom_finding": {
+    "rank12_k96_1200_val_bpb": 1.59674695,
+    "rank12_k128_1200_val_bpb": 1.60650831,
+    "rank14_k96_1200_val_bpb": 1.59638095,
+    "rank14_k96_1800_val_bpb": 1.53097696,
+    "rank14_k96_2000_val_bpb": 1.51685767,
+    "rank14_k96_2200_val_bpb": 1.50465667,
+    "rank14_k96_2200_seed4242_val_bpb": 1.50126339
+  },
+  "fixed_predictor_transfer_finding": {
+    "positive_transfer": "SmearGate",
+    "smear_transfer_val_bpb": 1.61118819,
+    "pre_transfer_val_bpb": 1.62386862,
+    "delta_bpb_transfer_minus_pre_transfer": -0.01268043,
+    "smear_init_tuning": {
+      "default_smear_init_val_bpb": 1.61118819,
+      "smear_init_minus_0_5_val_bpb": 1.6153407,
+      "delta_bpb_minus_0_5_minus_default": 0.00415251,
+      "verdict": "negative_tuning"
+    },
+    "qk_gain_tuning": {
+      "default_qk_gain_init_val_bpb": 1.53097696,
+      "qk_gain_init_1_7_val_bpb": 1.53303405,
+      "delta_bpb_qkg17_minus_default": 0.00205709,
+      "verdict": "negative_tuning"
+    },
+    "negative_transfer_reference": {
+      "transfer": "BigramHash",
+      "bigram_vocab_size": 1024,
+      "bigram_dim": 64,
+      "transfer_val_bpb": 1.71975209,
+      "plain_scaled_incumbent_val_bpb": 1.71464907,
+      "delta_bpb_transfer_minus_plain": 0.00510302,
+      "verdict": "negative_transfer"
+    }
+  },
+  "realism_probe": {
+    "local_train_shards": 1,
+    "local_train_shard_names": [
+      "fineweb_train_000000.bin"
+    ],
+    "manifest_train_shards_total": 195,
+    "alternate_environment_checks": [
+      {
+        "host": "vm-ubuntu-pitlab",
+        "reachable": true,
+        "gpu": "none_detected",
+        "train_shards_detected": 0
+      },
+      {
+        "host": "ubuntu-dev",
+        "reachable": true,
+        "gpu": "none_detected",
+        "train_shards_detected": 0
+      },
+      {
+        "host": "widelab-mac",
+        "reachable": true,
+        "gpu": "Apple M4",
+        "train_shards_detected": 0
+      }
+    ],
+    "runpodctl_configured": false,
+    "modal_h100_continuation": {
+      "launcher": "experiments/state_space_hybrid/modal_phase1_probe.py",
+      "view_name": "fineweb10B_sp1024_train080",
+      "train_shards_visible": 80,
+      "run_name": "modal_hybrid_aaaasasss_rank14_k96_smear_train080_400steps_seed4242_v8",
+      "iterations": 400,
+      "seed": 4242,
+      "val_bpb": 1.84995753,
+      "val_loss": 3.12357579,
+      "bytes_total": 9265387,
+      "bytes_model_int8_zlib": 9207446,
+      "train_time_ms": 88650,
+      "eval_time_ms": 79800,
+      "duration_s": 264.98174287700004,
+      "step_avg_ms": 221.63,
+      "run_dir": "/pg-results/state_space_hybrid_v8/runs/modal_hybrid_aaaasasss_rank14_k96_smear_train080_400steps_seed4242_v8"
+    },
+    "remote_h100_path_feasible": true,
+    "official_lane_feasibility_triggered": false
+  },
+  "scope": {
+    "training_shards": 1,
+    "gpu_lane": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "record_claim": false
+  },
+  "bytes_total": 15272426,
+  "bytes_model_int8_zlib": 15214485,
+  "bytes_code": 57941
+}

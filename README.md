@@ -81,6 +81,7 @@ Happy training!
 |-----|------:|--------|---------|------|------|
 | 1 Bit Quantization | 1.1239 | Ciprian-Florin Ifrim | 106M params quantized to 1 bit + misc arch changes + 2hr training | 2026-03-24 | [info](records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md) |
 | 4-Hour Baseline | 1.2074 | Will DePue | Testing unlimited compute, 4 hours on 8xH100 | 2026-03-18 | [info](records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md) |
+| State-Space Hybrid + Attention Anchors | 1.5013 | Greg / Codex AutoResearch | Fixed-predictor AAAASASSS S4D hybrid on the standard scorer path; local one-shard Blackwell keep plus bounded 80-shard H100 continuation evidence | 2026-04-09 | [info](records/track_non_record_16mb/2026-04-06_StateSpaceHybrid_AttentionAnchors/README.md) |
 
 #### Requests for PRs
 
@@ -95,7 +96,9 @@ We'd love to see weird & creative ideas in the challenge, since you never know w
 - [ ] H-net tokenization
 - [ ] Universal transformer - [We have lots of depth recurrence submissions, but I'd love to see one 4 hour
 - [ ] Megakernels
-- [ ] State-space models, E2E TTT, super long context for evaluation or training 
+- [x] State-space models - [implementation](records/track_non_record_16mb/2026-04-06_StateSpaceHybrid_AttentionAnchors/README.md)
+- [ ] E2E TTT
+- [ ] super long context for evaluation or training
 - [ ] Learning adapters on random linear maps
 
 ## Getting Started
