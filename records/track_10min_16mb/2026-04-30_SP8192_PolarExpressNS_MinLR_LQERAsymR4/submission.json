@@ -1,0 +1,41 @@
+{
+  "author": "sahiee-dev",
+  "github_id": "sahiee-dev",
+  "name": "SP8192 PolarExpressNS MinLR LQERAsymR4 Baseline",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.07302,
+  "val_bpb_std": 0.00030,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 1.07294458, "artifact_bytes": 15955411},
+    "42":   {"val_bpb": 1.07270429, "artifact_bytes": 15953179},
+    "2025": {"val_bpb": 1.07342419, "artifact_bytes": 15951874}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu128",
+  "technique_summary": "PR #1874 (AjAnubolu) base: SP8192 + SmearGate + AttnOutGate w24 + LoRA-TTT + Phased TTT + Polar Express NS + MIN_LR=0.10 + LQER Asymmetric Rank-4",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt_on_val": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true,
+    "no_text_normalization": true,
+    "bpb_on_original_bytes": true
+  },
+  "attribution": {
+    "pr1874_base": "@AjAnubolu (PR #1874)",
+    "sp8192_base": "@bigbag (PR #1493)",
+    "smeargate_attn_out_gate": "@MarioPaerle (PR #1667)",
+    "lora_ttt_improvements": "@renqianluo (PR #1767)",
+    "phased_ttt": "@jorge-asenjo (PR #1700)",
+    "polar_express_ns": "PR #1344",
+    "min_lr_warmdown_floor": "PR #1787",
+    "lqer_asymmetric_rank4": "PR #1797"
+  }
+}
