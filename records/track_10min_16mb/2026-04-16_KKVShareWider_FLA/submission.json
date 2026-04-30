@@ -1,0 +1,44 @@
+{
+  "author": "resouer",
+  "github_id": "resouer",
+  "name": "K_KVShare_Wider full-recipe FLA",
+  "blurb": "FLA/GatedDeltaNet candidate on K_KVShare_Wider with the fuller upstream-style recipe and no runtime dependency downloads in train_gpt.py.",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_loss": 3.1647676,
+  "val_bpb": 1.04089763,
+  "val_loss_std": 0.00322293,
+  "val_bpb_std": 0.00106003,
+  "seeds": [
+    1337,
+    42,
+    2025
+  ],
+  "seed_results": {
+    "1337": {
+      "val_loss": 3.16104735,
+      "val_bpb": 1.03967403,
+      "artifact_bytes": 15762406,
+      "steps": 1652
+    },
+    "42": {
+      "val_loss": 3.1667118,
+      "val_bpb": 1.04153708,
+      "artifact_bytes": 15870797,
+      "steps": 1652
+    },
+    "2025": {
+      "val_loss": 3.16654364,
+      "val_bpb": 1.04148177,
+      "artifact_bytes": 15648800,
+      "steps": 1583
+    }
+  },
+  "based_on": "PR #1370 family",
+  "artifact_bytes_mean": 15760667.666666666,
+  "artifact_bytes_max": 15870797,
+  "bytes_total": 15991282,
+  "code_bytes": 91312,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "K_KVShare_Wider + fuller upstream-style FLA recipe + EMA + SWA + late QAT + int6 artifact path"
+}

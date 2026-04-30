@@ -1,0 +1,38 @@
+{
+  "author": "genji0306",
+  "github_id": "genji0306",
+  "name": "K_KVShare_Wider FLA (Opensens reproduction)",
+  "blurb": "Independent 3-seed reproduction of GatedDeltaNet K_KVShare_Wider on 8xH100 SXM (secure cloud). Builds on PR #1687 (resouer). No TTT, no SLOT, no n-gram overlay.",
+  "date": "2026-04-17",
+  "track": "10min_16mb",
+  "val_loss": 3.14335601,
+  "val_bpb": 1.03385760,
+  "val_loss_std": 0.00376,
+  "val_bpb_std": 0.00124,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42": {
+      "val_loss": 3.14766471,
+      "val_bpb": 1.03527246,
+      "artifact_bytes": 15927295,
+      "steps": 1881
+    },
+    "1337": {
+      "val_loss": 3.14154729,
+      "val_bpb": 1.03326043,
+      "artifact_bytes": 15830641,
+      "steps": 1890
+    },
+    "2025": {
+      "val_loss": 3.14086602,
+      "val_bpb": 1.03303636,
+      "artifact_bytes": 15893661,
+      "steps": 1884
+    }
+  },
+  "based_on": "PR #1687 (resouer) — K_KVShare_Wider FLA family",
+  "artifact_bytes_mean": 15883866,
+  "artifact_bytes_max": 15927295,
+  "hardware": "8xH100 80GB SXM (RunPod secure cloud, IN region)",
+  "technique_summary": "GatedDeltaNet K_KVShare_Wider + EMA + SWA + late QAT + int6 + zstd-22. Independent reproduction with improved results likely due to hardware variance."
+}
