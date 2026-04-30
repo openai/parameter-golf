@@ -1,0 +1,807 @@
+[run] 128 train shards, 1 val shard(s)
+[run] tokenizer ok: vocab=8192
+[run] config:
+  SEED=999
+  MAX_WALLCLOCK_SECONDS=600
+  TTT_ENABLED=1
+  TORCH_COMPILE_DISABLE=0
+  TORCHDYNAMO_DISABLE=0
+  TRAIN_LOG_EVERY=10
+  VOCAB_SIZE=8192
+  LOOP_START=3 LOOP_END=5 NUM_LOOPS=2  (C2: 3-layer recurrence)
+  QK_GAIN_INIT=5.25  (C3: bumped from 4)
+  USE_GATED_ATTENTION=1  (NIGHT_MODE champion lever)
+  USE_NORMUON=1  (NIGHT_MODE n=2 confirmed)
+  PREQUANT_TTT_ENABLED=0 epochs=0 lr=0.00045 freeze=1  (C1: -0.014 BPB lever)
+  USE_NORM_PCT_DROPOUT=1 thresh=0.99  (NIGHT_MODE world-novel L05)
+  USE_CMP_QUANT_VALUE_DEDUP=0 step=2  (NIGHT_MODE world-novel L10, helps 16MB)
+  USE_NGRAM_BIAS=0 USE_NGRAM_BACKOFF=0 buckets=16384  (NIGHT_MODE n=3 confirmed)
+  USE_NGR_LOG_FREQ_INV=0 USE_CTX_PARTITIONED_TAB=0 slices=16  (world-novel L09)
+  USE_PREFETCH_LOADER=1 depth=8 pinned=1  (Phase 2: CPU/GPU parallel data pipeline)
+  USE_PARALLEL_RESIDUALS=0  (leaderboard #1 stack)
+  MATRIX_BITS=6 USE_PARALLEL_MUON=1 TORCH_COMPILE_MODE=max-autotune-no-cudagraphs USE_CUDNN_BENCHMARK=1  (Phase 2 wins inherited from env)
+[run] launcher: torchrun --standalone --nproc-per-node=8 (multi-GPU)
+[run] launching train.py at 04:16:26Z
+[run] log: logs/run_seed999_20260410T041626Z.log
+W0410 04:16:28.105000 3931650 torch/distributed/run.py:803] 
+W0410 04:16:28.105000 3931650 torch/distributed/run.py:803] *****************************************
+W0410 04:16:28.105000 3931650 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0410 04:16:28.105000 3931650 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/7920e199-51b6-4b5c-9db0-b1eb4d05523b.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  prequant_ttt_batch_seqs: 32
+  prequant_ttt_cosine_decay: True
+  prequant_ttt_enabled: False
+  prequant_ttt_epochs: 0
+  prequant_ttt_freeze_blocks: 1
+  prequant_ttt_grad_clip: 1.0
+  prequant_ttt_lr: 0.00045
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: 7920e199-51b6-4b5c-9db0-b1eb4d05523b
+  scalar_lr: 0.02
+  seed: 999
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 10
+  train_seq_len: 2048
+  ttt_batch_seqs: 32
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 3
+  ttt_freeze_blocks: 0
+  ttt_grad_clip: 1.0
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 128
+val_tokens: 40540160
+torch.compile mode=max-autotune-no-cudagraphs
+model_params:35989681
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] prefill: target_depth=8, maxsize=8, timeout=120.0s
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] prefill: target_depth=8, maxsize=8, timeout=120.0s
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] prefill: target_depth=8, maxsize=8, timeout=120.0s
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] prefill: target_depth=8, maxsize=8, timeout=120.0s
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] prefill: target_depth=8, maxsize=8, timeout=120.0s
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] prefill: target_depth=8, maxsize=8, timeout=120.0s
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] prefill: target_depth=8, maxsize=8, timeout=120.0s
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] prefill: target_depth=8, maxsize=8, timeout=120.0s
+[prefetch] prefill: reached depth 8/8 in 0.10s
+[prefetch] prefill: reached depth 8/8 in 0.10s
+[prefetch] prefill: reached depth 8/8 in 0.10s
+gptq:reserving 12s, effective=588000ms
+[prefetch] prefill: reached depth 8/8 in 0.10s
+[prefetch] prefill: reached depth 8/8 in 0.10s
+[prefetch] prefill: reached depth 8/8 in 0.10s
+[prefetch] prefill: reached depth 8/8 in 0.10s
+[prefetch] prefill: reached depth 8/8 in 0.10s
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0075 val_bpb: 3.4871
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+1/20000 train_loss: 9.0104 train_time: 0.0m tok/s: 7484059
+2/20000 train_loss: 12.2558 train_time: 0.0m tok/s: 7558511
+3/20000 train_loss: 10.8366 train_time: 0.0m tok/s: 7584099
+4/20000 train_loss: 9.0126 train_time: 0.0m tok/s: 7587061
+5/20000 train_loss: 7.9067 train_time: 0.0m tok/s: 7598850
+10/20000 train_loss: 6.9299 train_time: 0.0m tok/s: 7572911
+20/20000 train_loss: 5.7611 train_time: 0.0m tok/s: 7560107
+30/20000 train_loss: 5.4613 train_time: 0.1m tok/s: 7549036
+40/20000 train_loss: 5.2289 train_time: 0.1m tok/s: 7546443
+50/20000 train_loss: 5.1551 train_time: 0.1m tok/s: 7547121
+60/20000 train_loss: 4.9760 train_time: 0.1m tok/s: 7545082
+70/20000 train_loss: 4.8411 train_time: 0.1m tok/s: 7545450
+80/20000 train_loss: 4.6387 train_time: 0.1m tok/s: 7546778
+90/20000 train_loss: 4.5133 train_time: 0.2m tok/s: 7545798
+100/20000 train_loss: 4.3958 train_time: 0.2m tok/s: 7545266
+110/20000 train_loss: 4.3409 train_time: 0.2m tok/s: 7543401
+120/20000 train_loss: 4.1849 train_time: 0.2m tok/s: 7542025
+130/20000 train_loss: 4.1307 train_time: 0.2m tok/s: 7542327
+140/20000 train_loss: 3.9179 train_time: 0.2m tok/s: 7538868
+150/20000 train_loss: 3.8792 train_time: 0.3m tok/s: 7538406
+160/20000 train_loss: 3.8662 train_time: 0.3m tok/s: 7538830
+170/20000 train_loss: 3.7677 train_time: 0.3m tok/s: 7537814
+180/20000 train_loss: 3.7524 train_time: 0.3m tok/s: 7537313
+190/20000 train_loss: 3.7132 train_time: 0.3m tok/s: 7537430
+200/20000 train_loss: 3.6450 train_time: 0.3m tok/s: 7537177
+210/20000 train_loss: 3.6902 train_time: 0.4m tok/s: 7537325
+220/20000 train_loss: 3.6406 train_time: 0.4m tok/s: 7537762
+230/20000 train_loss: 3.5610 train_time: 0.4m tok/s: 7538537
+240/20000 train_loss: 3.5783 train_time: 0.4m tok/s: 7538502
+250/20000 train_loss: 3.4706 train_time: 0.4m tok/s: 7538680
+260/20000 train_loss: 3.6053 train_time: 0.5m tok/s: 7538759
+270/20000 train_loss: 3.6273 train_time: 0.5m tok/s: 7539356
+280/20000 train_loss: 3.5492 train_time: 0.5m tok/s: 7539249
+290/20000 train_loss: 3.4607 train_time: 0.5m tok/s: 7539555
+300/20000 train_loss: 3.4754 train_time: 0.5m tok/s: 7539558
+310/20000 train_loss: 3.4495 train_time: 0.5m tok/s: 7539664
+320/20000 train_loss: 3.3442 train_time: 0.6m tok/s: 7540155
+330/20000 train_loss: 3.5398 train_time: 0.6m tok/s: 7540256
+340/20000 train_loss: 3.5133 train_time: 0.6m tok/s: 7540528
+350/20000 train_loss: 3.5495 train_time: 0.6m tok/s: 7541010
+360/20000 train_loss: 3.4310 train_time: 0.6m tok/s: 7541189
+370/20000 train_loss: 3.4406 train_time: 0.6m tok/s: 7541211
+380/20000 train_loss: 3.4046 train_time: 0.7m tok/s: 7540727
+390/20000 train_loss: 3.4015 train_time: 0.7m tok/s: 7540910
+400/20000 train_loss: 3.3912 train_time: 0.7m tok/s: 7541069
+410/20000 train_loss: 3.4220 train_time: 0.7m tok/s: 7541465
+420/20000 train_loss: 3.3368 train_time: 0.7m tok/s: 7541726
+430/20000 train_loss: 3.3849 train_time: 0.7m tok/s: 7540506
+440/20000 train_loss: 3.3945 train_time: 0.8m tok/s: 7540694
+450/20000 train_loss: 3.4013 train_time: 0.8m tok/s: 7541113
+460/20000 train_loss: 3.3533 train_time: 0.8m tok/s: 7541338
+470/20000 train_loss: 3.4008 train_time: 0.8m tok/s: 7541520
+480/20000 train_loss: 3.4337 train_time: 0.8m tok/s: 7541406
+490/20000 train_loss: 3.4085 train_time: 0.9m tok/s: 7541608
+500/20000 train_loss: 3.3379 train_time: 0.9m tok/s: 7541517
+510/20000 train_loss: 3.3433 train_time: 0.9m tok/s: 7541675
+520/20000 train_loss: 3.3056 train_time: 0.9m tok/s: 7541556
+530/20000 train_loss: 3.3521 train_time: 0.9m tok/s: 7541554
+540/20000 train_loss: 3.3512 train_time: 0.9m tok/s: 7541654
+550/20000 train_loss: 3.2593 train_time: 1.0m tok/s: 7541569
+560/20000 train_loss: 3.3484 train_time: 1.0m tok/s: 7541585
+570/20000 train_loss: 3.2848 train_time: 1.0m tok/s: 7541513
+580/20000 train_loss: 3.3286 train_time: 1.0m tok/s: 7541684
+590/20000 train_loss: 3.3423 train_time: 1.0m tok/s: 7541631
+600/20000 train_loss: 3.2415 train_time: 1.0m tok/s: 7540590
+610/20000 train_loss: 3.3155 train_time: 1.1m tok/s: 7539946
+620/20000 train_loss: 3.4055 train_time: 1.1m tok/s: 7540047
+630/20000 train_loss: 3.3162 train_time: 1.1m tok/s: 7539844
+640/20000 train_loss: 3.3182 train_time: 1.1m tok/s: 7540006
+650/20000 train_loss: 3.2564 train_time: 1.1m tok/s: 7540198
+660/20000 train_loss: 3.2383 train_time: 1.1m tok/s: 7540264
+670/20000 train_loss: 3.3107 train_time: 1.2m tok/s: 7540393
+680/20000 train_loss: 3.2736 train_time: 1.2m tok/s: 7540402
+690/20000 train_loss: 3.3083 train_time: 1.2m tok/s: 7540272
+700/20000 train_loss: 3.2760 train_time: 1.2m tok/s: 7540261
+710/20000 train_loss: 3.2725 train_time: 1.2m tok/s: 7540389
+720/20000 train_loss: 3.3112 train_time: 1.3m tok/s: 7540434
+730/20000 train_loss: 3.2358 train_time: 1.3m tok/s: 7540368
+740/20000 train_loss: 3.2927 train_time: 1.3m tok/s: 7540361
+750/20000 train_loss: 3.2878 train_time: 1.3m tok/s: 7540335
+760/20000 train_loss: 3.2721 train_time: 1.3m tok/s: 7540453
+770/20000 train_loss: 3.2862 train_time: 1.3m tok/s: 7540431
+780/20000 train_loss: 3.3205 train_time: 1.4m tok/s: 7540536
+790/20000 train_loss: 3.3949 train_time: 1.4m tok/s: 7540525
+800/20000 train_loss: 3.3235 train_time: 1.4m tok/s: 7540176
+810/20000 train_loss: 3.2650 train_time: 1.4m tok/s: 7540191
+820/20000 train_loss: 3.1589 train_time: 1.4m tok/s: 7540339
+830/20000 train_loss: 3.2781 train_time: 1.4m tok/s: 7540247
+840/20000 train_loss: 3.2273 train_time: 1.5m tok/s: 7540203
+850/20000 train_loss: 3.2670 train_time: 1.5m tok/s: 7540402
+860/20000 train_loss: 3.2898 train_time: 1.5m tok/s: 7540378
+870/20000 train_loss: 3.1903 train_time: 1.5m tok/s: 7540372
+880/20000 train_loss: 3.2174 train_time: 1.5m tok/s: 7540567
+890/20000 train_loss: 3.2403 train_time: 1.5m tok/s: 7540620
+900/20000 train_loss: 3.2777 train_time: 1.6m tok/s: 7540642
+910/20000 train_loss: 3.2059 train_time: 1.6m tok/s: 7540592
+920/20000 train_loss: 3.2342 train_time: 1.6m tok/s: 7540805
+930/20000 train_loss: 3.2529 train_time: 1.6m tok/s: 7540881
+940/20000 train_loss: 3.2575 train_time: 1.6m tok/s: 7540901
+950/20000 train_loss: 3.3265 train_time: 1.7m tok/s: 7539555
+960/20000 train_loss: 3.2282 train_time: 1.7m tok/s: 7537403
+970/20000 train_loss: 3.3037 train_time: 1.7m tok/s: 7535378
+980/20000 train_loss: 3.1973 train_time: 1.7m tok/s: 7535356
+990/20000 train_loss: 3.2503 train_time: 1.7m tok/s: 7535305
+1000/20000 train_loss: 3.2245 train_time: 1.7m tok/s: 7535329
+1010/20000 train_loss: 3.1591 train_time: 1.8m tok/s: 7535294
+1020/20000 train_loss: 3.2460 train_time: 1.8m tok/s: 7535360
+1030/20000 train_loss: 3.2007 train_time: 1.8m tok/s: 7535510
+1040/20000 train_loss: 3.2432 train_time: 1.8m tok/s: 7535619
+1050/20000 train_loss: 3.2478 train_time: 1.8m tok/s: 7535570
+1060/20000 train_loss: 3.2301 train_time: 1.8m tok/s: 7535554
+1070/20000 train_loss: 3.1461 train_time: 1.9m tok/s: 7535735
+1080/20000 train_loss: 3.2439 train_time: 1.9m tok/s: 7535914
+1090/20000 train_loss: 3.2078 train_time: 1.9m tok/s: 7535919
+1100/20000 train_loss: 3.1664 train_time: 1.9m tok/s: 7536174
+1110/20000 train_loss: 3.2150 train_time: 1.9m tok/s: 7536131
+1120/20000 train_loss: 3.2041 train_time: 1.9m tok/s: 7536264
+1130/20000 train_loss: 3.1709 train_time: 2.0m tok/s: 7536507
+1140/20000 train_loss: 3.1823 train_time: 2.0m tok/s: 7536510
+1150/20000 train_loss: 3.1605 train_time: 2.0m tok/s: 7536626
+1160/20000 train_loss: 3.2929 train_time: 2.0m tok/s: 7536776
+1170/20000 train_loss: 3.1562 train_time: 2.0m tok/s: 7536798
+1180/20000 train_loss: 3.2003 train_time: 2.1m tok/s: 7536906
+1190/20000 train_loss: 3.2331 train_time: 2.1m tok/s: 7536727
+1200/20000 train_loss: 3.2959 train_time: 2.1m tok/s: 7536866
+1210/20000 train_loss: 3.2335 train_time: 2.1m tok/s: 7536976
+1220/20000 train_loss: 3.2560 train_time: 2.1m tok/s: 7537061
+1230/20000 train_loss: 3.2249 train_time: 2.1m tok/s: 7537071
+1240/20000 train_loss: 3.2339 train_time: 2.2m tok/s: 7537226
+1250/20000 train_loss: 3.1659 train_time: 2.2m tok/s: 7537254
+1260/20000 train_loss: 3.1899 train_time: 2.2m tok/s: 7537453
+1270/20000 train_loss: 3.1968 train_time: 2.2m tok/s: 7537506
+1280/20000 train_loss: 3.2007 train_time: 2.2m tok/s: 7537516
+1290/20000 train_loss: 3.1933 train_time: 2.2m tok/s: 7537639
+1300/20000 train_loss: 3.2096 train_time: 2.3m tok/s: 7537741
+1310/20000 train_loss: 3.2141 train_time: 2.3m tok/s: 7537766
+1320/20000 train_loss: 3.1637 train_time: 2.3m tok/s: 7537865
+1330/20000 train_loss: 3.1666 train_time: 2.3m tok/s: 7537781
+1340/20000 train_loss: 3.2560 train_time: 2.3m tok/s: 7537870
+1350/20000 train_loss: 3.2133 train_time: 2.3m tok/s: 7537974
+1360/20000 train_loss: 3.2147 train_time: 2.4m tok/s: 7538013
+1370/20000 train_loss: 3.1682 train_time: 2.4m tok/s: 7538015
+1380/20000 train_loss: 3.1640 train_time: 2.4m tok/s: 7538126
+1390/20000 train_loss: 3.1929 train_time: 2.4m tok/s: 7538180
+1400/20000 train_loss: 3.1692 train_time: 2.4m tok/s: 7538241
+1410/20000 train_loss: 3.1843 train_time: 2.5m tok/s: 7538313
+1420/20000 train_loss: 3.2166 train_time: 2.5m tok/s: 7538338
+1430/20000 train_loss: 3.1730 train_time: 2.5m tok/s: 7538421
+1440/20000 train_loss: 3.2645 train_time: 2.5m tok/s: 7538471
+1450/20000 train_loss: 3.3308 train_time: 2.5m tok/s: 7538528
+1460/20000 train_loss: 3.1686 train_time: 2.5m tok/s: 7538536
+1470/20000 train_loss: 3.1466 train_time: 2.6m tok/s: 7538331
+1480/20000 train_loss: 3.1661 train_time: 2.6m tok/s: 7538417
+1490/20000 train_loss: 3.1445 train_time: 2.6m tok/s: 7538489
+1500/20000 train_loss: 3.2180 train_time: 2.6m tok/s: 7538517
+1510/20000 train_loss: 3.2184 train_time: 2.6m tok/s: 7538552
+1520/20000 train_loss: 3.1086 train_time: 2.6m tok/s: 7538560
+1530/20000 train_loss: 3.2195 train_time: 2.7m tok/s: 7538560
+1540/20000 train_loss: 3.2001 train_time: 2.7m tok/s: 7538702
+1550/20000 train_loss: 3.1740 train_time: 2.7m tok/s: 7538794
+1560/20000 train_loss: 3.2241 train_time: 2.7m tok/s: 7538876
+1570/20000 train_loss: 3.2031 train_time: 2.7m tok/s: 7538879
+1580/20000 train_loss: 3.1551 train_time: 2.7m tok/s: 7538815
+1590/20000 train_loss: 3.1869 train_time: 2.8m tok/s: 7538874
+1600/20000 train_loss: 3.1305 train_time: 2.8m tok/s: 7538962
+1610/20000 train_loss: 3.2848 train_time: 2.8m tok/s: 7539038
+1620/20000 train_loss: 3.1152 train_time: 2.8m tok/s: 7539082
+1630/20000 train_loss: 3.1362 train_time: 2.8m tok/s: 7539124
+1640/20000 train_loss: 3.2141 train_time: 2.9m tok/s: 7539189
+1650/20000 train_loss: 3.2143 train_time: 2.9m tok/s: 7539236
+1660/20000 train_loss: 3.1396 train_time: 2.9m tok/s: 7539272
+1670/20000 train_loss: 3.2084 train_time: 2.9m tok/s: 7539407
+1680/20000 train_loss: 3.1869 train_time: 2.9m tok/s: 7539380
+1690/20000 train_loss: 3.2279 train_time: 2.9m tok/s: 7539331
+1700/20000 train_loss: 3.1852 train_time: 3.0m tok/s: 7539470
+1710/20000 train_loss: 3.2362 train_time: 3.0m tok/s: 7539560
+1720/20000 train_loss: 3.2016 train_time: 3.0m tok/s: 7539605
+1730/20000 train_loss: 3.2874 train_time: 3.0m tok/s: 7539512
+1740/20000 train_loss: 3.0848 train_time: 3.0m tok/s: 7539339
+1750/20000 train_loss: 3.0849 train_time: 3.0m tok/s: 7539388
+1760/20000 train_loss: 3.1963 train_time: 3.1m tok/s: 7539438
+1770/20000 train_loss: 3.1251 train_time: 3.1m tok/s: 7539505
+1780/20000 train_loss: 3.1569 train_time: 3.1m tok/s: 7539525
+1790/20000 train_loss: 3.1837 train_time: 3.1m tok/s: 7539637
+1800/20000 train_loss: 3.2880 train_time: 3.1m tok/s: 7539713
+1810/20000 train_loss: 3.1061 train_time: 3.1m tok/s: 7539712
+1820/20000 train_loss: 3.1887 train_time: 3.2m tok/s: 7539757
+1830/20000 train_loss: 3.1527 train_time: 3.2m tok/s: 7539893
+1840/20000 train_loss: 3.1771 train_time: 3.2m tok/s: 7539497
+1850/20000 train_loss: 3.1415 train_time: 3.2m tok/s: 7539530
+1860/20000 train_loss: 3.1029 train_time: 3.2m tok/s: 7539484
+1870/20000 train_loss: 3.1521 train_time: 3.3m tok/s: 7539464
+1880/20000 train_loss: 3.2487 train_time: 3.3m tok/s: 7539488
+1890/20000 train_loss: 3.1737 train_time: 3.3m tok/s: 7539574
+1900/20000 train_loss: 3.1102 train_time: 3.3m tok/s: 7539584
+1910/20000 train_loss: 3.0617 train_time: 3.3m tok/s: 7539652
+1920/20000 train_loss: 3.1206 train_time: 3.3m tok/s: 7539721
+1930/20000 train_loss: 3.0645 train_time: 3.4m tok/s: 7539753
+1940/20000 train_loss: 3.1686 train_time: 3.4m tok/s: 7539842
+1950/20000 train_loss: 3.1974 train_time: 3.4m tok/s: 7539856
+1960/20000 train_loss: 3.1094 train_time: 3.4m tok/s: 7539908
+1970/20000 train_loss: 3.1658 train_time: 3.4m tok/s: 7539887
+layer_loop:enabled step:1974 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+1980/20000 train_loss: 3.6050 train_time: 3.4m tok/s: 7528977
+1990/20000 train_loss: 3.2301 train_time: 3.5m tok/s: 7511097
+2000/20000 train_loss: 3.0552 train_time: 3.5m tok/s: 7493569
+2010/20000 train_loss: 3.2015 train_time: 3.5m tok/s: 7476117
+2020/20000 train_loss: 3.0609 train_time: 3.5m tok/s: 7458959
+2030/20000 train_loss: 3.0798 train_time: 3.6m tok/s: 7442139
+2040/20000 train_loss: 3.1167 train_time: 3.6m tok/s: 7425549
+2050/20000 train_loss: 3.0300 train_time: 3.6m tok/s: 7409256
+2060/20000 train_loss: 3.1364 train_time: 3.7m tok/s: 7393083
+2070/20000 train_loss: 3.0416 train_time: 3.7m tok/s: 7377063
+2080/20000 train_loss: 3.0987 train_time: 3.7m tok/s: 7361359
+2090/20000 train_loss: 3.1063 train_time: 3.7m tok/s: 7345941
+2100/20000 train_loss: 3.0977 train_time: 3.8m tok/s: 7330700
+2110/20000 train_loss: 3.0450 train_time: 3.8m tok/s: 7315637
+2120/20000 train_loss: 3.0465 train_time: 3.8m tok/s: 7300857
+2130/20000 train_loss: 3.0568 train_time: 3.8m tok/s: 7286191
+2140/20000 train_loss: 3.0505 train_time: 3.9m tok/s: 7271885
+2150/20000 train_loss: 3.0386 train_time: 3.9m tok/s: 7257626
+2160/20000 train_loss: 3.1567 train_time: 3.9m tok/s: 7243488
+2170/20000 train_loss: 3.0919 train_time: 3.9m tok/s: 7229579
+2180/20000 train_loss: 3.0244 train_time: 4.0m tok/s: 7215884
+2190/20000 train_loss: 3.0741 train_time: 4.0m tok/s: 7202393
+2200/20000 train_loss: 3.1074 train_time: 4.0m tok/s: 7189017
+2210/20000 train_loss: 2.9889 train_time: 4.0m tok/s: 7175867
+2220/20000 train_loss: 3.0826 train_time: 4.1m tok/s: 7162825
+2230/20000 train_loss: 3.0998 train_time: 4.1m tok/s: 7149936
+2240/20000 train_loss: 3.0300 train_time: 4.1m tok/s: 7137274
+2250/20000 train_loss: 3.0410 train_time: 4.1m tok/s: 7124728
+2260/20000 train_loss: 3.0661 train_time: 4.2m tok/s: 7112276
+2270/20000 train_loss: 3.0624 train_time: 4.2m tok/s: 7100091
+2280/20000 train_loss: 3.0819 train_time: 4.2m tok/s: 7088117
+2290/20000 train_loss: 3.0997 train_time: 4.2m tok/s: 7076082
+2300/20000 train_loss: 3.0202 train_time: 4.3m tok/s: 7064250
+2310/20000 train_loss: 3.1025 train_time: 4.3m tok/s: 7052504
+2320/20000 train_loss: 3.0787 train_time: 4.3m tok/s: 7041029
+2330/20000 train_loss: 2.9698 train_time: 4.3m tok/s: 7029534
+2340/20000 train_loss: 3.0183 train_time: 4.4m tok/s: 7018311
+2350/20000 train_loss: 3.0590 train_time: 4.4m tok/s: 7007165
+2360/20000 train_loss: 3.1092 train_time: 4.4m tok/s: 6996173
+2370/20000 train_loss: 3.1243 train_time: 4.4m tok/s: 6985354
+2380/20000 train_loss: 3.0018 train_time: 4.5m tok/s: 6974587
+2390/20000 train_loss: 3.1190 train_time: 4.5m tok/s: 6963948
+2400/20000 train_loss: 3.0760 train_time: 4.5m tok/s: 6953426
+2410/20000 train_loss: 3.0286 train_time: 4.5m tok/s: 6943017
+2420/20000 train_loss: 3.0272 train_time: 4.6m tok/s: 6932718
+2430/20000 train_loss: 3.0436 train_time: 4.6m tok/s: 6922634
+2440/20000 train_loss: 3.0758 train_time: 4.6m tok/s: 6912596
+2450/20000 train_loss: 3.1122 train_time: 4.7m tok/s: 6902764
+2460/20000 train_loss: 3.1272 train_time: 4.7m tok/s: 6892976
+2470/20000 train_loss: 3.0498 train_time: 4.7m tok/s: 6883290
+2480/20000 train_loss: 3.0711 train_time: 4.7m tok/s: 6873701
+2490/20000 train_loss: 3.0524 train_time: 4.8m tok/s: 6864201
+2500/20000 train_loss: 3.0502 train_time: 4.8m tok/s: 6854808
+2510/20000 train_loss: 3.0092 train_time: 4.8m tok/s: 6845593
+2520/20000 train_loss: 3.0248 train_time: 4.8m tok/s: 6836410
+2530/20000 train_loss: 3.0140 train_time: 4.9m tok/s: 6827309
+2540/20000 train_loss: 3.0180 train_time: 4.9m tok/s: 6818269
+2550/20000 train_loss: 3.0076 train_time: 4.9m tok/s: 6809346
+2560/20000 train_loss: 3.0689 train_time: 4.9m tok/s: 6800562
+2570/20000 train_loss: 3.0125 train_time: 5.0m tok/s: 6791855
+2580/20000 train_loss: 3.0057 train_time: 5.0m tok/s: 6783144
+2590/20000 train_loss: 3.0327 train_time: 5.0m tok/s: 6774589
+2600/20000 train_loss: 3.0322 train_time: 5.0m tok/s: 6766158
+2610/20000 train_loss: 3.0637 train_time: 5.1m tok/s: 6757793
+2620/20000 train_loss: 3.0577 train_time: 5.1m tok/s: 6749514
+2630/20000 train_loss: 3.0778 train_time: 5.1m tok/s: 6741354
+2640/20000 train_loss: 2.9840 train_time: 5.1m tok/s: 6733242
+2650/20000 train_loss: 2.9969 train_time: 5.2m tok/s: 6725227
+2660/20000 train_loss: 3.0354 train_time: 5.2m tok/s: 6717298
+2670/20000 train_loss: 2.9909 train_time: 5.2m tok/s: 6709396
+2680/20000 train_loss: 3.0387 train_time: 5.2m tok/s: 6701513
+2690/20000 train_loss: 3.0607 train_time: 5.3m tok/s: 6693826
+2700/20000 train_loss: 3.0660 train_time: 5.3m tok/s: 6686162
+2710/20000 train_loss: 3.0172 train_time: 5.3m tok/s: 6678570
+2720/20000 train_loss: 3.0367 train_time: 5.3m tok/s: 6670965
+2730/20000 train_loss: 3.0945 train_time: 5.4m tok/s: 6663507
+2740/20000 train_loss: 3.0121 train_time: 5.4m tok/s: 6656052
+2750/20000 train_loss: 2.9859 train_time: 5.4m tok/s: 6648811
+2760/20000 train_loss: 2.9441 train_time: 5.4m tok/s: 6641535
+2770/20000 train_loss: 3.0011 train_time: 5.5m tok/s: 6634362
+2780/20000 train_loss: 3.1125 train_time: 5.5m tok/s: 6627253
+2790/20000 train_loss: 3.0397 train_time: 5.5m tok/s: 6620247
+2800/20000 train_loss: 2.9908 train_time: 5.5m tok/s: 6613329
+2810/20000 train_loss: 3.0547 train_time: 5.6m tok/s: 6606403
+2820/20000 train_loss: 2.9110 train_time: 5.6m tok/s: 6599596
+2830/20000 train_loss: 3.0202 train_time: 5.6m tok/s: 6592795
+2840/20000 train_loss: 2.9604 train_time: 5.7m tok/s: 6586071
+2850/20000 train_loss: 2.9664 train_time: 5.7m tok/s: 6579363
+2860/20000 train_loss: 2.9518 train_time: 5.7m tok/s: 6572771
+2870/20000 train_loss: 2.8924 train_time: 5.7m tok/s: 6566263
+2880/20000 train_loss: 2.9042 train_time: 5.8m tok/s: 6559787
+2890/20000 train_loss: 3.0266 train_time: 5.8m tok/s: 6553382
+2900/20000 train_loss: 3.0680 train_time: 5.8m tok/s: 6546942
+2910/20000 train_loss: 2.9533 train_time: 5.8m tok/s: 6540602
+2920/20000 train_loss: 2.9497 train_time: 5.9m tok/s: 6534395
+2930/20000 train_loss: 3.0791 train_time: 5.9m tok/s: 6528221
+2940/20000 train_loss: 2.9416 train_time: 5.9m tok/s: 6522064
+2950/20000 train_loss: 3.0724 train_time: 5.9m tok/s: 6515957
+2960/20000 train_loss: 2.9513 train_time: 6.0m tok/s: 6509925
+2970/20000 train_loss: 2.9426 train_time: 6.0m tok/s: 6503915
+2980/20000 train_loss: 3.0327 train_time: 6.0m tok/s: 6497939
+2990/20000 train_loss: 2.9581 train_time: 6.0m tok/s: 6492079
+3000/20000 train_loss: 3.0741 train_time: 6.1m tok/s: 6486300
+3010/20000 train_loss: 3.0060 train_time: 6.1m tok/s: 6480434
+3020/20000 train_loss: 3.0752 train_time: 6.1m tok/s: 6474753
+3030/20000 train_loss: 2.9327 train_time: 6.1m tok/s: 6469119
+3040/20000 train_loss: 3.0592 train_time: 6.2m tok/s: 6463482
+3050/20000 train_loss: 3.0339 train_time: 6.2m tok/s: 6457883
+3060/20000 train_loss: 2.8768 train_time: 6.2m tok/s: 6452346
+3070/20000 train_loss: 2.8944 train_time: 6.2m tok/s: 6446859
+3080/20000 train_loss: 3.0164 train_time: 6.3m tok/s: 6441419
+3090/20000 train_loss: 2.9460 train_time: 6.3m tok/s: 6435991
+3100/20000 train_loss: 2.8680 train_time: 6.3m tok/s: 6430600
+3110/20000 train_loss: 2.9027 train_time: 6.3m tok/s: 6425353
+3120/20000 train_loss: 2.9082 train_time: 6.4m tok/s: 6420072
+3130/20000 train_loss: 2.9860 train_time: 6.4m tok/s: 6414857
+3140/20000 train_loss: 3.0304 train_time: 6.4m tok/s: 6409544
+3150/20000 train_loss: 2.9538 train_time: 6.4m tok/s: 6404295
+3160/20000 train_loss: 3.0459 train_time: 6.5m tok/s: 6399018
+3170/20000 train_loss: 3.0612 train_time: 6.5m tok/s: 6393963
+3180/20000 train_loss: 2.9722 train_time: 6.5m tok/s: 6388998
+3190/20000 train_loss: 2.9742 train_time: 6.5m tok/s: 6383982
+3200/20000 train_loss: 2.9517 train_time: 6.6m tok/s: 6379062
+3210/20000 train_loss: 2.9339 train_time: 6.6m tok/s: 6374131
+3220/20000 train_loss: 2.9416 train_time: 6.6m tok/s: 6369248
+3230/20000 train_loss: 2.9658 train_time: 6.7m tok/s: 6364419
+3240/20000 train_loss: 2.9201 train_time: 6.7m tok/s: 6359624
+3250/20000 train_loss: 2.9965 train_time: 6.7m tok/s: 6354833
+3260/20000 train_loss: 2.9223 train_time: 6.7m tok/s: 6350114
+3270/20000 train_loss: 2.8985 train_time: 6.8m tok/s: 6345276
+3280/20000 train_loss: 3.0191 train_time: 6.8m tok/s: 6340600
+3290/20000 train_loss: 2.8767 train_time: 6.8m tok/s: 6335979
+3300/20000 train_loss: 3.0207 train_time: 6.8m tok/s: 6331398
+3310/20000 train_loss: 2.9318 train_time: 6.9m tok/s: 6326876
+3320/20000 train_loss: 2.9135 train_time: 6.9m tok/s: 6322329
+3330/20000 train_loss: 2.9447 train_time: 6.9m tok/s: 6317825
+3340/20000 train_loss: 3.0223 train_time: 6.9m tok/s: 6313370
+3350/20000 train_loss: 2.8831 train_time: 7.0m tok/s: 6308940
+3360/20000 train_loss: 2.9421 train_time: 7.0m tok/s: 6304555
+3370/20000 train_loss: 2.8871 train_time: 7.0m tok/s: 6300232
+3380/20000 train_loss: 2.9467 train_time: 7.0m tok/s: 6295924
+3390/20000 train_loss: 2.8610 train_time: 7.1m tok/s: 6291607
+3400/20000 train_loss: 2.8830 train_time: 7.1m tok/s: 6287321
+3410/20000 train_loss: 2.9511 train_time: 7.1m tok/s: 6283144
+3420/20000 train_loss: 2.8813 train_time: 7.1m tok/s: 6278938
+3430/20000 train_loss: 2.8835 train_time: 7.2m tok/s: 6274794
+3440/20000 train_loss: 2.9092 train_time: 7.2m tok/s: 6270653
+3450/20000 train_loss: 2.9432 train_time: 7.2m tok/s: 6266584
+3460/20000 train_loss: 2.8647 train_time: 7.2m tok/s: 6262517
+3470/20000 train_loss: 2.8425 train_time: 7.3m tok/s: 6258478
+3480/20000 train_loss: 2.9160 train_time: 7.3m tok/s: 6254462
+3490/20000 train_loss: 2.9530 train_time: 7.3m tok/s: 6250467
+3500/20000 train_loss: 2.9048 train_time: 7.3m tok/s: 6246545
+3510/20000 train_loss: 2.9848 train_time: 7.4m tok/s: 6242673
+3520/20000 train_loss: 2.9498 train_time: 7.4m tok/s: 6238780
+3530/20000 train_loss: 2.9094 train_time: 7.4m tok/s: 6234933
+3540/20000 train_loss: 2.9972 train_time: 7.4m tok/s: 6231096
+3550/20000 train_loss: 2.9584 train_time: 7.5m tok/s: 6227270
+3560/20000 train_loss: 2.9148 train_time: 7.5m tok/s: 6223446
+3570/20000 train_loss: 2.9833 train_time: 7.5m tok/s: 6219658
+3580/20000 train_loss: 2.9600 train_time: 7.6m tok/s: 6210960
+3590/20000 train_loss: 2.8711 train_time: 7.6m tok/s: 6207276
+3600/20000 train_loss: 2.9071 train_time: 7.6m tok/s: 6203566
+3610/20000 train_loss: 3.0643 train_time: 7.6m tok/s: 6199943
+3620/20000 train_loss: 2.8618 train_time: 7.7m tok/s: 6196285
+3630/20000 train_loss: 2.9882 train_time: 7.7m tok/s: 6192721
+3640/20000 train_loss: 2.9136 train_time: 7.7m tok/s: 6189109
+3650/20000 train_loss: 2.8186 train_time: 7.7m tok/s: 6185557
+3660/20000 train_loss: 2.8794 train_time: 7.8m tok/s: 6182006
+3670/20000 train_loss: 2.9293 train_time: 7.8m tok/s: 6178499
+3680/20000 train_loss: 2.9200 train_time: 7.8m tok/s: 6175007
+3690/20000 train_loss: 2.8560 train_time: 7.8m tok/s: 6171559
+3700/20000 train_loss: 2.8732 train_time: 7.9m tok/s: 6168145
+3710/20000 train_loss: 2.8732 train_time: 7.9m tok/s: 6164739
+3720/20000 train_loss: 2.8997 train_time: 7.9m tok/s: 6161329
+3730/20000 train_loss: 2.9580 train_time: 7.9m tok/s: 6157945
+3740/20000 train_loss: 2.9487 train_time: 8.0m tok/s: 6154593
+3750/20000 train_loss: 2.8402 train_time: 8.0m tok/s: 6151273
+3760/20000 train_loss: 2.8803 train_time: 8.0m tok/s: 6147934
+3770/20000 train_loss: 2.8710 train_time: 8.0m tok/s: 6144638
+3780/20000 train_loss: 2.9001 train_time: 8.1m tok/s: 6141353
+3790/20000 train_loss: 2.8479 train_time: 8.1m tok/s: 6138073
+3800/20000 train_loss: 2.8783 train_time: 8.1m tok/s: 6134833
+3810/20000 train_loss: 2.9431 train_time: 8.1m tok/s: 6131606
+3820/20000 train_loss: 2.9228 train_time: 8.2m tok/s: 6128456
+3830/20000 train_loss: 2.8753 train_time: 8.2m tok/s: 6125299
+3840/20000 train_loss: 2.9435 train_time: 8.2m tok/s: 6122184
+3850/20000 train_loss: 2.9859 train_time: 8.2m tok/s: 6119084
+3860/20000 train_loss: 2.9370 train_time: 8.3m tok/s: 6116013
+3870/20000 train_loss: 2.9182 train_time: 8.3m tok/s: 6109268
+3880/20000 train_loss: 2.8677 train_time: 8.3m tok/s: 6106150
+3890/20000 train_loss: 2.9163 train_time: 8.4m tok/s: 6103151
+3900/20000 train_loss: 2.8133 train_time: 8.4m tok/s: 6100173
+3910/20000 train_loss: 2.8642 train_time: 8.4m tok/s: 6093335
+3920/20000 train_loss: 2.9335 train_time: 8.4m tok/s: 6090358
+3930/20000 train_loss: 2.9373 train_time: 8.5m tok/s: 6087359
+3940/20000 train_loss: 2.9120 train_time: 8.5m tok/s: 6084428
+3950/20000 train_loss: 2.9546 train_time: 8.5m tok/s: 6081533
+3960/20000 train_loss: 2.9443 train_time: 8.5m tok/s: 6078645
+3970/20000 train_loss: 2.8884 train_time: 8.6m tok/s: 6072098
+3980/20000 train_loss: 2.8916 train_time: 8.6m tok/s: 6069114
+3990/20000 train_loss: 2.8624 train_time: 8.6m tok/s: 6066232
+4000/20000 train_loss: 2.8950 train_time: 8.6m tok/s: 6063471
+4000/20000 val_loss: 2.8672 val_bpb: 1.1100
+4010/20000 train_loss: 2.9433 train_time: 8.7m tok/s: 6060754
+4020/20000 train_loss: 2.9132 train_time: 8.7m tok/s: 6058022
+4030/20000 train_loss: 2.9046 train_time: 8.7m tok/s: 6055254
+4040/20000 train_loss: 2.9765 train_time: 8.7m tok/s: 6052548
+4050/20000 train_loss: 2.8712 train_time: 8.8m tok/s: 6049847
+4060/20000 train_loss: 2.9476 train_time: 8.8m tok/s: 6047178
+4070/20000 train_loss: 2.9489 train_time: 8.8m tok/s: 6044540
+4080/20000 train_loss: 2.9562 train_time: 8.9m tok/s: 6041865
+4090/20000 train_loss: 2.8960 train_time: 8.9m tok/s: 6039253
+4100/20000 train_loss: 2.9664 train_time: 8.9m tok/s: 6036625
+4110/20000 train_loss: 2.9968 train_time: 8.9m tok/s: 6034022
+4120/20000 train_loss: 2.9604 train_time: 9.0m tok/s: 6031431
+4130/20000 train_loss: 2.8104 train_time: 9.0m tok/s: 6028849
+4140/20000 train_loss: 2.9287 train_time: 9.0m tok/s: 6026280
+4150/20000 train_loss: 2.8643 train_time: 9.0m tok/s: 6023736
+4160/20000 train_loss: 2.8702 train_time: 9.1m tok/s: 6021213
+4170/20000 train_loss: 2.9563 train_time: 9.1m tok/s: 6018703
+4180/20000 train_loss: 2.8697 train_time: 9.1m tok/s: 6016229
+4190/20000 train_loss: 2.7959 train_time: 9.1m tok/s: 6013736
+4200/20000 train_loss: 2.8583 train_time: 9.2m tok/s: 6011251
+4210/20000 train_loss: 2.8518 train_time: 9.2m tok/s: 6008768
+4220/20000 train_loss: 2.8338 train_time: 9.2m tok/s: 6006277
+4230/20000 train_loss: 2.8907 train_time: 9.2m tok/s: 6003819
+4240/20000 train_loss: 2.8148 train_time: 9.3m tok/s: 6001413
+4250/20000 train_loss: 2.9704 train_time: 9.3m tok/s: 5998969
+4260/20000 train_loss: 2.8375 train_time: 9.3m tok/s: 5996530
+4270/20000 train_loss: 2.8381 train_time: 9.3m tok/s: 5994138
+4280/20000 train_loss: 2.8728 train_time: 9.4m tok/s: 5991755
+4290/20000 train_loss: 2.8689 train_time: 9.4m tok/s: 5989347
+4300/20000 train_loss: 2.7979 train_time: 9.4m tok/s: 5986975
+4310/20000 train_loss: 2.7488 train_time: 9.4m tok/s: 5984613
+4320/20000 train_loss: 2.7809 train_time: 9.5m tok/s: 5982275
+4330/20000 train_loss: 2.8464 train_time: 9.5m tok/s: 5979945
+4340/20000 train_loss: 2.8517 train_time: 9.5m tok/s: 5977637
+4350/20000 train_loss: 2.8171 train_time: 9.5m tok/s: 5975324
+4360/20000 train_loss: 2.8234 train_time: 9.6m tok/s: 5973017
+4370/20000 train_loss: 2.8531 train_time: 9.6m tok/s: 5970727
+4380/20000 train_loss: 2.8742 train_time: 9.6m tok/s: 5968463
+4390/20000 train_loss: 2.8696 train_time: 9.6m tok/s: 5966196
+4400/20000 train_loss: 2.7831 train_time: 9.7m tok/s: 5963964
+4410/20000 train_loss: 2.8219 train_time: 9.7m tok/s: 5961762
+4420/20000 train_loss: 2.8276 train_time: 9.7m tok/s: 5959537
+4430/20000 train_loss: 2.8505 train_time: 9.7m tok/s: 5957336
+4440/20000 train_loss: 2.8743 train_time: 9.8m tok/s: 5955127
+4450/20000 train_loss: 2.8701 train_time: 9.8m tok/s: 5952976
+4451/20000 val_loss: 2.8188 val_bpb: 1.0912
+stopping_early: wallclock_cap train_time: 588036ms step: 4451/20000
+peak memory allocated: 39925 MiB reserved: 39966 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.81622230 val_bpb:1.09026013 eval_time:17035ms
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+[prefetch] daemon started: depth=8 pinned=True
+Serialized model: 135718767 bytes
+Code size: 83546 bytes
+GPTQ:collecting Hessians from calibration data...
+[prefetch] daemon started: depth=8 pinned=True
+GPTQ:collected 67 Hessians in 13.0s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): _nlfi_bigram_mult, _nlfi_fourgram_mult, _nlfi_stored_flag, _nlfi_trigram_mult, blocks.attn.gate_proj.bias, blocks.attn.gate_proj.weight, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, lane_merge, skip_gates, skip_weights
+Serialized model quantized+brotli: 16051839 bytes
+Total submission size quantized+brotli: 16135385 bytes
+quantized val_loss:2.84247827 val_bpb:1.10042475 eval_time:7437ms
+quantized_sliding_window val_loss:2.79883480 val_bpb:1.08352881 eval_time:94759ms
+ttt_sliding:start chunks=1238 chunk_tokens=32768 total_windows=633409 stride=64 ttt_lr=0.005 ttt_epochs=3 freeze_blocks=0
+ttt_sliding:params unfrozen=35989681 frozen=0
+  ttt_chunk [1/1238] bpb=1.118589 time=5.4s
+  ttt_chunk [11/1238] bpb=1.072813 time=8.3s
+  ttt_chunk [21/1238] bpb=1.110008 time=11.1s
+  ttt_chunk [31/1238] bpb=1.104214 time=13.9s
+  ttt_chunk [41/1238] bpb=1.097523 time=16.8s
+  ttt_chunk [51/1238] bpb=1.091487 time=19.6s
+  ttt_chunk [61/1238] bpb=1.083059 time=23.4s
+  ttt_chunk [71/1238] bpb=1.089258 time=26.2s
+  ttt_chunk [81/1238] bpb=1.082678 time=29.0s
+  ttt_chunk [91/1238] bpb=1.079224 time=31.7s
+  ttt_chunk [101/1238] bpb=1.078567 time=34.6s
+  ttt_chunk [111/1238] bpb=1.076271 time=37.4s
+  ttt_chunk [121/1238] bpb=1.080220 time=40.2s
+  ttt_chunk [131/1238] bpb=1.084106 time=43.0s
+  ttt_chunk [141/1238] bpb=1.084815 time=45.9s
+  ttt_chunk [151/1238] bpb=1.084517 time=48.7s
+  ttt_chunk [161/1238] bpb=1.085359 time=51.5s
+  ttt_chunk [171/1238] bpb=1.085115 time=54.2s
+  ttt_chunk [181/1238] bpb=1.083455 time=57.0s
+  ttt_chunk [191/1238] bpb=1.083217 time=59.8s
+  ttt_chunk [201/1238] bpb=1.080736 time=62.6s
+  ttt_chunk [211/1238] bpb=1.085069 time=65.4s
+  ttt_chunk [221/1238] bpb=1.085506 time=68.2s
+  ttt_chunk [231/1238] bpb=1.087056 time=71.0s
+  ttt_chunk [241/1238] bpb=1.084970 time=73.7s
+  ttt_chunk [251/1238] bpb=1.084968 time=76.6s
+  ttt_chunk [261/1238] bpb=1.086096 time=79.4s
+  ttt_chunk [271/1238] bpb=1.086383 time=82.2s
+  ttt_chunk [281/1238] bpb=1.085457 time=86.0s
+  ttt_chunk [291/1238] bpb=1.086547 time=88.8s
+  ttt_chunk [301/1238] bpb=1.086800 time=91.6s
+  ttt_chunk [311/1238] bpb=1.085625 time=94.9s
+  ttt_chunk [321/1238] bpb=1.085491 time=97.7s
+  ttt_chunk [331/1238] bpb=1.085845 time=101.0s
+  ttt_chunk [341/1238] bpb=1.085024 time=104.3s
+  ttt_chunk [351/1238] bpb=1.085760 time=107.1s
+  ttt_chunk [361/1238] bpb=1.084647 time=109.9s
+  ttt_chunk [371/1238] bpb=1.083088 time=112.8s
+  ttt_chunk [381/1238] bpb=1.083400 time=115.6s
+  ttt_chunk [391/1238] bpb=1.083160 time=118.8s
+  ttt_chunk [401/1238] bpb=1.083341 time=121.6s
+  ttt_chunk [411/1238] bpb=1.083980 time=124.5s
+  ttt_chunk [421/1238] bpb=1.083427 time=127.3s
+  ttt_chunk [431/1238] bpb=1.083530 time=130.1s
+  ttt_chunk [441/1238] bpb=1.083603 time=132.9s
+  ttt_chunk [451/1238] bpb=1.084855 time=135.8s
+  ttt_chunk [461/1238] bpb=1.083147 time=138.6s
+  ttt_chunk [471/1238] bpb=1.083141 time=141.4s
+  ttt_chunk [481/1238] bpb=1.083278 time=144.2s
+  ttt_chunk [491/1238] bpb=1.083764 time=147.1s
+  ttt_chunk [501/1238] bpb=1.083582 time=150.1s
+  ttt_chunk [511/1238] bpb=1.083150 time=152.9s
+  ttt_chunk [521/1238] bpb=1.082513 time=155.7s
+  ttt_chunk [531/1238] bpb=1.082459 time=158.5s
+  ttt_chunk [541/1238] bpb=1.082916 time=161.4s
+  ttt_chunk [551/1238] bpb=1.082504 time=164.3s
+  ttt_chunk [561/1238] bpb=1.081749 time=167.1s
+  ttt_chunk [571/1238] bpb=1.081098 time=169.9s
+  ttt_chunk [581/1238] bpb=1.081522 time=172.7s
+  ttt_chunk [591/1238] bpb=1.081726 time=175.6s
+  ttt_chunk [601/1238] bpb=1.081559 time=178.4s
+  ttt_chunk [611/1238] bpb=1.082185 time=181.2s
+  ttt_chunk [621/1238] bpb=1.083092 time=184.1s
+  ttt_chunk [631/1238] bpb=1.083139 time=186.9s
+  ttt_chunk [641/1238] bpb=1.083574 time=189.8s
+  ttt_chunk [651/1238] bpb=1.083746 time=192.6s
+  ttt_chunk [661/1238] bpb=1.083064 time=195.4s
+  ttt_chunk [671/1238] bpb=1.082925 time=198.2s
+  ttt_chunk [681/1238] bpb=1.084417 time=201.1s
+  ttt_chunk [691/1238] bpb=1.084638 time=203.9s
+  ttt_chunk [701/1238] bpb=1.084295 time=206.8s
+  ttt_chunk [711/1238] bpb=1.084924 time=209.6s
+  ttt_chunk [721/1238] bpb=1.085125 time=212.5s
+  ttt_chunk [731/1238] bpb=1.084835 time=215.4s
+  ttt_chunk [741/1238] bpb=1.084357 time=218.2s
+  ttt_chunk [751/1238] bpb=1.083503 time=221.1s
+  ttt_chunk [761/1238] bpb=1.082862 time=224.0s
+  ttt_chunk [771/1238] bpb=1.082048 time=226.8s
+  ttt_chunk [781/1238] bpb=1.082023 time=229.6s
+  ttt_chunk [791/1238] bpb=1.082318 time=232.4s
+  ttt_chunk [801/1238] bpb=1.082557 time=235.3s
+  ttt_chunk [811/1238] bpb=1.081891 time=238.1s
+  ttt_chunk [821/1238] bpb=1.080816 time=241.0s
+  ttt_chunk [831/1238] bpb=1.080452 time=243.8s
+  ttt_chunk [841/1238] bpb=1.080036 time=246.6s
+  ttt_chunk [851/1238] bpb=1.079927 time=249.4s
+  ttt_chunk [861/1238] bpb=1.079546 time=252.3s
+  ttt_chunk [871/1238] bpb=1.079418 time=255.1s
+  ttt_chunk [881/1238] bpb=1.078952 time=257.9s
+  ttt_chunk [891/1238] bpb=1.078620 time=260.7s
+  ttt_chunk [901/1238] bpb=1.079041 time=263.6s
+  ttt_chunk [911/1238] bpb=1.078696 time=266.4s
+  ttt_chunk [921/1238] bpb=1.079076 time=269.2s
+  ttt_chunk [931/1238] bpb=1.079570 time=272.1s
+  ttt_chunk [941/1238] bpb=1.080106 time=274.9s
+  ttt_chunk [951/1238] bpb=1.080046 time=277.8s
+  ttt_chunk [961/1238] bpb=1.080780 time=280.7s
+  ttt_chunk [971/1238] bpb=1.081144 time=283.6s
+  ttt_chunk [981/1238] bpb=1.081457 time=286.4s
+  ttt_chunk [991/1238] bpb=1.081299 time=289.2s
+  ttt_chunk [1001/1238] bpb=1.081423 time=292.0s
+  ttt_chunk [1011/1238] bpb=1.081810 time=294.9s
+  ttt_chunk [1021/1238] bpb=1.082534 time=297.7s
+  ttt_chunk [1031/1238] bpb=1.082885 time=300.5s
+  ttt_chunk [1041/1238] bpb=1.083369 time=303.4s
+  ttt_chunk [1051/1238] bpb=1.083464 time=306.2s
+  ttt_chunk [1061/1238] bpb=1.083446 time=309.0s
+  ttt_chunk [1071/1238] bpb=1.083677 time=311.9s
+  ttt_chunk [1081/1238] bpb=1.083552 time=314.7s
+  ttt_chunk [1091/1238] bpb=1.083729 time=317.5s
+  ttt_chunk [1101/1238] bpb=1.084192 time=320.7s
+  ttt_chunk [1111/1238] bpb=1.084559 time=323.9s
+  ttt_chunk [1121/1238] bpb=1.084709 time=326.8s
+  ttt_chunk [1131/1238] bpb=1.084426 time=329.7s
+  ttt_chunk [1141/1238] bpb=1.084086 time=332.5s
+  ttt_chunk [1151/1238] bpb=1.084066 time=335.3s
+  ttt_chunk [1161/1238] bpb=1.084245 time=338.1s
+  ttt_chunk [1171/1238] bpb=1.083959 time=341.0s
+  ttt_chunk [1181/1238] bpb=1.083562 time=343.9s
+  ttt_chunk [1191/1238] bpb=1.083773 time=346.7s
+  ttt_chunk [1201/1238] bpb=1.084028 time=349.6s
+  ttt_chunk [1211/1238] bpb=1.083764 time=352.4s
+  ttt_chunk [1221/1238] bpb=1.083357 time=355.2s
+  ttt_chunk [1231/1238] bpb=1.083024 time=358.0s
+  ttt_chunk [1238/1238] bpb=1.082995 time=362.0s
+ttt_sliding:done val_loss=2.796842 val_bpb=1.082757 elapsed=362.4s
+quantized_ttt val_loss:2.79684226 val_bpb:1.08275743 eval_time:362590ms
+[W410 04:38:14.620092267 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W410 04:38:15.841583682 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W410 04:38:15.856058939 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W410 04:38:15.867267289 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W410 04:38:15.957294816 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W410 04:38:15.959946073 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W410 04:38:15.987920869 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W410 04:38:15.147430031 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W410 04:38:18.664257624 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+
+[run] DONE 04:38:18Z
+[run] === val_bpb lines ===
+0/20000 val_loss: 9.0075 val_bpb: 3.4871
+4000/20000 val_loss: 2.8672 val_bpb: 1.1100
+4451/20000 val_loss: 2.8188 val_bpb: 1.0912
+pre-quantization post-ema val_loss:2.81622230 val_bpb:1.09026013 eval_time:17035ms
+quantized val_loss:2.84247827 val_bpb:1.10042475 eval_time:7437ms
+quantized_sliding_window val_loss:2.79883480 val_bpb:1.08352881 eval_time:94759ms
+ttt_sliding:done val_loss=2.796842 val_bpb=1.082757 elapsed=362.4s
+quantized_ttt val_loss:2.79684226 val_bpb:1.08275743 eval_time:362590ms
+
+[run] === artifact ===
+-rw-r--r-- 1 root root 16051839 Apr 10 04:30 final_model.int6.ptz
+  size: 16051839 bytes
