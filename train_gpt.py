@@ -1054,8 +1054,12 @@ class CausalSelfAttention(nn.Module):
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rope_dims = rope_dims
-        self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=train_seq_len, rope_dims=rope_dims)
+        self.rope_dims = rope_dims if attention_is_global else 0
+        self.rotary = (
+            Rotary(self.head_dim, base=rope_base, train_seq_len=train_seq_len, rope_dims=self.rope_dims)
+            if self.rope_dims > 0
+            else None
+        )
         self.local_attention_window = local_attention_window
         self.attention_is_global = attention_is_global
         self.use_xsa = False
@@ -1076,9 +1080,10 @@ class CausalSelfAttention(nn.Module):
         v = None if self.c_v is None else self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
-        cos, sin = self.rotary(seqlen, x.device, q.dtype)
-        q = apply_rotary_emb(q, cos, sin, self.rope_dims)
-        k = apply_rotary_emb(k, cos, sin, self.rope_dims)
+        if self.rotary is not None:
+            cos, sin = self.rotary(seqlen, x.device, q.dtype)
+            q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+            k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         v = k if v is None else v
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
         if self.attention_is_global:
