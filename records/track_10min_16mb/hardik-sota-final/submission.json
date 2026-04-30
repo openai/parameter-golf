@@ -1,0 +1,10 @@
+{
+  "track": "10min_16mb",
+  "method": "Depth Recurrence + Parallel Residuals + Hessian-aware GPTQ",
+  "val_loss": 2.9869,
+  "val_bpb": 1.1565,
+  "artifact_size_bytes": 5645856,
+  "compression_format": "ByteShuffle + XZ",
+  "reproducible": true,
+  "timestamp": "2026-04-30T17:15:00Z"
+}

@@ -1,0 +1,11 @@
+# Requires Python 3.10+ (for torch.autocast and zip(..., strict=True))
+numpy>=1.24.4
+tqdm>=4.66.0
+torch>=2.2.0
+huggingface-hub>=0.21.0
+kernels>=0.0.3
+setuptools>=68.0.0
+typing-extensions>=4.10.0
+datasets>=2.18.0
+tiktoken>=0.6.0
+sentencepiece>=0.1.99
