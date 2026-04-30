@@ -215,16 +215,12 @@ impl ExternalTrainer {
             .arg(hidden.to_string())
             .arg("--lr")
             .arg(format!("{lr:.6}"));
-        // Pass --ctx if present in config (default 12).
-        // Bisect showed trios-train REQUIRES --ctx to produce output.
-        // Experiment #800 (realistic BPB=1.82) had ctx=12 and worked.
-        // Without --ctx the trainer subprocess hangs silently.
-        if let Some(ctx) = self.config["ctx"].as_u64() {
-            cmd.arg("--ctx").arg(ctx.to_string());
-        }
-        // NOTE(bisect): --format and --attn-layers still REMOVED.
-        // These caused BPB≈0 collapse for 8K steps in MEGAASHA experiments.
-        // Only --ctx restored as it's required for trainer to function.
+        // NOTE(bisect): --ctx, --format, --attn-layers all REMOVED.
+        // Railway logs showed "error: unexpected argument '--ctx' found"
+        // causing ALL experiments to fail with exit code 2.
+        // The trios-train binary only accepts: --seed, --steps, --hidden,
+        // --lr, --attn-layers, --eval-every, --train-data, --val-data,
+        // --sweep, --optimizer, --config.
         cmd.stdout(Stdio::piped())
             .stderr(Stdio::inherit()); // R5: stream stderr to seed-agent logs
         // Set working directory only when it exists (present in Docker, absent on macOS dev).
