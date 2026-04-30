@@ -1,0 +1,97 @@
+{
+  "agents": {
+    "mcp-worker-1": {
+      "agentId": "mcp-worker-1",
+      "agentType": "worker",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {},
+      "createdAt": "2026-04-29T10:50:24.328Z",
+      "model": "sonnet",
+      "modelRoutedBy": "router"
+    },
+    "mcp-worker-2": {
+      "agentId": "mcp-worker-2",
+      "agentType": "worker",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {},
+      "createdAt": "2026-04-29T10:50:24.611Z",
+      "model": "sonnet",
+      "modelRoutedBy": "router"
+    },
+    "mcp-worker-3": {
+      "agentId": "mcp-worker-3",
+      "agentType": "worker",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {},
+      "createdAt": "2026-04-29T10:50:24.691Z",
+      "model": "sonnet",
+      "modelRoutedBy": "router"
+    },
+    "mcp-worker-4": {
+      "agentId": "mcp-worker-4",
+      "agentType": "worker",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {},
+      "createdAt": "2026-04-29T10:50:24.742Z",
+      "model": "sonnet",
+      "modelRoutedBy": "router"
+    },
+    "agent-1777459973974-2ffaym": {
+      "agentId": "agent-1777459973974-2ffaym",
+      "agentType": "mcp-bridge-worker",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {},
+      "createdAt": "2026-04-29T10:52:54.011Z",
+      "domain": "mcp-neon",
+      "model": "sonnet",
+      "modelRoutedBy": "router"
+    },
+    "agent-1777459974073-4c0n86": {
+      "agentId": "agent-1777459974073-4c0n86",
+      "agentType": "mcp-bridge-worker",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {},
+      "createdAt": "2026-04-29T10:52:54.075Z",
+      "domain": "mcp-railway",
+      "model": "sonnet",
+      "modelRoutedBy": "router"
+    },
+    "agent-1777459974115-tcdc3n": {
+      "agentId": "agent-1777459974115-tcdc3n",
+      "agentType": "mcp-bridge-worker",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {},
+      "createdAt": "2026-04-29T10:52:54.116Z",
+      "domain": "mcp-vibee",
+      "model": "sonnet",
+      "modelRoutedBy": "router"
+    },
+    "agent-1777459974166-2yqzt6": {
+      "agentId": "agent-1777459974166-2yqzt6",
+      "agentType": "mcp-bridge-worker",
+      "status": "idle",
+      "health": 1,
+      "taskCount": 0,
+      "config": {},
+      "createdAt": "2026-04-29T10:52:54.166Z",
+      "domain": "mcp-tri-browser",
+      "model": "sonnet",
+      "modelRoutedBy": "router"
+    }
+  },
+  "version": "3.0.0"
+}

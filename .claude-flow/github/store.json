@@ -1,0 +1,18 @@
+{
+  "repos": {},
+  "prs": {},
+  "issues": {
+    "issue-1777510180283": {
+      "id": "issue-1777510180283",
+      "title": "[WAKE_TRIGGER] GARDENER ONLINE — Mode=Φ_1_INVESTIGATE (W-1 + W-6)",
+      "status": "open",
+      "labels": [
+        "P0",
+        "WAKE_TRIGGER",
+        "fleet"
+      ],
+      "createdAt": "2026-04-30T00:49:40.283Z"
+    }
+  },
+  "version": "3.0.0"
+}

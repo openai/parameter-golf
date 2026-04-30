@@ -167,7 +167,7 @@ const DDL: &[&str] = &[
         steps_budget    integer NOT NULL
                         CHECK (steps_budget > 0),
         account         text NOT NULL
-                        CHECK (account IN ('acc0','acc1','acc2','acc3')),
+                        CHECK (account IN ('acc0','acc1','acc2','acc3','acc4','acc5')),
         status          text NOT NULL DEFAULT 'pending'
                         CHECK (status IN
                               ('pending','claimed','running','pruned','done','failed')),
@@ -222,7 +222,7 @@ const DDL: &[&str] = &[
     r"CREATE TABLE IF NOT EXISTS workers (
         id              uuid PRIMARY KEY,
         railway_acc     text NOT NULL
-                        CHECK (railway_acc IN ('acc0','acc1','acc2','acc3')),
+                        CHECK (railway_acc IN ('acc0','acc1','acc2','acc3','acc4','acc5')),
         railway_svc_id  text NOT NULL,
         railway_svc_name text NOT NULL,
         last_heartbeat  timestamptz NOT NULL DEFAULT now(),
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn experiment_queue_account_enum_matches_multiclient() {
         let blob: String = ddl_statements().join("\n");
-        for a in ["acc0", "acc1", "acc2", "acc3"] {
+        for a in ["acc0", "acc1", "acc2", "acc3", "acc4", "acc5"] {
             assert!(
                 blob.contains(&format!("'{a}'")),
                 "account `{a}` missing from DDL CHECK"
