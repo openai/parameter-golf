@@ -1491,13 +1491,9 @@ def train_and_eval(h, device):
         log("smoke_test: training complete — running GPTQ+brotli pack for size check")
         serialize(h, base_model)
         if h.is_main_process:
-            import sys as _sys
             from pathlib import Path as _Path
-            _proj = _Path(__file__).resolve().parent
-            if str(_proj) not in _sys.path:
-                _sys.path.insert(0, str(_proj))
-            from pack_submission import pack_code as _pack_code
-            code_b = len(_pack_code(_Path(__file__).read_text(encoding="utf-8")))
+
+            code_b = len(_Path(__file__).read_bytes())
             model_b = os.path.getsize(h.quantized_model_path)
             total = code_b + model_b
             log(f"smoke_pack_bytes: code={code_b} model={model_b} total={total}")
