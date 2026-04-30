@@ -1,0 +1,436 @@
+W0430 09:25:19.907000 709260 torch/distributed/run.py:803] 
+W0430 09:25:19.907000 709260 torch/distributed/run.py:803] *****************************************
+W0430 09:25:19.907000 709260 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0430 09:25:19.907000 709260 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: 
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.99
+  caseops_enabled: True
+  compressor: pergroup
+  data_dir: ./data
+  datasets_dir: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 14.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2560
+  eval_stride: 64
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_muon_nesterov: True
+  global_ttt_muon_ns_steps: 5
+  global_ttt_optimizer: sgd
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 0.5
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/000c5815-f2d5-424b-ba6e-381de204f744.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 11.5
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_huber_delta: 0.1
+  muon_huber_wd: False
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  optrot_enabled: False
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 2
+  phased_ttt_prefix_docs: 2500
+  qk_gain_init: 5.0
+  qk_gain_schedule: []
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: 000c5815-f2d5-424b-ba6e-381de204f744
+  scalar_lr: 0.02
+  seed: 314
+  skip_gates_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 0.5
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.99
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2560
+  ttt_grad_steps: 1
+  ttt_k_lora: False
+  ttt_lora_lr: 7.5e-05
+  ttt_lora_rank: 80
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 2.0
+  val_batch_tokens: 524288
+  val_bytes_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.85
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 1499
+val_tokens: 47851520
+model_params:35945671
+gptq:reserving 0s, effective=599500ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 8.9980 val_bpb: 4.1114
+1/20000 train_loss: 8.9988 train_time: 0.0m tok/s: 12497281
+2/20000 train_loss: 12.8565 train_time: 0.0m tok/s: 11724051
+3/20000 train_loss: 10.2282 train_time: 0.0m tok/s: 10391149
+4/20000 train_loss: 8.6656 train_time: 0.0m tok/s: 9848621
+5/20000 train_loss: 7.9042 train_time: 0.0m tok/s: 9565155
+500/20000 train_loss: 2.7400 train_time: 0.8m tok/s: 8426582
+1000/20000 train_loss: 2.7851 train_time: 1.6m tok/s: 8400406
+1500/20000 train_loss: 2.7221 train_time: 2.3m tok/s: 8390914
+2000/20000 train_loss: 2.4919 train_time: 3.1m tok/s: 8392111
+layer_loop:enabled step:2239 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 2.6734 train_time: 4.1m tok/s: 7956564
+3000/20000 train_loss: 2.4884 train_time: 5.3m tok/s: 7432387
+3500/20000 train_loss: 2.3685 train_time: 6.5m tok/s: 7096468
+4000/20000 train_loss: 2.5102 train_time: 7.6m tok/s: 6866959
+4000/20000 val_loss: 2.4240 val_bpb: 1.1076
+4500/20000 train_loss: 2.3926 train_time: 8.8m tok/s: 6712021
+5000/20000 train_loss: 2.2772 train_time: 9.9m tok/s: 6592471
+5022/20000 val_loss: 2.3489 val_bpb: 1.0732
+stopping_early: wallclock_cap train_time: 599542ms step: 5022/20000
+peak memory allocated: 41709 MiB reserved: 46930 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.32254181 val_bpb:1.06121848 eval_time:11236ms
+Serialized model: 135417533 bytes
+Code size (uncompressed): 179328 bytes
+Code size (compressed): 35350 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 3.5s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.attn_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda
+pergroup:similarity sort done in 55.6s (67 tensors)
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4139, in <module>
+[rank3]:     log(f"Running Python {sys.version}", console=False)
+[rank3]: ^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4133, in main
+[rank3]:     log("=" * 100, console=False)
+[rank3]: ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3977, in train_and_eval
+[rank3]:     device,
+[rank3]: ^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2992, in serialize
+[rank3]:     if h.compressor == "pergroup":
+[rank3]:                      ^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2728, in _pack_pergroup
+[rank3]:     log("pergroup:running round-trip check…")
+[rank3]:                 ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2774, in _unpack_pergroup
+[rank3]:     if q_method == 1:
+[rank3]:                      ^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2633, in _lrzip_decompress_bytes
+[rank3]:     if r.returncode != 0:
+[rank3]:         ^^^^^^^^^^^^^^^^^^
+[rank3]: RuntimeError: lrzip -d failed (exit 2): lrzip: invalid option -- 'k'
+[rank3]: lrzip version 0.651
+[rank3]: Copyright (C) Con Kolivas 2006-2022
+[rank3]: Based on rzip Copyright (C) Andrew Tridgell 1998-2003
+
+[rank3]: Usage: lrzip [options] <file...>
+[rank3]: General options:
+[rank3]: 	-c, -C, --check		check integrity of file written on decompression
+[rank3]: 	-d, --decompress	decompress
+[rank3]: 	-e, --encrypt[=password] password protected sha512/aes128 encryption on compression
+[rank3]: 	-h, -?, --help		show help
+[rank3]: 	-
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4139, in <module>
+[rank1]:     log(f"Running Python {sys.version}", console=False)
+[rank1]: ^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4133, in main
+[rank1]:     log("=" * 100, console=False)
+[rank1]: ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3977, in train_and_eval
+[rank1]:     device,
+[rank1]: ^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2992, in serialize
+[rank1]:     if h.compressor == "pergroup":
+[rank1]:                      ^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2728, in _pack_pergroup
+[rank1]:     log("pergroup:running round-trip check…")
+[rank1]:                 ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2774, in _unpack_pergroup
+[rank1]:     if q_method == 1:
+[rank1]:                      ^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2633, in _lrzip_decompress_bytes
+[rank1]:     if r.returncode != 0:
+[rank1]:         ^^^^^^^^^^^^^^^^^^
+[rank1]: RuntimeError: lrzip -d failed (exit 2): lrzip: invalid option -- 'k'
+[rank1]: lrzip version 0.651
+[rank1]: Copyright (C) Con Kolivas 2006-2022
+[rank1]: Based on rzip Copyright (C) Andrew Tridgell 1998-2003
+
+[rank1]: Usage: lrzip [options] <file...>
+[rank1]: General options:
+[rank1]: 	-c, -C, --check		check integrity of file written on decompression
+[rank1]: 	-d, --decompress	decompress
+[rank1]: 	-e, --encrypt[=password] password protected sha512/aes128 encryption on compression
+[rank1]: 	-h, -?, --help		show help
+[rank1]: 	-
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4139, in <module>
+[rank5]:     log(f"Running Python {sys.version}", console=False)
+[rank5]: ^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4133, in main
+[rank5]:     log("=" * 100, console=False)
+[rank5]: ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3977, in train_and_eval
+[rank5]:     device,
+[rank5]: ^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2992, in serialize
+[rank5]:     if h.compressor == "pergroup":
+[rank5]:                      ^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2728, in _pack_pergroup
+[rank5]:     log("pergroup:running round-trip check…")
+[rank5]:                 ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2774, in _unpack_pergroup
+[rank5]:     if q_method == 1:
+[rank5]:                      ^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2633, in _lrzip_decompress_bytes
+[rank5]:     if r.returncode != 0:
+[rank5]:         ^^^^^^^^^^^^^^^^^^
+[rank5]: RuntimeError: lrzip -d failed (exit 2): lrzip: invalid option -- 'k'
+[rank5]: lrzip version 0.651
+[rank5]: Copyright (C) Con Kolivas 2006-2022
+[rank5]: Based on rzip Copyright (C) Andrew Tridgell 1998-2003
+
+[rank5]: Usage: lrzip [options] <file...>
+[rank5]: General options:
+[rank5]: 	-c, -C, --check		check integrity of file written on decompression
+[rank5]: 	-d, --decompress	decompress
+[rank5]: 	-e, --encrypt[=password] password protected sha512/aes128 encryption on compression
+[rank5]: 	-h, -?, --help		show help
+[rank5]: 	-
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4139, in <module>
+[rank4]:     log(f"Running Python {sys.version}", console=False)
+[rank4]: ^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4133, in main
+[rank4]:     log("=" * 100, console=False)
+[rank4]: ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3977, in train_and_eval
+[rank4]:     device,
+[rank4]: ^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2992, in serialize
+[rank4]:     if h.compressor == "pergroup":
+[rank4]:                      ^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2728, in _pack_pergroup
+[rank4]:     log("pergroup:running round-trip check…")
+[rank4]:                 ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2774, in _unpack_pergroup
+[rank4]:     if q_method == 1:
+[rank4]:                      ^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2633, in _lrzip_decompress_bytes
+[rank4]:     if r.returncode != 0:
+[rank4]:         ^^^^^^^^^^^^^^^^^^
+[rank4]: RuntimeError: lrzip -d failed (exit 2): lrzip: invalid option -- 'k'
+[rank4]: lrzip version 0.651
+[rank4]: Copyright (C) Con Kolivas 2006-2022
+[rank4]: Based on rzip Copyright (C) Andrew Tridgell 1998-2003
+
+[rank4]: Usage: lrzip [options] <file...>
+[rank4]: General options:
+[rank4]: 	-c, -C, --check		check integrity of file written on decompression
+[rank4]: 	-d, --decompress	decompress
+[rank4]: 	-e, --encrypt[=password] password protected sha512/aes128 encryption on compression
+[rank4]: 	-h, -?, --help		show help
+[rank4]: 	-
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4139, in <module>
+[rank6]:     log(f"Running Python {sys.version}", console=False)
+[rank6]: ^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4133, in main
+[rank6]:     log("=" * 100, console=False)
+[rank6]: ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3977, in train_and_eval
+[rank6]:     device,
+[rank6]: ^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2992, in serialize
+[rank6]:     if h.compressor == "pergroup":
+[rank6]:                      ^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2728, in _pack_pergroup
+[rank6]:     log("pergroup:running round-trip check…")
+[rank6]:                 ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2774, in _unpack_pergroup
+[rank6]:     if q_method == 1:
+[rank6]:                      ^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2633, in _lrzip_decompress_bytes
+[rank6]:     if r.returncode != 0:
+[rank6]:         ^^^^^^^^^^^^^^^^^^
+[rank6]: RuntimeError: lrzip -d failed (exit 2): lrzip: invalid option -- 'k'
+[rank6]: lrzip version 0.651
+[rank6]: Copyright (C) Con Kolivas 2006-2022
+[rank6]: Based on rzip Copyright (C) Andrew Tridgell 1998-2003
+
+[rank6]: Usage: lrzip [options] <file...>
+[rank6]: General options:
+[rank6]: 	-c, -C, --check		check integrity of file written on decompression
+[rank6]: 	-d, --decompress	decompress
+[rank6]: 	-e, --encrypt[=password] password protected sha512/aes128 encryption on compression
+[rank6]: 	-h, -?, --help		show help
+[rank6]: 	-
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4139, in <module>
+[rank2]:     log(f"Running Python {sys.version}", console=False)
+[rank2]: ^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 4133, in main
+[rank2]:     log("=" * 100, console=False)
+[rank2]: ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 3977, in train_and_eval
+[rank2]:     device,
+[rank2]: ^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2992, in serialize
+[rank2]:     if h.compressor == "pergroup":
+[rank2]:                      ^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2728, in _pack_pergroup
+[rank2]:     log("pergroup:running round-trip check…")
+[rank2]:                 ^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2774, in _unpack_pergroup
+[rank2]:     if q_method == 1:
+[rank2]:                      ^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py", line 2633, in _lrzip_decompress_bytes
+[rank2]:     if r.returncode != 0:
+[rank2]:         ^^^^^^^^^^^^^^^^^^
+[rank2]: RuntimeError: lrzip -d failed (exit 2): lrzip: invalid option -- 'k'
+[rank2]: lrzip version 0.651
+[rank2]: Copyright (C) Con Kolivas 2006-2022
+[rank2]: Based on rzip Copyright (C) Andrew Tridgell 1998-2003
+
+[rank2]: Usage: lrzip [options] <file...>
+[rank2]: General options:
+[rank2]: 	-c, -C, --check		check integrity of file written on decompression
+[rank2]: 	-d, --decompress	decompress
+[rank2]: 	-e, --encrypt[=password] password protected sha512/aes128 encryption on compression
+[rank2]: 	-h, -?, --help		show help
+[rank2]: 	-
+W0430 09:40:08.178000 709260 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 709330 closing signal SIGTERM
+W0430 09:40:08.179000 709260 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 709331 closing signal SIGTERM
+W0430 09:40:08.180000 709260 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 709332 closing signal SIGTERM
+W0430 09:40:08.180000 709260 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 709334 closing signal SIGTERM
+W0430 09:40:08.181000 709260 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 709335 closing signal SIGTERM
+W0430 09:40:08.181000 709260 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 709336 closing signal SIGTERM
+W0430 09:40:08.181000 709260 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 709337 closing signal SIGTERM
+E0430 09:40:09.825000 709260 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 3 (pid: 709333) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-30_09:40:08
+  host      : fb06525129c4
+  rank      : 3 (local_rank: 3)
+  exitcode  : 1 (pid: 709333)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
