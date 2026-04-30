@@ -1,0 +1,61 @@
+{
+  "name": "Flower Brain v3: SmearGate + TTT + GPTQ — val_bpb 1.0877 (3-seed mean)",
+  "author": "G3sparky (Gavin Saunders)",
+  "github_id": "G3sparky",
+  "track": "10min_16mb",
+  "date": "2026-04-30",
+  "val_bpb": 1.0877,
+  "val_bpb_std": 0.0001,
+  "bytes_total": 15994050,
+  "category": "record_candidate",
+  "blurb": "Flower Brain v3: novel 6-cell architecture with SmearGate (learned bigram gate), QK-Gain 5.25, depth recurrence (layers 3-5 x2), GPTQ int6/int8 + Brotli-11 compression, score-first TTT (3-epoch SGD). 8xH100 SXM, 3-seed mean 1.0877 BPB (std 0.0001). Under 16MB.",
+  "hardware": "8x H100 80GB SXM",
+  "training_time_seconds": 588,
+  "params": 35945048,
+  "compression": "GPTQ int6 (matrices) + int8 (embeddings) + brotli-11",
+  "seeds": {
+    "42": {
+      "pre_quant_post_ema_bpb": 1.0949,
+      "quantized_bpb": 1.1057,
+      "sliding_window_bpb": 1.0892,
+      "ttt_bpb": 1.0876,
+      "artifact_bytes": 15994050,
+      "steps": 3720,
+      "eval_time_ms": 684689
+    },
+    "314": {
+      "pre_quant_post_ema_bpb": 1.0951,
+      "quantized_bpb": 1.1059,
+      "sliding_window_bpb": 1.0893,
+      "ttt_bpb": 1.0877,
+      "artifact_bytes": 15993082,
+      "steps": 3748,
+      "eval_time_ms": 663852
+    },
+    "999": {
+      "pre_quant_post_ema_bpb": 1.0963,
+      "quantized_bpb": 1.1063,
+      "sliding_window_bpb": 1.0897,
+      "ttt_bpb": 1.0877,
+      "artifact_bytes": 15994440,
+      "steps": 3741,
+      "eval_time_ms": 658495
+    }
+  },
+  "key_changes": [
+    "SmearGate: learned per-dimension blending with previous token embedding",
+    "QK-Gain 5.25 (from 5.0)",
+    "Score-first TTT: 3-epoch SGD per chunk, TTT_CHUNK_TOKENS=16384",
+    "GPTQ int6/int8 compression with LZMA bootstrap code",
+    "SDPA attention (PyTorch native)",
+    "Depth recurrence: layers 3-5 loop x2 (activated at 35%)",
+    "Flower Brain 6-cell architecture — novel, answers organizer wish list"
+  ],
+  "also_submitted": {
+    "unlimited_compute": {
+      "val_bpb": 1.0680,
+      "note": "Same architecture, 2hr training on 1xH100 + LoRA-TTT eval"
+    }
+  },
+  "base": "Flower Brain 6-Cell Architecture + SP8192 + Depth Recurrence + Parallel Residuals"
+}

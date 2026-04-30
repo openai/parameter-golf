@@ -1,0 +1,7 @@
+Running LoRA-TTT eval on EMA checkpoint...
+lora_ttt:injected 44 layers, 5,046,272 params
+lora_ttt:phase 1
+lora_ttt:phase 2
+lora_ttt:done 3846.7s phases=3
+lora_ttt_rerun val_loss:2.75886799 val_bpb:1.06804377 eval_time:3847238ms
+DONE
