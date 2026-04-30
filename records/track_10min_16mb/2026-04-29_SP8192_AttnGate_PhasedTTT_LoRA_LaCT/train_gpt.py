@@ -529,22 +529,25 @@ class BatchedLinearLoRA(nn.Module):
 
 class BatchedTTTLoRA(nn.Module):
     """Batched LoRA adapter container (PR #1727) — bsz document slots per layer."""
-    def __init__(self, bsz, h):
+    def __init__(self, bsz, base_model, rank, k_lora=True, mlp_lora=True, o_lora=True):
         super().__init__()
-        rank       = h.ttt_lora_rank
-        dim        = h.model_dim
-        n_layers   = h.num_layers
-        kv_dim     = h.num_kv_heads * (dim // h.num_heads)
-        mlp_hidden = int(h.mlp_mult * dim)
+        dim = base_model.tok_emb.embedding_dim
+        n_layers = len(base_model.blocks)
+        num_heads = base_model.blocks[0].attn.num_heads
+        num_kv_heads = base_model.blocks[0].attn.num_kv_heads
+        kv_dim = num_kv_heads * (dim // num_heads)
+        mlp_hidden = base_model.blocks[0].mlp.fc.weight.shape[0]
+        vocab_size = base_model.tok_emb.num_embeddings
+        self.bsz = bsz
         self.q_loras   = nn.ModuleList([BatchedLinearLoRA(bsz, dim, dim,         rank) for _ in range(n_layers)])
         self.v_loras   = nn.ModuleList([BatchedLinearLoRA(bsz, dim, kv_dim,      rank) for _ in range(n_layers)])
         self.k_loras   = (nn.ModuleList([BatchedLinearLoRA(bsz, dim, kv_dim,     rank) for _ in range(n_layers)])
-                          if h.ttt_k_lora else None)
+                          if k_lora else None)
         self.o_loras   = (nn.ModuleList([BatchedLinearLoRA(bsz, dim, dim,        rank) for _ in range(n_layers)])
-                          if h.ttt_o_lora else None)
+                          if o_lora else None)
         self.mlp_loras = (nn.ModuleList([BatchedLinearLoRA(bsz, dim, mlp_hidden, rank) for _ in range(n_layers)])
-                          if h.ttt_mlp_lora else None)
-        self.lm_head_lora = BatchedLinearLoRA(bsz, h.embedding_dim, h.vocab_size, rank)
+                          if mlp_lora else None)
+        self.lm_head_lora = BatchedLinearLoRA(bsz, dim, vocab_size, rank)
 
     def reset(self):
         for l in self.q_loras:  l.reset()
@@ -2635,8 +2638,6 @@ def main():
         for k, v in sorted(vars(type(h)).items()):
             if not k.startswith('_'):
                 log(f'  {k}: {v}', console=True)
-        log(f'latest_valid_record baseline_date:2026-04-09 ttt_bpb:1.0810 '
-            f'sliding_bpb:1.0827 artifact_bytes_mean:15992694')
         log('=' * 100, console=False)
         log(f'Running Python {sys.version}', console=False)
         log(f'Running PyTorch {torch.__version__}', console=False)
