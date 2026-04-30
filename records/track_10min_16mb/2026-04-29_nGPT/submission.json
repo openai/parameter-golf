@@ -1,0 +1,11 @@
+{
+  "author": "Benjamin Wang",
+  "github_id": "openai",
+  "name": "nGPT",
+  "blurb": "Normalized GPT architecture - columns of weight matricies are L2 normalized; standard residual attentions replaced with spherical interpolation to ensure hidden states too stay normalized in forward pass",
+  "date": "2026-04-29",
+  "val_loss":2.07902809,
+  "val_bpb":1.23131754,
+  "bytes_total": 15987141,
+  "bytes_code": 46436 
+}
