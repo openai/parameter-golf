@@ -75,6 +75,8 @@ class Hyperparameters:
     # final hidden state. Energy is a closed-form quadratic g(h) = 0.5||A h||^2 + b.h
     # so its gradient A^T A h + b is computed analytically (no autograd.grad needed),
     # which keeps torch.compile(fullgraph=True) and mx.compile happy.
+    # Paradigm from: Gladstone et al., "Energy-Based Transformers Are Scalable Learners
+    # and Thinkers", arXiv:2507.02092 (2025). https://arxiv.org/abs/2507.02092
     energy_rank = int(os.environ.get("ENERGY_RANK", 64))
     refine_steps_train = int(os.environ.get("REFINE_STEPS_TRAIN", 2))
     refine_steps_eval = int(os.environ.get("REFINE_STEPS_EVAL", 2))
@@ -736,12 +738,22 @@ class GPT(nn.Module):
         self.refine_steps_eval = refine_steps_eval
         self.aux_loss_weight = aux_loss_weight
         self.h0_noise_std = h0_noise_std
-        self.energy_head = EnergyHead(model_dim, energy_rank)
-        # One step size per potential refinement step. Stored in fp32 for stability.
-        max_steps = max(1, refine_steps_train, refine_steps_eval)
-        self.refine_eta = nn.Parameter(
-            torch.full((max_steps,), refine_eta_init, dtype=torch.float32)
-        )
+        # When EBT is fully off (K_train=K_eval=0 and aux=0) we skip creating the energy head
+        # and refine_eta parameters entirely. Keeping them around as unused params would force
+        # DDP into find_unused_parameters=True mode, which adds a ~10-15% per-step overhead on
+        # 8xH100 SXM5 — that overhead would unfairly penalize the baseline in our wallclock
+        # comparison.
+        self.ebt_enabled = (refine_steps_train > 0) or (refine_steps_eval > 0) or (aux_loss_weight > 0.0)
+        if self.ebt_enabled:
+            self.energy_head = EnergyHead(model_dim, energy_rank)
+            # One step size per potential refinement step. Stored in fp32 for stability.
+            max_steps = max(1, refine_steps_train, refine_steps_eval)
+            self.refine_eta = nn.Parameter(
+                torch.full((max_steps,), refine_eta_init, dtype=torch.float32)
+            )
+        else:
+            self.energy_head = None
+            self.refine_eta = None
         # Diagnostic buffer (overwritten each forward in training when used).
         self.register_buffer(
             "last_refine_relchange", torch.zeros((), dtype=torch.float32), persistent=False
@@ -766,6 +778,9 @@ class GPT(nn.Module):
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
     def _refine(self, h: Tensor, num_steps: int) -> Tensor:
+        if not self.ebt_enabled or num_steps <= 0:
+            return h
+        assert self.energy_head is not None and self.refine_eta is not None
         for k in range(num_steps):
             grad_h = self.energy_head.grad_h(h)
             h = h - self.refine_eta[k].to(h.dtype) * grad_h
@@ -937,7 +952,12 @@ def main() -> None:
             module.float()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+    # All parameters of base_model receive gradients in every step (the EBT head is omitted
+    # entirely when disabled), so the standard fast DDP path applies.
+    model: nn.Module = (
+        DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False)
+        if distributed else compiled_model
+    )
 
     # Optimizer split:
     # - token embedding (Adam) uses EMBED_LR
@@ -959,9 +979,11 @@ def main() -> None:
         scalar_params.append(base_model.skip_weights)
     # EBT energy module lives outside blocks; route its params to the same
     # Muon (matrix A) / Adam (vector b, per-step eta) groups used elsewhere.
-    matrix_params.append(base_model.energy_head.A.weight)
-    scalar_params.append(base_model.energy_head.b)
-    scalar_params.append(base_model.refine_eta)
+    if base_model.ebt_enabled:
+        assert base_model.energy_head is not None and base_model.refine_eta is not None
+        matrix_params.append(base_model.energy_head.A.weight)
+        scalar_params.append(base_model.energy_head.b)
+        scalar_params.append(base_model.refine_eta)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
@@ -1236,10 +1258,12 @@ def main() -> None:
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
-    # Emit a structured train_log.json so external tooling (pgolf.py
-    # validate-submission, ablation aggregators) can consume run results
-    # without parsing run.log.
-    if master_process:
+    # Build the canonical train_log.json before the optional K_eval ablation, so a crash in
+    # the ablation never loses the main result. The ablation block below appends to evals and
+    # re-writes the file on success.
+    def _emit_train_log(extra_evals: "dict | None" = None) -> None:
+        if not master_process:
+            return
         evals = {
             "quantized": {
                 "val_bpb": float(q_val_bpb),
@@ -1253,6 +1277,8 @@ def main() -> None:
                 "val_loss": float(last_val_loss) if last_val_loss is not None else None,
                 "eval_time_ms": float(last_val_eval_ms),
             }
+        if extra_evals:
+            evals.update(extra_evals)
         train_log = {
             "run_id": args.run_id,
             "seed": args.seed,
@@ -1277,6 +1303,68 @@ def main() -> None:
         with open("train_log.json", "w", encoding="utf-8") as f:
             json.dump(train_log, f, indent=2)
         log0(f"wrote train_log.json: total_bytes={train_log['total_bytes']} val_bpb={q_val_bpb:.6f}")
+
+    _emit_train_log()
+
+    # K_eval ablation: re-run validation on the quantized model with different numbers of
+    # refinement steps. Demonstrates the test-time-compute benefit (or lack thereof). Skipped
+    # if the EBT energy head is dead (e.g. EBT-disabled baselines with K_train=K_eval=0). Each
+    # value of K produces a distinct compiled graph (the for-loop in _refine unrolls), so we
+    # bump the dynamo recompile limit and fall back to eager on failure.
+    k_eval_ablation: dict[str, dict] = {}
+    if base_model.refine_steps_train > 0 or base_model.refine_steps_eval > 0:
+        k_eval_sweep_str = os.environ.get("K_EVAL_SWEEP", "0,1,2,4,8,16")
+        k_eval_sweep = sorted({max(0, int(k.strip())) for k in k_eval_sweep_str.split(",") if k.strip()})
+        original_k_eval = base_model.refine_steps_eval
+        # Make refine_eta long enough to handle the largest K we sweep over.
+        max_sweep_k = max(k_eval_sweep)
+        if max_sweep_k > base_model.refine_eta.numel():
+            extra = torch.full(
+                (max_sweep_k - base_model.refine_eta.numel(),),
+                base_model.refine_eta[-1].item(),
+                dtype=base_model.refine_eta.dtype,
+                device=base_model.refine_eta.device,
+            )
+            base_model.refine_eta = nn.Parameter(torch.cat([base_model.refine_eta.detach(), extra]))
+        # Bump dynamo recompile limit so we can compile a fresh graph for each K. Each k
+        # value produces a different unrolled refinement loop. 6 sweep values * train/eval
+        # variants leaves us a comfortable margin.
+        torch._dynamo.config.recompile_limit = max(
+            getattr(torch._dynamo.config, "recompile_limit", 8),
+            64,
+        )
+        # Run the ablation against the eager base_model directly to dodge dynamo entirely
+        # for this slow-path eval. The compiled `model` was traced for the trained K_eval;
+        # repeatedly recompiling it across K values blows the cache and is slower than
+        # just running eager bf16 forward passes.
+        ablation_model = base_model
+        for k in k_eval_sweep:
+            base_model.refine_steps_eval = k
+            try:
+                torch.cuda.synchronize()
+                t_kab = time.perf_counter()
+                kab_loss, kab_bpb = eval_val(
+                    args, ablation_model, rank, world_size, device, grad_accum_steps,
+                    val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                )
+                torch.cuda.synchronize()
+                kab_ms = 1000.0 * (time.perf_counter() - t_kab)
+            except Exception as e:  # noqa: BLE001
+                log0(f"k_eval_ablation k_eval:{k} FAILED: {type(e).__name__}: {e}")
+                continue
+            log0(
+                f"k_eval_ablation k_eval:{k} val_loss:{kab_loss:.4f} "
+                f"val_bpb:{kab_bpb:.6f} eval_time:{kab_ms:.0f}ms"
+            )
+            k_eval_ablation[str(k)] = {
+                "val_bpb": float(kab_bpb),
+                "val_loss": float(kab_loss),
+                "eval_time_ms": float(kab_ms),
+            }
+        base_model.refine_steps_eval = original_k_eval
+
+    if k_eval_ablation:
+        _emit_train_log({"k_eval_ablation": k_eval_ablation})
 
     if distributed:
         dist.destroy_process_group()
