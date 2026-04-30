@@ -1,0 +1,52 @@
+{
+  "author": "okezue",
+  "github_id": "okezue",
+  "name": "Pre-quantization TTT + Sliding Window on PR #1855 SOTA stack, val_bpb=1.01355",
+  "blurb": "PR #1855 SOTA stack with PR #1911 pre-quantization AdamW TTT (21 epochs, federated AVG across 8 GPUs, freeze first 2 blocks and token embedding) plus PR #1493 sliding-window stride-64 eval after GPTQ int6/int7 + LQER. Artifact uses lrzip per-group compression (PR #1586 line) to fit under 16,000,000 bytes.",
+  "date": "2026-04-29T03:14:43Z",
+  "track": "10min_16mb",
+  "val_bpb": 1.01355366,
+  "val_bpb_std": 0.00038074,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42":  {"val_bpb": 1.01397831, "val_loss": 2.21896040, "artifact_bytes": 15911549, "train_ms": 599654, "eval_ops_ms": 365878},
+    "314": {"val_bpb": 1.01340953, "val_loss": 2.21771569, "artifact_bytes": 15913072, "train_ms": 599584, "eval_ops_ms": 366030},
+    "999": {"val_bpb": 1.01325315, "val_loss": 2.21737348, "artifact_bytes": 15913599, "train_ms": 599588, "eval_ops_ms": 367711}
+  },
+  "diagnostics_per_seed": {
+    "42":  {"pre_quant_post_ema_bpb": 1.06482917, "post_prequant_ttt_bpb": 0.99997967, "quantized_bpb": 1.02382749},
+    "314": {"pre_quant_post_ema_bpb": 1.06446295, "post_prequant_ttt_bpb": 0.99866983, "quantized_bpb": 1.02271214},
+    "999": {"pre_quant_post_ema_bpb": 1.06394299, "post_prequant_ttt_bpb": 0.99868016, "quantized_bpb": 1.02250544}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu129",
+  "compressor": "pergroup_lrzip_L9",
+  "technique_summary": "PR #1855 SOTA (SP8192 CaseOps + 8L+9L looped + Polar Express NS Muon + SmearGate + SparseAttnGate + 9-hp greedy stack + GPTQ int6 + LQER + int7 embeddings) plus PR #1911 pre-quantization AdamW TTT (21 epochs, freeze blocks 0-1 and tok_emb, federated AVG every epoch, cosine 5e-4 to 5e-5) plus PR #1493 sliding-window stride-64 eval, with PR #1586 per-group lrzip serialization to fit under 16 MB decimal cap.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb_decimal": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "no_logit_bias": true,
+    "score_first_ttt_on_val": true,
+    "single_pass_eval": true,
+    "three_seeds": true,
+    "8xh100_sxm": true
+  },
+  "attribution": {
+    "sotastack_pr1855": "PR #1855 stack",
+    "sp8192_gptq_sdclip_muoneq_r": "@clarkkev (PR #1394)",
+    "depth_recurrence_loop_warmup": "@dexhunter (PR #1331, PR #1437)",
+    "legal_score_first_ttt": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "nine_hp_tuning": "@X-Abhishek-X (PR #1445, PR #1471)",
+    "polar_express_ns_muon": "PR #1344",
+    "sliding_window_eval_legality_framework": "PR #1493",
+    "pergroup_lrzip_compression": "PR #1586, PR #1667, PR #1729",
+    "prequant_adamw_ttt_recipe": "PR #1911",
+    "gptq": "Frantar et al. 2023",
+    "lqer_asymmetric_residual": "Yao et al. 2024"
+  }
+}
