@@ -1,0 +1,25 @@
+{
+  "author": "seekerPrice",
+  "github_id": "seekerPrice",
+  "name": "CUDA Port: Depth Recurrence + Parallel Residuals + Tuned Hyperparameters",
+  "date": "2026-04-14",
+  "track": "non_record_16mb",
+  "status": "code_ready_pending_h100",
+  "note": "PyTorch/CUDA port of PR #1612 recipe. All new features opt-in via env vars (RECUR_LAYERS, PARALLEL_RESIDUAL, MATRIX_LR, MUON_MOMENTUM, QK_GAIN_INIT). Backwards compatible with upstream baseline. Awaiting H100 compute credits to validate.",
+  "technique_summary": "Upstream train_gpt.py + depth recurrence + parallel residuals (L7+) + tuned hyperparameters (Muon 0.95, QK-Gain 4.0, Matrix LR 0.02). All opt-in.",
+  "related_prs": [
+    "https://github.com/openai/parameter-golf/pull/1612"
+  ],
+  "expected_h100_bpb": "~1.07 (reproducing PR #1612 recipe at 2.4B tokens)",
+  "compliance": {
+    "backwards_compatible": true,
+    "opt_in_features": true,
+    "upstream_behavior_preserved": "When no env vars set",
+    "h100_validated": false
+  },
+  "attribution": {
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "tuned_hparams": "@seekerPrice (PR #1612)"
+  }
+}
