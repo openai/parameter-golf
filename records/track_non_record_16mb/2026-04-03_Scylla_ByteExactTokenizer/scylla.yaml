@@ -1,0 +1,5017 @@
+charset: none
+normalization: "none"
+capcode: 0
+training-param: 385
+tokens:
+    - token:   "\t"
+      id:      0
+      score:   0.00013141787
+      encoded: true
+    - token:   "\n"
+      id:      1
+      score:   0.0008015269
+      encoded: true
+    - token:   "\r"
+      id:      2
+      score:   0.000038524096
+      encoded: true
+    - token:   " "
+      id:      3
+      score:   0.007197334
+      encoded: true
+    - token:   "!"
+      id:      4
+      score:   0.0003074416
+      encoded: true
+    - token:   "\""
+      id:      5
+      score:   0.001057256
+      encoded: true
+    - token:   "#"
+      id:      6
+      score:   0.00013161285
+      encoded: true
+    - token:   "$"
+      id:      7
+      score:   0.0012174192
+      encoded: true
+    - token:   "%"
+      id:      8
+      score:   0.00010283257
+      encoded: true
+    - token:   "&"
+      id:      9
+      score:   0.00010405868
+      encoded: true
+    - token:   "'"
+      id:      10
+      score:   0.0010875986
+      encoded: true
+    - token:   "("
+      id:      11
+      score:   0.0006964471
+      encoded: true
+    - token:   ")"
+      id:      12
+      score:   0.0015308462
+      encoded: true
+    - token:   "*"
+      id:      13
+      score:   0.00038925922
+      encoded: true
+    - token:   "+"
+      id:      14
+      score:   0.00027999992
+      encoded: true
+    - token:   ","
+      id:      15
+      score:   0.0053691524
+      encoded: true
+    - token:   "-"
+      id:      16
+      score:   0.0006116448
+      encoded: true
+    - token:   "."
+      id:      17
+      score:   0.001363334
+      encoded: true
+    - token:   "/"
+      id:      18
+      score:   0.0003152344
+      encoded: true
+    - token:   "0"
+      id:      19
+      score:   0.0012614051
+      encoded: true
+    - token:   "1"
+      id:      20
+      score:   0.0015998917
+      encoded: true
+    - token:   "2"
+      id:      21
+      score:   0.0015017248
+      encoded: true
+    - token:   "3"
+      id:      22
+      score:   0.0007825217
+      encoded: true
+    - token:   "4"
+      id:      23
+      score:   0.00065198
+      encoded: true
+    - token:   "5"
+      id:      24
+      score:   0.00066104886
+      encoded: true
+    - token:   "6"
+      id:      25
+      score:   0.000823528
+      encoded: true
+    - token:   "7"
+      id:      26
+      score:   0.0007523166
+      encoded: true
+    - token:   "8"
+      id:      27
+      score:   0.000848495
+      encoded: true
+    - token:   "9"
+      id:      28
+      score:   0.0007032088
+      encoded: true
+    - token:   ":"
+      id:      29
+      score:   0.00071381376
+      encoded: true
+    - token:   ";"
+      id:      30
+      score:   0.00054396555
+      encoded: true
+    - token:   "<"
+      id:      31
+      score:   0.00024459546
+      encoded: true
+    - token:   "="
+      id:      32
+      score:   0.0004618092
+      encoded: true
+    - token:   ">"
+      id:      33
+      score:   0.0002990576
+      encoded: true
+    - token:   "?"
+      id:      34
+      score:   0.0004792296
+      encoded: true
+    - token:   "@"
+      id:      35
+      score:   0.000052818617
+      encoded: true
+    - token:   "C"
+      id:      36
+      score:   0.007485788
+      encoded: true
+    - token:   "D"
+      id:      37
+      score:   0.028593445
+      encoded: true
+    - token:   "W"
+      id:      38
+      score:   0.0017079711
+      encoded: true
+    - token:   "["
+      id:      39
+      score:   0.00035483463
+      encoded: true
+    - token:   "\\"
+      id:      40
+      score:   0.00058980624
+      encoded: true
+    - token:   "]"
+      id:      41
+      score:   0.0003544634
+      encoded: true
+    - token:   "^"
+      id:      42
+      score:   0.00028936754
+      encoded: true
+    - token:   "_"
+      id:      43
+      score:   0.0005356378
+      encoded: true
+    - token:   "`"
+      id:      44
+      score:   0.00004252486
+      encoded: true
+    - token:   "a"
+      id:      45
+      score:   0.0020721734
+      encoded: true
+    - token:   "b"
+      id:      46
+      score:   0.0008045878
+      encoded: true
+    - token:   "c"
+      id:      47
+      score:   0.0012570882
+      encoded: true
+    - token:   "d"
+      id:      48
+      score:   0.0037623753
+      encoded: true
+    - token:   "e"
+      id:      49
+      score:   0.0038224894
+      encoded: true
+    - token:   "f"
+      id:      50
+      score:   0.0010107391
+      encoded: true
+    - token:   "g"
+      id:      51
+      score:   0.0017883164
+      encoded: true
+    - token:   "h"
+      id:      52
+      score:   0.0016975886
+      encoded: true
+    - token:   "i"
+      id:      53
+      score:   0.0019238838
+      encoded: true
+    - token:   "j"
+      id:      54
+      score:   0.0002300947
+      encoded: true
+    - token:   "k"
+      id:      55
+      score:   0.0015213062
+      encoded: true
+    - token:   "l"
+      id:      56
+      score:   0.0027265504
+      encoded: true
+    - token:   "m"
+      id:      57
+      score:   0.0025846201
+      encoded: true
+    - token:   "n"
+      id:      58
+      score:   0.0030824414
+      encoded: true
+    - token:   "o"
+      id:      59
+      score:   0.0015776494
+      encoded: true
+    - token:   "p"
+      id:      60
+      score:   0.0010434801
+      encoded: true
+    - token:   "q"
+      id:      61
+      score:   0.00049918593
+      encoded: true
+    - token:   "r"
+      id:      62
+      score:   0.0027725461
+      encoded: true
+    - token:   "s"
+      id:      63
+      score:   0.00457246
+      encoded: true
+    - token:   "t"
+      id:      64
+      score:   0.0035490287
+      encoded: true
+    - token:   "u"
+      id:      65
+      score:   0.0021992805
+      encoded: true
+    - token:   "v"
+      id:      66
+      score:   0.00041982802
+      encoded: true
+    - token:   "w"
+      id:      67
+      score:   0.0008699174
+      encoded: true
+    - token:   "x"
+      id:      68
+      score:   0.0009288578
+      encoded: true
+    - token:   "y"
+      id:      69
+      score:   0.0032611634
+      encoded: true
+    - token:   "z"
+      id:      70
+      score:   0.00067718816
+      encoded: true
+    - token:   "{"
+      id:      71
+      score:   0.0003998442
+      encoded: true
+    - token:   "|"
+      id:      72
+      score:   0.00034520705
+      encoded: true
+    - token:   "}"
+      id:      73
+      score:   0.0020155052
+      encoded: true
+    - token:   "~"
+      id:      74
+      score:   0.00013074545
+      encoded: true
+    - token:   "TokenMonsterHexEncode{80}"
+      id:      75
+      score:   0.0009713451
+      encoded: true
+    - token:   "TokenMonsterHexEncode{81}"
+      id:      76
+      score:   0.0004984685
+      encoded: true
+    - token:   "TokenMonsterHexEncode{82}"
+      id:      77
+      score:   0.0005802674
+      encoded: true
+    - token:   "TokenMonsterHexEncode{83}"
+      id:      78
+      score:   0.00028916757
+      encoded: true
+    - token:   "TokenMonsterHexEncode{84}"
+      id:      79
+      score:   0.0000711589
+      encoded: true
+    - token:   "TokenMonsterHexEncode{88}"
+      id:      80
+      score:   0.00007586958
+      encoded: true
+    - token:   "TokenMonsterHexEncode{8a}"
+      id:      81
+      score:   0.000050636383
+      encoded: true
+    - token:   "TokenMonsterHexEncode{93}"
+      id:      82
+      score:   0.00010741077
+      encoded: true
+    - token:   "TokenMonsterHexEncode{94}"
+      id:      83
+      score:   0.000020591262
+      encoded: true
+    - token:   "TokenMonsterHexEncode{98}"
+      id:      84
+      score:   0.000054245946
+      encoded: true
+    - token:   "TokenMonsterHexEncode{99}"
+      id:      85
+      score:   0.000009356369
+      encoded: true
+    - token:   "TokenMonsterHexEncode{9c}"
+      id:      86
+      score:   0.00012634849
+      encoded: true
+    - token:   "TokenMonsterHexEncode{9d}"
+      id:      87
+      score:   0.0000011273638
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a2}"
+      id:      88
+      score:   0.0000121560315
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a3}"
+      id:      89
+      score:   0.0000090826525
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a5}"
+      id:      90
+      score:   0.000006059268
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a6}"
+      id:      91
+      score:   0.000052987347
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a7}"
+      id:      92
+      score:   0.000031008753
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a9}"
+      id:      93
+      score:   0.0000050881354
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ac}"
+      id:      94
+      score:   0.0000068579216
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ae}"
+      id:      95
+      score:   0.0000060042744
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b0}"
+      id:      96
+      score:   0.00082780374
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c2}"
+      id:      97
+      score:   0.00020632507
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c3}"
+      id:      98
+      score:   0.000026846756
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c5}"
+      id:      99
+      score:   0.000045979443
+      encoded: true
+    - token:   "TokenMonsterHexEncode{cc}"
+      id:      100
+      score:   0.000583322
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e2}"
+      id:      101
+      score:   0.00036163756
+      encoded: true
+    - token:   "TokenMonsterHexEncode{00}"
+      id:      1024
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{01}"
+      id:      1025
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{02}"
+      id:      1026
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{03}"
+      id:      1027
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{04}"
+      id:      1028
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{05}"
+      id:      1029
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{06}"
+      id:      1030
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{07}"
+      id:      1031
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{08}"
+      id:      1032
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{09}"
+      id:      1033
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{0a}"
+      id:      1034
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{0b}"
+      id:      1035
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{0c}"
+      id:      1036
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{0d}"
+      id:      1037
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{0e}"
+      id:      1038
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{0f}"
+      id:      1039
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{10}"
+      id:      1040
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{11}"
+      id:      1041
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{12}"
+      id:      1042
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{13}"
+      id:      1043
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{14}"
+      id:      1044
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{15}"
+      id:      1045
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{16}"
+      id:      1046
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{17}"
+      id:      1047
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{18}"
+      id:      1048
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{19}"
+      id:      1049
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{1a}"
+      id:      1050
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{1b}"
+      id:      1051
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{1c}"
+      id:      1052
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{1d}"
+      id:      1053
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{1e}"
+      id:      1054
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{1f}"
+      id:      1055
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{20}"
+      id:      1056
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{21}"
+      id:      1057
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{22}"
+      id:      1058
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{23}"
+      id:      1059
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{24}"
+      id:      1060
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{25}"
+      id:      1061
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{26}"
+      id:      1062
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{27}"
+      id:      1063
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{28}"
+      id:      1064
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{29}"
+      id:      1065
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{2a}"
+      id:      1066
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{2b}"
+      id:      1067
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{2c}"
+      id:      1068
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{2d}"
+      id:      1069
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{2e}"
+      id:      1070
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{2f}"
+      id:      1071
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{30}"
+      id:      1072
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{31}"
+      id:      1073
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{32}"
+      id:      1074
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{33}"
+      id:      1075
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{34}"
+      id:      1076
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{35}"
+      id:      1077
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{36}"
+      id:      1078
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{37}"
+      id:      1079
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{38}"
+      id:      1080
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{39}"
+      id:      1081
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{3a}"
+      id:      1082
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{3b}"
+      id:      1083
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{3c}"
+      id:      1084
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{3d}"
+      id:      1085
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{3e}"
+      id:      1086
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{3f}"
+      id:      1087
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{40}"
+      id:      1088
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{41}"
+      id:      1089
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{42}"
+      id:      1090
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{43}"
+      id:      1091
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{44}"
+      id:      1092
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{45}"
+      id:      1093
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{46}"
+      id:      1094
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{47}"
+      id:      1095
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{48}"
+      id:      1096
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{49}"
+      id:      1097
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{4a}"
+      id:      1098
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{4b}"
+      id:      1099
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{4c}"
+      id:      1100
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{4d}"
+      id:      1101
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{4e}"
+      id:      1102
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{4f}"
+      id:      1103
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{50}"
+      id:      1104
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{51}"
+      id:      1105
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{52}"
+      id:      1106
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{53}"
+      id:      1107
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{54}"
+      id:      1108
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{55}"
+      id:      1109
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{56}"
+      id:      1110
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{57}"
+      id:      1111
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{58}"
+      id:      1112
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{59}"
+      id:      1113
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{5a}"
+      id:      1114
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{5b}"
+      id:      1115
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{5c}"
+      id:      1116
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{5d}"
+      id:      1117
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{5e}"
+      id:      1118
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{5f}"
+      id:      1119
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{60}"
+      id:      1120
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{61}"
+      id:      1121
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{62}"
+      id:      1122
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{63}"
+      id:      1123
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{64}"
+      id:      1124
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{65}"
+      id:      1125
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{66}"
+      id:      1126
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{67}"
+      id:      1127
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{68}"
+      id:      1128
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{69}"
+      id:      1129
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{6a}"
+      id:      1130
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{6b}"
+      id:      1131
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{6c}"
+      id:      1132
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{6d}"
+      id:      1133
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{6e}"
+      id:      1134
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{6f}"
+      id:      1135
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{70}"
+      id:      1136
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{71}"
+      id:      1137
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{72}"
+      id:      1138
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{73}"
+      id:      1139
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{74}"
+      id:      1140
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{75}"
+      id:      1141
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{76}"
+      id:      1142
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{77}"
+      id:      1143
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{78}"
+      id:      1144
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{79}"
+      id:      1145
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{7a}"
+      id:      1146
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{7b}"
+      id:      1147
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{7c}"
+      id:      1148
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{7d}"
+      id:      1149
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{7e}"
+      id:      1150
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{7f}"
+      id:      1151
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{85}"
+      id:      1152
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{86}"
+      id:      1153
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{87}"
+      id:      1154
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{89}"
+      id:      1155
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{8b}"
+      id:      1156
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{8c}"
+      id:      1157
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{8d}"
+      id:      1158
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{8e}"
+      id:      1159
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{8f}"
+      id:      1160
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{90}"
+      id:      1161
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{91}"
+      id:      1162
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{92}"
+      id:      1163
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{95}"
+      id:      1164
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{96}"
+      id:      1165
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{97}"
+      id:      1166
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{9a}"
+      id:      1167
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{9b}"
+      id:      1168
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{9e}"
+      id:      1169
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{9f}"
+      id:      1170
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a0}"
+      id:      1171
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a1}"
+      id:      1172
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a4}"
+      id:      1173
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{a8}"
+      id:      1174
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{aa}"
+      id:      1175
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ab}"
+      id:      1176
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ad}"
+      id:      1177
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{af}"
+      id:      1178
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b1}"
+      id:      1179
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b2}"
+      id:      1180
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b3}"
+      id:      1181
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b4}"
+      id:      1182
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b5}"
+      id:      1183
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b6}"
+      id:      1184
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b7}"
+      id:      1185
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b8}"
+      id:      1186
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{b9}"
+      id:      1187
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ba}"
+      id:      1188
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{bb}"
+      id:      1189
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{bc}"
+      id:      1190
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{bd}"
+      id:      1191
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{be}"
+      id:      1192
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{bf}"
+      id:      1193
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c0}"
+      id:      1194
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c1}"
+      id:      1195
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c4}"
+      id:      1196
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c6}"
+      id:      1197
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c7}"
+      id:      1198
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c8}"
+      id:      1199
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{c9}"
+      id:      1200
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ca}"
+      id:      1201
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{cb}"
+      id:      1202
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{cd}"
+      id:      1203
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ce}"
+      id:      1204
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{cf}"
+      id:      1205
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d0}"
+      id:      1206
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d1}"
+      id:      1207
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d2}"
+      id:      1208
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d3}"
+      id:      1209
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d4}"
+      id:      1210
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d5}"
+      id:      1211
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d6}"
+      id:      1212
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d7}"
+      id:      1213
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d8}"
+      id:      1214
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{d9}"
+      id:      1215
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{da}"
+      id:      1216
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{db}"
+      id:      1217
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{dc}"
+      id:      1218
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{dd}"
+      id:      1219
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{de}"
+      id:      1220
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{df}"
+      id:      1221
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e0}"
+      id:      1222
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e1}"
+      id:      1223
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e3}"
+      id:      1224
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e4}"
+      id:      1225
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e5}"
+      id:      1226
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e6}"
+      id:      1227
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e7}"
+      id:      1228
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e8}"
+      id:      1229
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{e9}"
+      id:      1230
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ea}"
+      id:      1231
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{eb}"
+      id:      1232
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ec}"
+      id:      1233
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ed}"
+      id:      1234
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ee}"
+      id:      1235
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ef}"
+      id:      1236
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f0}"
+      id:      1237
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f1}"
+      id:      1238
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f2}"
+      id:      1239
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f3}"
+      id:      1240
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f4}"
+      id:      1241
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f5}"
+      id:      1242
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f6}"
+      id:      1243
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f7}"
+      id:      1244
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f8}"
+      id:      1245
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{f9}"
+      id:      1246
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{fa}"
+      id:      1247
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{fb}"
+      id:      1248
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{fc}"
+      id:      1249
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{fd}"
+      id:      1250
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{fe}"
+      id:      1251
+      score:   0.00001
+      encoded: true
+    - token:   "TokenMonsterHexEncode{ff}"
+      id:      1252
+      score:   0.00001
+      encoded: true
+    - token:   "\n\n"
+      id:      102
+      score:   0.00078252546
+      encoded: true
+    - token:   "\nD"
+      id:      103
+      score:   0.0013211579
+      encoded: true
+    - token:   "\r\n"
+      id:      104
+      score:   0.0008990139
+      encoded: true
+    - token:   " \n"
+      id:      105
+      score:   0.00046209167
+      encoded: true
+    - token:   "  "
+      id:      106
+      score:   0.00089399196
+      encoded: true
+    - token:   " &"
+      id:      107
+      score:   0.00048224424
+      encoded: true
+    - token:   " -"
+      id:      108
+      score:   0.00041728708
+      encoded: true
+    - token:   " 0"
+      id:      109
+      score:   0.0008333668
+      encoded: true
+    - token:   " 1"
+      id:      110
+      score:   0.0015725725
+      encoded: true
+    - token:   " 2"
+      id:      111
+      score:   0.0014388736
+      encoded: true
+    - token:   " 3"
+      id:      112
+      score:   0.00073943066
+      encoded: true
+    - token:   " 4"
+      id:      113
+      score:   0.0005155002
+      encoded: true
+    - token:   " 5"
+      id:      114
+      score:   0.0004783672
+      encoded: true
+    - token:   " ="
+      id:      115
+      score:   0.0006306313
+      encoded: true
+    - token:   " a"
+      id:      116
+      score:   0.006266078
+      encoded: true
+    - token:   " b"
+      id:      117
+      score:   0.0012659333
+      encoded: true
+    - token:   " c"
+      id:      118
+      score:   0.0014951756
+      encoded: true
+    - token:   " d"
+      id:      119
+      score:   0.0010709319
+      encoded: true
+    - token:   " e"
+      id:      120
+      score:   0.0026054676
+      encoded: true
+    - token:   " f"
+      id:      121
+      score:   0.0016792909
+      encoded: true
+    - token:   " g"
+      id:      122
+      score:   0.001038667
+      encoded: true
+    - token:   " h"
+      id:      123
+      score:   0.0013728241
+      encoded: true
+    - token:   " i"
+      id:      124
+      score:   0.0011031968
+      encoded: true
+    - token:   " j"
+      id:      125
+      score:   0.00057232333
+      encoded: true
+    - token:   " k"
+      id:      126
+      score:   0.0009864846
+      encoded: true
+    - token:   " l"
+      id:      127
+      score:   0.000923101
+      encoded: true
+    - token:   " m"
+      id:      128
+      score:   0.0011599899
+      encoded: true
+    - token:   " n"
+      id:      129
+      score:   0.0011451567
+      encoded: true
+    - token:   " o"
+      id:      130
+      score:   0.00090046745
+      encoded: true
+    - token:   " p"
+      id:      131
+      score:   0.0016674185
+      encoded: true
+    - token:   " r"
+      id:      132
+      score:   0.0012623075
+      encoded: true
+    - token:   " s"
+      id:      133
+      score:   0.0037086557
+      encoded: true
+    - token:   " t"
+      id:      134
+      score:   0.0018592203
+      encoded: true
+    - token:   " u"
+      id:      135
+      score:   0.0006583092
+      encoded: true
+    - token:   " v"
+      id:      136
+      score:   0.0005252265
+      encoded: true
+    - token:   " w"
+      id:      137
+      score:   0.001244001
+      encoded: true
+    - token:   " x"
+      id:      138
+      score:   0.00060036493
+      encoded: true
+    - token:   " y"
+      id:      139
+      score:   0.00049771485
+      encoded: true
+    - token:   " z"
+      id:      140
+      score:   0.00042844823
+      encoded: true
+    - token:   "'s"
+      id:      141
+      score:   0.0010169371
+      encoded: true
+    - token:   "(D"
+      id:      142
+      score:   0.00094890787
+      encoded: true
+    - token:   ")\n"
+      id:      143
+      score:   0.00042519113
+      encoded: true
+    - token:   "),"
+      id:      144
+      score:   0.00039696204
+      encoded: true
+    - token:   ", "
+      id:      145
+      score:   0.00040713832
+      encoded: true
+    - token:   ",C"
+      id:      146
+      score:   0.0013552612
+      encoded: true
+    - token:   "-D"
+      id:      147
+      score:   0.0027070355
+      encoded: true
+    - token:   ".\n"
+      id:      148
+      score:   0.0004774373
+      encoded: true
+    - token:   ". "
+      id:      149
+      score:   0.00044826584
+      encoded: true
+    - token:   ".\""
+      id:      150
+      score:   0.0004985073
+      encoded: true
+    - token:   ".C"
+      id:      151
+      score:   0.005139004
+      encoded: true
+    - token:   ".D"
+      id:      152
+      score:   0.0019259473
+      encoded: true
+    - token:   "/D"
+      id:      153
+      score:   0.00090751034
+      encoded: true
+    - token:   "00"
+      id:      154
+      score:   0.0004502656
+      encoded: true
+    - token:   ":C"
+      id:      155
+      score:   0.00056634407
+      encoded: true
+    - token:   ":D"
+      id:      156
+      score:   0.00047709484
+      encoded: true
+    - token:   "DC"
+      id:      157
+      score:   0.004687159
+      encoded: true
+    - token:   "DW"
+      id:      158
+      score:   0.0018593303
+      encoded: true
+    - token:   "\\D"
+      id:      159
+      score:   0.002533644
+      encoded: true
+    - token:   "^{"
+      id:      160
+      score:   0.000455285
+      encoded: true
+    - token:   "_D"
+      id:      161
+      score:   0.0014664204
+      encoded: true
+    - token:   "_{"
+      id:      162
+      score:   0.0005436443
+      encoded: true
+    - token:   "ad"
+      id:      163
+      score:   0.00052677636
+      encoded: true
+    - token:   "al"
+      id:      164
+      score:   0.0024002525
+      encoded: true
+    - token:   "an"
+      id:      165
+      score:   0.00081657385
+      encoded: true
+    - token:   "ar"
+      id:      166
+      score:   0.0010051611
+      encoded: true
+    - token:   "as"
+      id:      167
+      score:   0.00070956425
+      encoded: true
+    - token:   "at"
+      id:      168
+      score:   0.0007888872
+      encoded: true
+    - token:   "be"
+      id:      169
+      score:   0.00045631736
+      encoded: true
+    - token:   "ce"
+      id:      170
+      score:   0.0017753755
+      encoded: true
+    - token:   "ch"
+      id:      171
+      score:   0.0009690004
+      encoded: true
+    - token:   "ci"
+      id:      172
+      score:   0.0010057335
+      encoded: true
+    - token:   "ck"
+      id:      173
+      score:   0.00091027253
+      encoded: true
+    - token:   "ct"
+      id:      174
+      score:   0.0011878714
+      encoded: true
+    - token:   "da"
+      id:      175
+      score:   0.0004675885
+      encoded: true
+    - token:   "de"
+      id:      176
+      score:   0.0010808519
+      encoded: true
+    - token:   "di"
+      id:      177
+      score:   0.0007515592
+      encoded: true
+    - token:   "do"
+      id:      178
+      score:   0.0005105933
+      encoded: true
+    - token:   "ds"
+      id:      179
+      score:   0.00042896066
+      encoded: true
+    - token:   "ed"
+      id:      180
+      score:   0.0032743444
+      encoded: true
+    - token:   "el"
+      id:      181
+      score:   0.00059642794
+      encoded: true
+    - token:   "em"
+      id:      182
+      score:   0.00071614597
+      encoded: true
+    - token:   "en"
+      id:      183
+      score:   0.0012142533
+      encoded: true
+    - token:   "er"
+      id:      184
+      score:   0.00289799
+      encoded: true
+    - token:   "es"
+      id:      185
+      score:   0.001949817
+      encoded: true
+    - token:   "et"
+      id:      186
+      score:   0.00091598183
+      encoded: true
+    - token:   "fe"
+      id:      187
+      score:   0.00069705077
+      encoded: true
+    - token:   "fi"
+      id:      188
+      score:   0.00038336866
+      encoded: true
+    - token:   "ga"
+      id:      189
+      score:   0.0007598707
+      encoded: true
+    - token:   "ge"
+      id:      190
+      score:   0.0013794309
+      encoded: true
+    - token:   "gi"
+      id:      191
+      score:   0.0005198197
+      encoded: true
+    - token:   "ia"
+      id:      192
+      score:   0.0008757892
+      encoded: true
+    - token:   "ic"
+      id:      193
+      score:   0.0012624975
+      encoded: true
+    - token:   "id"
+      id:      194
+      score:   0.00086670776
+      encoded: true
+    - token:   "ie"
+      id:      195
+      score:   0.0006562832
+      encoded: true
+    - token:   "il"
+      id:      196
+      score:   0.0011144779
+      encoded: true
+    - token:   "im"
+      id:      197
+      score:   0.00047375777
+      encoded: true
+    - token:   "in"
+      id:      198
+      score:   0.001361738
+      encoded: true
+    - token:   "ir"
+      id:      199
+      score:   0.0006609801
+      encoded: true
+    - token:   "is"
+      id:      200
+      score:   0.0010486183
+      encoded: true
+    - token:   "it"
+      id:      201
+      score:   0.0016037063
+      encoded: true
+    - token:   "ke"
+      id:      202
+      score:   0.0010998446
+      encoded: true
+    - token:   "la"
+      id:      203
+      score:   0.00079008704
+      encoded: true
+    - token:   "le"
+      id:      204
+      score:   0.0022260784
+      encoded: true
+    - token:   "li"
+      id:      205
+      score:   0.0014388661
+      encoded: true
+    - token:   "ll"
+      id:      206
+      score:   0.0015657909
+      encoded: true
+    - token:   "lo"
+      id:      207
+      score:   0.0006148482
+      encoded: true
+    - token:   "ly"
+      id:      208
+      score:   0.002136957
+      encoded: true
+    - token:   "ma"
+      id:      209
+      score:   0.00075604615
+      encoded: true
+    - token:   "me"
+      id:      210
+      score:   0.0010475634
+      encoded: true
+    - token:   "mi"
+      id:      211
+      score:   0.0005812073
+      encoded: true
+    - token:   "na"
+      id:      212
+      score:   0.0007871249
+      encoded: true
+    - token:   "ne"
+      id:      213
+      score:   0.001618202
+      encoded: true
+    - token:   "ng"
+      id:      214
+      score:   0.00151042
+      encoded: true
+    - token:   "ni"
+      id:      215
+      score:   0.001010443
+      encoded: true
+    - token:   "no"
+      id:      216
+      score:   0.00044059678
+      encoded: true
+    - token:   "ns"
+      id:      217
+      score:   0.00058212713
+      encoded: true
+    - token:   "nt"
+      id:      218
+      score:   0.0015777568
+      encoded: true
+    - token:   "od"
+      id:      219
+      score:   0.00044965817
+      encoded: true
+    - token:   "on"
+      id:      220
+      score:   0.001050898
+      encoded: true
+    - token:   "or"
+      id:      221
+      score:   0.001494112
+      encoded: true
+    - token:   "os"
+      id:      222
+      score:   0.00055152335
+      encoded: true
+    - token:   "ot"
+      id:      223
+      score:   0.0003723425
+      encoded: true
+    - token:   "pe"
+      id:      224
+      score:   0.0005471814
+      encoded: true
+    - token:   "pl"
+      id:      225
+      score:   0.00078414025
+      encoded: true
+    - token:   "ps"
+      id:      226
+      score:   0.00048156682
+      encoded: true
+    - token:   "pt"
+      id:      227
+      score:   0.00056080474
+      encoded: true
+    - token:   "ra"
+      id:      228
+      score:   0.00094464334
+      encoded: true
+    - token:   "re"
+      id:      229
+      score:   0.0012068867
+      encoded: true
+    - token:   "ri"
+      id:      230
+      score:   0.0013527916
+      encoded: true
+    - token:   "ro"
+      id:      231
+      score:   0.000720003
+      encoded: true
+    - token:   "rs"
+      id:      232
+      score:   0.0008069975
+      encoded: true
+    - token:   "rt"
+      id:      233
+      score:   0.0007433877
+      encoded: true
+    - token:   "ry"
+      id:      234
+      score:   0.0006185453
+      encoded: true
+    - token:   "s,"
+      id:      235
+      score:   0.0011799724
+      encoded: true
+    - token:   "sC"
+      id:      236
+      score:   0.00041718708
+      encoded: true
+    - token:   "se"
+      id:      237
+      score:   0.001245007
+      encoded: true
+    - token:   "si"
+      id:      238
+      score:   0.0011435093
+      encoded: true
+    - token:   "ss"
+      id:      239
+      score:   0.0005216345
+      encoded: true
+    - token:   "st"
+      id:      240
+      score:   0.0012011074
+      encoded: true
+    - token:   "ta"
+      id:      241
+      score:   0.0012901991
+      encoded: true
+    - token:   "te"
+      id:      242
+      score:   0.0018562757
+      encoded: true
+    - token:   "th"
+      id:      243
+      score:   0.001105104
+      encoded: true
+    - token:   "ti"
+      id:      244
+      score:   0.0016708156
+      encoded: true
+    - token:   "to"
+      id:      245
+      score:   0.0008828158
+      encoded: true
+    - token:   "ts"
+      id:      246
+      score:   0.0007001204
+      encoded: true
+    - token:   "ty"
+      id:      247
+      score:   0.0010381396
+      encoded: true
+    - token:   "ur"
+      id:      248
+      score:   0.0005263414
+      encoded: true
+    - token:   "us"
+      id:      249
+      score:   0.00070038287
+      encoded: true
+    - token:   "va"
+      id:      250
+      score:   0.0007763562
+      encoded: true
+    - token:   "ve"
+      id:      251
+      score:   0.0021488478
+      encoded: true
+    - token:   "vi"
+      id:      252
+      score:   0.0011324907
+      encoded: true
+    - token:   "we"
+      id:      253
+      score:   0.00055085594
+      encoded: true
+    - token:   "y,"
+      id:      254
+      score:   0.00048146182
+      encoded: true
+    - token:   "ze"
+      id:      255
+      score:   0.0006975557
+      encoded: true
+    - token:   "{D"
+      id:      256
+      score:   0.001059192
+      encoded: true
+    - token:   "}\n"
+      id:      257
+      score:   0.00068966165
+      encoded: true
+    - token:   "́"
+      id:      258
+      score:   0.0014257478
+      encoded: true
+    - token:   "̈"
+      id:      259
+      score:   0.0004767699
+      encoded: true
+    - token:   "\nDC"
+      id:      260
+      score:   0.001808519
+      encoded: true
+    - token:   " \"D"
+      id:      261
+      score:   0.0008925834
+      encoded: true
+    - token:   " $D"
+      id:      262
+      score:   0.00096650573
+      encoded: true
+    - token:   " (D"
+      id:      263
+      score:   0.0021951084
+      encoded: true
+    - token:   " 10"
+      id:      264
+      score:   0.0005152515
+      encoded: true
+    - token:   " 19"
+      id:      265
+      score:   0.0011207958
+      encoded: true
+    - token:   " \\D"
+      id:      266
+      score:   0.0020895926
+      encoded: true
+    - token:   " ac"
+      id:      267
+      score:   0.0019375221
+      encoded: true
+    - token:   " ad"
+      id:      268
+      score:   0.0010360298
+      encoded: true
+    - token:   " al"
+      id:      269
+      score:   0.0014115345
+      encoded: true
+    - token:   " an"
+      id:      270
+      score:   0.0024201288
+      encoded: true
+    - token:   " ap"
+      id:      271
+      score:   0.0011794037
+      encoded: true
+    - token:   " ar"
+      id:      272
+      score:   0.0008773977
+      encoded: true
+    - token:   " as"
+      id:      273
+      score:   0.0028505793
+      encoded: true
+    - token:   " at"
+      id:      274
+      score:   0.0022102355
+      encoded: true
+    - token:   " au"
+      id:      275
+      score:   0.0013841478
+      encoded: true
+    - token:   " ba"
+      id:      276
+      score:   0.0012040258
+      encoded: true
+    - token:   " be"
+      id:      277
+      score:   0.0028313366
+      encoded: true
+    - token:   " bi"
+      id:      278
+      score:   0.0013183395
+      encoded: true
+    - token:   " bl"
+      id:      279
+      score:   0.001021704
+      encoded: true
+    - token:   " bo"
+      id:      280
+      score:   0.0020730083
+      encoded: true
+    - token:   " br"
+      id:      281
+      score:   0.0006378467
+      encoded: true
+    - token:   " bu"
+      id:      282
+      score:   0.0009824076
+      encoded: true
+    - token:   " by"
+      id:      283
+      score:   0.0011728707
+      encoded: true
+    - token:   " ca"
+      id:      284
+      score:   0.001181731
+      encoded: true
+    - token:   " ch"
+      id:      285
+      score:   0.0004384083
+      encoded: true
+    - token:   " ci"
+      id:      286
+      score:   0.0006125035
+      encoded: true
+    - token:   " cl"
+      id:      287
+      score:   0.0012188514
+      encoded: true
+    - token:   " co"
+      id:      288
+      score:   0.0015006912
+      encoded: true
+    - token:   " cr"
+      id:      289
+      score:   0.0011426532
+      encoded: true
+    - token:   " cu"
+      id:      290
+      score:   0.0010571998
+      encoded: true
+    - token:   " da"
+      id:      291
+      score:   0.0009212362
+      encoded: true
+    - token:   " de"
+      id:      292
+      score:   0.0038594387
+      encoded: true
+    - token:   " di"
+      id:      293
+      score:   0.0010431452
+      encoded: true
+    - token:   " do"
+      id:      294
+      score:   0.0020214634
+      encoded: true
+    - token:   " dr"
+      id:      295
+      score:   0.0011202071
+      encoded: true
+    - token:   " du"
+      id:      296
+      score:   0.0012896467
+      encoded: true
+    - token:   " el"
+      id:      297
+      score:   0.0008811623
+      encoded: true
+    - token:   " en"
+      id:      298
+      score:   0.0015650609
+      encoded: true
+    - token:   " ex"
+      id:      299
+      score:   0.0019481109
+      encoded: true
+    - token:   " fa"
+      id:      300
+      score:   0.0013137987
+      encoded: true
+    - token:   " fe"
+      id:      301
+      score:   0.001039202
+      encoded: true
+    - token:   " fi"
+      id:      302
+      score:   0.0009859647
+      encoded: true
+    - token:   " fl"
+      id:      303
+      score:   0.00080466276
+      encoded: true
+    - token:   " fo"
+      id:      304
+      score:   0.0006879381
+      encoded: true
+    - token:   " fu"
+      id:      305
+      score:   0.0006389653
+      encoded: true
+    - token:   " ga"
+      id:      306
+      score:   0.0008872178
+      encoded: true
+    - token:   " ge"
+      id:      307
+      score:   0.0006780681
+      encoded: true
+    - token:   " go"
+      id:      308
+      score:   0.0014371838
+      encoded: true
+    - token:   " gr"
+      id:      309
+      score:   0.0006441109
+      encoded: true
+    - token:   " gu"
+      id:      310
+      score:   0.0010020015
+      encoded: true
+    - token:   " ha"
+      id:      311
+      score:   0.0017367427
+      encoded: true
+    - token:   " he"
+      id:      312
+      score:   0.003187346
+      encoded: true
+    - token:   " hi"
+      id:      313
+      score:   0.0016913881
+      encoded: true
+    - token:   " ho"
+      id:      314
+      score:   0.001858588
+      encoded: true
+    - token:   " hu"
+      id:      315
+      score:   0.00071177527
+      encoded: true
+    - token:   " if"
+      id:      316
+      score:   0.0018149494
+      encoded: true
+    - token:   " im"
+      id:      317
+      score:   0.0009323998
+      encoded: true
+    - token:   " in"
+      id:      318
+      score:   0.005973507
+      encoded: true
+    - token:   " is"
+      id:      319
+      score:   0.0031433539
+      encoded: true
+    - token:   " it"
+      id:      320
+      score:   0.0028954188
+      encoded: true
+    - token:   " ja"
+      id:      321
+      score:   0.00062714424
+      encoded: true
+    - token:   " je"
+      id:      322
+      score:   0.000508706
+      encoded: true
+    - token:   " jo"
+      id:      323
+      score:   0.00062846404
+      encoded: true
+    - token:   " ju"
+      id:      324
+      score:   0.00039947548
+      encoded: true
+    - token:   " ka"
+      id:      325
+      score:   0.00048182302
+      encoded: true
+    - token:   " ke"
+      id:      326
+      score:   0.00057855883
+      encoded: true
+    - token:   " ki"
+      id:      327
+      score:   0.00070227764
+      encoded: true
+    - token:   " la"
+      id:      328
+      score:   0.0016985373
+      encoded: true
+    - token:   " le"
+      id:      329
+      score:   0.0009635823
+      encoded: true
+    - token:   " li"
+      id:      330
+      score:   0.0009693091
+      encoded: true
+    - token:   " lo"
+      id:      331
+      score:   0.0009563732
+      encoded: true
+    - token:   " ma"
+      id:      332
+      score:   0.0012155919
+      encoded: true
+    - token:   " me"
+      id:      333
+      score:   0.00278284
+      encoded: true
+    - token:   " mi"
+      id:      334
+      score:   0.00060090737
+      encoded: true
+    - token:   " mo"
+      id:      335
+      score:   0.0018014936
+      encoded: true
+    - token:   " mu"
+      id:      336
+      score:   0.0010882235
+      encoded: true
+    - token:   " my"
+      id:      337
+      score:   0.0023243716
+      encoded: true
+    - token:   " na"
+      id:      338
+      score:   0.00077323033
+      encoded: true
+    - token:   " ne"
+      id:      339
+      score:   0.0009413388
+      encoded: true
+    - token:   " no"
+      id:      340
+      score:   0.0015383954
+      encoded: true
+    - token:   " ob"
+      id:      341
+      score:   0.00059813773
+      encoded: true
+    - token:   " oc"
+      id:      342
+      score:   0.0009650571
+      encoded: true
+    - token:   " of"
+      id:      343
+      score:   0.0057011223
+      encoded: true
+    - token:   " on"
+      id:      344
+      score:   0.0021183777
+      encoded: true
+    - token:   " op"
+      id:      345
+      score:   0.0015229923
+      encoded: true
+    - token:   " or"
+      id:      346
+      score:   0.0019562887
+      encoded: true
+    - token:   " pa"
+      id:      347
+      score:   0.0019320003
+      encoded: true
+    - token:   " pe"
+      id:      348
+      score:   0.00045780468
+      encoded: true
+    - token:   " pi"
+      id:      349
+      score:   0.0015383253
+      encoded: true
+    - token:   " po"
+      id:      350
+      score:   0.0018730499
+      encoded: true
+    - token:   " pr"
+      id:      351
+      score:   0.00094681187
+      encoded: true
+    - token:   " pu"
+      id:      352
+      score:   0.0011320832
+      encoded: true
+    - token:   " ra"
+      id:      353
+      score:   0.00082069833
+      encoded: true
+    - token:   " re"
+      id:      354
+      score:   0.0035003459
+      encoded: true
+    - token:   " ri"
+      id:      355
+      score:   0.00052243186
+      encoded: true
+    - token:   " ro"
+      id:      356
+      score:   0.0009178366
+      encoded: true
+    - token:   " sa"
+      id:      357
+      score:   0.0018553883
+      encoded: true
+    - token:   " sc"
+      id:      358
+      score:   0.0010001941
+      encoded: true
+    - token:   " se"
+      id:      359
+      score:   0.0014285037
+      encoded: true
+    - token:   " si"
+      id:      360
+      score:   0.0018422462
+      encoded: true
+    - token:   " so"
+      id:      361
+      score:   0.0022251362
+      encoded: true
+    - token:   " sp"
+      id:      362
+      score:   0.00049158186
+      encoded: true
+    - token:   " st"
+      id:      363
+      score:   0.000771353
+      encoded: true
+    - token:   " su"
+      id:      364
+      score:   0.0016310142
+      encoded: true
+    - token:   " ta"
+      id:      365
+      score:   0.00071746454
+      encoded: true
+    - token:   " te"
+      id:      366
+      score:   0.0006813114
+      encoded: true
+    - token:   " th"
+      id:      367
+      score:   0.00041812824
+      encoded: true
+    - token:   " ti"
+      id:      368
+      score:   0.00057158095
+      encoded: true
+    - token:   " to"
+      id:      369
+      score:   0.0071290773
+      encoded: true
+    - token:   " tr"
+      id:      370
+      score:   0.0011379725
+      encoded: true
+    - token:   " un"
+      id:      371
+      score:   0.002258117
+      encoded: true
+    - token:   " up"
+      id:      372
+      score:   0.0018288003
+      encoded: true
+    - token:   " us"
+      id:      373
+      score:   0.00045440384
+      encoded: true
+    - token:   " va"
+      id:      374
+      score:   0.0005466427
+      encoded: true
+    - token:   " vi"
+      id:      375
+      score:   0.00088185596
+      encoded: true
+    - token:   " vo"
+      id:      376
+      score:   0.0008893288
+      encoded: true
+    - token:   " wa"
+      id:      377
+      score:   0.001015646
+      encoded: true
+    - token:   " we"
+      id:      378
+      score:   0.0019703333
+      encoded: true
+    - token:   " wi"
+      id:      379
+      score:   0.00095794175
+      encoded: true
+    - token:   " wo"
+      id:      380
+      score:   0.0008933433
+      encoded: true
+    - token:   " ye"
+      id:      381
+      score:   0.00070191146
+      encoded: true
+    - token:   "\"DC"
+      id:      382
+      score:   0.00056577666
+      encoded: true
+    - token:   ");\n"
+      id:      383
+      score:   0.00040327126
+      encoded: true
+    - token:   "-DC"
+      id:      384
+      score:   0.00053701387
+      encoded: true
+    - token:   ".\n\n"
+      id:      385
+      score:   0.0006833474
+      encoded: true
+    - token:   ". C"
+      id:      386
+      score:   0.00045497753
+      encoded: true
+    - token:   "..."
+      id:      387
+      score:   0.00041529982
+      encoded: true
+    - token:   ".DC"
+      id:      388
+      score:   0.0003938374
+      encoded: true
+    - token:   ".DW"
+      id:      389
+      score:   0.00036365355
+      encoded: true
+    - token:   "W a"
+      id:      390
+      score:   0.0005539356
+      encoded: true
+    - token:   "W i"
+      id:      391
+      score:   0.0022962564
+      encoded: true
+    - token:   "age"
+      id:      392
+      score:   0.0008061401
+      encoded: true
+    - token:   "and"
+      id:      393
+      score:   0.0006684055
+      encoded: true
+    - token:   "ate"
+      id:      394
+      score:   0.00060603925
+      encoded: true
+    - token:   "ber"
+      id:      395
+      score:   0.00086170965
+      encoded: true
+    - token:   "ble"
+      id:      396
+      score:   0.00069608964
+      encoded: true
+    - token:   "cal"
+      id:      397
+      score:   0.0007933516
+      encoded: true
+    - token:   "ces"
+      id:      398
+      score:   0.00066499214
+      encoded: true
+    - token:   "che"
+      id:      399
+      score:   0.00045825337
+      encoded: true
+    - token:   "cul"
+      id:      400
+      score:   0.00039627837
+      encoded: true
+    - token:   "den"
+      id:      401
+      score:   0.000813083
+      encoded: true
+    - token:   "der"
+      id:      402
+      score:   0.00084451924
+      encoded: true
+    - token:   "end"
+      id:      403
+      score:   0.0007862825
+      encoded: true
+    - token:   "ent"
+      id:      404
+      score:   0.0014331018
+      encoded: true
+    - token:   "ers"
+      id:      405
+      score:   0.0005782551
+      encoded: true
+    - token:   "ful"
+      id:      406
+      score:   0.00052465283
+      encoded: true
+    - token:   "ger"
+      id:      407
+      score:   0.00045726725
+      encoded: true
+    - token:   "ght"
+      id:      408
+      score:   0.00072532735
+      encoded: true
+    - token:   "gin"
+      id:      409
+      score:   0.00060443446
+      encoded: true
+    - token:   "her"
+      id:      410
+      score:   0.00053714385
+      encoded: true
+    - token:   "ice"
+      id:      411
+      score:   0.00055666524
+      encoded: true
+    - token:   "ies"
+      id:      412
+      score:   0.0005430269
+      encoded: true
+    - token:   "ine"
+      id:      413
+      score:   0.0006433998
+      encoded: true
+    - token:   "ing"
+      id:      414
+      score:   0.0048727477
+      encoded: true
+    - token:   "ion"
+      id:      415
+      score:   0.0014249678
+      encoded: true
+    - token:   "ive"
+      id:      416
+      score:   0.0008152527
+      encoded: true
+    - token:   "led"
+      id:      417
+      score:   0.0003968133
+      encoded: true
+    - token:   "les"
+      id:      418
+      score:   0.00055796135
+      encoded: true
+    - token:   "lit"
+      id:      419
+      score:   0.00075099804
+      encoded: true
+    - token:   "log"
+      id:      420
+      score:   0.00051773497
+      encoded: true
+    - token:   "man"
+      id:      421
+      score:   0.000651585
+      encoded: true
+    - token:   "mer"
+      id:      422
+      score:   0.00053239317
+      encoded: true
+    - token:   "min"
+      id:      423
+      score:   0.00051381666
+      encoded: true
+    - token:   "n't"
+      id:      424
+      score:   0.0005895013
+      encoded: true
+    - token:   "nce"
+      id:      425
+      score:   0.0011541218
+      encoded: true
+    - token:   "ner"
+      id:      426
+      score:   0.000571041
+      encoded: true
+    - token:   "one"
+      id:      427
+      score:   0.00051154447
+      encoded: true
+    - token:   "ous"
+      id:      428
+      score:   0.00070243014
+      encoded: true
+    - token:   "per"
+      id:      429
+      score:   0.00046370897
+      encoded: true
+    - token:   "pos"
+      id:      430
+      score:   0.00050129445
+      encoded: true
+    - token:   "qua"
+      id:      431
+      score:   0.00056813384
+      encoded: true
+    - token:   "que"
+      id:      432
+      score:   0.00056799385
+      encoded: true
+    - token:   "red"
+      id:      433
+      score:   0.0005683151
+      encoded: true
+    - token:   "row"
+      id:      434
+      score:   0.00048487267
+      encoded: true
+    - token:   "s.C"
+      id:      435
+      score:   0.0009875944
+      encoded: true
+    - token:   "ted"
+      id:      436
+      score:   0.0009358369
+      encoded: true
+    - token:   "ten"
+      id:      437
+      score:   0.00079336663
+      encoded: true
+    - token:   "ter"
+      id:      438
+      score:   0.0016435202
+      encoded: true
+    - token:   "tur"
+      id:      439
+      score:   0.00053220947
+      encoded: true
+    - token:   "ver"
+      id:      440
+      score:   0.0006926563
+      encoded: true
+    - token:   "{DW"
+      id:      441
+      score:   0.000579395
+      encoded: true
+    - token:   "{\\D"
+      id:      442
+      score:   0.0007073145
+      encoded: true
+    - token:   "—"
+      id:      443
+      score:   0.00042503365
+      encoded: true
+    - token:   "’"
+      id:      444
+      score:   0.0007149261
+      encoded: true
+    - token:   "”"
+      id:      445
+      score:   0.00057837134
+      encoded: true
+    - token:   "\n\nDC"
+      id:      446
+      score:   0.0011285536
+      encoded: true
+    - token:   "\n   "
+      id:      447
+      score:   0.00063195865
+      encoded: true
+    - token:   " \nDC"
+      id:      448
+      score:   0.00039348745
+      encoded: true
+    - token:   " \"DC"
+      id:      449
+      score:   0.0007682622
+      encoded: true
+    - token:   " $DW"
+      id:      450
+      score:   0.00075365393
+      encoded: true
+    - token:   " $\\D"
+      id:      451
+      score:   0.0010218815
+      encoded: true
+    - token:   " (DC"
+      id:      452
+      score:   0.0006546109
+      encoded: true
+    - token:   " 200"
+      id:      453
+      score:   0.0005737257
+      encoded: true
+    - token:   " 201"
+      id:      454
+      score:   0.0008337743
+      encoded: true
+    - token:   " act"
+      id:      455
+      score:   0.0009207725
+      encoded: true
+    - token:   " all"
+      id:      456
+      score:   0.0025870623
+      encoded: true
+    - token:   " and"
+      id:      457
+      score:   0.008077019
+      encoded: true
+    - token:   " any"
+      id:      458
+      score:   0.0011494661
+      encoded: true
+    - token:   " app"
+      id:      459
+      score:   0.0011019219
+      encoded: true
+    - token:   " are"
+      id:      460
+      score:   0.0023922422
+      encoded: true
+    - token:   " art"
+      id:      461
+      score:   0.00074334396
+      encoded: true
+    - token:   " ass"
+      id:      462
+      score:   0.00062918273
+      encoded: true
+    - token:   " att"
+      id:      463
+      score:   0.0006824088
+      encoded: true
+    - token:   " bar"
+      id:      464
+      score:   0.00047316533
+      encoded: true
+    - token:   " bit"
+      id:      465
+      score:   0.000376467
+      encoded: true
+    - token:   " bri"
+      id:      466
+      score:   0.0005522608
+      encoded: true
+    - token:   " bro"
+      id:      467
+      score:   0.0005737519
+      encoded: true
+    - token:   " but"
+      id:      468
+      score:   0.0015343508
+      encoded: true
+    - token:   " can"
+      id:      469
+      score:   0.0014149315
+      encoded: true
+    - token:   " car"
+      id:      470
+      score:   0.0007970687
+      encoded: true
+    - token:   " cat"
+      id:      471
+      score:   0.0007596057
+      encoded: true
+    - token:   " cha"
+      id:      472
+      score:   0.0006694216
+      encoded: true
+    - token:   " che"
+      id:      473
+      score:   0.0004866312
+      encoded: true
+    - token:   " chi"
+      id:      474
+      score:   0.00091381336
+      encoded: true
+    - token:   " col"
+      id:      475
+      score:   0.0010740865
+      encoded: true
+    - token:   " com"
+      id:      476
+      score:   0.0015354557
+      encoded: true
+    - token:   " con"
+      id:      477
+      score:   0.002527887
+      encoded: true
+    - token:   " cor"
+      id:      478
+      score:   0.00093465834
+      encoded: true
+    - token:   " cou"
+      id:      479
+      score:   0.0004971349
+      encoded: true
+    - token:   " cre"
+      id:      480
+      score:   0.0007313516
+      encoded: true
+    - token:   " day"
+      id:      481
+      score:   0.0010264822
+      encoded: true
+    - token:   " deC"
+      id:      482
+      score:   0.00037868923
+      encoded: true
+    - token:   " del"
+      id:      483
+      score:   0.0006665932
+      encoded: true
+    - token:   " des"
+      id:      484
+      score:   0.0009685742
+      encoded: true
+    - token:   " dia"
+      id:      485
+      score:   0.0005298285
+      encoded: true
+    - token:   " did"
+      id:      486
+      score:   0.0005654529
+      encoded: true
+    - token:   " die"
+      id:      487
+      score:   0.0005658491
+      encoded: true
+    - token:   " dis"
+      id:      488
+      score:   0.0011528882
+      encoded: true
+    - token:   " don"
+      id:      489
+      score:   0.0005590737
+      encoded: true
+    - token:   " ear"
+      id:      490
+      score:   0.0012463157
+      encoded: true
+    - token:   " emp"
+      id:      491
+      score:   0.0006497452
+      encoded: true
+    - token:   " end"
+      id:      492
+      score:   0.00059490814
+      encoded: true
+    - token:   " est"
+      id:      493
+      score:   0.0012989643
+      encoded: true
+    - token:   " fil"
+      id:      494
+      score:   0.0004254061
+      encoded: true
+    - token:   " fin"
+      id:      495
+      score:   0.0010089306
+      encoded: true
+    - token:   " for"
+      id:      496
+      score:   0.0046402654
+      encoded: true
+    - token:   " get"
+      id:      497
+      score:   0.0011450254
+      encoded: true
+    - token:   " got"
+      id:      498
+      score:   0.00046200294
+      encoded: true
+    - token:   " gra"
+      id:      499
+      score:   0.0007790659
+      encoded: true
+    - token:   " gre"
+      id:      500
+      score:   0.00063136
+      encoded: true
+    - token:   " had"
+      id:      501
+      score:   0.0018068717
+      encoded: true
+    - token:   " has"
+      id:      502
+      score:   0.0010979123
+      encoded: true
+    - token:   " hea"
+      id:      503
+      score:   0.0006625862
+      encoded: true
+    - token:   " her"
+      id:      504
+      score:   0.0026923798
+      encoded: true
+    - token:   " him"
+      id:      505
+      score:   0.0015267917
+      encoded: true
+    - token:   " his"
+      id:      506
+      score:   0.0021953122
+      encoded: true
+    - token:   " how"
+      id:      507
+      score:   0.00093479455
+      encoded: true
+    - token:   " inC"
+      id:      508
+      score:   0.0010767999
+      encoded: true
+    - token:   " ind"
+      id:      509
+      score:   0.00063605316
+      encoded: true
+    - token:   " ins"
+      id:      510
+      score:   0.0006326923
+      encoded: true
+    - token:   " int"
+      id:      511
+      score:   0.00096427475
+      encoded: true
+    - token:   " its"
+      id:      512
+      score:   0.00085299695
+      encoded: true
+    - token:   " lat"
+      id:      513
+      score:   0.0010255973
+      encoded: true
+    - token:   " lea"
+      id:      514
+      score:   0.0013518642
+      encoded: true
+    - token:   " let"
+      id:      515
+      score:   0.00078014826
+      encoded: true
+    - token:   " los"
+      id:      516
+      score:   0.0004769111
+      encoded: true
+    - token:   " lot"
+      id:      517
+      score:   0.00040110902
+      encoded: true
+    - token:   " man"
+      id:      518
+      score:   0.00070705335
+      encoded: true
+    - token:   " mar"
+      id:      519
+      score:   0.0011794987
+      encoded: true
+    - token:   " mat"
+      id:      520
+      score:   0.0016421754
+      encoded: true
+    - token:   " may"
+      id:      521
+      score:   0.00064170244
+      encoded: true
+    - token:   " men"
+      id:      522
+      score:   0.0007563099
+      encoded: true
+    - token:   " mil"
+      id:      523
+      score:   0.000685156
+      encoded: true
+    - token:   " min"
+      id:      524
+      score:   0.00073458126
+      encoded: true
+    - token:   " mis"
+      id:      525
+      score:   0.0006156419
+      encoded: true
+    - token:   " mon"
+      id:      526
+      score:   0.0009535048
+      encoded: true
+    - token:   " mor"
+      id:      527
+      score:   0.0004708406
+      encoded: true
+    - token:   " new"
+      id:      528
+      score:   0.00085050974
+      encoded: true
+    - token:   " nor"
+      id:      529
+      score:   0.00059862767
+      encoded: true
+    - token:   " not"
+      id:      530
+      score:   0.003025562
+      encoded: true
+    - token:   " now"
+      id:      531
+      score:   0.00083594775
+      encoded: true
+    - token:   " ofC"
+      id:      532
+      score:   0.0014716535
+      encoded: true
+    - token:   " off"
+      id:      533
+      score:   0.000978848
+      encoded: true
+    - token:   " old"
+      id:      534
+      score:   0.0010079845
+      encoded: true
+    - token:   " onC"
+      id:      535
+      score:   0.00037580458
+      encoded: true
+    - token:   " one"
+      id:      536
+      score:   0.0013271347
+      encoded: true
+    - token:   " our"
+      id:      537
+      score:   0.0018308326
+      encoded: true
+    - token:   " out"
+      id:      538
+      score:   0.0021142382
+      encoded: true
+    - token:   " own"
+      id:      539
+      score:   0.000653656
+      encoded: true
+    - token:   " par"
+      id:      540
+      score:   0.0011421557
+      encoded: true
+    - token:   " per"
+      id:      541
+      score:   0.0011076862
+      encoded: true
+    - token:   " por"
+      id:      542
+      score:   0.00083040964
+      encoded: true
+    - token:   " pre"
+      id:      543
+      score:   0.0012868333
+      encoded: true
+    - token:   " pri"
+      id:      544
+      score:   0.0010264785
+      encoded: true
+    - token:   " pro"
+      id:      545
+      score:   0.0019220102
+      encoded: true
+    - token:   " que"
+      id:      546
+      score:   0.00040825567
+      encoded: true
+    - token:   " qui"
+      id:      547
+      score:   0.0007023639
+      encoded: true
+    - token:   " ran"
+      id:      548
+      score:   0.000981094
+      encoded: true
+    - token:   " rea"
+      id:      549
+      score:   0.0010713618
+      encoded: true
+    - token:   " rec"
+      id:      550
+      score:   0.0005920197
+      encoded: true
+    - token:   " ref"
+      id:      551
+      score:   0.00076947705
+      encoded: true
+    - token:   " rel"
+      id:      552
+      score:   0.0006326098
+      encoded: true
+    - token:   " res"
+      id:      553
+      score:   0.0014506059
+      encoded: true
+    - token:   " say"
+      id:      554
+      score:   0.0006427361
+      encoded: true
+    - token:   " see"
+      id:      555
+      score:   0.001361213
+      encoded: true
+    - token:   " sen"
+      id:      556
+      score:   0.000800657
+      encoded: true
+    - token:   " ser"
+      id:      557
+      score:   0.0005274138
+      encoded: true
+    - token:   " set"
+      id:      558
+      score:   0.00089479313
+      encoded: true
+    - token:   " sha"
+      id:      559
+      score:   0.00058965874
+      encoded: true
+    - token:   " she"
+      id:      560
+      score:   0.0020596862
+      encoded: true
+    - token:   " sho"
+      id:      561
+      score:   0.0005309309
+      encoded: true
+    - token:   " sol"
+      id:      562
+      score:   0.00062680425
+      encoded: true
+    - token:   " son"
+      id:      563
+      score:   0.0007682022
+      encoded: true
+    - token:   " spe"
+      id:      564
+      score:   0.0009776794
+      encoded: true
+    - token:   " sta"
+      id:      565
+      score:   0.0018653896
+      encoded: true
+    - token:   " ste"
+      id:      566
+      score:   0.0010771373
+      encoded: true
+    - token:   " sto"
+      id:      567
+      score:   0.0006122073
+      encoded: true
+    - token:   " str"
+      id:      568
+      score:   0.000978458
+      encoded: true
+    - token:   " stu"
+      id:      569
+      score:   0.0006746422
+      encoded: true
+    - token:   " sub"
+      id:      570
+      score:   0.00064356474
+      encoded: true
+    - token:   " sur"
+      id:      571
+      score:   0.00093857537
+      encoded: true
+    - token:   " the"
+      id:      572
+      score:   0.009723907
+      encoded: true
+    - token:   " toC"
+      id:      573
+      score:   0.0004969849
+      encoded: true
+    - token:   " too"
+      id:      574
+      score:   0.0006751609
+      encoded: true
+    - token:   " tra"
+      id:      575
+      score:   0.0011443904
+      encoded: true
+    - token:   " tri"
+      id:      576
+      score:   0.0011218594
+      encoded: true
+    - token:   " tru"
+      id:      577
+      score:   0.0006650559
+      encoded: true
+    - token:   " two"
+      id:      578
+      score:   0.0006794566
+      encoded: true
+    - token:   " und"
+      id:      579
+      score:   0.0008266889
+      encoded: true
+    - token:   " uni"
+      id:      580
+      score:   0.00092712673
+      encoded: true
+    - token:   " use"
+      id:      581
+      score:   0.0010751263
+      encoded: true
+    - token:   " ver"
+      id:      582
+      score:   0.00045457383
+      encoded: true
+    - token:   " war"
+      id:      583
+      score:   0.0005012007
+      encoded: true
+    - token:   " was"
+      id:      584
+      score:   0.0025190194
+      encoded: true
+    - token:   " way"
+      id:      585
+      score:   0.0008233455
+      encoded: true
+    - token:   " who"
+      id:      586
+      score:   0.0012285266
+      encoded: true
+    - token:   " win"
+      id:      587
+      score:   0.0006272192
+      encoded: true
+    - token:   " you"
+      id:      588
+      score:   0.0033706327
+      encoded: true
+    - token:   " –"
+      id:      589
+      score:   0.0003765745
+      encoded: true
+    - token:   ", we"
+      id:      590
+      score:   0.0003921776
+      encoded: true
+    - token:   ",W i"
+      id:      591
+      score:   0.0005752305
+      encoded: true
+    - token:   "-D 1"
+      id:      592
+      score:   0.0004626441
+      encoded: true
+    - token:   ".\nDC"
+      id:      593
+      score:   0.00260768
+      encoded: true
+    - token:   ".W i"
+      id:      594
+      score:   0.0012185727
+      encoded: true
+    - token:   "DW a"
+      id:      595
+      score:   0.0006233597
+      encoded: true
+    - token:   "DW i"
+      id:      596
+      score:   0.00061953015
+      encoded: true
+    - token:   "_D 1"
+      id:      597
+      score:   0.00040161647
+      encoded: true
+    - token:   "_{\\D"
+      id:      598
+      score:   0.00040760075
+      encoded: true
+    - token:   "able"
+      id:      599
+      score:   0.0007541189
+      encoded: true
+    - token:   "ally"
+      id:      600
+      score:   0.0010690333
+      encoded: true
+    - token:   "ance"
+      id:      601
+      score:   0.0004321228
+      encoded: true
+    - token:   "ated"
+      id:      602
+      score:   0.00047216794
+      encoded: true
+    - token:   "ding"
+      id:      603
+      score:   0.00077442895
+      encoded: true
+    - token:   "form"
+      id:      604
+      score:   0.0005000246
+      encoded: true
+    - token:   "ions"
+      id:      605
+      score:   0.00049871224
+      encoded: true
+    - token:   "king"
+      id:      606
+      score:   0.00096608076
+      encoded: true
+    - token:   "less"
+      id:      607
+      score:   0.00047569003
+      encoded: true
+    - token:   "line"
+      id:      608
+      score:   0.0004413392
+      encoded: true
+    - token:   "ment"
+      id:      609
+      score:   0.0019395107
+      encoded: true
+    - token:   "ness"
+      id:      610
+      score:   0.00042104162
+      encoded: true
+    - token:   "ning"
+      id:      611
+      score:   0.00075279654
+      encoded: true
+    - token:   "ring"
+      id:      612
+      score:   0.0006531511
+      encoded: true
+    - token:   "s in"
+      id:      613
+      score:   0.00049201056
+      encoded: true
+    - token:   "s of"
+      id:      614
+      score:   0.0009960596
+      encoded: true
+    - token:   "s to"
+      id:      615
+      score:   0.0006502239
+      encoded: true
+    - token:   "self"
+      id:      616
+      score:   0.0007664149
+      encoded: true
+    - token:   "sion"
+      id:      617
+      score:   0.00092563813
+      encoded: true
+    - token:   "ster"
+      id:      618
+      score:   0.00051277556
+      encoded: true
+    - token:   "ther"
+      id:      619
+      score:   0.0009201563
+      encoded: true
+    - token:   "ting"
+      id:      620
+      score:   0.0012391902
+      encoded: true
+    - token:   "tion"
+      id:      621
+      score:   0.0021590616
+      encoded: true
+    - token:   "ture"
+      id:      622
+      score:   0.0010081332
+      encoded: true
+    - token:   "ving"
+      id:      623
+      score:   0.00056852883
+      encoded: true
+    - token:   "ward"
+      id:      624
+      score:   0.00053915486
+      encoded: true
+    - token:   "’s"
+      id:      625
+      score:   0.0009328073
+      encoded: true
+    - token:   "\n    "
+      id:      626
+      score:   0.00039349622
+      encoded: true
+    - token:   "     "
+      id:      627
+      score:   0.00043501618
+      encoded: true
+    - token:   " acti"
+      id:      628
+      score:   0.00051671633
+      encoded: true
+    - token:   " also"
+      id:      629
+      score:   0.0009973182
+      encoded: true
+    - token:   " andC"
+      id:      630
+      score:   0.0010574722
+      encoded: true
+    - token:   " as a"
+      id:      631
+      score:   0.00054804
+      encoded: true
+    - token:   " away"
+      id:      632
+      score:   0.00037683072
+      encoded: true
+    - token:   " back"
+      id:      633
+      score:   0.0010718092
+      encoded: true
+    - token:   " base"
+      id:      634
+      score:   0.0004341988
+      encoded: true
+    - token:   " been"
+      id:      635
+      score:   0.00051496655
+      encoded: true
+    - token:   " best"
+      id:      636
+      score:   0.00039226635
+      encoded: true
+    - token:   " book"
+      id:      637
+      score:   0.00038570963
+      encoded: true
+    - token:   " call"
+      id:      638
+      score:   0.0008425332
+      encoded: true
+    - token:   " came"
+      id:      639
+      score:   0.00051043835
+      encoded: true
+    - token:   " care"
+      id:      640
+      score:   0.00040286258
+      encoded: true
+    - token:   " case"
+      id:      641
+      score:   0.0004792646
+      encoded: true
+    - token:   " cent"
+      id:      642
+      score:   0.00092637306
+      encoded: true
+    - token:   " char"
+      id:      643
+      score:   0.0006127322
+      encoded: true
+    - token:   " come"
+      id:      644
+      score:   0.0008759104
+      encoded: true
+    - token:   " comm"
+      id:      645
+      score:   0.0007724554
+      encoded: true
+    - token:   " comp"
+      id:      646
+      score:   0.00089737907
+      encoded: true
+    - token:   " cons"
+      id:      647
+      score:   0.0005668753
+      encoded: true
+    - token:   " cont"
+      id:      648
+      score:   0.0010846627
+      encoded: true
+    - token:   " data"
+      id:      649
+      score:   0.0006505439
+      encoded: true
+    - token:   " date"
+      id:      650
+      score:   0.00047583875
+      encoded: true
+    - token:   " down"
+      id:      651
+      score:   0.0007421628
+      encoded: true
+    - token:   " each"
+      id:      652
+      score:   0.0006623662
+      encoded: true
+    - token:   " even"
+      id:      653
+      score:   0.0008921197
+      encoded: true
+    - token:   " ever"
+      id:      654
+      score:   0.00076704484
+      encoded: true
+    - token:   " face"
+      id:      655
+      score:   0.0005136904
+      encoded: true
+    - token:   " fact"
+      id:      656
+      score:   0.000442809
+      encoded: true
+    - token:   " feel"
+      id:      657
+      score:   0.0006576793
+      encoded: true
+    - token:   " file"
+      id:      658
+      score:   0.0004320828
+      encoded: true
+    - token:   " find"
+      id:      659
+      score:   0.00052258937
+      encoded: true
+    - token:   " forC"
+      id:      660
+      score:   0.00037617705
+      encoded: true
+    - token:   " form"
+      id:      661
+      score:   0.00054117833
+      encoded: true
+    - token:   " from"
+      id:      662
+      score:   0.0017474688
+      encoded: true
+    - token:   " girl"
+      id:      663
+      score:   0.00044769715
+      encoded: true
+    - token:   " give"
+      id:      664
+      score:   0.0006410563
+      encoded: true
+    - token:   " good"
+      id:      665
+      score:   0.0006494378
+      encoded: true
+    - token:   " hand"
+      id:      666
+      score:   0.0007121202
+      encoded: true
+    - token:   " have"
+      id:      667
+      score:   0.0018371368
+      encoded: true
+    - token:   " head"
+      id:      668
+      score:   0.0005221282
+      encoded: true
+    - token:   " help"
+      id:      669
+      score:   0.00056910375
+      encoded: true
+    - token:   " here"
+      id:      670
+      score:   0.00086209836
+      encoded: true
+    - token:   " high"
+      id:      671
+      score:   0.0005981127
+      encoded: true
+    - token:   " home"
+      id:      672
+      score:   0.00051694503
+      encoded: true
+    - token:   " in a"
+      id:      673
+      score:   0.00082614395
+      encoded: true
+    - token:   " inde"
+      id:      674
+      score:   0.00043605105
+      encoded: true
+    - token:   " into"
+      id:      675
+      score:   0.00076947577
+      encoded: true
+    - token:   " is a"
+      id:      676
+      score:   0.000585748
+      encoded: true
+    - token:   " it's"
+      id:      677
+      score:   0.0005579826
+      encoded: true
+    - token:   " just"
+      id:      678
+      score:   0.0013942166
+      encoded: true
+    - token:   " know"
+      id:      679
+      score:   0.0013866324
+      encoded: true
+    - token:   " land"
+      id:      680
+      score:   0.0006068442
+      encoded: true
+    - token:   " last"
+      id:      681
+      score:   0.0005560178
+      encoded: true
+    - token:   " left"
+      id:      682
+      score:   0.00066956785
+      encoded: true
+    - token:   " life"
+      id:      683
+      score:   0.0005821197
+      encoded: true
+    - token:   " like"
+      id:      684
+      score:   0.0016996446
+      encoded: true
+    - token:   " line"
+      id:      685
+      score:   0.00048422275
+      encoded: true
+    - token:   " list"
+      id:      686
+      score:   0.00050646503
+      encoded: true
+    - token:   " live"
+      id:      687
+      score:   0.0004892196
+      encoded: true
+    - token:   " long"
+      id:      688
+      score:   0.00089456816
+      encoded: true
+    - token:   " look"
+      id:      689
+      score:   0.00093189866
+      encoded: true
+    - token:   " love"
+      id:      690
+      score:   0.00056237204
+      encoded: true
+    - token:   " made"
+      id:      691
+      score:   0.0005590287
+      encoded: true
+    - token:   " main"
+      id:      692
+      score:   0.0004143437
+      encoded: true
+    - token:   " make"
+      id:      693
+      score:   0.00088190846
+      encoded: true
+    - token:   " many"
+      id:      694
+      score:   0.0005273663
+      encoded: true
+    - token:   " mean"
+      id:      695
+      score:   0.00050866103
+      encoded: true
+    - token:   " more"
+      id:      696
+      score:   0.0012576231
+      encoded: true
+    - token:   " most"
+      id:      697
+      score:   0.00083804876
+      encoded: true
+    - token:   " move"
+      id:      698
+      score:   0.0004600569
+      encoded: true
+    - token:   " much"
+      id:      699
+      score:   0.00060794153
+      encoded: true
+    - token:   " name"
+      id:      700
+      score:   0.0007707881
+      encoded: true
+    - token:   " need"
+      id:      701
+      score:   0.00050514896
+      encoded: true
+    - token:   " newC"
+      id:      702
+      score:   0.0003658958
+      encoded: true
+    - token:   " of a"
+      id:      703
+      score:   0.0007206929
+      encoded: true
+    - token:   " only"
+      id:      704
+      score:   0.0009440634
+      encoded: true
+    - token:   " open"
+      id:      705
+      score:   0.0004503356
+      encoded: true
+    - token:   " over"
+      id:      706
+      score:   0.0016321053
+      encoded: true
+    - token:   " part"
+      id:      707
+      score:   0.0008756442
+      encoded: true
+    - token:   " pass"
+      id:      708
+      score:   0.00043888696
+      encoded: true
+    - token:   " plan"
+      id:      709
+      score:   0.0005017356
+      encoded: true
+    - token:   " play"
+      id:      710
+      score:   0.0005898387
+      encoded: true
+    - token:   " read"
+      id:      711
+      score:   0.0008221669
+      encoded: true
+    - token:   " room"
+      id:      712
+      score:   0.00045697103
+      encoded: true
+    - token:   " said"
+      id:      713
+      score:   0.0012277392
+      encoded: true
+    - token:   " serv"
+      id:      714
+      score:   0.0006246958
+      encoded: true
+    - token:   " show"
+      id:      715
+      score:   0.0006262743
+      encoded: true
+    - token:   " side"
+      id:      716
+      score:   0.0007782097
+      encoded: true
+    - token:   " sign"
+      id:      717
+      score:   0.0006398839
+      encoded: true
+    - token:   " some"
+      id:      718
+      score:   0.001657521
+      encoded: true
+    - token:   " stor"
+      id:      719
+      score:   0.0007768686
+      encoded: true
+    - token:   " stra"
+      id:      720
+      score:   0.0005395036
+      encoded: true
+    - token:   " such"
+      id:      721
+      score:   0.00061137363
+      encoded: true
+    - token:   " take"
+      id:      722
+      score:   0.0007730516
+      encoded: true
+    - token:   " talk"
+      id:      723
+      score:   0.00045435262
+      encoded: true
+    - token:   " tell"
+      id:      724
+      score:   0.0005234305
+      encoded: true
+    - token:   " term"
+      id:      725
+      score:   0.00044434756
+      encoded: true
+    - token:   " text"
+      id:      726
+      score:   0.0007445413
+      encoded: true
+    - token:   " than"
+      id:      727
+      score:   0.0008741056
+      encoded: true
+    - token:   " that"
+      id:      728
+      score:   0.0058026966
+      encoded: true
+    - token:   " theC"
+      id:      729
+      score:   0.0014576139
+      encoded: true
+    - token:   " them"
+      id:      730
+      score:   0.0011883451
+      encoded: true
+    - token:   " then"
+      id:      731
+      score:   0.0010035925
+      encoded: true
+    - token:   " they"
+      id:      732
+      score:   0.0017832145
+      encoded: true
+    - token:   " this"
+      id:      733
+      score:   0.0029501347
+      encoded: true
+    - token:   " time"
+      id:      734
+      score:   0.0015697678
+      encoded: true
+    - token:   " to a"
+      id:      735
+      score:   0.00047463016
+      encoded: true
+    - token:   " type"
+      id:      736
+      score:   0.00042640473
+      encoded: true
+    - token:   " used"
+      id:      737
+      score:   0.00055604405
+      encoded: true
+    - token:   " vari"
+      id:      738
+      score:   0.000395221
+      encoded: true
+    - token:   " very"
+      id:      739
+      score:   0.0007954039
+      encoded: true
+    - token:   " view"
+      id:      740
+      score:   0.0005317945
+      encoded: true
+    - token:   " want"
+      id:      741
+      score:   0.00059133355
+      encoded: true
+    - token:   " week"
+      id:      742
+      score:   0.00042314138
+      encoded: true
+    - token:   " well"
+      id:      743
+      score:   0.00081419415
+      encoded: true
+    - token:   " went"
+      id:      744
+      score:   0.00042933313
+      encoded: true
+    - token:   " were"
+      id:      745
+      score:   0.001520695
+      encoded: true
+    - token:   " what"
+      id:      746
+      score:   0.0016997947
+      encoded: true
+    - token:   " when"
+      id:      747
+      score:   0.0014177162
+      encoded: true
+    - token:   " will"
+      id:      748
+      score:   0.0013450288
+      encoded: true
+    - token:   " with"
+      id:      749
+      score:   0.003594743
+      encoded: true
+    - token:   " word"
+      id:      750
+      score:   0.0004034325
+      encoded: true
+    - token:   " work"
+      id:      751
+      score:   0.0014620933
+      encoded: true
+    - token:   " year"
+      id:      752
+      score:   0.0005236042
+      encoded: true
+    - token:   " your"
+      id:      753
+      score:   0.0016027576
+      encoded: true
+    - token:   ", and"
+      id:      754
+      score:   0.002818422
+      encoded: true
+    - token:   ", but"
+      id:      755
+      score:   0.0013172283
+      encoded: true
+    - token:   ", the"
+      id:      756
+      score:   0.0012974432
+      encoded: true
+    - token:   ".\n\nDC"
+      id:      757
+      score:   0.0017274475
+      encoded: true
+    - token:   ". \"DC"
+      id:      758
+      score:   0.00084298564
+      encoded: true
+    - token:   ".C he"
+      id:      759
+      score:   0.00077775604
+      encoded: true
+    - token:   ".C it"
+      id:      760
+      score:   0.00040420116
+      encoded: true
+    - token:   ".C we"
+      id:      761
+      score:   0.0005263989
+      encoded: true
+    - token:   "C i'm"
+      id:      762
+      score:   0.00074448506
+      encoded: true
+    - token:   "C the"
+      id:      763
+      score:   0.0005192623
+      encoded: true
+    - token:   "ation"
+      id:      764
+      score:   0.0016574922
+      encoded: true
+    - token:   "ative"
+      id:      765
+      score:   0.0005043591
+      encoded: true
+    - token:   "ction"
+      id:      766
+      score:   0.00089340704
+      encoded: true
+    - token:   "ed by"
+      id:      767
+      score:   0.000602446
+      encoded: true
+    - token:   "ed in"
+      id:      768
+      score:   0.0006213212
+      encoded: true
+    - token:   "ed to"
+      id:      769
+      score:   0.0012438184
+      encoded: true
+    - token:   "ments"
+      id:      770
+      score:   0.00065676816
+      encoded: true
+    - token:   "s and"
+      id:      771
+      score:   0.0010977149
+      encoded: true
+    - token:   "s are"
+      id:      772
+      score:   0.0005226681
+      encoded: true
+    - token:   "s for"
+      id:      773
+      score:   0.00037879174
+      encoded: true
+    - token:   "s the"
+      id:      774
+      score:   0.0006224223
+      encoded: true
+    - token:   "s.\nDC"
+      id:      775
+      score:   0.00038595463
+      encoded: true
+    - token:   "tions"
+      id:      776
+      score:   0.0005407834
+      encoded: true
+    - token:   "y and"
+      id:      777
+      score:   0.0004154548
+      encoded: true
+    - token:   " about"
+      id:      778
+      score:   0.0016806732
+      encoded: true
+    - token:   " after"
+      id:      779
+      score:   0.0011705123
+      encoded: true
+    - token:   " again"
+      id:      780
+      score:   0.00052337424
+      encoded: true
+    - token:   " and a"
+      id:      781
+      score:   0.00055324566
+      encoded: true
+    - token:   " being"
+      id:      782
+      score:   0.0007000754
+      encoded: true
+    - token:   " class"
+      id:      783
+      score:   0.00077204173
+      encoded: true
+    - token:   " close"
+      id:      784
+      score:   0.00046866463
+      encoded: true
+    - token:   " could"
+      id:      785
+      score:   0.0011900449
+      encoded: true
+    - token:   " count"
+      id:      786
+      score:   0.000874923
+      encoded: true
+    - token:   " don't"
+      id:      787
+      score:   0.0004336776
+      encoded: true
+    - token:   " event"
+      id:      788
+      score:   0.000502498
+      encoded: true
+    - token:   " every"
+      id:      789
+      score:   0.0007584821
+      encoded: true
+    - token:   " first"
+      id:      790
+      score:   0.0008294573
+      encoded: true
+    - token:   " for a"
+      id:      791
+      score:   0.0007022064
+      encoded: true
+    - token:   " found"
+      id:      792
+      score:   0.0005554179
+      encoded: true
+    - token:   " fromC"
+      id:      793
+      score:   0.00043090293
+      encoded: true
+    - token:   " great"
+      id:      794
+      score:   0.0006110374
+      encoded: true
+    - token:   " group"
+      id:      795
+      score:   0.00045285028
+      encoded: true
+    - token:   " house"
+      id:      796
+      score:   0.00052341423
+      encoded: true
+    - token:   " inter"
+      id:      797
+      score:   0.0008643943
+      encoded: true
+    - token:   " it is"
+      id:      798
+      score:   0.00081089203
+      encoded: true
+    - token:   " large"
+      id:      799
+      score:   0.0004210029
+      encoded: true
+    - token:   " light"
+      id:      800
+      score:   0.00060396205
+      encoded: true
+    - token:   " might"
+      id:      801
+      score:   0.0004029863
+      encoded: true
+    - token:   " model"
+      id:      802
+      score:   0.0004296231
+      encoded: true
+    - token:   " never"
+      id:      803
+      score:   0.0006495865
+      encoded: true
+    - token:   " night"
+      id:      804
+      score:   0.00050877605
+      encoded: true
+    - token:   " order"
+      id:      805
+      score:   0.0005383137
+      encoded: true
+    - token:   " other"
+      id:      806
+      score:   0.0015788068
+      encoded: true
+    - token:   " parti"
+      id:      807
+      score:   0.0005339205
+      encoded: true
+    - token:   " place"
+      id:      808
+      score:   0.00072418374
+      encoded: true
+    - token:   " point"
+      id:      809
+      score:   0.0007518754
+      encoded: true
+    - token:   " press"
+      id:      810
+      score:   0.00058734656
+      encoded: true
+    - token:   " right"
+      id:      811
+      score:   0.0013201092
+      encoded: true
+    - token:   " since"
+      id:      812
+      score:   0.0005911286
+      encoded: true
+    - token:   " small"
+      id:      813
+      score:   0.00042906817
+      encoded: true
+    - token:   " space"
+      id:      814
+      score:   0.00040482235
+      encoded: true
+    - token:   " stand"
+      id:      815
+      score:   0.00041251766
+      encoded: true
+    - token:   " start"
+      id:      816
+      score:   0.0005143341
+      encoded: true
+    - token:   " state"
+      id:      817
+      score:   0.0008994026
+      encoded: true
+    - token:   " still"
+      id:      818
+      score:   0.0006696866
+      encoded: true
+    - token:   " table"
+      id:      819
+      score:   0.0006781643
+      encoded: true
+    - token:   " their"
+      id:      820
+      score:   0.0015422737
+      encoded: true
+    - token:   " there"
+      id:      821
+      score:   0.0018499077
+      encoded: true
+    - token:   " these"
+      id:      822
+      score:   0.0008413971
+      encoded: true
+    - token:   " thing"
+      id:      823
+      score:   0.0004243175
+      encoded: true
+    - token:   " think"
+      id:      824
+      score:   0.00088599796
+      encoded: true
+    - token:   " those"
+      id:      825
+      score:   0.0005072887
+      encoded: true
+    - token:   " three"
+      id:      826
+      score:   0.00042799703
+      encoded: true
+    - token:   " times"
+      id:      827
+      score:   0.0006504927
+      encoded: true
+    - token:   " to be"
+      id:      828
+      score:   0.0012014674
+      encoded: true
+    - token:   " to do"
+      id:      829
+      score:   0.00040351125
+      encoded: true
+    - token:   " trans"
+      id:      830
+      score:   0.00061096495
+      encoded: true
+    - token:   " under"
+      id:      831
+      score:   0.0007582971
+      encoded: true
+    - token:   " using"
+      id:      832
+      score:   0.0005965004
+      encoded: true
+    - token:   " value"
+      id:      833
+      score:   0.0005860767
+      encoded: true
+    - token:   " was a"
+      id:      834
+      score:   0.0004109516
+      encoded: true
+    - token:   " where"
+      id:      835
+      score:   0.001079307
+      encoded: true
+    - token:   " which"
+      id:      836
+      score:   0.0014141641
+      encoded: true
+    - token:   " while"
+      id:      837
+      score:   0.0007044124
+      encoded: true
+    - token:   " withC"
+      id:      838
+      score:   0.0004005516
+      encoded: true
+    - token:   " world"
+      id:      839
+      score:   0.00052862236
+      encoded: true
+    - token:   " would"
+      id:      840
+      score:   0.0014583913
+      encoded: true
+    - token:   " years"
+      id:      841
+      score:   0.0006819214
+      encoded: true
+    - token:   " “DC"
+      id:      842
+      score:   0.0004576922
+      encoded: true
+    - token:   ".C but"
+      id:      843
+      score:   0.00052108953
+      encoded: true
+    - token:   ".C she"
+      id:      844
+      score:   0.00062286726
+      encoded: true
+    - token:   ".C the"
+      id:      845
+      score:   0.0018487216
+      encoded: true
+    - token:   "C i've"
+      id:      846
+      score:   0.00036532586
+      encoded: true
+    - token:   "W i am"
+      id:      847
+      score:   0.00056675903
+      encoded: true
+    - token:   "ations"
+      id:      848
+      score:   0.0005419895
+      encoded: true
+    - token:   "ed and"
+      id:      849
+      score:   0.00043861452
+      encoded: true
+    - token:   "ed the"
+      id:      850
+      score:   0.0009177891
+      encoded: true
+    - token:   "es and"
+      id:      851
+      score:   0.00045837462
+      encoded: true
+    - token:   "ing to"
+      id:      852
+      score:   0.00041761203
+      encoded: true
+    - token:   "s that"
+      id:      853
+      score:   0.0005808223
+      encoded: true
+    - token:   "s, and"
+      id:      854
+      score:   0.00042010675
+      encoded: true
+    - token:   " action"
+      id:      855
+      score:   0.00052562397
+      encoded: true
+    - token:   " always"
+      id:      856
+      score:   0.0005135917
+      encoded: true
+    - token:   " and he"
+      id:      857
+      score:   0.0003997917
+      encoded: true
+    - token:   " andW i"
+      id:      858
+      score:   0.00084565533
+      encoded: true
+    - token:   " around"
+      id:      859
+      score:   0.0006119998
+      encoded: true
+    - token:   " as the"
+      id:      860
+      score:   0.0005159339
+      encoded: true
+    - token:   " before"
+      id:      861
+      score:   0.00092618057
+      encoded: true
+    - token:   " better"
+      id:      862
+      score:   0.00040655464
+      encoded: true
+    - token:   " by the"
+      id:      863
+      score:   0.00072423124
+      encoded: true
+    - token:   " can be"
+      id:      864
+      score:   0.00047521008
+      encoded: true
+    - token:   " change"
+      id:      865
+      score:   0.0006614038
+      encoded: true
+    - token:   " create"
+      id:      866
+      score:   0.00041944432
+      encoded: true
+    - token:   " didn't"
+      id:      867
+      score:   0.0004729991
+      encoded: true
+    - token:   " direct"
+      id:      868
+      score:   0.0005966867
+      encoded: true
+    - token:   " family"
+      id:      869
+      score:   0.00042732086
+      encoded: true
+    - token:   " figure"
+      id:      870
+      score:   0.0004766749
+      encoded: true
+    - token:   " follow"
+      id:      871
+      score:   0.00048900343
+      encoded: true
+    - token:   " friend"
+      id:      872
+      score:   0.00068062154
+      encoded: true
+    - token:   " ground"
+      id:      873
+      score:   0.00036133634
+      encoded: true
+    - token:   " have a"
+      id:      874
+      score:   0.0003948448
+      encoded: true
+    - token:   " having"
+      id:      875
+      score:   0.00037918167
+      encoded: true
+    - token:   " he was"
+      id:      876
+      score:   0.000627128
+      encoded: true
+    - token:   " if you"
+      id:      877
+      score:   0.00059222843
+      encoded: true
+    - token:   " in the"
+      id:      878
+      score:   0.0034880985
+      encoded: true
+    - token:   " is the"
+      id:      879
+      score:   0.00058238214
+      encoded: true
+    - token:   " it was"
+      id:      880
+      score:   0.0010682284
+      encoded: true
+    - token:   " little"
+      id:      881
+      score:   0.0006768182
+      encoded: true
+    - token:   " manage"
+      id:      882
+      score:   0.00036442722
+      encoded: true
+    - token:   " member"
+      id:      883
+      score:   0.00048530637
+      encoded: true
+    - token:   " object"
+      id:      884
+      score:   0.000368263
+      encoded: true
+    - token:   " of his"
+      id:      885
+      score:   0.0004370797
+      encoded: true
+    - token:   " of the"
+      id:      886
+      score:   0.0039507677
+      encoded: true
+    - token:   " on the"
+      id:      887
+      score:   0.0017998675
+      encoded: true
+    - token:   " people"
+      id:      888
+      score:   0.0010194469
+      encoded: true
+    - token:   " person"
+      id:      889
+      score:   0.0006887305
+      encoded: true
+    - token:   " public"
+      id:      890
+      score:   0.00054718513
+      encoded: true
+    - token:   " really"
+      id:      891
+      score:   0.00082175696
+      encoded: true
+    - token:   " reason"
+      id:      892
+      score:   0.00038261877
+      encoded: true
+    - token:   " result"
+      id:      893
+      score:   0.0006095451
+      encoded: true
+    - token:   " return"
+      id:      894
+      score:   0.0005281562
+      encoded: true
+    - token:   " school"
+      id:      895
+      score:   0.0006143945
+      encoded: true
+    - token:   " second"
+      id:      896
+      score:   0.00048971584
+      encoded: true
+    - token:   " should"
+      id:      897
+      score:   0.0010134163
+      encoded: true
+    - token:   " string"
+      id:      898
+      score:   0.00039521474
+      encoded: true
+    - token:   " system"
+      id:      899
+      score:   0.00055706396
+      encoded: true
+    - token:   " things"
+      id:      900
+      score:   0.0006207363
+      encoded: true
+    - token:   " though"
+      id:      901
+      score:   0.0006737786
+      encoded: true
+    - token:   " to get"
+      id:      902
+      score:   0.000411629
+      encoded: true
+    - token:   " to the"
+      id:      903
+      score:   0.0023844282
+      encoded: true
+    - token:   " with a"
+      id:      904
+      score:   0.00087189715
+      encoded: true
+    - token:   ", which"
+      id:      905
+      score:   0.0006605102
+      encoded: true
+    - token:   ".C they"
+      id:      906
+      score:   0.00038791937
+      encoded: true
+    - token:   ".C this"
+      id:      907
+      score:   0.0005229768
+      encoded: true
+    - token:   "W i can"
+      id:      908
+      score:   0.00040819068
+      encoded: true
+    - token:   "W i was"
+      id:      909
+      score:   0.0007393644
+      encoded: true
+    - token:   "ed with"
+      id:      910
+      score:   0.00040852313
+      encoded: true
+    - token:   "ing the"
+      id:      911
+      score:   0.0009814627
+      encoded: true
+    - token:   "thought"
+      id:      912
+      score:   0.00048162555
+      encoded: true
+    - token:   "\n       "
+      id:      913
+      score:   0.0006581005
+      encoded: true
+    - token:   "\n\\D end{"
+      id:      914
+      score:   0.00063613313
+      encoded: true
+    - token:   "        "
+      id:      915
+      score:   0.00066260993
+      encoded: true
+    - token:   " \\D cite"
+      id:      916
+      score:   0.00043477747
+      encoded: true
+    - token:   " against"
+      id:      917
+      score:   0.00039622962
+      encoded: true
+    - token:   " all the"
+      id:      918
+      score:   0.00047944958
+      encoded: true
+    - token:   " and the"
+      id:      919
+      score:   0.001291094
+      encoded: true
+    - token:   " another"
+      id:      920
+      score:   0.00063523697
+      encoded: true
+    - token:   " because"
+      id:      921
+      score:   0.001328172
+      encoded: true
+    - token:   " between"
+      id:      922
+      score:   0.0006967258
+      encoded: true
+    - token:   " certain"
+      id:      923
+      score:   0.00036061017
+      encoded: true
+    - token:   " control"
+      id:      924
+      score:   0.0004360573
+      encoded: true
+    - token:   " current"
+      id:      925
+      score:   0.00041357378
+      encoded: true
+    - token:   " example"
+      id:      926
+      score:   0.00043984686
+      encoded: true
+    - token:   " for the"
+      id:      927
+      score:   0.001611964
+      encoded: true
+    - token:   " friends"
+      id:      928
+      score:   0.0006162943
+      encoded: true
+    - token:   " general"
+      id:      929
+      score:   0.00047791726
+      encoded: true
+    - token:   " in theC"
+      id:      930
+      score:   0.0005356453
+      encoded: true
+    - token:   " in this"
+      id:      931
+      score:   0.00044976565
+      encoded: true
+    - token:   " include"
+      id:      932
+      score:   0.000509116
+      encoded: true
+    - token:   " need to"
+      id:      933
+      score:   0.00039678955
+      encoded: true
+    - token:   " nothing"
+      id:      934
+      score:   0.00041557854
+      encoded: true
+    - token:   " of theC"
+      id:      935
+      score:   0.0009294227
+      encoded: true
+    - token:   " present"
+      id:      936
+      score:   0.00041532732
+      encoded: true
+    - token:   " problem"
+      id:      937
+      score:   0.0005753517
+      encoded: true
+    - token:   " process"
+      id:      938
+      score:   0.0004507643
+      encoded: true
+    - token:   " product"
+      id:      939
+      score:   0.00050881854
+      encoded: true
+    - token:   " program"
+      id:      940
+      score:   0.00039451732
+      encoded: true
+    - token:   " project"
+      id:      941
+      score:   0.00039459483
+      encoded: true
+    - token:   " provide"
+      id:      942
+      score:   0.0005019294
+      encoded: true
+    - token:   " require"
+      id:      943
+      score:   0.00039249007
+      encoded: true
+    - token:   " section"
+      id:      944
+      score:   0.0005745531
+      encoded: true
+    - token:   " service"
+      id:      945
+      score:   0.0005618696
+      encoded: true
+    - token:   " she was"
+      id:      946
+      score:   0.0004991697
+      encoded: true
+    - token:   " special"
+      id:      947
+      score:   0.0004473797
+      encoded: true
+    - token:   " started"
+      id:      948
+      score:   0.00041927185
+      encoded: true
+    - token:   " support"
+      id:      949
+      score:   0.00044794087
+      encoded: true
+    - token:   " that he"
+      id:      950
+      score:   0.00049129064
+      encoded: true
+    - token:   " that is"
+      id:      951
+      score:   0.00038514222
+      encoded: true
+    - token:   " thatW i"
+      id:      952
+      score:   0.0005499723
+      encoded: true
+    - token:   " this is"
+      id:      953
+      score:   0.00065004773
+      encoded: true
+    - token:   " through"
+      id:      954
+      score:   0.0007846652
+      encoded: true
+    - token:   " want to"
+      id:      955
+      score:   0.0007361923
+      encoded: true
+    - token:   " we have"
+      id:      956
+      score:   0.00045387517
+      encoded: true
+    - token:   " whenW i"
+      id:      957
+      score:   0.00041650966
+      encoded: true
+    - token:   " will be"
+      id:      958
+      score:   0.00056146213
+      encoded: true
+    - token:   " without"
+      id:      959
+      score:   0.00058220467
+      encoded: true
+    - token:   " you can"
+      id:      960
+      score:   0.00060165353
+      encoded: true
+    - token:   "W i have"
+      id:      961
+      score:   0.00073872076
+      encoded: true
+    - token:   "\\D frac{"
+      id:      962
+      score:   0.0006999354
+      encoded: true
+    - token:   "s of the"
+      id:      963
+      score:   0.0006444946
+      encoded: true
+    - token:   "\n        "
+      id:      964
+      score:   0.0003607889
+      encoded: true
+    - token:   " and then"
+      id:      965
+      score:   0.00046849463
+      encoded: true
+    - token:   " anything"
+      id:      966
+      score:   0.00047097934
+      encoded: true
+    - token:   " business"
+      id:      967
+      score:   0.00045450384
+      encoded: true
+    - token:   " complete"
+      id:      968
+      score:   0.0004587883
+      encoded: true
+    - token:   " consider"
+      id:      969
+      score:   0.0005613059
+      encoded: true
+    - token:   " equation"
+      id:      970
+      score:   0.0005941357
+      encoded: true
+    - token:   " from the"
+      id:      971
+      score:   0.0013027551
+      encoded: true
+    - token:   " function"
+      id:      972
+      score:   0.00078585505
+      encoded: true
+    - token:   " going to"
+      id:      973
+      score:   0.0005204696
+      encoded: true
+    - token:   " had been"
+      id:      974
+      score:   0.0004775273
+      encoded: true
+    - token:   " has been"
+      id:      975
+      score:   0.00046439763
+      encoded: true
+    - token:   " however,"
+      id:      976
+      score:   0.0004956026
+      encoded: true
+    - token:   " interest"
+      id:      977
+      score:   0.0005081723
+      encoded: true
+    - token:   " into the"
+      id:      978
+      score:   0.00058990874
+      encoded: true
+    - token:   " over the"
+      id:      979
+      score:   0.00040749827
+      encoded: true
+    - token:   " position"
+      id:      980
+      score:   0.00052490784
+      encoded: true
+    - token:   " possible"
+      id:      981
+      score:   0.00041694212
+      encoded: true
+    - token:   " question"
+      id:      982
+      score:   0.00058298453
+      encoded: true
+    - token:   " that the"
+      id:      983
+      score:   0.0010659612
+      encoded: true
+    - token:   " the same"
+      id:      984
+      score:   0.00080315047
+      encoded: true
+    - token:   " there is"
+      id:      985
+      score:   0.0005285949
+      encoded: true
+    - token:   " together"
+      id:      986
+      score:   0.00062928395
+      encoded: true
+    - token:   " with the"
+      id:      987
+      score:   0.001384479
+      encoded: true
+    - token:   " would be"
+      id:      988
+      score:   0.00054267194
+      encoded: true
+    - token:   ", and the"
+      id:      989
+      score:   0.00048334285
+      encoded: true
+    - token:   "W i don't"
+      id:      990
+      score:   0.00060632423
+      encoded: true
+    - token:   " about the"
+      id:      991
+      score:   0.00040232512
+      encoded: true
+    - token:   " condition"
+      id:      992
+      score:   0.0003786105
+      encoded: true
+    - token:   " different"
+      id:      993
+      score:   0.0007794496
+      encoded: true
+    - token:   " have been"
+      id:      994
+      score:   0.0006213462
+      encoded: true
+    - token:   " important"
+      id:      995
+      score:   0.00039785317
+      encoded: true
+    - token:   " including"
+      id:      996
+      score:   0.0003623862
+      encoded: true
+    - token:   " more than"
+      id:      997
+      score:   0.00041874315
+      encoded: true
+    - token:   " represent"
+      id:      998
+      score:   0.0003769657
+      encoded: true
+    - token:   " something"
+      id:      999
+      score:   0.00093536696
+      encoded: true
+    - token:   " the first"
+      id:      1000
+      score:   0.00044480502
+      encoded: true
+    - token:   " trying to"
+      id:      1001
+      score:   0.0003778131
+      encoded: true
+    - token:   "C american"
+      id:      1002
+      score:   0.00037462974
+      encoded: true
+    - token:   "\\D begin{D"
+      id:      1003
+      score:   0.0012395377
+      encoded: true
+    - token:   "\\D label{D"
+      id:      1004
+      score:   0.0006901791
+      encoded: true
+    - token:   "           "
+      id:      1005
+      score:   0.0008865479
+      encoded: true
+    - token:   " everything"
+      id:      1006
+      score:   0.00046492508
+      encoded: true
+    - token:   " experience"
+      id:      1007
+      score:   0.0005039729
+      encoded: true
+    - token:   " one of the"
+      id:      1008
+      score:   0.0005966367
+      encoded: true
+    - token:   " particular"
+      id:      1009
+      score:   0.0003761308
+      encoded: true
+    - token:   " understand"
+      id:      1010
+      score:   0.00052253064
+      encoded: true
+    - token:   "\n           "
+      id:      1011
+      score:   0.000761728
+      encoded: true
+    - token:   " application"
+      id:      1012
+      score:   0.00038785813
+      encoded: true
+    - token:   " information"
+      id:      1013
+      score:   0.0006125597
+      encoded: true
+    - token:   " through the"
+      id:      1014
+      score:   0.00043890448
+      encoded: true
+    - token:   " relationship"
+      id:      1015
+      score:   0.0008392636
+      encoded: true
+    - token:   "\\D mathcal{DW"
+      id:      1016
+      score:   0.0005803149
+      encoded: true
+    - token:   " international"
+      id:      1017
+      score:   0.00036601326
+      encoded: true
+    - token:   " the following"
+      id:      1018
+      score:   0.00045714976
+      encoded: true
+    - token:   "\n                "
+      id:      1019
+      score:   0.0006157506
+      encoded: true
+    - token:   "                   "
+      id:      1020
+      score:   0.0005464927
+      encoded: true
+    - token:   "\n\\D end{D equation}\n"
+      id:      1021
+      score:   0.00039005288
+      encoded: true
+    - token:   "\n                    "
+      id:      1022
+      score:   0.00039328248
+      encoded: true
+    - token:   "\n                        "
+      id:      1023
+      score:   0.00041070036
+      encoded: true

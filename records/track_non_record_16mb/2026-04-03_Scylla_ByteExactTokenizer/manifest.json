@@ -1,0 +1,67 @@
+{
+  "version": "10B",
+  "num_docs": 835771,
+  "num_val_docs": 50000,
+  "shuffle_seed": 1337,
+  "dataset_revision": "9bb295ddab0e05d785b879661af7260fed5140fc",
+  "shard_size": 100000000,
+  "append_eos": false,
+  "docs_jsonl": "docs_selected.jsonl",
+  "docs_meta": {
+    "remote_name": "external_cache",
+    "num_docs": 15368808,
+    "docs_sha256": null,
+    "dataset_fingerprint": null
+  },
+  "tokenizer_specs": [],
+  "tokenizers": [
+    {
+      "name": "scylla",
+      "kind": "tokenmonster",
+      "vocab_size": 1254,
+      "logical_vocab_size": 1178,
+      "max_token_id": 1252,
+      "bos_id": 1253,
+      "eos_id": -1,
+      "recommended_bigram_vocab_size": 6400,
+      "path": "scylla.yaml",
+      "meta_path": "scylla.meta.npz",
+      "source_spec": {
+        "kind": "tokenmonster",
+        "source_model": "scylla.yaml",
+        "charset": "None",
+        "capcode": 0,
+        "normalization": "None",
+        "logical_vocab_size": 1178,
+        "max_token_id": 1252
+      }
+    }
+  ],
+  "datasets": [
+    {
+      "name": "fineweb10B_scylla",
+      "tokenizer_name": "scylla",
+      "tokenizer_kind": "tokenmonster",
+      "path": "datasets/fineweb10B_scylla",
+      "train_glob": "datasets/fineweb10B_scylla/fineweb_train_*.bin",
+      "val_glob": "datasets/fineweb10B_scylla/fineweb_val_*.bin",
+      "vocab_size": 1254,
+      "logical_vocab_size": 1178,
+      "max_token_id": 1252,
+      "bos_id": 1253,
+      "eos_id": -1,
+      "recommended_bigram_vocab_size": 6400,
+      "stats": {
+        "docs_total": 835771,
+        "docs_val": 50000,
+        "docs_train": 785771,
+        "files_total": 12,
+        "files_val": 1,
+        "files_train": 11,
+        "tokens_total": 1110765476,
+        "tokens_val": 64893341,
+        "tokens_train": 1045872135
+      }
+    }
+  ]
+}
