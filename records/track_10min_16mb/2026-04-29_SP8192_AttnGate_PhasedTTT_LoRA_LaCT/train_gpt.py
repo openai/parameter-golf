@@ -1806,6 +1806,52 @@ def _select_ttt_doc_entries(docs, h):
     return doc_entries
 
 
+def _split_flat_windows_on_boundaries(x_flat, y_flat, bos_id, max_seq_len):
+    starts = [0]
+    starts.extend(
+        int(i) for i in (x_flat == bos_id).nonzero(as_tuple=True)[0].tolist() if int(i) > 0
+    )
+    starts = sorted(set(starts))
+    windows = []
+    total = int(x_flat.numel())
+    for si, start in enumerate(starts):
+        end = starts[si + 1] if si + 1 < len(starts) else total
+        if end <= start:
+            continue
+        seg_x = x_flat[start:end]
+        seg_y = y_flat[start:end]
+        for off in range(0, int(seg_x.numel()), max_seq_len):
+            x_win = seg_x[off : off + max_seq_len]
+            y_win = seg_y[off : off + max_seq_len]
+            if x_win.numel() > 0:
+                windows.append((x_win, y_win))
+    return windows
+
+
+def _masked_doc_batch_loss(base_model, x_flat, y_flat, bos_id, seq_len):
+    windows = _split_flat_windows_on_boundaries(x_flat, y_flat, bos_id, seq_len)
+    if not windows:
+        raise RuntimeError("Document-boundary-respecting TTT produced no token windows")
+    max_len = max(int(x_win.numel()) for x_win, _ in windows)
+    bsz = len(windows)
+    x_batch = torch.full((bsz, max_len), bos_id, device=x_flat.device, dtype=torch.int64)
+    y_batch = torch.full((bsz, max_len), bos_id, device=y_flat.device, dtype=torch.int64)
+    mask = torch.zeros((bsz, max_len), device=x_flat.device, dtype=torch.bool)
+    for wi, (x_win, y_win) in enumerate(windows):
+        wlen = int(x_win.numel())
+        x_batch[wi, :wlen] = x_win
+        y_batch[wi, :wlen] = y_win
+        mask[wi, :wlen] = True
+    logits = base_model.forward_logits(x_batch)
+    nll = F.cross_entropy(
+        logits.reshape(-1, logits.size(-1)).float(),
+        y_batch.reshape(-1),
+        reduction="none",
+    ).reshape(bsz, max_len)
+    mask_f = mask.to(nll.dtype)
+    return (nll * mask_f).sum() / mask_f.sum().clamp_min(1.0)
+
+
 def train_val_ttt_global_sgd_distributed(h, device, val_data, base_model, val_tokens, batch_seqs=None):
     global BOS_ID
     if BOS_ID is None:
@@ -1867,15 +1913,8 @@ def train_val_ttt_global_sgd_distributed(h, device, val_data, base_model, val_to
                 with torch.enable_grad():
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                         if h.global_ttt_respect_doc_boundaries:
-                            bos_pos = (x_flat == BOS_ID).nonzero(as_tuple=True)[0].tolist()
-                            cu_seqlens, max_seqlen = _build_cu_seqlens(
-                                bos_pos, x_flat.numel(), x_flat.device, h.eval_seq_len, 64
-                            )
-                            loss = base_model(
-                                x_flat[None],
-                                y_flat[None],
-                                cu_seqlens=cu_seqlens,
-                                max_seqlen=max_seqlen,
+                            loss = _masked_doc_batch_loss(
+                                base_model, x_flat, y_flat, BOS_ID, seq_len
                             )
                         else:
                             x = x_flat.reshape(-1, seq_len)

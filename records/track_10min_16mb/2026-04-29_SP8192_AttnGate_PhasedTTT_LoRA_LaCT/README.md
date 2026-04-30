@@ -211,11 +211,115 @@ The primary scored path is `quantized_ttt_phased`.
 
 ## RunPod Reproduction
 
-### Manual pod run
+### Pod setup
+
+Use Python `3.10` for this record path. The `flash_attn_3` wheel family used here is expected to work with the same CUDA / Torch stack as the April 9 record and may not behave correctly under other interpreter builds.
 
 ```bash
-git clone https://github.com/<your-fork>/parameter-golf-fork.git
-cd parameter-golf-fork/records/track_10min_16mb/2026-04-29_SP8192_AttnGate_PhasedTTT_LoRA_LaCT
+apt-get update
+apt-get install -y python3.10 python3.10-venv python3.10-dev 
+
+git clone https://github.com/IanniMuliterno/parameter-golf.git
+cd /parameter-golf
+git checkout apr29-phasedttt-runpod
+python3.10 -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.9.1
+python -m pip install -r records/track_10min_16mb/2026-04-29_SP8192_AttnGate_PhasedTTT_LoRA_LaCT/requirements.txt
+python -m pip install flash_attn_3 --no-deps --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/
+```
+
+### Verify Python and FlashAttention
+
+```bash
+cd /parameter-golf/records/track_10min_16mb/2026-04-29_SP8192_AttnGate_PhasedTTT_LoRA_LaCT
+
+which python
+python -c "import sys; print(sys.version); print(sys.executable)"
+python -c "import pkgutil; print([m.name for m in pkgutil.iter_modules() if 'flash' in m.name])"
+python - <<'PY'
+import sys
+sys.path.insert(0, ".")
+import flash_attn_interface as fai
+print("flash_attn_func:", hasattr(fai, "flash_attn_func"))
+print("FlashAttnFunc:", hasattr(fai, "FlashAttnFunc"))
+print("_flash_attn_forward:", hasattr(fai, "_flash_attn_forward"))
+PY
+```
+
+Expected:
+
+- `python` resolves to `/parameter-golf/.venv/bin/python`
+- the flash module list includes `flash_attn_interface`
+- all three final checks print `True`
+
+This wheel family may expose a top-level `flash_attn_interface` module rather than a `flash_attn` package. That is fine for this record; the local wrapper is expected to handle that layout explicitly.
+
+### Dataset setup
+
+Use the matched FineWeb repo and clear any stale manifest before downloading:
+
+```bash
+cd /parameter-golf
+rm -f data/manifest.json
+export MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf
+python data/cached_challenge_fineweb.py --variant sp8192 --train-shards 8
+```
+
+If the dataset repo requires auth:
+
+```bash
+export HF_TOKEN=<your_token>
+```
+
+### 1×H100 smoke test
+
+For a manual smoke test on fewer than `8` GPUs, run `train_gpt.py` directly. Do not use `handler.py`, and do not use `run.sh` for the smoke test because the endpoint path requires exactly `8` GPUs and `run.sh` is tuned for the full run.
+
+```bash
+cd /parameter-golf/records/track_10min_16mb/2026-04-29_SP8192_AttnGate_PhasedTTT_LoRA_LaCT
+export REPO_ROOT=/parameter-golf
+source /parameter-golf/.venv/bin/activate
+
+SEED=42 \
+DATA_DIR="$REPO_ROOT/data/" \
+MAX_WALLCLOCK_SECONDS=180 \
+GPTQ_RESERVE_SECONDS=20 \
+ITERATIONS=20 \
+EMA_DECAY=0.0 \
+EXPORT_ALLOCATOR=entropy \
+TRAIN_BATCH_TOKENS=131072 \
+VAL_BATCH_TOKENS=131072 \
+TRAIN_LOG_EVERY=5 \
+VAL_LOSS_EVERY=0 \
+SLIDING_WINDOW_ENABLED=0 \
+VAL_DOC_FRACTION=0.01 \
+PHASED_TTT_PREFIX_DOCS=64 \
+PHASED_TTT_NUM_PHASES=2 \
+TTT_BATCH_SIZE=8 \
+TTT_CHUNK_SIZE=16 \
+GLOBAL_TTT_BATCH_SEQS=8 \
+GPTQ_CALIBRATION_BATCHES=1 \
+LACT_TTT_ENABLED=0 \
+torchrun --standalone --nproc_per_node=1 train_gpt.py 2>&1 | tee smoke_1xh100.log
+```
+
+Notes:
+
+- `EMA_DECAY=0.0` avoids misleading post-EMA degradation on a very short smoke run.
+- `EXPORT_ALLOCATOR=entropy` makes the exporter search for a candidate that respects the `16 MB` budget.
+- This smoke run is for codepath validation only. It is not representative of the final competition metric.
+
+### Full manual 8×H100 run
+
+For the actual full run on an 8-GPU pod, `run.sh` is the intended launcher:
+
+```bash
+cd /parameter-golf/records/track_10min_16mb/2026-04-29_SP8192_AttnGate_PhasedTTT_LoRA_LaCT
+source /parameter-golf/.venv/bin/activate
+export MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf
 
 SEED=42  bash run.sh 2>&1 | tee logs/seed42.log
 SEED=314 bash run.sh 2>&1 | tee logs/seed314.log
@@ -224,7 +328,7 @@ SEED=999 bash run.sh 2>&1 | tee logs/seed999.log
 grep "quantized_ttt_phased" logs/seed*.log | grep "bpb"
 ```
 
-Competition note: the historical PR `#1727` record used seeds `42 / 0 / 1234`. The current competition requirement is `42 / 314 / 999`, which is what you should run now.
+Competition note: the historical PR `#1727` run used seeds `42 / 0 / 1234`. The current competition requirement is `42 / 314 / 999`, which is what you should run now.
 
 ### Useful overrides
 
