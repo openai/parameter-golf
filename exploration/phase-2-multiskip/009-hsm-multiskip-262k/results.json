@@ -1,0 +1,16 @@
+{
+  "run_id": "20260323-009-hsm-multiskip-262k",
+  "status": "completed",
+  "val_bpb": 1.8317,
+  "val_loss": 3.0927,
+  "val_bpb_stateful": null,
+  "train_loss_final": 3.0364,
+  "total_tokens_seen": 255328256,
+  "tokens_per_sec": 425242,
+  "wall_time_sec": 600.6,
+  "artifact_bytes": 13812039,
+  "code_bytes": 80738,
+  "n_params": 30307652,
+  "peak_memory_mib": 14937,
+  "notes": "HSM+multiskip close to baseline. Smooth curve, stable. Good 8xH100 candidate."
+}

@@ -1,0 +1,20 @@
+{
+  "run_id": "8xH100-004-iter004-leaderboard-stack",
+  "status": "completed",
+  "val_bpb": 1.7609,
+  "val_bpb_prequant": 1.3033,
+  "val_loss": 2.9732,
+  "val_loss_prequant": 2.2006,
+  "val_bpb_stateful": null,
+  "train_loss_final": 2.1409,
+  "total_tokens_seen": 948436992,
+  "tokens_per_sec": 1580871,
+  "wall_time_sec": 600.1,
+  "artifact_bytes": 14018271,
+  "code_bytes": 64009,
+  "n_params": 33264341,
+  "peak_memory_mib": 46254,
+  "swa_checkpoints": 11,
+  "quant_penalty_bpb": 0.4576,
+  "notes": "Pre-quant 1.3033 is excellent but int4 quantization penalty is +0.458 bpb (1.3033->1.7609). Architecture+training works, quantization is the bottleneck. Need int5/int6 or mixed precision. BigramHash+SmearGate+SWA+frac_warmdown all contributing."
+}

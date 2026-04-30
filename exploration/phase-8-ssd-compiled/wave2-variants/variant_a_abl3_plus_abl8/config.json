@@ -1,0 +1,63 @@
+{
+  "variant": "variant_a_abl3_plus_abl8",
+  "description": "Fuse ablation-3 (bifurcated A_log) + ablation-8 (remove autocast disable in _prepare_ssd_inputs)",
+  "base": "iter-005.5/ablation-3",
+  "changes_from_base": [
+    "Removed torch.amp.autocast(enabled=False) wrapper from _prepare_ssd_inputs (ablation-8 change)"
+  ],
+  "hyperparameters": {
+    "model_dim": 1536,
+    "n_blocks": 1,
+    "n_iters": 4,
+    "expand": 2,
+    "d_state": 64,
+    "d_conv": 4,
+    "headdim": 64,
+    "ngroups": 1,
+    "chunk_size": 64,
+    "mlp_ratio": 2.0,
+    "vocab_size": 1024,
+    "qat_group_size": 128,
+    "logit_softcap": 30.0,
+    "tie_embeddings": true,
+    "tied_embed_init_std": 0.005
+  },
+  "optimizer": {
+    "embed_lr": 0.03,
+    "head_lr": 0.03,
+    "tied_embed_lr": 0.03,
+    "matrix_lr": 0.03,
+    "scalar_lr": 0.03,
+    "lr_warmup_steps": 200,
+    "muon_momentum": 0.95,
+    "muon_backend_steps": 5,
+    "muon_momentum_warmup_start": 0.85,
+    "muon_momentum_warmup_steps": 500,
+    "beta1": 0.9,
+    "beta2": 0.95,
+    "adam_eps": 1e-8,
+    "grad_clip_norm": 1.0
+  },
+  "training": {
+    "iterations": 20000,
+    "warmdown_iters": 1200,
+    "warmup_steps": 5,
+    "train_batch_tokens": 131072,
+    "train_seq_len": 1024,
+    "max_wallclock_seconds": 600.0
+  },
+  "ablation_sources": {
+    "ablation_3": {
+      "what": "Bifurcated A_log initialization (25% induction heads at A_log~-4.0, 75% local heads at A_log 0.3-0.6)",
+      "result": "val_bpb=1.873 (rank 1 of 8 ablations, baseline=1.992)",
+      "delta_vs_baseline": -0.119
+    },
+    "ablation_8": {
+      "what": "Remove autocast(enabled=False) in _prepare_ssd_inputs, letting einsums run in bf16 under autocast",
+      "result": "val_bpb=1.915 (rank 3 of 8 ablations, baseline=1.992)",
+      "delta_vs_baseline": -0.077
+    }
+  },
+  "expected_val_bpb_range": "1.80-1.90",
+  "seed": 1337
+}

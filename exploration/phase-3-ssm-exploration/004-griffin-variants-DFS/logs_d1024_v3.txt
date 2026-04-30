@@ -1,0 +1,62 @@
+logs/griffin_dfs_d1024_v3.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1024 n_blocks=2 n_iters=4 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:29010181
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+[rank0]:[W325 02:51:54.066669393 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:353ms step_avg:352.54ms tok/s:371798
+step:2/20000 train_loss:6.8136 train_time:643ms step_avg:321.34ms tok/s:407887
+step:3/20000 train_loss:6.6435 train_time:947ms step_avg:315.72ms tok/s:415148
+step:4/20000 train_loss:6.4317 train_time:1252ms step_avg:312.94ms tok/s:418841
+step:5/20000 train_loss:6.1656 train_time:1556ms step_avg:311.26ms tok/s:421095
+step:6/20000 train_loss:5.8996 train_time:1861ms step_avg:310.12ms tok/s:422647
+step:7/20000 train_loss:5.6912 train_time:2165ms step_avg:309.32ms tok/s:423742
+step:8/20000 train_loss:5.5622 train_time:2470ms step_avg:308.73ms tok/s:424558
+step:9/20000 train_loss:5.5026 train_time:2774ms step_avg:308.26ms tok/s:425194
+step:10/20000 train_loss:5.4231 train_time:3079ms step_avg:307.90ms tok/s:425700
+step:100/20000 train_loss:3.6258 train_time:30526ms step_avg:305.26ms tok/s:429378
+step:200/20000 train_loss:3.3291 train_time:61023ms step_avg:305.11ms tok/s:429583
+step:300/20000 train_loss:3.1581 train_time:91539ms step_avg:305.13ms tok/s:429560
+step:400/20000 train_loss:3.1606 train_time:122064ms step_avg:305.16ms tok/s:429520
+step:500/20000 train_loss:3.1186 train_time:152554ms step_avg:305.11ms tok/s:429591
+step:500/20000 val_loss:3.0986 val_bpb:1.8352 train_time:152565ms step_avg:305.13ms
+step:600/20000 train_loss:3.1390 train_time:183058ms step_avg:305.10ms tok/s:429609
+step:700/20000 train_loss:2.9775 train_time:213545ms step_avg:305.06ms tok/s:429655
+step:800/20000 train_loss:3.1172 train_time:244055ms step_avg:305.07ms tok/s:429647
+step:900/20000 train_loss:3.2060 train_time:274543ms step_avg:305.05ms tok/s:429678
+step:1000/20000 train_loss:3.0637 train_time:305033ms step_avg:305.03ms tok/s:429698
+step:1000/20000 val_loss:3.0570 val_bpb:1.8105 train_time:305044ms step_avg:305.04ms
+step:1100/20000 train_loss:3.0226 train_time:335546ms step_avg:305.04ms tok/s:429685
+step:1200/20000 train_loss:2.9904 train_time:366028ms step_avg:305.02ms tok/s:429711
+step:1300/20000 train_loss:2.9789 train_time:396514ms step_avg:305.01ms tok/s:429729
+step:1400/20000 train_loss:2.8594 train_time:427004ms step_avg:305.00ms tok/s:429740
+step:1500/20000 train_loss:2.9132 train_time:457488ms step_avg:304.99ms tok/s:429755
+step:1500/20000 val_loss:2.8776 val_bpb:1.7043 train_time:457499ms step_avg:305.00ms
+swa:start step:1500
+step:1600/20000 train_loss:2.6890 train_time:488277ms step_avg:305.17ms tok/s:429501
+step:1700/20000 train_loss:2.7594 train_time:518876ms step_avg:305.22ms tok/s:429433
+step:1800/20000 train_loss:2.8160 train_time:549502ms step_avg:305.28ms tok/s:429352
+step:1900/20000 train_loss:2.7231 train_time:580084ms step_avg:305.31ms tok/s:429312
+step:1965/20000 val_loss:2.7276 val_bpb:1.6154 train_time:600121ms step_avg:305.41ms
+stopping_early: wallclock_cap train_time:600121ms step:1965/20000
+peak memory allocated: 9193 MiB reserved: 15442 MiB
+total_tokens_seen:257556480
+swa:applying averaged 10 checkpoints
+Serialized model (raw): 113433954 bytes
+Code size: 82025 bytes
+Serialized model int4+zlib: 12170359 bytes (int4:14260224 passthrough:2707978)
+Total submission size int4+zlib: 12252384 bytes
+final_int4_zlib_roundtrip val_loss:2.7412 val_bpb:1.6235 eval_time:42998ms
+final_int4_zlib_roundtrip_exact val_loss:2.74122450 val_bpb:1.62350756

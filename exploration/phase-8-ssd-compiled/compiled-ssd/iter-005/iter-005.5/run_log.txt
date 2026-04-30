@@ -1,0 +1,59 @@
+logs/iter005_5_stateful.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:31743186
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:300.000 grad_clip_norm:1.0
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+train_stateful:enabled micro_batch_seqs=8
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.01ms
+[rank0]:W0321 21:23:02.232000 7594 torch/_dynamo/convert_frame.py:1358] [3/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0321 21:23:02.232000 7594 torch/_dynamo/convert_frame.py:1358] [3/8]    function: 'forward' (/workspace/parameter-golf/train_gpt_sg.py:1114)
+[rank0]:W0321 21:23:02.232000 7594 torch/_dynamo/convert_frame.py:1358] [3/8]    last reason: 3/7: tensor 'ssd_state' dtype mismatch. expected BFloat16, actual Float
+[rank0]:W0321 21:23:02.232000 7594 torch/_dynamo/convert_frame.py:1358] [3/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0321 21:23:02.232000 7594 torch/_dynamo/convert_frame.py:1358] [3/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+step:1/20000 train_loss:6.9315 train_time:2907ms step_avg:2907.43ms tok/s:45082
+step:2/20000 train_loss:6.7391 train_time:3198ms step_avg:1599.07ms tok/s:81968
+step:3/20000 train_loss:6.7229 train_time:3484ms step_avg:1161.35ms tok/s:112862
+step:4/20000 train_loss:6.7139 train_time:3770ms step_avg:942.43ms tok/s:139078
+step:5/20000 train_loss:6.6852 train_time:4034ms step_avg:806.85ms tok/s:162448
+step:6/20000 train_loss:6.6457 train_time:4329ms step_avg:721.53ms tok/s:181657
+step:7/20000 train_loss:6.6144 train_time:4619ms step_avg:659.79ms tok/s:198657
+step:8/20000 train_loss:6.5499 train_time:4908ms step_avg:613.46ms tok/s:213662
+step:9/20000 train_loss:6.4949 train_time:5212ms step_avg:579.10ms tok/s:226339
+step:10/20000 train_loss:6.4142 train_time:5516ms step_avg:551.64ms tok/s:237606
+step:100/20000 train_loss:4.3823 train_time:27756ms step_avg:277.56ms tok/s:472223
+step:200/20000 train_loss:4.2304 train_time:52404ms step_avg:262.02ms tok/s:500237
+step:300/20000 train_loss:3.8631 train_time:77058ms step_avg:256.86ms tok/s:510288
+step:400/20000 train_loss:3.6612 train_time:101702ms step_avg:254.26ms tok/s:515513
+step:500/20000 train_loss:3.5559 train_time:126374ms step_avg:252.75ms tok/s:518588
+step:500/20000 val_loss:3.5520 val_bpb:2.1037 train_time:126406ms step_avg:252.81ms
+step:600/20000 train_loss:3.6228 train_time:151012ms step_avg:251.69ms tok/s:520773
+step:700/20000 train_loss:3.4178 train_time:175700ms step_avg:251.00ms tok/s:522200
+step:800/20000 train_loss:3.4599 train_time:200455ms step_avg:250.57ms tok/s:523098
+step:900/20000 train_loss:3.5265 train_time:225070ms step_avg:250.08ms tok/s:524125
+step:1000/20000 train_loss:3.3946 train_time:249739ms step_avg:249.74ms tok/s:524836
+step:1000/20000 val_loss:3.3715 val_bpb:1.9968 train_time:249750ms step_avg:249.75ms
+step:1100/20000 train_loss:3.3264 train_time:274362ms step_avg:249.42ms tok/s:525508
+step:1200/20000 train_loss:3.3083 train_time:298991ms step_avg:249.16ms tok/s:526057
+step:1204/20000 val_loss:3.3026 val_bpb:1.9560 train_time:300004ms step_avg:249.17ms
+stopping_early: wallclock_cap train_time:300004ms step:1204/20000
+peak memory allocated: 6276 MiB reserved: 10556 MiB
+total_tokens_seen:157810688
+Serialized model (raw): 126979917 bytes
+Code size: 75957 bytes
+Serialized model int4+zlib: 14150659 bytes (int4:16359552 passthrough:31140)
+Total submission size int4+zlib: 14226616 bytes
+final_int4_zlib_roundtrip val_loss:3.3025 val_bpb:1.9559 eval_time:26213ms
+final_int4_zlib_roundtrip_exact val_loss:3.30251323 val_bpb:1.95593436
+stateful_eval val_loss:3.3032 val_bpb:1.9563 eval_time:139165ms
+stateful_eval_exact val_loss:3.30316405 val_bpb:1.95631981

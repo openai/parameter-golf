@@ -1,0 +1,62 @@
+logs/v5_ingate_perm.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1024 n_blocks=4 n_iters=4 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:54462981
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+d2s:tracker_interval:500 force_step:1200 heal_lr_scale:0.200 groups:4 permute_groups:1 targets:mixer.in_proj,mlp.w_gate
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:358ms step_avg:357.86ms tok/s:366270
+step:2/20000 train_loss:6.8136 train_time:669ms step_avg:334.44ms tok/s:391916
+step:3/20000 train_loss:6.6434 train_time:987ms step_avg:328.91ms tok/s:398505
+step:4/20000 train_loss:6.4316 train_time:1304ms step_avg:326.03ms tok/s:402029
+step:5/20000 train_loss:6.1649 train_time:1624ms step_avg:324.80ms tok/s:403545
+step:6/20000 train_loss:5.8984 train_time:1942ms step_avg:323.71ms tok/s:404906
+step:7/20000 train_loss:5.6897 train_time:2260ms step_avg:322.90ms tok/s:405920
+step:8/20000 train_loss:5.5618 train_time:2578ms step_avg:322.31ms tok/s:406665
+step:9/20000 train_loss:5.5037 train_time:2899ms step_avg:322.12ms tok/s:406905
+step:10/20000 train_loss:5.4200 train_time:3218ms step_avg:321.82ms tok/s:407288
+step:100/20000 train_loss:3.5852 train_time:31005ms step_avg:310.05ms tok/s:422745
+step:200/20000 train_loss:3.2979 train_time:61885ms step_avg:309.43ms tok/s:423596
+step:300/20000 train_loss:3.1306 train_time:92764ms step_avg:309.21ms tok/s:423887
+step:400/20000 train_loss:3.1354 train_time:123635ms step_avg:309.09ms tok/s:424062
+step:500/20000 train_loss:3.0901 train_time:154508ms step_avg:309.02ms tok/s:424159
+step:500/20000 val_loss:3.0741 val_bpb:1.8207 train_time:154520ms step_avg:309.04ms
+step:600/20000 train_loss:3.1180 train_time:186354ms step_avg:310.59ms tok/s:422010
+step:700/20000 train_loss:2.9790 train_time:217229ms step_avg:310.33ms tok/s:422368
+step:800/20000 train_loss:3.0531 train_time:248613ms step_avg:310.77ms tok/s:421770
+step:900/20000 train_loss:3.1631 train_time:279489ms step_avg:310.54ms tok/s:422074
+step:1000/20000 train_loss:3.0418 train_time:310361ms step_avg:310.36ms tok/s:422322
+step:1000/20000 val_loss:3.0263 val_bpb:1.7924 train_time:310372ms step_avg:310.37ms
+resonance:0.42955 step:1000 elapsed_frac:0.518 frozen:False
+step:1100/20000 train_loss:2.9623 train_time:341275ms step_avg:310.25ms tok/s:422472
+step:1200/20000 train_loss:2.9110 train_time:372189ms step_avg:310.16ms tok/s:422598
+resonance:0.74546 step:1200 elapsed_frac:0.621 frozen:False
+D2S FORCE STEP: initiating swap at step:1200 elapsed_frac:0.621 resonance:0.74546
+  D2S blocks[0].mixer.in_proj -> MonarchQATLinear diag_energy:0.251 identity:0.250 perm:(3, 0, 1, 2)
+  D2S blocks[0].mlp.w_gate -> MonarchQATLinear diag_energy:0.251 identity:0.250 perm:(3, 2, 0, 1)
+  D2S blocks[1].mixer.in_proj -> MonarchQATLinear diag_energy:0.251 identity:0.250 perm:(3, 0, 1, 2)
+  D2S blocks[1].mlp.w_gate -> MonarchQATLinear diag_energy:0.251 identity:0.250 perm:(3, 2, 0, 1)
+  D2S blocks[2].mixer.in_proj -> MonarchQATLinear diag_energy:0.251 identity:0.250 perm:(0, 2, 3, 1)
+  D2S blocks[2].mlp.w_gate -> MonarchQATLinear diag_energy:0.251 identity:0.250 perm:(1, 2, 3, 0)
+  D2S blocks[3].mixer.in_proj -> MonarchQATLinear diag_energy:0.252 identity:0.251 perm:(2, 1, 3, 0)
+  D2S blocks[3].mlp.w_gate -> MonarchQATLinear diag_energy:0.251 identity:0.250 perm:(3, 0, 2, 1)
+D2S avg retained diagonal energy after group permutation: 0.251
+D2S patch complete: 8 selected layers swapped to permuted Monarch
+Clearing Dynamo cache and re-compiling patched model...
+D2S patch complete. Selective permuted sparse phase active from step 1200. params:37489157
+step:1300/20000 train_loss:3.5593 train_time:425935ms step_avg:327.64ms tok/s:400046
+step:1400/20000 train_loss:3.3104 train_time:461763ms step_avg:329.83ms tok/s:397392
+step:1500/20000 train_loss:3.2879 train_time:497599ms step_avg:331.73ms tok/s:395114
+step:1500/20000 val_loss:3.2403 val_bpb:1.9191 train_time:497608ms step_avg:331.74ms
+step:1600/20000 train_loss:3.0420 train_time:534358ms step_avg:333.97ms tok/s:392462

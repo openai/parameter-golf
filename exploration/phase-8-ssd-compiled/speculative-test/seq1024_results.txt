@@ -1,0 +1,112 @@
+=== LR=0.04 seq=1024 ===
+logs/lr04_s1024.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 expand=2 d_state=64 headdim=64 ngroups=1 chunk_size=64
+model_params:30307652
+hsm:rank=16 write_iters=2 gate_init=-2.0 params=2096
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:True embed_lr:0.04 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:131072 train_seq_len:1024 iterations:20000 warmup_steps:5 max_wallclock_seconds:300.000 grad_clip_norm:1.0
+seed:1337
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+step:0/20000 val_loss:7.9595 val_bpb:4.7141 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:7.9629 train_time:355ms step_avg:354.83ms tok/s:369398
+step:2/20000 train_loss:6.6119 train_time:672ms step_avg:335.78ms tok/s:390356
+step:3/20000 train_loss:6.0993 train_time:991ms step_avg:330.24ms tok/s:396903
+step:4/20000 train_loss:5.9080 train_time:1310ms step_avg:327.47ms tok/s:400255
+step:5/20000 train_loss:5.8120 train_time:1629ms step_avg:325.76ms tok/s:402358
+step:6/20000 train_loss:5.7110 train_time:1953ms step_avg:325.57ms tok/s:402592
+step:7/20000 train_loss:5.6712 train_time:2275ms step_avg:325.05ms tok/s:403234
+step:8/20000 train_loss:5.6395 train_time:2599ms step_avg:324.87ms tok/s:403464
+step:9/20000 train_loss:5.6296 train_time:2924ms step_avg:324.84ms tok/s:403499
+step:10/20000 train_loss:5.5863 train_time:3249ms step_avg:324.89ms tok/s:403435
+step:200/20000 train_loss:3.9010 train_time:62002ms step_avg:310.01ms tok/s:422801
+step:400/20000 train_loss:3.5241 train_time:123941ms step_avg:309.85ms tok/s:423014
+step:600/20000 train_loss:3.4527 train_time:185867ms step_avg:309.78ms tok/s:423115
+step:800/20000 train_loss:3.2777 train_time:247835ms step_avg:309.79ms tok/s:423094
+step:969/20000 val_loss:3.2118 val_bpb:1.9022 train_time:300167ms step_avg:309.77ms
+stopping_early: wallclock_cap train_time:300167ms step:969/20000
+peak memory allocated: 8093 MiB reserved: 15734 MiB
+total_tokens_seen:127008768
+Serialized model (raw): 121234383 bytes
+Code size: 80655 bytes
+Serialized model int4+zlib: 13431788 bytes (int4:15611904 passthrough:60040)
+Total submission size int4+zlib: 13512443 bytes
+final_int4_zlib_roundtrip val_loss:3.2118 val_bpb:1.9022 eval_time:54830ms
+final_int4_zlib_roundtrip_exact val_loss:3.21182354 val_bpb:1.90222281
+=== LR=0.03 seq=1024 ===
+logs/lr03_s1024.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 expand=2 d_state=64 headdim=64 ngroups=1 chunk_size=64
+model_params:30307652
+hsm:rank=16 write_iters=2 gate_init=-2.0 params=2096
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:1024 iterations:20000 warmup_steps:5 max_wallclock_seconds:300.000 grad_clip_norm:1.0
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:7.9595 val_bpb:4.7141 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:7.9629 train_time:351ms step_avg:351.29ms tok/s:373119
+step:2/20000 train_loss:6.6554 train_time:666ms step_avg:333.07ms tok/s:393527
+step:3/20000 train_loss:6.1049 train_time:984ms step_avg:327.93ms tok/s:399694
+step:4/20000 train_loss:5.8657 train_time:1304ms step_avg:325.88ms tok/s:402210
+step:5/20000 train_loss:5.7818 train_time:1624ms step_avg:324.83ms tok/s:403512
+step:6/20000 train_loss:5.6900 train_time:1940ms step_avg:323.34ms tok/s:405368
+step:7/20000 train_loss:5.6405 train_time:2261ms step_avg:323.00ms tok/s:405799
+step:8/20000 train_loss:5.6197 train_time:2583ms step_avg:322.87ms tok/s:405960
+step:9/20000 train_loss:5.5952 train_time:2909ms step_avg:323.24ms tok/s:405490
+step:10/20000 train_loss:5.5496 train_time:3237ms step_avg:323.74ms tok/s:404867
+step:200/20000 train_loss:3.8869 train_time:61975ms step_avg:309.88ms tok/s:422981
+step:400/20000 train_loss:3.5640 train_time:123953ms step_avg:309.88ms tok/s:422972
+step:600/20000 train_loss:3.4494 train_time:185920ms step_avg:309.87ms tok/s:422994
+step:800/20000 train_loss:3.2949 train_time:247922ms step_avg:309.90ms tok/s:422946
+step:969/20000 val_loss:3.2024 val_bpb:1.8966 train_time:300248ms step_avg:309.85ms
+stopping_early: wallclock_cap train_time:300248ms step:969/20000
+peak memory allocated: 8093 MiB reserved: 15734 MiB
+total_tokens_seen:127008768
+Serialized model (raw): 121234383 bytes
+Code size: 80655 bytes
+Serialized model int4+zlib: 13511091 bytes (int4:15611904 passthrough:60040)
+Total submission size int4+zlib: 13591746 bytes
+final_int4_zlib_roundtrip val_loss:3.2025 val_bpb:1.8967 eval_time:54823ms
+final_int4_zlib_roundtrip_exact val_loss:3.20248657 val_bpb:1.89669294
+=== RESULTS ===
+logs/lr04_s1024.txt:final_int4_zlib_roundtrip_exact val_loss:3.21182354 val_bpb:1.90222281
+logs/lr04_s1024.txt:final_int4_zlib_roundtrip_exact val_loss:3.21182354 val_bpb:1.90222281
+logs/lr03_s1024.txt:final_int4_zlib_roundtrip_exact val_loss:3.20248657 val_bpb:1.89669294
+logs/lr03_s1024.txt:final_int4_zlib_roundtrip_exact val_loss:3.20248657 val_bpb:1.89669294

@@ -1,0 +1,34 @@
+{
+  "run_id": "20260323-005-frac-warmdown-multiskip",
+  "date": "2026-03-23",
+  "type": "smoke",
+  "gpu": "1xH100",
+  "parent_run_id": "archive/final_contenders/contender_a_batch262k_wd2400.py (val_bpb=1.8046)",
+  "hypothesis": "Combined: fractional warmdown (GPU-invariant LR schedule) + multi-skip x0 (gradient highway). If both help independently, the combination should be strictly better. If multi-skip stabilizes gradients, it may enable the higher effective LR from frac warmdown without instability.",
+  "hyperparameters": {
+    "model_arch": "SSDGolf",
+    "model_dim": 1536,
+    "n_iters": 4,
+    "d_state": 64,
+    "expand": 2,
+    "headdim": 64,
+    "chunk_size": 64,
+    "seq_len": 1024,
+    "batch_tokens": 262144,
+    "max_wallclock_sec": 600,
+    "matrix_lr": 0.03,
+    "scalar_lr": 0.03,
+    "embed_lr": 0.03,
+    "head_lr": 0.03,
+    "tie_embeddings": true,
+    "qat_bits": 4,
+    "qat_group_size": 128,
+    "grad_clip_norm": 1.0,
+    "warmdown_frac": 0.6,
+    "seed": 1337
+  },
+  "changes_from_parent": {
+    "lr_schedule": {"from": "iter-based warmdown", "to": "fractional warmdown 60%"},
+    "_core_forward": {"from": "no x0 addition after block", "to": "x = x + x0 after each block output"}
+  }
+}

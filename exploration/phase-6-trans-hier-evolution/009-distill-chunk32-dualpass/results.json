@@ -1,0 +1,15 @@
+{
+  "run_id": "20260326-008-distill-chunk32-dualpass",
+  "status": "pending",
+  "val_bpb": null,
+  "val_loss": null,
+  "train_loss_final": null,
+  "total_tokens_seen": null,
+  "tokens_per_sec": null,
+  "wall_time_sec": null,
+  "artifact_bytes": null,
+  "code_bytes": null,
+  "n_params": null,
+  "peak_memory_mib": null,
+  "notes": "chunk_size=32 (64 intervals, 32-tok lag) + dual Macro pass (teacher no_grad, student causal) + cosine distillation. Zero new params vs 007. Teacher under no_grad saves backward memory."
+}

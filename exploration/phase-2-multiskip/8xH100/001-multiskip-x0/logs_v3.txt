@@ -1,0 +1,51 @@
+W0323 20:53:07.316000 34446 torch/distributed/run.py:803] 
+W0323 20:53:07.316000 34446 torch/distributed/run.py:803] *****************************************
+W0323 20:53:07.316000 34446 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0323 20:53:07.316000 34446 torch/distributed/run.py:803] *****************************************
+logs/8xh100_001_multiskip_x0_v3.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:33264341
+world_size:8 grad_accum_steps:1
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:197ms step_avg:197.01ms tok/s:2661191
+step:2/20000 train_loss:6.7482 train_time:391ms step_avg:195.35ms tok/s:2683794
+step:3/20000 train_loss:6.4939 train_time:567ms step_avg:189.05ms tok/s:2773313
+step:4/20000 train_loss:6.1981 train_time:742ms step_avg:185.43ms tok/s:2827378
+step:5/20000 train_loss:5.8259 train_time:935ms step_avg:187.04ms tok/s:2803040
+step:6/20000 train_loss:5.6756 train_time:1126ms step_avg:187.74ms tok/s:2792673
+step:7/20000 train_loss:5.3919 train_time:1287ms step_avg:183.92ms tok/s:2850601
+step:8/20000 train_loss:5.3244 train_time:1466ms step_avg:183.29ms tok/s:2860501
+step:9/20000 train_loss:5.2493 train_time:1670ms step_avg:185.55ms tok/s:2825516
+step:10/20000 train_loss:5.1899 train_time:1884ms step_avg:188.42ms tok/s:2782589
+step:100/20000 train_loss:3.5276 train_time:15391ms step_avg:153.91ms tok/s:3406368
+step:200/20000 train_loss:3.3782 train_time:34861ms step_avg:174.31ms tok/s:3007868
+step:300/20000 train_loss:3.1801 train_time:49951ms step_avg:166.50ms tok/s:3148785
+step:400/20000 train_loss:3.1294 train_time:68729ms step_avg:171.82ms tok/s:3051315
+step:500/20000 train_loss:3.3134 train_time:83761ms step_avg:167.52ms tok/s:3129658
+step:600/20000 train_loss:3.4474 train_time:102091ms step_avg:170.15ms tok/s:3081308
+step:700/20000 train_loss:3.4610 train_time:117242ms step_avg:167.49ms tok/s:3130302
+step:800/20000 train_loss:3.4578 train_time:136271ms step_avg:170.34ms tok/s:3077911
+step:900/20000 train_loss:3.4368 train_time:151294ms step_avg:168.10ms tok/s:3118814
+step:1000/20000 train_loss:3.3796 train_time:170962ms step_avg:170.96ms tok/s:3066696
+step:1000/20000 val_loss:3.4539 val_bpb:2.0456 train_time:171032ms step_avg:171.03ms
+step:1100/20000 train_loss:3.2906 train_time:186013ms step_avg:169.10ms tok/s:3100409
+step:1200/20000 train_loss:3.3903 train_time:205173ms step_avg:170.98ms tok/s:3066409
+step:1300/20000 train_loss:3.3426 train_time:220294ms step_avg:169.46ms tok/s:3093928
+step:1400/20000 train_loss:3.5068 train_time:239084ms step_avg:170.77ms tok/s:3070064
+step:1500/20000 train_loss:3.3157 train_time:254235ms step_avg:169.49ms tok/s:3093329
+step:1600/20000 train_loss:3.2869 train_time:273184ms step_avg:170.74ms tok/s:3070685
+step:1700/20000 train_loss:3.2895 train_time:288225ms step_avg:169.54ms tok/s:3092343
+step:1800/20000 train_loss:3.2770 train_time:307355ms step_avg:170.75ms tok/s:3070454
+step:1900/20000 train_loss:3.2733 train_time:322425ms step_avg:169.70ms tok/s:3089547

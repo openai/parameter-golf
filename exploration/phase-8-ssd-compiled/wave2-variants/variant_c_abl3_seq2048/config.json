@@ -1,0 +1,44 @@
+{
+  "variant": "variant_c_abl3_seq2048",
+  "base": "ablation-3 (bifurcated A_log init champion, val_bpb=1.873)",
+  "changes": {
+    "TRAIN_SEQ_LEN": {"from": 1024, "to": 2048},
+    "MATRIX_LR": {"from": 0.03, "to": 0.02},
+    "WARMDOWN_ITERS": {"from": 1200, "to": 800}
+  },
+  "unchanged_hyperparameters": {
+    "MODEL_DIM": 1536,
+    "N_BLOCKS": 1,
+    "N_ITERS": 4,
+    "EXPAND": 2,
+    "D_STATE": 64,
+    "HEADDIM": 64,
+    "NGROUPS": 1,
+    "CHUNK_SIZE": 64,
+    "MLP_RATIO": 2.0,
+    "VOCAB_SIZE": 1024,
+    "QAT_GROUP_SIZE": 128,
+    "TRAIN_BATCH_TOKENS": 131072,
+    "ITERATIONS": 20000,
+    "WARMUP_STEPS": 5,
+    "MAX_WALLCLOCK_SECONDS": 600.0,
+    "EMBED_LR": 0.03,
+    "HEAD_LR": 0.03,
+    "TIED_EMBED_LR": 0.03,
+    "SCALAR_LR": 0.03,
+    "LR_WARMUP_STEPS": 200,
+    "MUON_MOMENTUM": 0.95,
+    "MUON_BACKEND_STEPS": 5,
+    "LOGIT_SOFTCAP": 30.0,
+    "TIE_EMBEDDINGS": true,
+    "TIED_EMBED_INIT_STD": 0.005,
+    "GRAD_CLIP_NORM": 1.0
+  },
+  "target_gpu": "1xH100 (smoke test)",
+  "expected_runtime_minutes": 5,
+  "decision_tree": {
+    "val_bpb < 1.85": "seq=2048 + bifurcated A_log is the combo. Scale to 8xH100.",
+    "val_bpb 1.85-1.90": "seq=2048 matches seq=1024. Context length doesn't help at this training budget.",
+    "val_bpb > 1.90": "seq=2048 hurts (fewer steps). Stick with seq=1024."
+  }
+}

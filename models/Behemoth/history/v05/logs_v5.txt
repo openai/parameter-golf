@@ -1,0 +1,179 @@
+logs/r_series_v5c.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26891867
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.023 scalar_lr:0.023
+train_batch_tokens:393216 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000
+d2s_enabled:False d2s_force_step:4500 d2s_groups:4 d2s_heal_lr_scale:0.300 d2s_target:mlp.w_gate,mlp.w_up mlp_kind:swiglu
+block_schedule:parallel attn_and_mlp_from_shared_residual:True
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:128 macro_distill_weight:0.150
+seed:42
+novel_features: obf=0.005 surprisal=True pyramid=True adaptive_depth=True annealed_qat=True head_diversity=0.01 gated_skips=True
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9300 val_bpb:4.1043 train_time:0ms step_avg:0.02ms
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+step:1/20000 train_loss:7.2329 train_time:30849ms step_avg:30849.42ms tok/s:12746
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+step:2/20000 train_loss:9.5718 train_time:68443ms step_avg:34221.57ms tok/s:11490
+step:3/20000 train_loss:9.5549 train_time:69028ms step_avg:23009.27ms tok/s:17089
+step:4/20000 train_loss:9.5324 train_time:69648ms step_avg:17412.02ms tok/s:22583
+step:5/20000 train_loss:9.5185 train_time:70309ms step_avg:14061.79ms tok/s:27963
+step:6/20000 train_loss:9.4056 train_time:71021ms step_avg:11836.84ms tok/s:33220
+step:7/20000 train_loss:9.4021 train_time:71708ms step_avg:10243.93ms tok/s:38385
+step:8/20000 train_loss:9.1903 train_time:72405ms step_avg:9050.57ms tok/s:43447
+step:9/20000 train_loss:9.0751 train_time:73115ms step_avg:8123.84ms tok/s:48403
+step:10/20000 train_loss:8.9420 train_time:73824ms step_avg:7382.35ms tok/s:53264
+swa:start step:50
+step:50/20000 train_loss:5.6091 train_time:98101ms step_avg:1962.02ms tok/s:200414
+step:100/20000 train_loss:4.5964 train_time:129884ms step_avg:1298.84ms tok/s:302744
+step:150/20000 train_loss:4.0276 train_time:160542ms step_avg:1070.28ms tok/s:367395
+step:200/20000 train_loss:3.8247 train_time:190510ms step_avg:952.55ms tok/s:412804
+step:250/20000 train_loss:3.6837 train_time:221906ms step_avg:887.62ms tok/s:442998
+[rank0]:W0328 02:31:46.887000 17917 torch/_dynamo/convert_frame.py:1358] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0328 02:31:46.887000 17917 torch/_dynamo/convert_frame.py:1358] [0/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1132)
+[rank0]:W0328 02:31:46.887000 17917 torch/_dynamo/convert_frame.py:1358] [0/8]    last reason: 0/7: tensor 'input_ids' size mismatch at index 0. expected 32, actual 12
+[rank0]:W0328 02:31:46.887000 17917 torch/_dynamo/convert_frame.py:1358] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0328 02:31:46.887000 17917 torch/_dynamo/convert_frame.py:1358] [0/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1748, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 1532, in main
+[rank0]:     val_loss, val_bpb = eval_val(
+[rank0]:                         ^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_gpt.py", line 259, in eval_val
+[rank0]:     batch_loss = model(x, y).detach()
+[rank0]:                  ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1661, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/parallel/distributed.py", line 1487, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 414, in __call__
+[rank0]:     return super().__call__(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/eval_frame.py", line 832, in compile_wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1869, in __call__
+[rank0]:     return hijacked_callback(
+[rank0]:            ^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 688, in __call__
+[rank0]:     result = _compile(
+[rank0]:              ^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_dynamo/convert_frame.py", line 1375, in _compile
+[rank0]:     raise FailOnRecompileLimitHit(
+[rank0]: torch._dynamo.exc.FailOnRecompileLimitHit: recompile_limit reached with fullgraph=True. Excessive recompilations can degrade performance due to the compilation overhead of each recompilation. To monitor recompilations, enable TORCH_LOGS=recompiles. If recompilations are expected, consider increasing torch._dynamo.config.cache_size_limit to an appropriate value.
+[rank0]:[W328 02:31:49.500154053 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+E0328 02:31:51.677000 17849 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 0 (pid: 17917) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-28_02:31:51
+  host      : b41f8105e0df
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 17917)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

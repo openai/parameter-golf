@@ -1,0 +1,30 @@
+{
+  "run_id": "20260326-012-trans-hier-int4qat-9L-8gpu",
+  "date": "2026-03-26",
+  "type": "full",
+  "gpu": "8xH100",
+  "parent_run_id": "20260326-011-trans-hier-int4qat",
+  "hypothesis": "Full 8xH100 submission run. 9 layers (down from 10) to fit 16MB artifact cap. Int4 QAT + Macro sidechannel + dual-pass cosine self-distillation. Expect ~1.15-1.25 BPB with 8x throughput.",
+  "hyperparameters": {
+    "model_arch": "GPT-HierDualDistill-Int4QAT-9L",
+    "model_dim": 512,
+    "num_layers": 9,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "block_schedule": "parallel",
+    "macro_interval": 16,
+    "macro_xattn_dim": 128,
+    "macro_distill_weight": 0.15,
+    "qat_bits": 4,
+    "qat_group_size": 128,
+    "seq_len": 2048,
+    "batch_tokens": 393216,
+    "max_wallclock_sec": 600,
+    "seed": 42
+  },
+  "changes_from_parent": {
+    "num_layers": {"from": 10, "to": 9},
+    "gpu": {"from": "1xH100", "to": "8xH100"},
+    "reason": "10L artifact was 16.4MB (430KB over 16MB cap). 9L saves ~1.7MB int4."
+  }
+}

@@ -1,0 +1,131 @@
+logs/behemoth_v8.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:34756187
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.023 scalar_lr:0.023
+train_batch_tokens:393216 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000
+d2s_enabled:False d2s_force_step:4500 d2s_groups:4 d2s_heal_lr_scale:0.300 d2s_target:mlp.w_gate,mlp.w_up mlp_kind:swiglu
+block_schedule:parallel attn_and_mlp_from_shared_residual:True
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:128 macro_distill_weight:0.150
+seed:42
+novel_features: obf=0.005 surprisal=True pyramid=True adaptive_depth=True annealed_qat=False head_diversity=0.01 gated_skips=True aux_obf=0.0025
+aux_obf_schedule: every=50 start=250 sample_len=128 sample_seqs=1
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9277 val_bpb:4.1030 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:7.2322 train_time:638ms step_avg:637.99ms tok/s:616333
+step:2/20000 train_loss:9.6748 train_time:1245ms step_avg:622.72ms tok/s:631451
+step:3/20000 train_loss:8.6603 train_time:1823ms step_avg:607.62ms tok/s:647139
+step:4/20000 train_loss:7.4209 train_time:2446ms step_avg:611.47ms tok/s:643071
+step:5/20000 train_loss:6.6607 train_time:3047ms step_avg:609.45ms tok/s:645203
+step:6/20000 train_loss:6.2663 train_time:3667ms step_avg:611.20ms tok/s:643351
+step:7/20000 train_loss:6.2783 train_time:4288ms step_avg:612.60ms tok/s:641880
+step:8/20000 train_loss:6.0650 train_time:4835ms step_avg:604.40ms tok/s:650589
+step:9/20000 train_loss:6.0145 train_time:5400ms step_avg:600.04ms tok/s:655318
+step:10/20000 train_loss:5.9600 train_time:5962ms step_avg:596.18ms tok/s:659561
+step:50/20000 train_loss:4.4232 train_time:29481ms step_avg:589.61ms tok/s:666907
+step:100/20000 train_loss:3.8999 train_time:57557ms step_avg:575.57ms tok/s:683176
+step:150/20000 train_loss:3.6778 train_time:83858ms step_avg:559.05ms tok/s:703363
+step:200/20000 train_loss:3.5436 train_time:110205ms step_avg:551.02ms tok/s:713608
+step:250/20000 train_loss:3.4245 train_time:136589ms step_avg:546.36ms tok/s:719708
+step:250/20000 val_loss:2.7862 val_bpb:1.6501 train_time:136593ms step_avg:546.37ms
+step:300/20000 train_loss:3.3176 train_time:179245ms step_avg:597.48ms tok/s:658121
+step:350/20000 train_loss:3.2856 train_time:205603ms step_avg:587.44ms tok/s:669374
+step:400/20000 train_loss:3.2147 train_time:232032ms step_avg:580.08ms tok/s:677866
+step:450/20000 train_loss:3.1534 train_time:258390ms step_avg:574.20ms tok/s:684806
+step:500/20000 train_loss:3.1922 train_time:284777ms step_avg:569.55ms tok/s:690393
+step:500/20000 val_loss:2.5159 val_bpb:1.4900 train_time:284782ms step_avg:569.56ms
+step:550/20000 train_loss:3.1907 train_time:311170ms step_avg:565.76ms tok/s:695019
+step:600/20000 train_loss:3.1187 train_time:337497ms step_avg:562.49ms tok/s:699057
+step:650/20000 train_loss:3.0929 train_time:363968ms step_avg:559.95ms tok/s:702232
+step:700/20000 train_loss:3.1376 train_time:390393ms step_avg:557.70ms tok/s:705062
+step:750/20000 train_loss:3.0718 train_time:416787ms step_avg:555.72ms tok/s:707584
+step:750/20000 val_loss:2.4264 val_bpb:1.4370 train_time:416793ms step_avg:555.72ms
+step:800/20000 train_loss:3.0902 train_time:443324ms step_avg:554.16ms tok/s:709577
+step:850/20000 train_loss:3.0974 train_time:469710ms step_avg:552.60ms tok/s:711575
+step:900/20000 train_loss:2.9464 train_time:496117ms step_avg:551.24ms tok/s:713328
+step:950/20000 train_loss:2.9982 train_time:522439ms step_avg:549.94ms tok/s:715022
+step:1000/20000 train_loss:2.9826 train_time:548761ms step_avg:548.76ms tok/s:716553
+step:1000/20000 val_loss:2.3570 val_bpb:1.3960 train_time:548764ms step_avg:548.76ms
+step:1050/20000 train_loss:3.0187 train_time:575235ms step_avg:547.84ms tok/s:717754
+step:1097/20000 val_loss:2.3372 val_bpb:1.3842 train_time:600019ms step_avg:546.96ms
+stopping_early: wallclock_cap train_time:600019ms step:1097/20000
+peak memory allocated: 14804 MiB reserved: 16146 MiB
+total_tokens_seen:431357952
+Serialized model (raw): 136296271 bytes
+Code size: 82873 bytes
+Serialized model int4+zlib: 15944109 bytes (int4:17064960 passthrough:1660650)
+Total submission size int4+zlib: 16026982 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+  sliding_eval [  0.0%] 32/969088 windows running_bpb=1.423151
+  sliding_eval [  0.2%] 1632/969088 windows running_bpb=1.363854
+  sliding_eval [  0.3%] 3232/969088 windows running_bpb=1.355901
+  sliding_eval [  0.5%] 4832/969088 windows running_bpb=1.354862
+  sliding_eval [  0.7%] 6432/969088 windows running_bpb=1.368191
+  sliding_eval [  0.8%] 8032/969088 windows running_bpb=1.370097
+  sliding_eval [  1.0%] 9632/969088 windows running_bpb=1.372728
+  sliding_eval [  1.2%] 11232/969088 windows running_bpb=1.366913
+  sliding_eval [  1.3%] 12832/969088 windows running_bpb=1.364520
+  sliding_eval [  1.5%] 14432/969088 windows running_bpb=1.366894
+  sliding_eval [  1.7%] 16032/969088 windows running_bpb=1.375438
+  sliding_eval [  1.8%] 17632/969088 windows running_bpb=1.373953
+  sliding_eval [  2.0%] 19232/969088 windows running_bpb=1.374975
+  sliding_eval [  2.1%] 20832/969088 windows running_bpb=1.373901
+  sliding_eval [  2.3%] 22432/969088 windows running_bpb=1.373030
+  sliding_eval [  2.5%] 24032/969088 windows running_bpb=1.373740
+  sliding_eval [  2.6%] 25632/969088 windows running_bpb=1.375077
+  sliding_eval [  2.8%] 27232/969088 windows running_bpb=1.375492
+  sliding_eval [  3.0%] 28832/969088 windows running_bpb=1.381175
+  sliding_eval [  3.1%] 30432/969088 windows running_bpb=1.378612
+  sliding_eval [  3.3%] 32032/969088 windows running_bpb=1.380253
+  sliding_eval [  3.5%] 33632/969088 windows running_bpb=1.378762
+  sliding_eval [  3.6%] 35232/969088 windows running_bpb=1.378089
+  sliding_eval [  3.8%] 36832/969088 windows running_bpb=1.377120
+  sliding_eval [  4.0%] 38432/969088 windows running_bpb=1.377641
+  sliding_eval [  4.1%] 40032/969088 windows running_bpb=1.375374
+  sliding_eval [  4.3%] 41632/969088 windows running_bpb=1.374580
+  sliding_eval [  4.5%] 43232/969088 windows running_bpb=1.375078
+  sliding_eval [  4.6%] 44832/969088 windows running_bpb=1.374416
+  sliding_eval [  4.8%] 46432/969088 windows running_bpb=1.374224
+  sliding_eval [  5.0%] 48032/969088 windows running_bpb=1.373327
+  sliding_eval [  5.1%] 49632/969088 windows running_bpb=1.374717
+  sliding_eval [  5.3%] 51232/969088 windows running_bpb=1.375952
+E0328 15:43:46.181000 40482 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: -9) local_rank: 0 (pid: 40550) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+======================================================
+train_gpt.py FAILED
+------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-28_15:43:46
+  host      : 118f49455164
+  rank      : 0 (local_rank: 0)
+  exitcode  : -9 (pid: 40550)
+  error_file: <N/A>
+  traceback : Signal 9 (SIGKILL) received by PID 40550
+======================================================

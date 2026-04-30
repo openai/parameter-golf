@@ -1,0 +1,180 @@
+logs/behemoth_v6.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26891867
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.023 scalar_lr:0.023
+train_batch_tokens:393216 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000
+d2s_enabled:False d2s_force_step:4500 d2s_groups:4 d2s_heal_lr_scale:0.300 d2s_target:mlp.w_gate,mlp.w_up mlp_kind:swiglu
+block_schedule:parallel attn_and_mlp_from_shared_residual:True
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:128 macro_distill_weight:0.150
+seed:42
+novel_features: obf=0.005 surprisal=True pyramid=True adaptive_depth=True annealed_qat=True head_diversity=0.01 gated_skips=True
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9300 val_bpb:4.1043 train_time:0ms step_avg:0.02ms
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+step:1/20000 train_loss:7.2329 train_time:32198ms step_avg:32197.80ms tok/s:12213
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:1744: FutureWarning: `torch._prims_common.check` is deprecated and will be removed in the future. Please use `torch._check*` functions instead.
+  check(
+step:2/20000 train_loss:9.5757 train_time:67168ms step_avg:33583.93ms tok/s:11708
+step:3/20000 train_loss:9.5592 train_time:67763ms step_avg:22587.55ms tok/s:17409
+step:4/20000 train_loss:9.5369 train_time:68328ms step_avg:17082.00ms tok/s:23019
+step:5/20000 train_loss:9.5213 train_time:68927ms step_avg:13785.34ms tok/s:28524
+step:6/20000 train_loss:9.4068 train_time:69553ms step_avg:11592.16ms tok/s:33921
+step:7/20000 train_loss:9.4017 train_time:70157ms step_avg:10022.47ms tok/s:39233
+step:8/20000 train_loss:9.1869 train_time:70822ms step_avg:8852.69ms tok/s:44418
+step:9/20000 train_loss:9.0679 train_time:71469ms step_avg:7941.02ms tok/s:49517
+step:10/20000 train_loss:8.9300 train_time:72132ms step_avg:7213.16ms tok/s:54514
+step:50/20000 train_loss:5.6082 train_time:96786ms step_avg:1935.73ms tok/s:203136
+step:100/20000 train_loss:4.5684 train_time:127963ms step_avg:1279.63ms tok/s:307288
+step:150/20000 train_loss:4.0214 train_time:159423ms step_avg:1062.82ms tok/s:369974
+step:200/20000 train_loss:3.8153 train_time:189631ms step_avg:948.15ms tok/s:414717
+step:250/20000 train_loss:3.6791 train_time:220519ms step_avg:882.07ms tok/s:445785
+step:250/20000 val_loss:3.1170 val_bpb:1.8461 train_time:220527ms step_avg:882.11ms
+step:300/20000 train_loss:3.5660 train_time:261851ms step_avg:872.84ms tok/s:450504
+step:350/20000 train_loss:3.4844 train_time:292629ms step_avg:836.08ms tok/s:470308
+step:400/20000 train_loss:3.3980 train_time:323592ms step_avg:808.98ms tok/s:486064
+step:450/20000 train_loss:3.3185 train_time:354095ms step_avg:786.88ms tok/s:499717
+step:500/20000 train_loss:3.3498 train_time:384993ms step_avg:769.99ms tok/s:510679
+step:500/20000 val_loss:2.7019 val_bpb:1.6002 train_time:385001ms step_avg:770.00ms
+step:550/20000 train_loss:3.3283 train_time:416230ms step_avg:756.78ms tok/s:519590
+step:600/20000 train_loss:3.2499 train_time:440728ms step_avg:734.55ms tok/s:535318
+step:650/20000 train_loss:3.2309 train_time:464221ms step_avg:714.19ms tok/s:550579
+step:700/20000 train_loss:3.2639 train_time:489060ms step_avg:698.66ms tok/s:562816
+step:750/20000 train_loss:3.1898 train_time:514711ms step_avg:686.28ms tok/s:572966
+step:750/20000 val_loss:2.5662 val_bpb:1.5198 train_time:514720ms step_avg:686.29ms
+step:800/20000 train_loss:3.2147 train_time:542161ms step_avg:677.70ms tok/s:580220
+step:850/20000 train_loss:3.2155 train_time:566745ms step_avg:666.76ms tok/s:589742
+step:900/20000 train_loss:3.0615 train_time:591239ms step_avg:656.93ms tok/s:598564
+step:918/20000 val_loss:2.5119 val_bpb:1.4877 train_time:600389ms step_avg:654.02ms
+stopping_early: wallclock_cap train_time:600389ms step:918/20000
+peak memory allocated: 12568 MiB reserved: 13414 MiB
+total_tokens_seen:360972288
+Serialized model (raw): 104835259 bytes
+Code size: 79910 bytes
+Serialized model int4+zlib: 12467125 bytes (int4:13009920 passthrough:1660650)
+Total submission size int4+zlib: 12547035 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+  sliding_eval [  0.0%] 32/969088 windows running_bpb=1.572493
+  sliding_eval [  0.2%] 1632/969088 windows running_bpb=1.534203
+  sliding_eval [  0.3%] 3232/969088 windows running_bpb=1.515026
+  sliding_eval [  0.5%] 4832/969088 windows running_bpb=1.516104
+  sliding_eval [  0.7%] 6432/969088 windows running_bpb=1.529381
+  sliding_eval [  0.8%] 8032/969088 windows running_bpb=1.531295
+  sliding_eval [  1.0%] 9632/969088 windows running_bpb=1.535268
+  sliding_eval [  1.2%] 11232/969088 windows running_bpb=1.529064
+  sliding_eval [  1.3%] 12832/969088 windows running_bpb=1.526775
+  sliding_eval [  1.5%] 14432/969088 windows running_bpb=1.529219
+  sliding_eval [  1.7%] 16032/969088 windows running_bpb=1.537838
+  sliding_eval [  1.8%] 17632/969088 windows running_bpb=1.535544
+  sliding_eval [  2.0%] 19232/969088 windows running_bpb=1.536324
+  sliding_eval [  2.1%] 20832/969088 windows running_bpb=1.535948
+  sliding_eval [  2.3%] 22432/969088 windows running_bpb=1.534927
+  sliding_eval [  2.5%] 24032/969088 windows running_bpb=1.536056
+  sliding_eval [  2.6%] 25632/969088 windows running_bpb=1.537362
+  sliding_eval [  2.8%] 27232/969088 windows running_bpb=1.537661
+  sliding_eval [  3.0%] 28832/969088 windows running_bpb=1.542868
+  sliding_eval [  3.1%] 30432/969088 windows running_bpb=1.540212
+  sliding_eval [  3.3%] 32032/969088 windows running_bpb=1.542531
+  sliding_eval [  3.5%] 33632/969088 windows running_bpb=1.540959
+  sliding_eval [  3.6%] 35232/969088 windows running_bpb=1.540318
+  sliding_eval [  3.8%] 36832/969088 windows running_bpb=1.539465
+  sliding_eval [  4.0%] 38432/969088 windows running_bpb=1.539969
+  sliding_eval [  4.1%] 40032/969088 windows running_bpb=1.538018
+  sliding_eval [  4.3%] 41632/969088 windows running_bpb=1.537370
+  sliding_eval [  4.5%] 43232/969088 windows running_bpb=1.538008
+  sliding_eval [  4.6%] 44832/969088 windows running_bpb=1.537700
+  sliding_eval [  4.8%] 46432/969088 windows running_bpb=1.537361
+  sliding_eval [  5.0%] 48032/969088 windows running_bpb=1.536453
+E0328 15:05:15.806000 16624 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: -9) local_rank: 0 (pid: 16692) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+======================================================
+train_gpt.py FAILED
+------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-28_15:05:15
+  host      : 118f49455164
+  rank      : 0 (local_rank: 0)
+  exitcode  : -9 (pid: 16692)
+  error_file: <N/A>
+  traceback : Signal 9 (SIGKILL) received by PID 16692
+======================================================

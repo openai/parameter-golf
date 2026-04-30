@@ -1,0 +1,372 @@
+W0324 17:58:40.187000 788 torch/distributed/run.py:803] 
+W0324 17:58:40.187000 788 torch/distributed/run.py:803] *****************************************
+W0324 17:58:40.187000 788 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0324 17:58:40.187000 788 torch/distributed/run.py:803] *****************************************
+logs/4xh100_003_griffin_n8_blk2.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=8 block_size=2 expand=2 d_state=32 headdim=64 ngroups=1 chunk_size=64
+model_params:33281193
+world_size:4 grad_accum_steps:2
+qat:4bit group_size=128
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:131072 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:0.3
+seed:1337
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+/usr/local/lib/python3.12/dist-packages/torch/_inductor/lowering.py:7242: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+[rank1]:W0324 18:00:36.448000 857 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank1]:W0324 18:00:36.448000 857 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1143)
+[rank1]:W0324 18:00:36.448000 857 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: len(blocks) == 5                                         # sources = [*blocks, partial_block]  # orkspace/parameter-golf/train_gpt.py:1151 in forward
+[rank1]:W0324 18:00:36.448000 857 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank1]:W0324 18:00:36.448000 857 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank2]:W0324 18:00:36.449000 858 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank2]:W0324 18:00:36.449000 858 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1143)
+[rank2]:W0324 18:00:36.449000 858 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: len(blocks) == 5                                         # sources = [*blocks, partial_block]  # orkspace/parameter-golf/train_gpt.py:1151 in forward
+[rank2]:W0324 18:00:36.449000 858 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank2]:W0324 18:00:36.449000 858 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank0]:W0324 18:00:36.584000 856 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0324 18:00:36.584000 856 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1143)
+[rank0]:W0324 18:00:36.584000 856 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: len(blocks) == 5                                         # sources = [*blocks, partial_block]  # orkspace/parameter-golf/train_gpt.py:1151 in forward
+[rank0]:W0324 18:00:36.584000 856 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0324 18:00:36.584000 856 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+[rank3]:W0324 18:00:36.759000 859 torch/_dynamo/convert_frame.py:1358] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank3]:W0324 18:00:36.759000 859 torch/_dynamo/convert_frame.py:1358] [9/8]    function: 'forward' (/workspace/parameter-golf/train_gpt.py:1143)
+[rank3]:W0324 18:00:36.759000 859 torch/_dynamo/convert_frame.py:1358] [9/8]    last reason: 9/7: len(blocks) == 5                                         # sources = [*blocks, partial_block]  # orkspace/parameter-golf/train_gpt.py:1151 in forward
+[rank3]:W0324 18:00:36.759000 859 torch/_dynamo/convert_frame.py:1358] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank3]:W0324 18:00:36.759000 859 torch/_dynamo/convert_frame.py:1358] [9/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9315 train_time:272ms step_avg:271.86ms tok/s:482139
+step:2/20000 train_loss:6.7549 train_time:487ms step_avg:243.41ms tok/s:538484
+step:3/20000 train_loss:6.5245 train_time:707ms step_avg:235.60ms tok/s:556323
+step:4/20000 train_loss:6.2043 train_time:928ms step_avg:232.06ms tok/s:564828
+step:5/20000 train_loss:5.8976 train_time:1157ms step_avg:231.32ms tok/s:566634
+step:6/20000 train_loss:5.5952 train_time:1385ms step_avg:230.90ms tok/s:567666
+step:7/20000 train_loss:5.4666 train_time:1612ms step_avg:230.25ms tok/s:569259
+step:8/20000 train_loss:5.3942 train_time:1835ms step_avg:229.43ms tok/s:571288
+step:9/20000 train_loss:5.3853 train_time:2065ms step_avg:229.40ms tok/s:571369
+step:10/20000 train_loss:5.2384 train_time:2293ms step_avg:229.34ms tok/s:571509
+step:100/20000 train_loss:3.7945 train_time:21839ms step_avg:218.39ms tok/s:600187
+step:200/20000 train_loss:3.2051 train_time:44243ms step_avg:221.22ms tok/s:592509
+step:300/20000 train_loss:3.0964 train_time:65973ms step_avg:219.91ms tok/s:596024
+step:400/20000 train_loss:3.1985 train_time:88026ms step_avg:220.07ms tok/s:595604
+step:500/20000 train_loss:3.0463 train_time:109756ms step_avg:219.51ms tok/s:597106
+step:600/20000 train_loss:3.2258 train_time:131477ms step_avg:219.13ms tok/s:598153
+step:700/20000 train_loss:2.9348 train_time:153227ms step_avg:218.90ms tok/s:598789
+step:800/20000 train_loss:3.0591 train_time:176164ms step_avg:220.21ms tok/s:595226
+step:900/20000 train_loss:3.1468 train_time:197853ms step_avg:219.84ms tok/s:596226
+step:1000/20000 train_loss:2.9216 train_time:219681ms step_avg:219.68ms tok/s:596647
+step:1000/20000 val_loss:2.9691 val_bpb:1.7584 train_time:219684ms step_avg:219.68ms
+step:1100/20000 train_loss:3.0069 train_time:241429ms step_avg:219.48ms tok/s:597191
+step:1200/20000 train_loss:2.8045 train_time:263184ms step_avg:219.32ms tok/s:597628
+step:1300/20000 train_loss:2.9754 train_time:285139ms step_avg:219.34ms tok/s:597580
+step:1400/20000 train_loss:2.7832 train_time:307375ms step_avg:219.55ms tok/s:596993
+step:1500/20000 train_loss:3.0048 train_time:329138ms step_avg:219.43ms tok/s:597343
+step:1600/20000 train_loss:2.8183 train_time:352244ms step_avg:220.15ms tok/s:595369
+step:1700/20000 train_loss:2.7902 train_time:374262ms step_avg:220.15ms tok/s:595365
+step:1800/20000 train_loss:2.9082 train_time:395997ms step_avg:220.00ms tok/s:595787
+step:1900/20000 train_loss:2.6952 train_time:417725ms step_avg:219.86ms tok/s:596174
+step:2000/20000 train_loss:2.7390 train_time:439444ms step_avg:219.72ms tok/s:596535
+step:2000/20000 val_loss:2.7582 val_bpb:1.6336 train_time:439448ms step_avg:219.72ms
+step:2100/20000 train_loss:2.8948 train_time:461172ms step_avg:219.61ms tok/s:596852
+swa:start step:2100
+step:2200/20000 train_loss:2.6973 train_time:483121ms step_avg:219.60ms tok/s:596866
+step:2300/20000 train_loss:2.6652 train_time:506804ms step_avg:220.35ms tok/s:594837
+step:2400/20000 train_loss:2.7659 train_time:528679ms step_avg:220.28ms tok/s:595016
+step:2500/20000 train_loss:3.0305 train_time:550564ms step_avg:220.23ms tok/s:595172
+step:2600/20000 train_loss:2.5805 train_time:572820ms step_avg:220.32ms tok/s:594929
+step:2700/20000 train_loss:2.5104 train_time:595013ms step_avg:220.38ms tok/s:594767
+step:2723/20000 val_loss:2.6287 val_bpb:1.5569 train_time:600090ms step_avg:220.38ms
+stopping_early: wallclock_cap train_time:600090ms step:2723/20000
+peak memory allocated: 16295 MiB reserved: 18064 MiB
+total_tokens_seen:356909056
+swa:applying averaged 13 checkpoints
+Serialized model (raw): 130512531 bytes
+Code size: 81998 bytes
+Serialized model int4+zlib: 14019343 bytes (int4:16448256 passthrough:2763090)
+Total submission size int4+zlib: 14101341 bytes
+final_int4_zlib_roundtrip val_loss:2.6508 val_bpb:1.5699 eval_time:33927ms
+final_int4_zlib_roundtrip_exact val_loss:2.65078335 val_bpb:1.56994321

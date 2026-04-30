@@ -1,0 +1,103 @@
+W0328 18:09:43.261000 847 torch/distributed/run.py:803] 
+W0328 18:09:43.261000 847 torch/distributed/run.py:803] *****************************************
+W0328 18:09:43.261000 847 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0328 18:09:43.261000 847 torch/distributed/run.py:803] *****************************************
+logs/behemoth_8gpu_v4.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:34756187
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+d2s_enabled:False d2s_force_step:4500 d2s_groups:4 d2s_heal_lr_scale:0.300 d2s_target:mlp.w_gate,mlp.w_up mlp_kind:swiglu
+block_schedule:parallel attn_and_mlp_from_shared_residual:True
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:128 macro_distill_weight:0.150
+seed:42
+novel_features: obf=0.005 surprisal=True pyramid=True adaptive_depth=True annealed_qat=False head_diversity=0.01 gated_skips=True aux_obf=0.0025
+aux_obf_schedule: every=150 start=1000 sample_len=128 sample_seqs=1
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9277 val_bpb:4.1030 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:7.2327 train_time:163ms step_avg:163.47ms tok/s:3207240
+step:2/20000 train_loss:9.6746 train_time:248ms step_avg:124.20ms tok/s:4221435
+step:3/20000 train_loss:6.7952 train_time:337ms step_avg:112.35ms tok/s:4666706
+step:4/20000 train_loss:8.4945 train_time:426ms step_avg:106.55ms tok/s:4920753
+step:5/20000 train_loss:8.7950 train_time:514ms step_avg:102.83ms tok/s:5098779
+step:6/20000 train_loss:9.2935 train_time:603ms step_avg:100.48ms tok/s:5217917
+step:7/20000 train_loss:7.5402 train_time:691ms step_avg:98.71ms tok/s:5311317
+step:8/20000 train_loss:6.9573 train_time:780ms step_avg:97.53ms tok/s:5375860
+step:9/20000 train_loss:7.0745 train_time:868ms step_avg:96.45ms tok/s:5436103
+step:10/20000 train_loss:6.9881 train_time:957ms step_avg:95.69ms tok/s:5479026
+step:50/20000 train_loss:4.1897 train_time:4408ms step_avg:88.15ms tok/s:5947347
+step:100/20000 train_loss:3.8218 train_time:8730ms step_avg:87.30ms tok/s:6005911
+step:150/20000 train_loss:3.5357 train_time:13061ms step_avg:87.07ms tok/s:6021203
+step:200/20000 train_loss:3.3758 train_time:22689ms step_avg:113.44ms tok/s:4621564
+step:250/20000 train_loss:3.3259 train_time:27005ms step_avg:108.02ms tok/s:4853612
+step:250/20000 val_loss:2.6764 val_bpb:1.5851 train_time:27012ms step_avg:108.05ms
+step:300/20000 train_loss:nan train_time:31285ms step_avg:104.28ms tok/s:5027551
+step:350/20000 train_loss:nan train_time:35483ms step_avg:101.38ms tok/s:5171548
+step:400/20000 train_loss:nan train_time:41579ms step_avg:103.95ms tok/s:5043815
+step:450/20000 train_loss:nan train_time:45781ms step_avg:101.73ms tok/s:5153493
+step:500/20000 train_loss:nan train_time:49981ms step_avg:99.96ms tok/s:5244824
+step:500/20000 val_loss:nan val_bpb:nan train_time:49989ms step_avg:99.98ms
+step:550/20000 train_loss:nan train_time:54196ms step_avg:98.54ms tok/s:5320624
+W0328 18:13:26.666000 847 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 915 closing signal SIGTERM
+W0328 18:13:26.668000 847 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 916 closing signal SIGTERM
+W0328 18:13:26.669000 847 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 917 closing signal SIGTERM
+W0328 18:13:26.670000 847 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 918 closing signal SIGTERM
+W0328 18:13:26.672000 847 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 919 closing signal SIGTERM
+W0328 18:13:26.673000 847 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 920 closing signal SIGTERM
+W0328 18:13:26.674000 847 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 921 closing signal SIGTERM
+E0328 18:13:27.692000 847 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: -9) local_rank: 7 (pid: 922) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+====================================================
+train_gpt.py FAILED
+----------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+----------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-28_18:13:26
+  host      : db3ecb0f684a
+  rank      : 7 (local_rank: 7)
+  exitcode  : -9 (pid: 922)
+  error_file: <N/A>
+  traceback : Signal 9 (SIGKILL) received by PID 922
+====================================================

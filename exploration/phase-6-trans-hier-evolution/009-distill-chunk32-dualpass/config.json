@@ -1,0 +1,33 @@
+{
+  "run_id": "20260326-008-distill-chunk32-dualpass",
+  "date": "2026-03-26",
+  "type": "smoke",
+  "gpu": "1xH100",
+  "parent_run_id": "20260326-007-self-distill",
+  "hypothesis": "Three changes stacked: (1) chunk_size=32 halves the prediction horizon and causal lag, (2) dual Macro pass (teacher=current chunk, student=previous chunk, same Block 1 weights) gives a cleaner distillation signal — student learns to COMPENSATE for missing current chunk, not just temporal smoothness, (3) cosine distillation is more collapse-resistant than MSE. No broadcast shift needed — student's inputs are inherently causal so broadcast goes directly to same chunk.",
+  "hyperparameters": {
+    "model_arch": "SSDGolf-DualDistill-Chunk32",
+    "model_dim": 1024,
+    "n_blocks": 2,
+    "n_iters": 4,
+    "d_state": 32,
+    "expand": 2,
+    "headdim": 64,
+    "chunk_size": 32,
+    "macro_chunk_size": 16,
+    "distill_weight": 0.3,
+    "seq_len": 2048,
+    "batch_tokens": 131072,
+    "prefix_state_prefill_tokens": 1024,
+    "max_wallclock_sec": 600,
+    "seed": 1337
+  },
+  "changes_from_parent": {
+    "chunk_size": {"from": 64, "to": 32},
+    "n_intervals": {"from": 32, "to": 64},
+    "causal_lag_tokens": {"from": 64, "to": 32},
+    "distillation": {"from": "shift + MSE", "to": "dual pass + cosine"},
+    "broadcast": {"from": "shifted (chunk c gets c-1, chunk 0 gets zeros)", "to": "direct (student is inherently causal)"},
+    "teacher_path": {"from": "gradient flows through teacher", "to": "torch.no_grad() — teacher is pure oracle"}
+  }
+}

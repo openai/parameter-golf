@@ -1,0 +1,107 @@
+W0328 17:15:57.843000 1170 torch/distributed/run.py:803] 
+W0328 17:15:57.843000 1170 torch/distributed/run.py:803] *****************************************
+W0328 17:15:57.843000 1170 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0328 17:15:57.843000 1170 torch/distributed/run.py:803] *****************************************
+logs/behemoth_8gpu.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:34756187
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.023 scalar_lr:0.023
+train_batch_tokens:393216 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000
+d2s_enabled:False d2s_force_step:4500 d2s_groups:4 d2s_heal_lr_scale:0.300 d2s_target:mlp.w_gate,mlp.w_up mlp_kind:swiglu
+block_schedule:parallel attn_and_mlp_from_shared_residual:True
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:128 macro_distill_weight:0.150
+seed:42
+novel_features: obf=0.005 surprisal=True pyramid=True adaptive_depth=True annealed_qat=False head_diversity=0.01 gated_skips=True aux_obf=0.0025
+aux_obf_schedule: every=50 start=250 sample_len=128 sample_seqs=1
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:6.9277 val_bpb:4.1030 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:7.2337 train_time:133ms step_avg:132.84ms tok/s:2960032
+step:2/20000 train_loss:9.6559 train_time:224ms step_avg:111.88ms tok/s:3514496
+step:3/20000 train_loss:7.3691 train_time:318ms step_avg:106.01ms tok/s:3709186
+step:4/20000 train_loss:7.1457 train_time:397ms step_avg:99.14ms tok/s:3966119
+step:5/20000 train_loss:7.3735 train_time:474ms step_avg:94.86ms tok/s:4145101
+step:6/20000 train_loss:7.2324 train_time:552ms step_avg:91.97ms tok/s:4275391
+step:7/20000 train_loss:6.9500 train_time:630ms step_avg:90.06ms tok/s:4366222
+step:8/20000 train_loss:6.7660 train_time:724ms step_avg:90.51ms tok/s:4344681
+step:9/20000 train_loss:6.3886 train_time:821ms step_avg:91.22ms tok/s:4310599
+step:10/20000 train_loss:6.3891 train_time:914ms step_avg:91.42ms tok/s:4301048
+step:50/20000 train_loss:4.0726 train_time:3643ms step_avg:72.87ms tok/s:5396308
+step:100/20000 train_loss:3.7275 train_time:7075ms step_avg:70.75ms tok/s:5558209
+step:150/20000 train_loss:3.6462 train_time:10477ms step_avg:69.85ms tok/s:5629804
+step:200/20000 train_loss:nan train_time:13861ms step_avg:69.30ms tok/s:5673723
+step:250/20000 train_loss:nan train_time:17171ms step_avg:68.68ms tok/s:5725058
+step:250/20000 val_loss:nan val_bpb:nan train_time:17186ms step_avg:68.74ms
+step:300/20000 train_loss:nan train_time:39934ms step_avg:133.11ms tok/s:2954001
+step:350/20000 train_loss:nan train_time:43373ms step_avg:123.92ms tok/s:3173057
+step:400/20000 train_loss:nan train_time:46801ms step_avg:117.00ms tok/s:3360741
+step:450/20000 train_loss:nan train_time:50186ms step_avg:111.53ms tok/s:3525798
+step:500/20000 train_loss:nan train_time:53583ms step_avg:107.17ms tok/s:3669207
+step:500/20000 val_loss:nan val_bpb:nan train_time:53616ms step_avg:107.23ms
+step:550/20000 train_loss:nan train_time:65733ms step_avg:119.51ms tok/s:3290104
+step:600/20000 train_loss:nan train_time:69115ms step_avg:115.19ms tok/s:3413564
+step:650/20000 train_loss:nan train_time:72493ms step_avg:111.53ms tok/s:3525715
+step:700/20000 train_loss:nan train_time:75870ms step_avg:108.39ms tok/s:3627920
+step:750/20000 train_loss:nan train_time:79256ms step_avg:105.67ms tok/s:3721024
+step:750/20000 val_loss:nan val_bpb:nan train_time:79286ms step_avg:105.71ms
+step:800/20000 train_loss:nan train_time:89024ms step_avg:111.28ms tok/s:3533578
+step:850/20000 train_loss:nan train_time:92404ms step_avg:108.71ms tok/s:3617078
+step:900/20000 train_loss:nan train_time:95765ms step_avg:106.41ms tok/s:3695438
+step:950/20000 train_loss:nan train_time:99124ms step_avg:104.34ms tok/s:3768577
+step:1000/20000 train_loss:nan train_time:102502ms step_avg:102.50ms tok/s:3836182
+step:1000/20000 val_loss:nan val_bpb:nan train_time:102519ms step_avg:102.52ms
+step:1050/20000 train_loss:nan train_time:111980ms step_avg:106.65ms tok/s:3687053
+step:1100/20000 train_loss:nan train_time:115382ms step_avg:104.89ms tok/s:3748750
+step:1150/20000 train_loss:nan train_time:118783ms step_avg:103.29ms tok/s:3806935
+step:1200/20000 train_loss:nan train_time:122182ms step_avg:101.82ms tok/s:3861927
+step:1250/20000 train_loss:nan train_time:125576ms step_avg:100.46ms tok/s:3914129
+step:1250/20000 val_loss:nan val_bpb:nan train_time:125606ms step_avg:100.48ms
+step:1300/20000 train_loss:nan train_time:137084ms step_avg:105.45ms tok/s:3728964
+step:1350/20000 train_loss:nan train_time:140469ms step_avg:104.05ms tok/s:3779062
+step:1400/20000 train_loss:nan train_time:143853ms step_avg:102.75ms tok/s:3826846
+W0328 17:22:14.630000 1170 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 1238 closing signal SIGTERM
+W0328 17:22:14.633000 1170 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 1239 closing signal SIGTERM
+W0328 17:22:14.634000 1170 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 1240 closing signal SIGTERM
+W0328 17:22:14.635000 1170 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 1241 closing signal SIGTERM
+W0328 17:22:14.636000 1170 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 1242 closing signal SIGTERM
+W0328 17:22:14.637000 1170 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 1244 closing signal SIGTERM
+E0328 17:22:15.747000 1170 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: -9) local_rank: 7 (pid: 1245) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+=====================================================
+train_gpt.py FAILED
+-----------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+-----------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-28_17:22:14
+  host      : 0ed64cd07b57
+  rank      : 7 (local_rank: 7)
+  exitcode  : -9 (pid: 1245)
+  error_file: <N/A>
+  traceback : Signal 9 (SIGKILL) received by PID 1245
+=====================================================

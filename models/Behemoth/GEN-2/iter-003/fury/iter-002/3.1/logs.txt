@@ -1,0 +1,71 @@
+logs/fury_unchained_3_1.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:18199578
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:12 num_kv_heads:6
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.023 scalar_lr:0.023
+macro_gate_stability: lr:0.005750 lr_scale:0.250 weight_decay:0.0000 clamp:6.00 grad_clip:0.100 fwd_clamp:True prenorm:True context_rms_norm:True depth_gate_prenorm:True
+nonfinite_guard:True max_consecutive_skips:8
+train_batch_tokens:393216 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+block_schedule:depth_recurrent shared_blocks:True n_depth_iters:15 n_physical_blocks:2 encoder_iters:7 decoder_iters:8
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:192 macro_distill_weight:0.150
+meta_preconditioner: film=True lowrank_r=72 U_shape=(768,72) V_shape=(72,768) transform=gamma*(I+UV^T)x
+seed:42
+orthogonal_temporal_router: obf_weight=0.0030 obf_start_step=500 macro_pyramid=True adaptive_depth=True u_net_skips=skip_gate bigram_hash=False smear_gate=True surprisal_loss=False continue_probe_enabled=False continue_probe_weight=0.050 swa=False
+optimizer_path:parallel_muon_banked_backbone manual_allreduce_nonbank=True ddp=False
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9412 val_bpb:4.1110 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:7.2454 train_time:1135ms step_avg:1135.14ms tok/s:346404
+step:2/20000 train_loss:11.6655 train_time:2283ms step_avg:1141.66ms tok/s:344423
+step:3/20000 train_loss:11.8311 train_time:3434ms step_avg:1144.79ms tok/s:343484
+step:4/20000 train_loss:11.5741 train_time:4584ms step_avg:1146.05ms tok/s:343106
+step:5/20000 train_loss:11.2073 train_time:5737ms step_avg:1147.42ms tok/s:342697
+step:6/20000 train_loss:10.5534 train_time:6886ms step_avg:1147.65ms tok/s:342628
+step:7/20000 train_loss:10.1300 train_time:8042ms step_avg:1148.90ms tok/s:342255
+step:8/20000 train_loss:9.3613 train_time:9193ms step_avg:1149.14ms tok/s:342184
+step:9/20000 train_loss:8.8500 train_time:10346ms step_avg:1149.54ms tok/s:342065
+step:10/20000 train_loss:8.4546 train_time:11498ms step_avg:1149.75ms tok/s:342001
+step:50/20000 train_loss:4.8392 train_time:57526ms step_avg:1150.52ms tok/s:341774
+step:100/20000 train_loss:3.8717 train_time:115259ms step_avg:1152.59ms tok/s:341159
+step:150/20000 train_loss:3.4839 train_time:172970ms step_avg:1153.13ms tok/s:340998
+step:200/20000 train_loss:3.3207 train_time:230779ms step_avg:1153.89ms tok/s:340773
+step:250/20000 train_loss:3.2087 train_time:288498ms step_avg:1153.99ms tok/s:340744
+step:250/20000 val_loss:3.0958 val_bpb:1.8335 train_time:288516ms step_avg:1154.07ms
+step:300/20000 train_loss:3.1195 train_time:348546ms step_avg:1161.82ms tok/s:338449
+step:350/20000 train_loss:3.0590 train_time:406183ms step_avg:1160.52ms tok/s:338826
+step:400/20000 train_loss:2.9716 train_time:463817ms step_avg:1159.54ms tok/s:339113
+step:450/20000 train_loss:2.9013 train_time:521394ms step_avg:1158.65ms tok/s:339374
+step:500/20000 train_loss:2.9565 train_time:578990ms step_avg:1157.98ms tok/s:339571
+step:500/20000 val_loss:2.8104 val_bpb:1.6645 train_time:578995ms step_avg:1157.99ms
+step:518/20000 val_loss:2.8003 val_bpb:1.6585 train_time:600613ms step_avg:1159.48ms
+stopping_early: wallclock_cap train_time:600613ms step:518/20000
+peak memory allocated: 29608 MiB reserved: 31536 MiB
+total_tokens_seen:203685888
+Serialized model (raw): 71033759 bytes
+Code size: 88734 bytes
+Serialized model int4+zlib: 8353517 bytes (int4:8921088 passthrough:898118)
+Total submission size int4+zlib: 8442251 bytes
+final_eval_mode:standard
+final_int4_zlib_roundtrip val_loss:2.8005 val_bpb:1.6586 eval_time:122698ms
+final_int4_zlib_roundtrip_exact val_loss:2.80054291 val_bpb:1.65863926

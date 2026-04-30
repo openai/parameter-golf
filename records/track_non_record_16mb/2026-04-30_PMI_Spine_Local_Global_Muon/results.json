@@ -1,0 +1,47 @@
+{
+  "package": "2026-04-30_pmi_spine_local_global_muon",
+  "runs": [
+    {
+      "name": "pmi_spine_local_global_8g",
+      "log": "train.log",
+      "world_size": 8,
+      "grad_accum_steps": 1,
+      "train_batch_tokens": 688128,
+      "local_batch_tokens": 86016,
+      "train_seq_len": 2048,
+      "model_params": 36620134,
+      "stop_step": 4697,
+      "wallclock_seconds": 600.069,
+      "step_avg_ms": 127.76,
+      "total_tokens_seen": 3232137216,
+      "best_pre_roundtrip_val_bpb": 1.25422432,
+      "final_val_loss": 2.11775515,
+      "final_val_bpb": 1.25425389,
+      "bytes_model_int4_zlib": 15679191,
+      "bytes_code": 216223,
+      "bytes_total": 15895414,
+      "artifact_under_16mb": true
+    },
+    {
+      "name": "pmi_spine_packfix_2g",
+      "log": "logs/pmi_spine_packfix_2g.txt",
+      "world_size": 2,
+      "grad_accum_steps": 4,
+      "train_batch_tokens": 688128,
+      "local_batch_tokens": 86016,
+      "train_seq_len": 2048,
+      "model_params": 36620134,
+      "stop_step": 1386,
+      "wallclock_seconds": 600.340,
+      "step_avg_ms": 433.15,
+      "total_tokens_seen": 953745408,
+      "best_pre_roundtrip_val_bpb": 1.29359552,
+      "final_val_loss": 2.18426591,
+      "final_val_bpb": 1.29364531,
+      "bytes_model_int4_zlib": 15743221,
+      "bytes_code": 253084,
+      "bytes_total": 15996305,
+      "artifact_under_16mb": true
+    }
+  ]
+}

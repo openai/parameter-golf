@@ -1,0 +1,126 @@
+W0328 18:24:52.645000 59962 torch/distributed/run.py:803] 
+W0328 18:24:52.645000 59962 torch/distributed/run.py:803] *****************************************
+W0328 18:24:52.645000 59962 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0328 18:24:52.645000 59962 torch/distributed/run.py:803] *****************************************
+logs/behemoth_8gpu_v8.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:34756187
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.01 scalar_lr:0.01
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+d2s_enabled:False d2s_force_step:4500 d2s_groups:4 d2s_heal_lr_scale:0.300 d2s_target:mlp.w_gate,mlp.w_up mlp_kind:swiglu
+block_schedule:parallel attn_and_mlp_from_shared_residual:True
+macro_sidechannel:encoder_decoder_interval_xattn macro_interval:16 macro_xattn_dim:128 macro_distill_weight:0.150
+seed:42
+novel_features: obf=0.005 surprisal=True pyramid=True adaptive_depth=True annealed_qat=False head_diversity=0.01 gated_skips=True aux_obf=0.0
+aux_obf_schedule: every=150 start=1000 sample_len=128 sample_seqs=1
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9277 val_bpb:4.1030 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:7.2327 train_time:152ms step_avg:151.80ms tok/s:3453869
+step:2/20000 train_loss:9.6950 train_time:238ms step_avg:118.85ms tok/s:4411446
+step:3/20000 train_loss:6.8485 train_time:327ms step_avg:108.94ms tok/s:4812701
+step:4/20000 train_loss:8.4119 train_time:416ms step_avg:103.91ms tok/s:5045741
+step:5/20000 train_loss:8.7600 train_time:504ms step_avg:100.79ms tok/s:5201578
+step:6/20000 train_loss:9.5498 train_time:592ms step_avg:98.72ms tok/s:5310628
+step:7/20000 train_loss:7.9634 train_time:681ms step_avg:97.27ms tok/s:5389768
+step:8/20000 train_loss:7.1228 train_time:769ms step_avg:96.15ms tok/s:5452868
+step:9/20000 train_loss:6.7885 train_time:858ms step_avg:95.37ms tok/s:5497258
+step:10/20000 train_loss:6.8690 train_time:947ms step_avg:94.69ms tok/s:5536746
+step:50/20000 train_loss:4.3767 train_time:4395ms step_avg:87.91ms tok/s:5964175
+step:100/20000 train_loss:3.8243 train_time:8716ms step_avg:87.16ms tok/s:6015117
+step:150/20000 train_loss:3.6093 train_time:13037ms step_avg:86.92ms tok/s:6032155
+step:200/20000 train_loss:3.4370 train_time:17866ms step_avg:89.33ms tok/s:5869016
+step:250/20000 train_loss:3.3653 train_time:22190ms step_avg:88.76ms tok/s:5906764
+step:250/20000 val_loss:2.7255 val_bpb:1.6142 train_time:22198ms step_avg:88.79ms
+step:300/20000 train_loss:3.1063 train_time:26525ms step_avg:88.42ms tok/s:5929807
+step:350/20000 train_loss:3.2790 train_time:30850ms step_avg:88.14ms tok/s:5948140
+step:400/20000 train_loss:2.9932 train_time:35746ms step_avg:89.37ms tok/s:5866773
+step:450/20000 train_loss:3.1326 train_time:40070ms step_avg:89.04ms tok/s:5887935
+step:500/20000 train_loss:3.1162 train_time:44395ms step_avg:88.79ms tok/s:5904769
+step:500/20000 val_loss:2.4751 val_bpb:1.4659 train_time:44402ms step_avg:88.80ms
+step:550/20000 train_loss:3.0532 train_time:48733ms step_avg:88.61ms tok/s:5917135
+step:600/20000 train_loss:3.1665 train_time:53648ms step_avg:89.41ms tok/s:5863648
+step:650/20000 train_loss:3.0612 train_time:57967ms step_avg:89.18ms tok/s:5879008
+step:700/20000 train_loss:3.1036 train_time:62287ms step_avg:88.98ms tok/s:5892126
+step:750/20000 train_loss:2.9478 train_time:66605ms step_avg:88.81ms tok/s:5903743
+step:750/20000 val_loss:2.3975 val_bpb:1.4199 train_time:66612ms step_avg:88.82ms
+step:800/20000 train_loss:2.9767 train_time:72244ms step_avg:90.31ms tok/s:5805747
+step:850/20000 train_loss:3.3782 train_time:76560ms step_avg:90.07ms tok/s:5820878
+step:900/20000 train_loss:3.0026 train_time:80877ms step_avg:89.86ms tok/s:5834248
+step:950/20000 train_loss:3.0712 train_time:85198ms step_avg:89.68ms tok/s:5846039
+step:1000/20000 train_loss:3.0465 train_time:91600ms step_avg:91.60ms tok/s:5723657
+step:1000/20000 val_loss:2.3597 val_bpb:1.3975 train_time:91608ms step_avg:91.61ms
+step:1050/20000 train_loss:nan train_time:95894ms step_avg:91.33ms tok/s:5740729
+step:1100/20000 train_loss:nan train_time:100113ms step_avg:91.01ms tok/s:5760677
+step:1150/20000 train_loss:nan train_time:106082ms step_avg:92.25ms tok/s:5683618
+step:1200/20000 train_loss:nan train_time:110296ms step_avg:91.91ms tok/s:5704168
+step:1250/20000 train_loss:nan train_time:114500ms step_avg:91.60ms tok/s:5723665
+step:1250/20000 val_loss:nan val_bpb:nan train_time:114508ms step_avg:91.61ms
+step:1300/20000 train_loss:nan train_time:118714ms step_avg:91.32ms tok/s:5741330
+step:1350/20000 train_loss:nan train_time:124692ms step_avg:92.36ms tok/s:5676286
+step:1400/20000 train_loss:nan train_time:128898ms step_avg:92.07ms tok/s:5694434
+step:1450/20000 train_loss:nan train_time:133102ms step_avg:91.79ms tok/s:5711538
+step:1500/20000 train_loss:nan train_time:137305ms step_avg:91.54ms tok/s:5727631
+step:1500/20000 val_loss:nan val_bpb:nan train_time:137313ms step_avg:91.54ms
+W0328 18:28:53.515000 59962 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 60030 closing signal SIGTERM
+W0328 18:28:53.516000 59962 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 60032 closing signal SIGTERM
+W0328 18:28:53.516000 59962 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 60033 closing signal SIGTERM
+W0328 18:28:53.516000 59962 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 60034 closing signal SIGTERM
+W0328 18:28:53.517000 59962 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 60035 closing signal SIGTERM
+W0328 18:28:53.517000 59962 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 60036 closing signal SIGTERM
+W0328 18:28:53.517000 59962 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 60037 closing signal SIGTERM
+E0328 18:28:54.296000 59962 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: -9) local_rank: 1 (pid: 60031) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+======================================================
+train_gpt.py FAILED
+------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-28_18:28:53
+  host      : db3ecb0f684a
+  rank      : 1 (local_rank: 1)
+  exitcode  : -9 (pid: 60031)
+  error_file: <N/A>
+  traceback : Signal 9 (SIGKILL) received by PID 60031
+======================================================

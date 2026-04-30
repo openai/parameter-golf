@@ -1,0 +1,31 @@
+{
+  "run_id": "20260326-011-trans-hier-int4qat",
+  "date": "2026-03-26",
+  "type": "smoke",
+  "gpu": "1xH100",
+  "parent_run_id": "20260326-010-trans-hier-dualdistill",
+  "hypothesis": "Full int4 QAT replaces int6/int8 post-training quantization. The int6 artifact was 21.9MB (over 16MB budget). Int4 QAT with group_size=128 should produce ~12-14MB artifacts. All CastedLinear replaced with QATLinear. Fake-quantized weights from step 1 with STE gradients. Combined with dual-pass cosine self-distillation Macro sidechannel.",
+  "hyperparameters": {
+    "model_arch": "GPT-HierDualDistill-Int4QAT",
+    "model_dim": 512,
+    "num_layers": 10,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "block_schedule": "parallel",
+    "macro_interval": 16,
+    "macro_xattn_dim": 128,
+    "macro_distill_weight": 0.15,
+    "qat_bits": 4,
+    "qat_group_size": 128,
+    "seq_len": 2048,
+    "batch_tokens": 393216,
+    "max_wallclock_sec": 600,
+    "seed": 42
+  },
+  "changes_from_parent": {
+    "quantization": {"from": "int5/int6/int8 post-training", "to": "int4 QAT (fake quantize from step 1, STE)"},
+    "artifact_size": {"from": "~22MB (over budget)", "to": "~12-14MB (under 16MB)"},
+    "linear_layers": {"from": "CastedLinear", "to": "QATLinear with group_size=128"},
+    "serialization": {"from": "int6+zstd", "to": "int4+zlib"}
+  }
+}

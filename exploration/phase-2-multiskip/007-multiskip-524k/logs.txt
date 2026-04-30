@@ -1,0 +1,39 @@
+logs/run_007_multiskip_524k.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:SSDGolf d=1536 n_blocks=1 n_iters=4 expand=2 d_state=64 headdim=64 ngroups=1 chunk_size=64
+model_params:30305556
+world_size:1 grad_accum_steps:8
+qat:4bit group_size=128
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000 grad_clip_norm:1.0
+seed:1337
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:0/20000 val_loss:7.9716 val_bpb:4.7213 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:7.9718 train_time:1164ms step_avg:1163.55ms tok/s:450593
+step:2/20000 train_loss:6.6400 train_time:2338ms step_avg:1169.01ms tok/s:448490
+step:3/20000 train_loss:6.4194 train_time:3513ms step_avg:1171.15ms tok/s:447668
+step:4/20000 train_loss:6.1844 train_time:4690ms step_avg:1172.39ms tok/s:447198
+step:5/20000 train_loss:5.9836 train_time:5867ms step_avg:1173.43ms tok/s:446799
+step:6/20000 train_loss:5.8428 train_time:7045ms step_avg:1174.13ms tok/s:446534
+step:7/20000 train_loss:5.7151 train_time:8220ms step_avg:1174.29ms tok/s:446471
+step:8/20000 train_loss:5.6539 train_time:9396ms step_avg:1174.47ms tok/s:446404
+step:9/20000 train_loss:5.6081 train_time:10574ms step_avg:1174.86ms tok/s:446257
+step:10/20000 train_loss:5.5778 train_time:11751ms step_avg:1175.10ms tok/s:446163
+step:200/20000 train_loss:4.2935 train_time:235436ms step_avg:1177.18ms tok/s:445377
+step:400/20000 train_loss:3.7015 train_time:471319ms step_avg:1178.30ms tok/s:444954
+step:510/20000 val_loss:3.6823 val_bpb:2.1809 train_time:601122ms step_avg:1178.67ms
+stopping_early: wallclock_cap train_time:601122ms step:510/20000
+peak memory allocated: 28802 MiB reserved: 29534 MiB
+total_tokens_seen:267386880
+Serialized model (raw): 121229068 bytes
+Code size: 75986 bytes
+Serialized model int4+zlib: 13756878 bytes (int4:15611904 passthrough:55848)
+Total submission size int4+zlib: 13832864 bytes
+final_int4_zlib_roundtrip val_loss:3.6819 val_bpb:2.1807 eval_time:56780ms
+final_int4_zlib_roundtrip_exact val_loss:3.68194407 val_bpb:2.18065468

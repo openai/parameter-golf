@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-19",
+  "name": "Sliding Window + FP16 Embed + 10L + Muon WD + Overtone Init",
+  "author": "notapplica",
+  "seed_results": {
+    "1337": {"val_loss": 1.98492632, "val_bpb": 1.17558517, "steps": 10424, "ms_per_step": 57.55},
+    "42":   {"val_loss": 1.98265459, "val_bpb": 1.17423973, "steps": 10710, "ms_per_step": 56.06},
+    "7":    {"val_loss": 1.98298356, "val_bpb": 1.17443456, "steps": 10498, "ms_per_step": 57.18}
+  },
+  "mean_val_loss": 1.98352149,
+  "mean_val_bpb": 1.17475315,
+  "p_value": 0.0001,
+  "artifact_bytes": 15374243,
+  "code_bytes": 50651
+}

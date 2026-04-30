@@ -1,0 +1,16 @@
+{
+  "run_id": "8xH100-008-multiskip-n6-524k-lr04",
+  "status": "completed",
+  "val_bpb": 2.0538,
+  "val_loss": 3.4677,
+  "val_bpb_stateful": null,
+  "train_loss_final": 3.5238,
+  "total_tokens_seen": 1374683136,
+  "tokens_per_sec": 2290370,
+  "wall_time_sec": 600.1,
+  "artifact_bytes": 13020413,
+  "code_bytes": 76204,
+  "n_params": 30317846,
+  "peak_memory_mib": 41468,
+  "notes": "N=6+524K+LR=0.04+frac_warmdown+multiskip on 8xH100. 2622 steps, 1.37B tokens. val_bpb improved 2.18->2.12->2.04 across evals. Oscillating train loss but converging. Frac warmdown kept it stable unlike run 001 which diverged."
+}
