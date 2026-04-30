@@ -30,22 +30,12 @@ FineWeb validation seeds requested by the Armenia form:
 
 | Seed | FineWeb val_bpb |
 |---:|---:|
-| 1337 | TBD after 8xH100 run |
-| 42 | TBD after 8xH100 run |
-| 2025 | TBD after 8xH100 run |
-
-The queued YSU 8xH100 jobs for those seeds are:
-
-```text
-32652 pg_r40_1337
-32653 pg_r40_42
-32654 pg_r40_2025
-```
+| 1337 | 1.07937545 |
+| 42 | 1.07898269 |
+| 2025 | 1.07884878 |
 
 Tokenizer note for the form:
 
 ```text
 Uses the default Parameter Golf SentencePiece tokenizer interface. The script loads TOKENIZER_PATH if provided, otherwise ./data/tokenizers/fineweb_8192_bpe.model with VOCAB_SIZE=8192. No custom tokenizer operations, no CaseOps, and no tokenizer-specific validation cache.
 ```
-
-The 1-GPU proxy runs are not part of this submission and are not valid 8xH100 challenge logs.
