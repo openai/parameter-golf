@@ -302,6 +302,9 @@ This record folder includes:
 - `train.log`: preserved result note and caveats.
 - `logs/8xh100_runpod_final8x_20260430_185628/`: live 8xH100 RunPod log
   snapshot copied off the pod during the first official-shaped 8x attempt.
+- `logs/8xh100_runpod_final8x_20260430_185628_completed1/`: completed first
+  8xH100 row, showing the e832 row used the cluster well but exceeded the
+  decimal artifact cap after export.
 
 Expected inputs:
 
@@ -340,6 +343,25 @@ It is intentionally labeled as a snapshot because the matrix was still running
 when those files were first preserved. Completed 8x results should be added as
 another update if the pod finishes before the submission can no longer be
 edited.
+
+The first completed 8x row is preserved under:
+
+```text
+logs/8xh100_runpod_final8x_20260430_185628_completed1/
+```
+
+That result was:
+
+| Candidate | Final export BPB | Train-time val BPB | Steps | Step avg | Artifact bytes |
+|---|---:|---:|---:|---:|---:|
+| `final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55` | `1.35704747` | `1.3174` | `6628` | `90.54 ms` | `16,413,081` |
+
+This row is useful evidence but not a legal under-cap result. It exceeded the
+decimal cap by `413,081` bytes. The important signal is that 8xH100 training
+used the GPUs well and reduced train-time validation BPB, but the export gap and
+compressed artifact size remained the binding constraint. The follow-up queue
+therefore moved to `FACTORED_EMBED_DIM=768` legalizer rows instead of continuing
+larger LQER/e832 variants.
 
 ## Validity And Caveats
 
