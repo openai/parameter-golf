@@ -1,0 +1,11 @@
+{
+  "author": "TevBenji",
+  "github_id": "TevBenji",
+  "name": "SubSixteen",
+  "blurb": "Int6 QAT + MLP 3x + SWA + sliding window + zstd-22 + Muon WD + Overtone init",
+  "date": "2026-03-20T03:24:46Z",
+  "val_loss": 1.9769023952191416,
+  "val_bpb": 1.1708329519800045,
+  "bytes_total": 14603588,
+  "bytes_code": 55069
+}
