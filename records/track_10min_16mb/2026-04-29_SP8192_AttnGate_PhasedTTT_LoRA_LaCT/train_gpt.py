@@ -8,7 +8,10 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import nn
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+from flash_attn_interface import (
+    flash_attn_func as flash_attn_3_func,
+    flash_attn_varlen_func,
+)
 
 
 class Hyperparameters:
@@ -197,6 +200,34 @@ class Hyperparameters:
 
 
 BOS_ID = None  # discovered from tokenizer at first TTT eval call
+
+
+def get_next_multiple_of_n(v, n):
+    return ((v + n - 1) // n) * n
+
+
+def _build_cu_seqlens(bos_pos, total_len, device, max_doc_len=0, bucket_size=64):
+    if not bos_pos or bos_pos[0] != 0:
+        bos_pos = [0] + bos_pos
+    seg_starts = []
+    starts_with_end = bos_pos + [total_len]
+    for i in range(len(starts_with_end) - 1):
+        start = starts_with_end[i]
+        end = starts_with_end[i + 1]
+        if max_doc_len > 0:
+            pos = start
+            while pos < end:
+                seg_starts.append(pos)
+                pos += max_doc_len
+        else:
+            seg_starts.append(start)
+    boundaries = seg_starts + [total_len]
+    padded_len = get_next_multiple_of_n(len(boundaries), bucket_size)
+    cu = torch.full((padded_len,), total_len, dtype=torch.int32, device=device)
+    cu[: len(boundaries)] = torch.tensor(boundaries, dtype=torch.int32, device=device)
+    seg_ends = seg_starts[1:] + [total_len]
+    max_seqlen = max(end - start for start, end in zip(seg_starts, seg_ends))
+    return cu, max_seqlen
 
 _logger_hparams = None
 
@@ -453,7 +484,7 @@ class CausalSelfAttention(nn.Module):
         proj  = (y_g * vn).sum(dim=-1, keepdim=True) * vn
         return (y_g - proj).reshape(B, T, H, D)
 
-    def forward(self, x, q_lora=None, k_lora=None, v_lora=None, o_lora=None):
+    def forward(self, x, q_lora=None, k_lora=None, v_lora=None, o_lora=None, cu_seqlens=None, max_seqlen=0):
         bsz, seqlen, dim = x.shape
         q = self.c_q(x)
         if q_lora is not None:
@@ -473,7 +504,20 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        if cu_seqlens is not None:
+            y = flash_attn_varlen_func(
+                q[0],
+                k[0],
+                v[0],
+                cu_seqlens_q=cu_seqlens,
+                cu_seqlens_k=cu_seqlens,
+                max_seqlen_q=max_seqlen,
+                max_seqlen_k=max_seqlen,
+                causal=True,
+                window_size=(-1, -1),
+            )[None]
+        else:
+            y = flash_attn_3_func(q, k, v, causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attn:
@@ -580,7 +624,7 @@ class Block(nn.Module):
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
         self.parallel = False
 
-    def forward(self, x, x0, ttt_lora=None, layer_idx=0):
+    def forward(self, x, x0, ttt_lora=None, layer_idx=0, cu_seqlens=None, max_seqlen=0):
         mix  = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         norm_in = self.attn_norm(x_in) * self.ln_scale_factor
@@ -591,9 +635,11 @@ class Block(nn.Module):
                 k_lora=ttt_lora.k_loras[layer_idx] if ttt_lora.k_loras is not None else None,
                 v_lora=ttt_lora.v_loras[layer_idx],
                 o_lora=ttt_lora.o_loras[layer_idx] if ttt_lora.o_loras is not None else None,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
             )
         else:
-            attn_out = self.attn(norm_in)
+            attn_out = self.attn(norm_in, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
         mlp_lora_i = (ttt_lora.mlp_loras[layer_idx]
                       if ttt_lora is not None and ttt_lora.mlp_loras is not None else None)
         if self.parallel:
@@ -679,7 +725,7 @@ class GPT(nn.Module):
                 elif module.weight.ndim == 2 and module.weight.shape[0] >= 64 and module.weight.shape[1] >= 64:
                     nn.init.orthogonal_(module.weight, gain=1.0)
 
-    def forward_hidden(self, input_ids, ttt_lora=None):
+    def forward_hidden(self, input_ids, ttt_lora=None, cu_seqlens=None, max_seqlen=0):
         x  = self.tok_emb(input_ids)
         x  = F.rms_norm(x, (x.size(-1),))
         if self.embed_proj is not None:
@@ -690,7 +736,8 @@ class GPT(nn.Module):
         dec_iter = self.decoder_indices if self.looping_active else range(self.num_encoder_layers,
                                                                           self.num_encoder_layers + self.num_decoder_layers)
         for i in enc_iter:
-            x = self.blocks[i](x, x0, ttt_lora=ttt_lora, layer_idx=i)
+            x = self.blocks[i](x, x0, ttt_lora=ttt_lora, layer_idx=i,
+                               cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
             skips.append(x)
         for skip_idx, i in enumerate(dec_iter):
             if skip_idx < self.num_skip_weights and skips:
@@ -700,7 +747,8 @@ class GPT(nn.Module):
                     x = torch.lerp(scaled_skip, x, g)
                 else:
                     x = x + scaled_skip
-            x = self.blocks[i](x, x0, ttt_lora=ttt_lora, layer_idx=i)
+            x = self.blocks[i](x, x0, ttt_lora=ttt_lora, layer_idx=i,
+                               cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
         x = self.final_norm(x)
         if self.head_proj is not None:
             x = self.head_proj(x)
@@ -713,8 +761,8 @@ class GPT(nn.Module):
             logits_proj = self.lm_head(x)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
-    def forward_logits(self, input_ids, lact_adapter=None, ttt_lora=None):
-        x = self.forward_hidden(input_ids, ttt_lora=ttt_lora)
+    def forward_logits(self, input_ids, lact_adapter=None, ttt_lora=None, cu_seqlens=None, max_seqlen=0):
+        x = self.forward_hidden(input_ids, ttt_lora=ttt_lora, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
         if lact_adapter is not None:
             x = x + lact_adapter(x)
         if ttt_lora is not None:
@@ -726,8 +774,8 @@ class GPT(nn.Module):
             return self.logit_softcap * torch.tanh(raw.float() / self.logit_softcap)
         return self.logits_from_hidden(x)
 
-    def forward(self, input_ids, target_ids, ttt_lora=None):
-        logits = self.forward_logits(input_ids, ttt_lora=ttt_lora)
+    def forward(self, input_ids, target_ids, ttt_lora=None, cu_seqlens=None, max_seqlen=0):
+        logits = self.forward_logits(input_ids, ttt_lora=ttt_lora, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
         return F.cross_entropy(logits.reshape(-1, logits.size(-1)).float(),
                                target_ids.reshape(-1), reduction='mean')
 
@@ -1806,52 +1854,6 @@ def _select_ttt_doc_entries(docs, h):
     return doc_entries
 
 
-def _split_flat_windows_on_boundaries(x_flat, y_flat, bos_id, max_seq_len):
-    starts = [0]
-    starts.extend(
-        int(i) for i in (x_flat == bos_id).nonzero(as_tuple=True)[0].tolist() if int(i) > 0
-    )
-    starts = sorted(set(starts))
-    windows = []
-    total = int(x_flat.numel())
-    for si, start in enumerate(starts):
-        end = starts[si + 1] if si + 1 < len(starts) else total
-        if end <= start:
-            continue
-        seg_x = x_flat[start:end]
-        seg_y = y_flat[start:end]
-        for off in range(0, int(seg_x.numel()), max_seq_len):
-            x_win = seg_x[off : off + max_seq_len]
-            y_win = seg_y[off : off + max_seq_len]
-            if x_win.numel() > 0:
-                windows.append((x_win, y_win))
-    return windows
-
-
-def _masked_doc_batch_loss(base_model, x_flat, y_flat, bos_id, seq_len):
-    windows = _split_flat_windows_on_boundaries(x_flat, y_flat, bos_id, seq_len)
-    if not windows:
-        raise RuntimeError("Document-boundary-respecting TTT produced no token windows")
-    max_len = max(int(x_win.numel()) for x_win, _ in windows)
-    bsz = len(windows)
-    x_batch = torch.full((bsz, max_len), bos_id, device=x_flat.device, dtype=torch.int64)
-    y_batch = torch.full((bsz, max_len), bos_id, device=y_flat.device, dtype=torch.int64)
-    mask = torch.zeros((bsz, max_len), device=x_flat.device, dtype=torch.bool)
-    for wi, (x_win, y_win) in enumerate(windows):
-        wlen = int(x_win.numel())
-        x_batch[wi, :wlen] = x_win
-        y_batch[wi, :wlen] = y_win
-        mask[wi, :wlen] = True
-    logits = base_model.forward_logits(x_batch)
-    nll = F.cross_entropy(
-        logits.reshape(-1, logits.size(-1)).float(),
-        y_batch.reshape(-1),
-        reduction="none",
-    ).reshape(bsz, max_len)
-    mask_f = mask.to(nll.dtype)
-    return (nll * mask_f).sum() / mask_f.sum().clamp_min(1.0)
-
-
 def train_val_ttt_global_sgd_distributed(h, device, val_data, base_model, val_tokens, batch_seqs=None):
     global BOS_ID
     if BOS_ID is None:
@@ -1913,8 +1915,15 @@ def train_val_ttt_global_sgd_distributed(h, device, val_data, base_model, val_to
                 with torch.enable_grad():
                     with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                         if h.global_ttt_respect_doc_boundaries:
-                            loss = _masked_doc_batch_loss(
-                                base_model, x_flat, y_flat, BOS_ID, seq_len
+                            bos_pos = (x_flat == BOS_ID).nonzero(as_tuple=True)[0].tolist()
+                            cu_seqlens, max_seqlen = _build_cu_seqlens(
+                                bos_pos, x_flat.numel(), x_flat.device, h.eval_seq_len, 64
+                            )
+                            loss = base_model(
+                                x_flat[None],
+                                y_flat[None],
+                                cu_seqlens=cu_seqlens,
+                                max_seqlen=max_seqlen,
                             )
                         else:
                             x = x_flat.reshape(-1, seq_len)
