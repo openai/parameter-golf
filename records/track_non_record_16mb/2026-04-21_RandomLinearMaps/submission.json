@@ -1,10 +1,10 @@
 {
   "track": "non_record_16mb",
   "date": "2026-04-21",
-  "name": "RandomLinearMaps (RSO + LoRA)",
+  "name": "RandomLinearMaps (RSO + Muon)",
   "author": "GUOHAO YANG",
   "github_id": "yangguohao",
-  "val_bpb": 1.80709183,
-  "val_loss": 3.05119886,
-  "bytes_total": 19631341
+  "val_bpb": 1.5211,
+  "val_loss": 2.5683,
+  "bytes_total": 12409638
 }

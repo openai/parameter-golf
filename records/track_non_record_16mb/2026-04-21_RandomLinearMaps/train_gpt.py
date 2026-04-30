@@ -90,6 +90,22 @@ class Hyperparameters:
 # -----------------------------
 # RSOAdamW OPTIMIZER 
 # -----------------------------
+@torch.compile()
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
+    # Muon uses this to normalize matrix-shaped gradients before applying them.
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    X /= X.norm() + eps
+    transposed = G.size(0) > G.size(1)
+    if transposed:
+        X = X.T
+    for _ in range(steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    return X.T if transposed else X
+
 
 class RSOAdamW(torch.optim.Optimizer):
     def __init__(
@@ -142,25 +158,18 @@ class RSOAdamW(torch.optim.Optimizer):
             beta1, beta2 = group["betas"]
             scaling_factor = group["scaling_factor"]
 
-            g = torch.Generator(self.device)
+            generator = torch.Generator(self.device)
             param_list = []
             param_dict = dict(zip(group["names"], group["params"]))
             for n, p in param_dict.items():
-                if 'lora' in n:
-                    if 'lora_B' in n:
-                        size = param_dict[n].shape
+                if "lora" in n:
                     param_list.append(p)
-                    if len(param_list) == 2:
-                        base_name = n[: n.find('lora')]
-                        name = base_name + "base_layer.weight"
-                    else:
-                        continue
-                elif p.grad is None:
+                if 'lora_B' in n:
+                    size = param_dict[n].shape
+                    base_name = n[: n.find('lora')]
+                    name = base_name + "base_layer.weight"
+                if p.grad is None:
                     continue
-                else:
-                    name = n
-                    size = p.shape
-
                 state = self.state[name]
                 # Lazy state initialization
                 if len(state) == 0:
@@ -172,10 +181,7 @@ class RSOAdamW(torch.optim.Optimizer):
                     # Exponential moving average of squared gradient values
                     state["exp_avg_sq"] = torch.zeros(size).to(p.device).to(p.dtype)
 
-                if len(param_list) == 2:
-                    grad = param_list[1].grad / scaling_factor
-                else:
-                    grad = p.grad
+                grad = param_list[1].grad / scaling_factor
 
                 exp_avg = state["exp_avg"]
                 exp_avg_sq = state["exp_avg_sq"]
@@ -191,30 +197,30 @@ class RSOAdamW(torch.optim.Optimizer):
                 step_size = group['lr']
                 denom = (exp_avg_sq.sqrt() / bias_correction2 ** 0.5).add_(group['eps'])
 
-                if len(param_list) != 2:
-                    p.mul_(1 - group["weight_decay"] * group["lr"])
-                    p.addcdiv_(exp_avg / bias_correction1, denom, value=-step_size)
-                else:
-                    param_dict[name].mul_(1 - group["weight_decay"] * group["lr"])
-                    param_dict[name].add_(
-                        (exp_avg / bias_correction1 / denom).to(param_list[0].dtype) @ param_list[0],
-                        alpha=-step_size
-                    )
-                    if state['step'] % self.interval == 0:
-                        old_param = deepcopy(param_list[0])
-                        torch.nn.init.normal_(param_list[0], mean=0, std=1.0 / param_list[0].shape[0] ** 0.5,
-                                              generator=g)
-                        if 'exp_avg' in state:
-                            if self.optimizer_states == 'reset':
-                                torch.nn.init.zeros_(state['exp_avg'])
-                                torch.nn.init.zeros_(state['exp_avg_sq'])
-                            elif self.optimizer_states == 'transform':
-                                state['exp_avg'] = state['exp_avg'] @ old_param @ param_list[0].T * (
-                                        param_list[0].shape[0] / param_list[0].shape[1])
-                                # state['exp_avg_sq'] = state['exp_avg_sq'] @ old_param @ param_list[0].T
-                            elif self.optimizer_states == "unchanged":
-                                pass
-                    param_list = []
+                param_dict[name].mul_(1 - group["weight_decay"] * group["lr"])
+                g = (exp_avg / bias_correction1 / denom).to(param_list[0].dtype) @ param_list[0]
+                g = zeropower_via_newtonschulz5(g, steps=5)
+                # Scale correction from Muon reference implementations.
+                g *= max(1, g.size(0) / g.size(1)) ** 0.5
+                param_dict[name].add_(
+                    g,
+                    alpha=-step_size
+                )
+                if state['step'] % self.interval == 0:
+                    old_param = deepcopy(param_list[0])
+                    torch.nn.init.normal_(param_list[0], mean=0, std=1.0 / param_list[0].shape[0] ** 0.5,
+                                            generator=generator)
+                    if 'exp_avg' in state:
+                        if self.optimizer_states == 'reset':
+                            torch.nn.init.zeros_(state['exp_avg'])
+                            torch.nn.init.zeros_(state['exp_avg_sq'])
+                        elif self.optimizer_states == 'transform':
+                            state['exp_avg'] = state['exp_avg'] @ old_param @ param_list[0].T * (
+                                    param_list[0].shape[0] / param_list[0].shape[1])
+                            # state['exp_avg_sq'] = state['exp_avg_sq'] @ old_param @ param_list[0].T
+                        elif self.optimizer_states == "unchanged":
+                            pass
+                param_list = []
 
         return loss
 
@@ -903,10 +909,10 @@ def main() -> None:
 
         def orthonormal_gaussian_init(tensor, shape):
             """ Initialize LoRA-A with a Gaussian matrix ensuring E[A^T A] = I """
-            torch.nn.init.normal_(tensor, mean=0, std=1.0 / shape ** 0.5, generator=g)
+            torch.nn.init.normal_(tensor, mean=0, std=1.0 / shape ** 0.5, generator=generator)
 
         import random
-        g = torch.Generator(device=device)
+        generator = torch.Generator(device=device)
 
         # Make LoRA A matrices non-trainable
         for name, param in model.named_parameters():
@@ -956,7 +962,7 @@ def main() -> None:
         lr=args.matrix_lr,
         optimizer_states="transform",
         betas=(args.beta1, args.beta2),
-        scaling_factor=2,
+        scaling_factor=1,
         eps=args.adam_eps,
         device=device,
     )

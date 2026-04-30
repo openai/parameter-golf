@@ -25,10 +25,10 @@ This folder contains a non-record experiment snapshot. The README only documents
 
 ## Key Results (this run)
 
-- Final validation at `step 2000/2000`: `val_loss=3.0410`, `val_bpb=1.8010`
-- Quantized round-trip eval: `final_int8_zlib_roundtrip_exact val_bpb=1.80709183`
+- Final validation at `step 2000/2000`: `val_loss=2.5683`, `val_bpb=1.5211`
+- Quantized round-trip eval: `final_int8_zlib_roundtrip_exact val_bpb=:1.53014584`
 - Peak memory allocated: `38824 MiB`
 - Submission size:
-  - `Total submission size = 83,744,371 bytes`
-  - `Total submission size int8+zlib = 19,631,341 bytes`
+  - `Total submission size = 68323975 bytes`
+  - `Total submission size int8+zlib = 12358817 bytes`
 
