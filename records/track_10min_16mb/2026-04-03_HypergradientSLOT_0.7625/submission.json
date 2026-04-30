@@ -1,0 +1,19 @@
+{
+  "author": "Chidera Ibe",
+  "github_id": "ChideraIbe123",
+  "name": "Hypergradient SLOT-24",
+  "blurb": "Replaces SLOT's fixed cosine LR with hypergradient descent (arXiv:2502.11229): LR adapts itself each step based on gradient alignment. When gradients are consistent, LR increases; when they flip, LR decreases. Built on PR #1313 base. Novel eval-time technique — no other submission uses hypergradient optimization for SLOT.",
+  "date": "2026-04-03T00:00:00Z",
+  "val_loss": 1.28739055,
+  "val_bpb": 0.76246693,
+  "seeds": {
+    "1337": {"val_bpb": 0.76537461, "artifact_bytes": 15753324, "steps": 5800},
+    "42": {"val_bpb": 0.76204317, "artifact_bytes": 15774360, "steps": 5798},
+    "2025": {"val_bpb": 0.75998300, "artifact_bytes": 15734660, "steps": 5793}
+  },
+  "mean_val_bpb": 0.7625,
+  "std_val_bpb": 0.0027,
+  "bytes_total": 15753324,
+  "bytes_code": 62444,
+  "hardware": "8xH100 SXM (RunPod)"
+}

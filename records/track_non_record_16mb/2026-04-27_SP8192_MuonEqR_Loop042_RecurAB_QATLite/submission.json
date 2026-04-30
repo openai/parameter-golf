@@ -1,0 +1,19 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-28",
+  "name": "SP8192 + MuonEq-R + Loop@0.42 + RECUR_AB + QAT-lite + Compact Artifact",
+  "author": "Chidera Ibe",
+  "github_id": "ChideraIbe123",
+  "seed": 1337,
+  "val_bpb": 1.09960971,
+  "val_loss": 2.84040608,
+  "raw_pre_quant_val_bpb": 1.1046,
+  "quantized_val_bpb": 1.1336,
+  "bytes_total": 15974435,
+  "quantized_model_bytes": 15949492,
+  "code_bytes": 24943,
+  "train_time_seconds": 599.092,
+  "ttt_eval_time_seconds": 544.199,
+  "hardware": "8xH100 80GB SXM",
+  "notes": "Single-seed legal non-record run from the recurrence-native research branch. Main novel ideas are RECUR_AB recurrent alpha/beta blending, wallclock-aware recurrence activation at 0.42, targeted late q/k QAT-lite, and compact artifact engineering to fit the 16MB cap."
+}

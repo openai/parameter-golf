@@ -1,0 +1,38 @@
+{
+  "author": "Chidera Ibe",
+  "github_id": "ChideraIbe123",
+  "name": "E2E TTT (MLP-Only, Last 1/2 Blocks) on PR #1493 Base — Non-Record Idea Submission",
+  "date": "2026-04-14",
+  "track": "10min_16mb",
+  "record_type": "non-record",
+  "val_bpb": 1.11037248,
+  "val_bpb_std": null,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {"val_bpb": 1.11037248, "artifact_bytes": 13850472, "steps": 3940, "train_time_ms": 588078, "eval_time_ms": 442795}
+  },
+  "hardware": "8xH100 80GB SXM (RunPod)",
+  "technique_summary": "End-to-End TTT (arxiv:2512.23675) — score-first SGD on MLP layers only, restricted to last half of blocks (blocks 5-10 of 11). Paper-aligned: freezes embeddings/attention/norms per paper's finding that updating them causes instability. Config: TTT_LR=0.015, TTT_EPOCHS=2, TTT_E2E_LAST_FRAC=0.5, QK_GAIN_INIT=5.0, SP1024.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false,
+    "non_record_reason": "Single-seed idea submission demonstrating E2E TTT technique; SP1024 used (SP8192 data not available to us); TTT gain at 27M scale is marginal (~0.001 BPB)"
+  },
+  "ablation_summary": {
+    "run_1_defaults": {"ttt_lr": 0.005, "ttt_epochs": 3, "ttt_e2e_last_frac": 0.25, "params": 6291456, "val_bpb": 1.11136534, "eval_ms": 407743},
+    "run_2_broader": {"ttt_lr": 0.015, "ttt_epochs": 2, "ttt_e2e_last_frac": 0.50, "params": 12582912, "val_bpb": 1.11037248, "eval_ms": 442795},
+    "run_3_aggressive": {"ttt_lr": 0.05, "ttt_epochs": 5, "ttt_e2e_last_frac": 0.09, "params": 2097152, "val_bpb": 1.11111514, "eval_ms": 412532}
+  },
+  "attribution": {
+    "base_stack": "PR #1493 @bigbag (SP8192+3LayerRecur+ParResid+QK5.25+TTT+SDClip)",
+    "e2e_ttt_paper": "arxiv:2512.23675 (End-to-End Test-Time Training for Long Context, ICLR 2026)",
+    "ported_for_sp1024": "This submission"
+  }
+}
