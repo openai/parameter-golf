@@ -1,0 +1,65 @@
+{
+  "author": "Laalini bhogadi",
+  "github_id": "laalinibh",
+  "name": "quant_Bigramoptimizer-spikinghashnet",
+  "blurb": "3-run summary computed from terminal output logs only (logs/mlx_smoke.txt and logs/run0.txt); metrics use final_int8_zlib_roundtrip_exact from each run.",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_loss": 3.27071116,
+  "val_bpb": 1.93709938,
+  "val_loss_std": 0.43330547,
+  "val_bpb_std": 0.25662791,
+  "seeds": [],
+  "seed_results": {
+    "run_1": {
+      "run_id": "mlx_smoke",
+      "source_file": "logs/mlx_smoke.txt",
+      "val_loss": 3.87858984,
+      "val_bpb": 2.29711937,
+      "artifact_bytes": 9612035,
+      "steps": 200,
+      "step_avg_ms": 1079.02
+    },
+    "run_2": {
+      "run_id": "mlx_smoke",
+      "source_file": "logs/mlx_smoke.txt",
+      "val_loss": 2.89974137,
+      "val_bpb": 1.71739017,
+      "artifact_bytes": 5867139,
+      "steps": 108,
+      "step_avg_ms": 5605.4
+    },
+    "run_3": {
+      "run_id": "run0",
+      "source_file": "logs/run0.txt",
+      "val_loss": 3.03380227,
+      "val_bpb": 1.79678859,
+      "artifact_bytes": 5624651,
+      "steps": 104,
+      "step_avg_ms": 5777.95
+    }
+  },
+  "comparison_baseline_pr": null,
+  "implementation_lineage_pr": null,
+  "negative_results_pr": null,
+  "delta_vs_pr549_nats": null,
+  "delta_vs_pr549_bpb": null,
+  "t_statistic": null,
+  "welch_df": null,
+  "artifact_bytes_mean": 7034608,
+  "artifact_bytes_max": 9612035,
+  "bytes_total": 9612035,
+  "train_steps_mean": 137.33,
+  "step_avg_ms_mean": 4154.12,
+  "hardware": "macOS (local terminal run)",
+  "pytorch_version": null,
+  "cuda_version": null,
+  "flash_attn_version": null,
+  "calibration": null,
+  "technique_summary": "BigramHashEmbedding(hash_size=307)",
+  "source_logs_used": [
+    "logs/mlx_smoke.txt",
+    "logs/mlx_smoke.txt",
+    "logs/run0.txt"
+  ]
+}
