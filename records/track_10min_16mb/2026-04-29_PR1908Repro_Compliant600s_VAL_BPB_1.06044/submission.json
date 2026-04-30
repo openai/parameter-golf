@@ -1,0 +1,48 @@
+{
+  "author": "Aayush C Baniya",
+  "github_id": "AayushBaniya2006",
+  "val_bpb": 1.06043952,
+  "val_bpb_std": 0.00091449,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.05938494,
+      "pre_quant_bpb": 1.06363162,
+      "artifact_bytes": 15943518,
+      "train_time_ms": 599521,
+      "step": 4960
+    },
+    "0": {
+      "val_bpb": 1.06101359,
+      "pre_quant_bpb": 1.06531681,
+      "artifact_bytes": 15945548,
+      "train_time_ms": 599665,
+      "step": 4942
+    },
+    "1234": {
+      "val_bpb": 1.06092004,
+      "pre_quant_bpb": 1.06500581,
+      "artifact_bytes": 15950342,
+      "train_time_ms": 599676,
+      "step": 4943
+    }
+  },
+  "compliance": {
+    "track": "track_10min_16mb",
+    "max_train_time_ms_observed": 599676,
+    "max_artifact_bytes_observed": 15950342,
+    "all_seeds_under_600s_wallclock": true,
+    "all_seeds_under_16mb_artifact": true
+  },
+  "lineage": {
+    "base": "PR #1908 (codex/awq-stepmatched, romeerp)",
+    "delta": "Identical training recipe and quantization knobs. Only difference: organic 600s wallclock cap (no FORCE_STOP_STEP). Recipe: AWQ_LITE_GROUP_TOP_K=1, LQER_TOP_K=3, LQER_GAIN_SELECT=0."
+  },
+  "vs_pr1908": {
+    "pr1908_mean_val_bpb": 1.06081076,
+    "delta_val_bpb": -0.00037124,
+    "pr1908_seed42_train_ms": 601153,
+    "ours_seed42_train_ms": 599521,
+    "compliance_note": "PR #1908 used FORCE_STOP_STEP=4945 which ignored the 600s wallclock cap. Their seed-42 run consumed 601153ms (over the 600000ms cap). This submission uses organic wallclock-based stop and runs all three seeds compliantly under 600000ms."
+  }
+}
