@@ -1,0 +1,33 @@
+# RunPod training, 2×H100 SXM 80GB, seed=1337
+# MuonTTT WeightTied Recurrence — SP8192 + RoPE + RMSNorm + LeakyReLU²
+# RECUR_STEPS=4  MODEL_DIM=512  NUM_HEADS=8  VOCAB_SIZE=8192  TRAIN_SEQ_LEN=1024
+# NOISY_QAT=0  TTT_STEPS=3  TTT_LR=3e-4  MAX_WALLCLOCK_SECONDS=600
+# torchrun --standalone --nproc_per_node=2 train_gpt.py
+
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192_bpe.model
+train_loader:dataset:fineweb10B_sp8192 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40540160
+model_params:7341056
+world_size:2 grad_accum_steps:4
+recur_steps:4 dim:512 heads:8 embed_lr:0.05 matrix_lr:0.04 scalar_lr:0.04 logit_softcap:30.0 sdclip_std_mult:2.5
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337 noisy_qat:False ttt_steps:3 ttt_lr:0.0003
+stopping_early: wallclock_cap train_time:600056ms step:5855/20000
+peak memory allocated: 9509 MiB reserved: 9710 MiB
+Serialized model: 29368240 bytes
+Code size: 44575 bytes
+Total submission size (raw): 29412815 bytes
+Serialized model int8+zlib: 11010911 bytes (payload:11578368 raw_torch:11583904 payload_ratio:3.99x)
+Total submission size int8+zlib: 11055486 bytes
+final_int8_zlib_roundtrip val_loss:3.5759 val_bpb:1.3844 eval_time:80025ms ttt_steps:3 ttt_lr:0.0003
+final_int8_zlib_roundtrip_exact val_loss:3.57592604 val_bpb:1.38435241
+
+# SUMMARY
+seed=1337 val_bpb=1.38435241 val_loss=3.57592604 steps=5855 step_avg_ms=102.49 elapsed_s=680.1
+recur_steps=4 dim=512 heads=8 vocab_size=8192 ttt_steps=3 ttt_lr=0.0003 artifact_bytes=11055486
+
+# COMPARISON (vs prior 1×H100 SP8192 run, seed=2025)
+control=sp8192_1xH100_seed2025 control_bpb=1.43051961 control_steps=1227
+variant=sp8192_2xH100_seed1337 variant_bpb=1.38435241 variant_steps=5855
+delta_bpb=-0.04617
+note: 2×H100 gives 4.8× more steps (102ms/step vs 489ms/step) → significantly better convergence.
