@@ -1,0 +1,39 @@
+{
+  "val_bpb": 1.1048,
+  "val_loss_nats": 2.5422,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42": {"val_bpb": 1.1039, "val_loss": 2.5401, "steps": 4807, "artifact_bytes": 15946451},
+    "1337": {"val_bpb": 1.1054, "val_loss": 2.5436, "steps": 4701, "artifact_bytes": 15929221},
+    "2025": {"val_bpb": 1.1052, "val_loss": 2.5431, "steps": 4758, "artifact_bytes": 15959609}
+  },
+  "mean_bpb": 1.1048,
+  "std_bpb": 0.0008,
+  "gpu": "8xH100 80GB SXM",
+  "training_time_seconds": 590,
+  "eval_method": "sliding_window",
+  "eval_stride": 64,
+  "compression": "int6+brotli",
+  "author": "Nathan Maine",
+  "github_user": "dentity007",
+  "track": "10min_16mb",
+  "techniques": [
+    "Vocab 4096 (sp4096 tokenizer from kevclark/parameter-golf)",
+    "MLP 4.0x expansion",
+    "11L transformer, d=512, 8H/4KV GQA",
+    "XSA all 11 layers",
+    "QK_GAIN_INIT=4.0",
+    "EMA 0.997",
+    "Dynamic warmdown 66.7%",
+    "Muon WD=0.085, Embeddings WD=0.085, Adam WD=0.02",
+    "LR=0.02",
+    "Full Hessian GPTQ (AR self-gen calibration)",
+    "Byte shuffle + brotli-11 compression",
+    "Coprime-stride data loader",
+    "Sigmoid-gated U-Net skip connections",
+    "No TTT, no SLOT, no n-gram cache, no QAT"
+  ],
+  "base_pr": 1218,
+  "previous_sota_bpb": 1.1147,
+  "delta_vs_sota_bpb": -0.0099
+}
