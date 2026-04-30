@@ -1,0 +1,61 @@
+{
+  "author": "jaydenpiao",
+  "github_id": "jaydenpiao",
+  "name": "SP8192 + Legal TTT 4ep + KV Lowbit Size Clear",
+  "blurb": "Size-clearing fallback built from PR #1812: SP8192 3-layer recurrence stack with Brotli lgwin=24, 32K score-first TTT chunks, and int5 GPTQ only for final-block attention K/V matrices. Two completed 8xH100 seeds.",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_loss": 2.78209858,
+  "val_bpb": 1.07703706,
+  "seeds": [42, 314],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.77905778,
+      "val_bpb": 1.07585987,
+      "pre_quant_bpb": 1.08297128,
+      "quantized_bpb": 1.09380490,
+      "sliding_bpb": 1.07717917,
+      "artifact_bytes": 15941863,
+      "raw_script_bytes": 19645,
+      "raw_script_plus_model_bytes": 15961508,
+      "train_s": 600.015,
+      "eval_s": 446.947,
+      "train_steps": 4615
+    },
+    "314": {
+      "val_loss": 2.78513937,
+      "val_bpb": 1.07821424,
+      "pre_quant_bpb": 1.08523927,
+      "quantized_bpb": 1.09613404,
+      "sliding_bpb": 1.07958639,
+      "artifact_bytes": 15947151,
+      "raw_script_bytes": 19645,
+      "raw_script_plus_model_bytes": 15966796,
+      "train_s": 600.04,
+      "eval_s": 436.932,
+      "train_steps": 4373
+    }
+  },
+  "bytes_total": 15966796,
+  "bytes_model": 15947151,
+  "bytes_code_raw": 19645,
+  "hardware": "8xH100 80GB",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Built from PR #1812 with Brotli lgwin=24, TTT_CHUNK_TOKENS=32768, and LOWBIT_LAYERS=blocks.10.attn.c_k.weight:5,blocks.10.attn.c_v.weight:5.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false
+  },
+  "attribution": {
+    "built_on": "openai/parameter-golf#1812 by EthanNing",
+    "this_record_delta": "Brotli lgwin=24, 32K TTT chunks, and final-block attention K/V int5 lowbit GPTQ to clear size with extra artifact margin.",
+    "status": "Two completed full 8xH100 seeds, reported as a two-seed fallback candidate rather than a SOTA claim."
+  }
+}

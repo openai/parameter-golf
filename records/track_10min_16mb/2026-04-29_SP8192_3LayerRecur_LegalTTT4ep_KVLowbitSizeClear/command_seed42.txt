@@ -1,0 +1,14 @@
+RUN_ID=pr1812_full8_seed42_lgwin24_lowbit_attn10_kv \
+SEED=42 \
+MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \
+TOKENIZER_PATH=/workspace/research/parameter-golf-pr1812/data/tokenizers/fineweb_8192_bpe.model \
+TRAIN_FILES=/workspace/research/parameter-golf-pr1812/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin \
+VAL_FILES=/workspace/research/parameter-golf-pr1812/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin \
+MAX_WALLCLOCK_SECONDS=600 \
+GPTQ_CALIBRATION_BATCHES=64 \
+LOWBIT_LAYERS=blocks.10.attn.c_k.weight:5,blocks.10.attn.c_v.weight:5 \
+TTT_ENABLED=1 \
+TTT_LR=0.005 \
+TTT_EPOCHS=4 \
+TTT_CHUNK_TOKENS=32768 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
