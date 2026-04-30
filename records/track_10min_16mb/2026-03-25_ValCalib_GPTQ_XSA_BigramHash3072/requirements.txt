@@ -1,3 +1,0 @@
-# FlashAttention 3 must be installed separately; see README.md
-sentencepiece
-zstandard
