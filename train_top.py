@@ -2485,6 +2485,200 @@ def _decompress(data, compressor):
     return raw
 
 
+# ── Per-group lrzip compression (ported from PR#1855 via train_top_1855.py) ───
+
+_GROUP_ORDER = [
+    "_tok_emb.weight.q",
+    "attn.c_k.weight.q", "attn.c_q.weight.q",
+    "attn.c_v.weight.q", "attn.proj.weight.q",
+    "mlp.fc.weight.q", "mlp.proj.weight.q",
+]
+_SIMSORT_KEYS = {"_tok_emb.weight.q", "attn.c_q.weight.q", "mlp.fc.weight.q"}
+_PACK_MAGIC = b"PGRP"
+
+
+def _similarity_sort_l1(matrix):
+    n = matrix.shape[0]
+    used = np.zeros(n, dtype=bool)
+    order = [0]
+    used[0] = True
+    cur = matrix[0].astype(np.float32)
+    for _ in range(n - 1):
+        dists = np.sum(np.abs(matrix[~used].astype(np.float32) - cur), axis=1)
+        unused = np.where(~used)[0]
+        best = unused[np.argmin(dists)]
+        order.append(best)
+        used[best] = True
+        cur = matrix[best].astype(np.float32)
+    return np.array(order, dtype=np.uint16)
+
+
+def _lrzip_compress(data, tmpdir, label):
+    inp = os.path.join(tmpdir, f"{label}.bin")
+    out = f"{inp}.lrz"
+    with open(inp, "wb") as f:
+        f.write(data)
+    subprocess.run(["lrzip", "-z", "-L", "9", "-o", out, inp], capture_output=True, check=True)
+    with open(out, "rb") as f:
+        result = f.read()
+    os.remove(inp); os.remove(out)
+    return result
+
+
+def _lrzip_decompress(data, tmpdir, label):
+    inp = os.path.join(tmpdir, f"{label}.lrz")
+    out = os.path.join(tmpdir, f"{label}.bin")
+    with open(inp, "wb") as f:
+        f.write(data)
+    subprocess.run(["lrzip", "-d", "-f", "-o", out, inp], capture_output=True, check=True)
+    with open(out, "rb") as f:
+        result = f.read()
+    os.remove(inp); os.remove(out)
+    return result
+
+
+def _pack_streams(streams):
+    import struct
+    n = len(streams)
+    hdr = _PACK_MAGIC + struct.pack("<I", n)
+    for s in streams:
+        hdr += struct.pack("<I", len(s))
+    return hdr + b"".join(streams)
+
+
+def _unpack_streams(blob):
+    import struct
+    assert blob[:4] == _PACK_MAGIC
+    n = struct.unpack("<I", blob[4:8])[0]
+    off = 8
+    lengths = [struct.unpack("<I", blob[off + i*4:off + i*4 + 4])[0] for i in range(n)]
+    off += n * 4
+    streams = []
+    for length in lengths:
+        streams.append(blob[off:off + length])
+        off += length
+    return streams
+
+
+def _serialize_pergroup(quant_result, quant_meta, num_layers, tmpdir):
+    import brotli
+    groups = collections.defaultdict(list)
+    remainder = {}
+    for name, t in sorted(quant_result.items()):
+        if t.dtype != torch.int8:
+            remainder[name] = t
+            continue
+        parts = name.split(".")
+        routed = False
+        if parts[0] == "blocks" and parts[1].isdigit():
+            key = ".".join(parts[2:])
+            if key in _GROUP_ORDER:
+                groups[key].append((int(parts[1]), t))
+                routed = True
+        else:
+            group_key = "_" + name
+            if group_key in _GROUP_ORDER:
+                groups[group_key] = [(0, t)]
+                routed = True
+        if not routed:
+            remainder[name] = t
+
+    streams = []
+    all_perms = b""
+    shape_manifest = {}
+
+    for group_key in _GROUP_ORDER:
+        if group_key not in groups:
+            streams.append(b"")
+            continue
+        tensors = sorted(groups[group_key], key=lambda x: x[0])
+        blob = b""
+        grp_shapes = []
+        for idx, t in tensors:
+            arr = t.numpy()
+            orig_shape = arr.shape
+            if arr.ndim == 2:
+                if group_key in _SIMSORT_KEYS:
+                    order = _similarity_sort_l1(arr)
+                    all_perms += order.tobytes()
+                    arr = arr[order]
+                arr = np.ascontiguousarray(arr.T)
+            blob += arr.tobytes()
+            grp_shapes.append(orig_shape)
+        shape_manifest[group_key] = grp_shapes
+        compressed = _lrzip_compress(blob, tmpdir, group_key.replace(".", "_"))
+        streams.append(compressed)
+
+    remainder_buf = io.BytesIO()
+    torch.save({"r": remainder, "m": quant_meta, "s": shape_manifest}, remainder_buf)
+    streams.append(brotli.compress(remainder_buf.getvalue(), quality=11, lgwin=24))
+    streams.append(brotli.compress(all_perms, quality=11) if all_perms else b"")
+
+    return _pack_streams(streams)
+
+
+def _deserialize_pergroup(blob, num_layers, tmpdir):
+    import brotli
+    streams = _unpack_streams(blob)
+    n_groups = len(_GROUP_ORDER)
+
+    remainder_state = torch.load(
+        io.BytesIO(brotli.decompress(streams[n_groups])), map_location="cpu"
+    )
+    quant_meta = remainder_state["m"]
+    quant_result = dict(remainder_state["r"])
+    shape_manifest = remainder_state["s"]
+    all_perms = brotli.decompress(streams[n_groups + 1]) if streams[n_groups + 1] else b""
+
+    def _decompress_one(args):
+        i, gk, data = args
+        if not data:
+            return gk, b""
+        return gk, _lrzip_decompress(data, tmpdir, f"d_{gk.replace('.', '_')}")
+
+    with ThreadPoolExecutor(max_workers=n_groups) as pool:
+        futs = [pool.submit(_decompress_one, (i, gk, streams[i])) for i, gk in enumerate(_GROUP_ORDER)]
+        raw_groups = {f.result()[0]: f.result()[1] for f in futs}
+
+    perm_off = 0
+    for group_key in _GROUP_ORDER:
+        raw = raw_groups.get(group_key, b"")
+        if not raw:
+            continue
+        grp_shapes = shape_manifest[group_key]
+        data_arr = np.frombuffer(raw, dtype=np.int8)
+
+        if group_key.startswith("_"):
+            tensor_names = [group_key[1:]]
+        else:
+            tensor_names = [f"blocks.{i}.{group_key}" for i in range(num_layers)]
+
+        offset = 0
+        for tname, orig_shape in zip(tensor_names, grp_shapes):
+            n_elem = 1
+            for d in orig_shape:
+                n_elem *= d
+            chunk = data_arr[offset:offset + n_elem].copy()
+            offset += n_elem
+
+            if len(orig_shape) == 2:
+                rows, cols = orig_shape
+                chunk = chunk.reshape(cols, rows).T
+
+                if group_key in _SIMSORT_KEYS:
+                    perm = np.frombuffer(all_perms[perm_off:perm_off + rows * 2], dtype=np.uint16)
+                    perm_off += rows * 2
+                    inv_perm = np.empty_like(perm)
+                    inv_perm[perm] = np.arange(rows, dtype=np.uint16)
+                    chunk = chunk[inv_perm]
+
+                chunk = chunk.reshape(orig_shape)
+
+            quant_result[tname] = torch.from_numpy(np.ascontiguousarray(chunk))
+
+    return quant_result, quant_meta
+
+
 def _unbank_state_dict(state_dict, num_layers):
     sd = {}
     n = num_layers
@@ -2577,11 +2771,21 @@ def serialize(h, base_model, code):
     t_quant = time.perf_counter()
     quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
     log(f"GPTQ:quantized in {time.perf_counter()-t_quant:.1f}s")
-    quant_buf = io.BytesIO()
-    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
-    quant_raw = quant_buf.getvalue()
     t_compress = time.perf_counter()
-    quant_blob = _compress(quant_raw, h.compressor)
+    if h.compressor == "pergroup":
+        import tempfile
+        tmpdir = tempfile.mkdtemp(prefix="pgrp_")
+        log("Serialize: per-group lrzip compression...")
+        quant_blob = _serialize_pergroup(quant_result, quant_meta, h.num_layers, tmpdir)
+        try:
+            os.rmdir(tmpdir)
+        except OSError:
+            pass
+    else:
+        quant_buf = io.BytesIO()
+        torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+        quant_raw = quant_buf.getvalue()
+        quant_blob = _compress(quant_raw, h.compressor)
     log(f"GPTQ:compressed+saved in {time.perf_counter()-t_compress:.1f}s")
     quant_file_bytes = len(quant_blob)
     bytes_total = quant_file_bytes + code_bytes
@@ -2599,10 +2803,25 @@ def deserialize(h, device):
     flat_template = _unbank_state_dict(eval_model.state_dict(), h.num_layers)
     with open(h.quantized_model_path, "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(
-        io.BytesIO(_decompress(quant_blob_disk, h.compressor)), map_location="cpu"
-    )
-    deq_flat = dequantize_mixed(quant_state["w"], quant_state["m"], flat_template)
+    if quant_blob_disk[:4] == _PACK_MAGIC:
+        import tempfile
+        tmpdir = tempfile.mkdtemp(prefix="pgrp_dec_")
+        log("Deserialize: per-group lrzip decompression...")
+        t0 = time.perf_counter()
+        quant_w, quant_m = _deserialize_pergroup(
+            quant_blob_disk, h.num_layers, tmpdir
+        )
+        log(f"Deserialize: decompression done in {time.perf_counter()-t0:.1f}s")
+        try:
+            os.rmdir(tmpdir)
+        except OSError:
+            pass
+    else:
+        quant_state = torch.load(
+            io.BytesIO(_decompress(quant_blob_disk, h.compressor)), map_location="cpu"
+        )
+        quant_w, quant_m = quant_state["w"], quant_state["m"]
+    deq_flat = dequantize_mixed(quant_w, quant_m, flat_template)
     head_dim = h.model_dim // h.num_heads
     kv_dim = h.num_kv_heads * head_dim
     hidden_dim = int(h.mlp_mult * h.model_dim)
