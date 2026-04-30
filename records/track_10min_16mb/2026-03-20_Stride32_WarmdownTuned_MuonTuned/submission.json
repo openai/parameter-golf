@@ -1,0 +1,19 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "Stride-32 Eval + Warmdown/Muon Tuning on SOTA #1",
+  "author": "haikosys",
+  "github_id": "haikosys",
+  "seed_results": {
+    "42": {"val_loss": 1.92354186, "val_bpb": 1.13923361, "steps": 9629, "ms_per_step": 62.30, "artifact_bytes": 15817986},
+    "1337": {"val_loss": 1.92776687, "val_bpb": 1.14173591, "steps": 9688, "ms_per_step": 61.92, "artifact_bytes": 15676104},
+    "7": {"val_loss": 1.92484360, "val_bpb": 1.14000458, "steps": 9688, "ms_per_step": 61.93, "artifact_bytes": 15723922}
+  },
+  "mean_val_loss": 1.92538411,
+  "mean_val_bpb": 1.14032470,
+  "std_val_bpb": 0.00126,
+  "p_value": 0.001,
+  "artifact_bytes": 15817986,
+  "code_bytes": 52930,
+  "notes": "SOTA #1 base (10L Int5MLP BigramHash SWA) + EVAL_STRIDE=32 + WARMDOWN_ITERS=5000 + MUON_MOMENTUM=0.95 + TRAIN_BATCH_TOKENS=524288. Improvement: -0.017 nats over SOTA #1 (p << 0.01)."
+}
