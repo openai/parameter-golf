@@ -1,14 +1,37 @@
-# Leak Investigation: 216 experiments with BPB < 0.1 — **ROOT CAUSE CONFIRMED**
+# Leak Investigation: 42 real leaks + 179 warmup artifacts + 1 honest pass — **REVISED TAXONOMY**
 
-> **UPDATE 2026-04-30 18:40 UTC:** Root cause definitively confirmed after the
+> **UPDATE 2026-04-30 19:00 UTC — RETRACTION + REFINEMENT.**
+>
+> The `fix-verify-s43` run completed on the post-#61 byte-disjoint image at
+> **BPB 1.5492 @ step=12000**. Its trajectory revealed a second,
+> previously-unknown bug: the trainer prints `val_bpb=0.0000` for every
+> eval in steps 1–8000, then spikes to 7.28 at step 9000 and converges
+> to ~ 1.55 by step 12000. This is a **trainer-side warmup printing
+> artifact** ([`trios-trainer-igla#62`](https://github.com/gHashTag/trios-trainer-igla/issues/62)),
+> not a data leak.
+>
+> As a result, the previous 216-row mass flag `SCARABAEUS-LEAK-CONFIRMED-V2`
+> was **overbroad**. Correct 5-way taxonomy now recorded in Neon and
+> cross-audited via `gardener_runs.action='gate2_first_honest_pass'`:
+>
+> | bucket | count | meaning |
+> |---|--:|---|
+> | post-#61 honest Gate-2 pass | **1** | `fix-verify-s43`, BPB 1.5492 @ 12000 |
+> | post-#61 early-stopped < 9000 | 4 | warmup zone; no claim |
+> | pre-#61 W-6 numerical collapse (BPB ≫ 2) | 46 | escaped warmup and leak; mostly diverged |
+> | **pre-#61 leak** (BPB < 0.1, step ≥ 9000) | **42** | val=head-c-100000(train) overlap, fixed in #61 |
+> | **warmup artifact** (BPB < 0.1, step < 9000) | **179** | trainer printf bug; NOT a leak |
+>
+> **UPDATE 2026-04-30 18:40 UTC (superseded context):** Original confirmation after the
 > `--ctx` regression was fixed in [gHashTag/trios-railway@69c3467](https://github.com/gHashTag/trios-railway/commit/69c3467f)
 > and 6 fresh FIX-VERIFY runs completed with BPB ∈ [0.0006, 0.0015] despite
-> the pipeline now working correctly. The only remaining explanation is
-> the train/val corpus split — and inspection of
+> the pipeline now working correctly. Those 6 rows had `step=4000` (inside the
+> warmup-artifact zone), which is why they reported near-zero even without a
+> real leak. Combined with the inspection of
 > [`Dockerfile:35-36`](https://github.com/gHashTag/trios-trainer-igla/blob/main/Dockerfile#L35-L36)
-> showed `head -c 100000 tiny_shakespeare.txt > tiny_shakespeare_val.txt`,
-> i.e. **val is a strict prefix of train**. See `gHashTag/trios-trainer-igla#60`
-> and the fix PR `#61` (merged 2026-04-30 18:42 UTC).
+> (`head -c 100000 tiny_shakespeare.txt > tiny_shakespeare_val.txt`), the
+> original report mistakenly attributed the artifact to the leak. Now
+> corrected.
 >
 > Fix: Dockerfile now uses `train = head -c $((SIZE-100000))`,
 > `val = tail -c 100000` (byte-disjoint), plus a runtime

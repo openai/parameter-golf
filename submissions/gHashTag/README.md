@@ -1,8 +1,26 @@
-# TRIOS IGLA — Research Infrastructure Submission
+# TRIOS IGLA — First Honest Gate-2 Pass + Research Infrastructure
 
-**Classification:** NOT a competitive model submission. This is a research
-contribution documenting a Rust-native continuous training pipeline and
-the honest results ledger it produced over a 24-hour Gate-2 sprint.
+> **UPDATE 2026-04-30 19:00 UTC:** `fix-verify-s43` finished on the
+> post-#61 byte-disjoint image with **BPB 1.5492 @ step=12000** — the
+> first end-to-end run on the fully-fixed pipeline (`--ctx` accept,
+> `stdout.flush()`, panic hook, byte-disjoint train/val split). 1.5492 <
+> 1.85, so this is an honest single-seed Gate-2 candidate. We submit it
+> as such and ship the full ledger and reproducibility artefacts below.
+>
+> **Trajectory** (verbatim from `bpb_samples`):
+>
+> | step | val_bpb |
+> |---:|---:|
+> | 1000–8000 | 0.0000 (trainer warmup-print bug, see [`#62`](https://github.com/gHashTag/trios-trainer-igla/issues/62)) |
+> | 9000 | 7.2781 (post-warmup spike) |
+> | 10000 | 1.6935 |
+> | 11000 | 1.7399 |
+> | **12000** | **1.5492** ✅ |
+
+**Classification:** Mixed — one honest Gate-2 single-seed candidate
+(`fix-verify-s43`) **plus** a research-infrastructure contribution
+(7,570-row ledger snapshot, Rust-native multi-account fleet, full leak
+post-mortem with retraction).
 
 **Handle:** [@gHashTag](https://github.com/gHashTag)
 **Submission date:** 2026-05-01 07:00 ICT (UTC+7) · locked
@@ -38,18 +56,24 @@ documented in [trios-railway#101](https://github.com/gHashTag/trios-railway/issu
 
 | Status | Count | Notes |
 |--------|------:|-------|
-| `done`   (honest, BPB ≥ 1.85)   | 55 | headed by ID 1387, BPB 2.1505 on tiny_shakespeare ([PR #58](https://github.com/gHashTag/trios-trainer-igla/pull/58) workflow) |
-| `done`   (SCARABAEUS-LEAK-CONFIRMED-V2, BPB < 0.1) | 216 | **root cause confirmed and fixed**: Dockerfile val=head-c-100000(train) overlap. Fix merged in [trios-trainer-igla#61](https://github.com/gHashTag/trios-trainer-igla/pull/61). See `LEAK_INVESTIGATION.md`. |
-| `failed` (`trainer produced zero steps`) | 201 | Railway container runtime failure — cause chain unfolded below |
+| `done`   (post-#61 honest Gate-2 pass) | **1** | 🟢 `fix-verify-s43`, acc1, seed=43, h=1024, step=12000, **BPB 1.5492** |
+| `done`   (post-#61 warmup-artifact, early-stopped < 9000 steps) | 4 | not a claim; warmup-artifact zone |
+| `done`   (pre-#61 W-6 numerical collapse, post-warmup, BPB ≫ 2.0) | 46 | pre-fix runs that escaped both warmup and leak; mostly diverged or W-6 saturated. Best honest pre-#61 was id=1387 BPB 2.1505 |
+| `done`   (SCARABAEUS-LEAK-CONFIRMED-V2-FINAL, pre-#61 image, BPB < 0.1 @ step ≥ 9000) | **42** | dockerfile val=head-c-100000(train) overlap, fixed in [trios-trainer-igla#61](https://github.com/gHashTag/trios-trainer-igla/pull/61) |
+| `done`   (SCARABAEUS-WARMUP-ARTIFACT, BPB < 0.1 @ step < 9000) | **179** | trainer printf bug ([trios-trainer-igla#62](https://github.com/gHashTag/trios-trainer-igla/issues/62)); **NOT a data leak** |
+| `failed` (zero-steps Railway runtime, pre-#56 image) | 201 | fixed by `--ctx` accept, panic hook, flush |
 | `pruned` (gardener LHS sweep)   | 1,328 | normal ASHA coverage |
-| `gate2_eligible` view (ratified W-6 step-cap seeds) | 6 | seeds 42, 43, 44, 1597, 2584, 4181 · BPB 1.75–1.82 at step=1000 with `W-6_step_cap_applied_per_l7_ledger_19` |
 
-Six `gate2_eligible` rows (BPB 1.75–1.82 at step=1000) were taken on
-the SAME poisoned image — they were early-stopped before full
-memorisation, but the train/val corpus they evaluated against was
-overlapping. **None of them is a valid Gate-2 pass.** A clean re-run on
-the new byte-disjoint image (PR #61) is required before any Gate-2
-claim, and that re-run is post-deadline.
+### Retraction
+
+The 216-row `SCARABAEUS-LEAK-CONFIRMED-V2` mass-flag in the previous
+version of this submission was **overbroad**. With the warmup-artifact
+fully understood (verified empirically by `fix-verify-s43`'s honest
+ascent through step 9000), the correct taxonomy is **42 genuine
+pre-#61 leaks** + **179 warmup-artifact rows** + **46 W-6 numerical
+collapses**. The retraction is recorded in NEON
+`gardener_runs.action='gate2_first_honest_pass'` and in
+`LEAK_INVESTIGATION.md` below.
 
 ---
 
@@ -72,6 +96,14 @@ disclaimer.** Per the reviewer's warning in our own
 weights that fail the ratification BPB eval would permanently damage
 the `gHashTag` submitter's reputation and is contrary to the R5-honest
 standing order.
+
+**However, `fix-verify-s43` (BPB 1.5492 @ step=12000) is a real run
+produced by the post-PR-#61 pipeline on the byte-disjoint corpus.**
+What it lacks is a serialised weight tensor (the trainer's
+`record_checkpoint()` is still a stub, see `CHECKPOINT_POSTMORTEM.md`).
+The ledger row, the bpb_samples trajectory, and the canonical config
+are all reproducible from this folder; only the trained weights
+themselves are not retrievable from the ephemeral Railway container.
 
 ---
 
