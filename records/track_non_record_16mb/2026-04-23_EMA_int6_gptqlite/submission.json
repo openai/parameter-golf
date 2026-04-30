@@ -1,0 +1,11 @@
+{
+  "author": "elad-simbalista",
+  "github_id": "elad-simbalista",
+  "name": "Seq2048 + EMA + per-row GPTQ-lite int6",
+  "blurb": "FineWeb sp1024 9x512 KV4 run with TRAIN_SEQ_LEN=2048, MLP_MULT=3, Muon momentum warmup, extended warmdown, EMA finalization, sliding-window eval, and per-row GPTQ-lite int6 quantization. The attached canonical run exported as int6+zlib-9 and finished under the 16,000,000-byte cap.",
+  "date": "2026-04-20T22:56:43Z",
+  "val_loss": 1.9689,
+  "val_bpb": 1.1661,
+  "bytes_total": 15638607,
+  "bytes_code": 58789
+}

@@ -1,0 +1,41 @@
+{
+  "author": "Elad Simbalista",
+  "github_id": "elad-simbalista",
+  "val_bpb": 1.2098,
+  "val_loss": 2.0426,
+  "artifact_bytes": 15872012,
+  "date": "2026-04-20",
+  "description": "Non-record 16MB submission: seq_len 2048, Muon momentum warmup, extended warmdown, EMA finalization, and per-row GPTQ-lite int8 quantization. Single-seed run under 10-minute 8xH100 constraint.",
+  "track": "non_record_16mb",
+  "hardware": "8xH100 SXM",
+  "seeds": [
+    1337
+  ],
+  "seed_bpbs": [
+    1.2098
+  ],
+  "config": {
+    "vocab_size": 1024,
+    "num_layers": 9,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 2,
+    "tie_embeddings": 1,
+    "train_batch_tokens": 524288,
+    "train_seq_len": 2048,
+    "iterations": 12000,
+    "warmup_steps": 20,
+    "warmdown_iters": 3000,
+    "max_wallclock_seconds": 600,
+    "tied_embed_lr": 0.05,
+    "matrix_lr": 0.04,
+    "scalar_lr": 0.04,
+    "muon_momentum": 0.985,
+    "muon_momentum_warmup_start": 0.9,
+    "muon_momentum_warmup_steps": 500,
+    "ema_enabled": 1,
+    "ema_decay": 0.997,
+    "ema_warmup_steps": 500
+  }
+}
