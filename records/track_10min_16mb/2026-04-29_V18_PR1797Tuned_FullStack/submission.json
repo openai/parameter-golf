@@ -1,0 +1,68 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "PR1787Base + SmearGate + LQER Asymmetric + Phased TTT",
+  "blurb": "PR #1787 (nprime06) native base stack (CaseOps + SparseAttnGate + PolarNS + MIN_LR + FusedCE + TTT warm-A) with our orthogonal Smear gate over the last 12 residual tokens (BOS-masked at document boundaries per msisovic's catch) and inline LQER asymmetric rank-4 post-GPTQ correction (int4 factors, per-group-64 asymmetric scaling). Rebanked 3-seed mean 1.06412 BPB beats merged SOTA PR #1493 (1.0810) by 0.0169 BPB.",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_loss": 2.32869,
+  "val_loss_std": 0.00373,
+  "val_bpb": 1.06412,
+  "val_bpb_std": 0.00172,
+  "seeds": [
+    314,
+    42,
+    1234
+  ],
+  "seed_results": {
+    "314": {
+      "val_loss": 2.32638745,
+      "val_bpb": 1.06306828,
+      "artifact_bytes": 15951189,
+      "steps": 4883,
+      "train_time_s": 596.13,
+      "eval_time_s": 422.8,
+      "pre_ttt_val_bpb": 1.07598558,
+      "post_ema_val_bpb": 1.06484369,
+      "ttt_gain_bpb": -0.01288596,
+      "pre_quant_val_bpb": 1.06683949
+    },
+    "42": {
+      "val_loss": 2.32665231,
+      "val_bpb": 1.06318931,
+      "artifact_bytes": 15953178,
+      "steps": 4878,
+      "train_time_s": 596.13,
+      "eval_time_s": 429.4,
+      "pre_ttt_val_bpb": 1.0760564,
+      "post_ema_val_bpb": 1.06534676,
+      "ttt_gain_bpb": -0.01279059,
+      "pre_quant_val_bpb": 1.06705442
+    },
+    "1234": {
+      "val_loss": 2.33301658,
+      "val_bpb": 1.06609753,
+      "artifact_bytes": 15953718,
+      "steps": 4655,
+      "train_time_s": 596.1,
+      "eval_time_s": 473.1,
+      "pre_ttt_val_bpb": 1.07897698,
+      "post_ema_val_bpb": 1.06600839,
+      "ttt_gain_bpb": -0.01290343,
+      "pre_quant_val_bpb": 1.06988205
+    }
+  },
+  "artifact_bytes_mean": 15952695,
+  "artifact_bytes_max": 15953718,
+  "train_time_s_mean": 599.568,
+  "eval_time_s_mean": 456.67,
+  "hardware": "8xH100 80GB SXM",
+  "base_submission": "PR #1787 (nprime06) + PR #1736 (ours, 2026-04-19) lineage",
+  "base_val_bpb": 1.06549,
+  "delta_vs_base_bpb": -0.00392,
+  "delta_vs_base_loss_nats": -0.00856,
+  "reproducibility_notes": "Run prepare_caseops_data.py once to tokenize the CaseOps-transformed FineWeb into the expected shards and per-token byte sidecar, then run train_gpt.py per seed as documented in README.md. Env vars in the Run Command enable PR #1787 base (SPARSE_ATTN_GATE_ENABLED=1 + MIN_LR=0.1 + FUSED_CE_ENABLED=1 + TTT_WARM_START_A=1), our Smear gate (SMEAR_GATE_ENABLED=1), and our LQER asymmetric correction (LQER_ENABLED=1 LQER_ASYM_ENABLED=1).",
+  "val_loss_nats": 2.32312,
+  "val_loss_nats_std": 0.00145,
+  "bytes_total": 15952695
+}
