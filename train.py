@@ -4,9 +4,7 @@ from pathlib import Path
 import numpy as np,sentencepiece as spm,torch,torch.distributed as dist,torch.nn.functional as F
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-_SMOKE_TEST=bool(int(os.environ.get('SMOKE_TEST','0')))
 try:
-	if _SMOKE_TEST:raise ImportError('SMOKE_TEST: forcing SDPA fallback')
 	from flash_attn_interface import flash_attn_func as _fa3_impl;_USE_FA3=True
 	def flash_attn_3_func(q,k,v,causal=True):return _fa3_impl(q,k,v,causal=causal)
 except ImportError:
@@ -16,7 +14,6 @@ except ImportError:
 		if Hkv!=Hq:repeat=Hq//Hkv;k_=k_.repeat_interleave(repeat,dim=1);v_=v_.repeat_interleave(repeat,dim=1)
 		out=F.scaled_dot_product_attention(q_,k_,v_,is_causal=causal);return out.permute(0,2,1,3).contiguous()
 class Hyperparameters:_ts=datetime.datetime.now().strftime('%Y%m%d_%H%M%S');_short=uuid.uuid4().hex[:8];run_id=os.environ.get('RUN_ID',f"{_ts}_{_short}");seed=int(os.environ.get('SEED',1337));vocab_size=int(os.environ.get('VOCAB_SIZE',8192));data_dir=os.environ.get('DATA_DIR','./data');datasets_dir=os.path.join(data_dir,'datasets',f"fineweb10B_sp{vocab_size}");train_files=os.environ.get('TRAIN_FILES',os.path.join(datasets_dir,'fineweb_train_*.bin'));val_files=os.environ.get('VAL_FILES',os.path.join(datasets_dir,'fineweb_val_*.bin'));tokenizer_path=os.environ.get('TOKENIZER_PATH',os.path.join(data_dir,'tokenizers',f"fineweb_{vocab_size}_bpe.model"));iterations=int(os.environ.get('ITERATIONS',50000));max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS',59e1));warmdown_frac=float(os.environ.get('WARMDOWN_FRAC',.72));warmup_steps=int(os.environ.get('WARMUP_STEPS',20));train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS',786432));train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN',2048));train_log_every=int(os.environ.get('TRAIN_LOG_EVERY',500));val_loss_every=int(os.environ.get('VAL_LOSS_EVERY',4000));val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS',524288));eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN',2048));sliding_window_enabled=bool(int(os.environ.get('SLIDING_WINDOW_ENABLED','1')));num_layers=int(os.environ.get('NUM_LAYERS',11));xsa_last_n=int(os.environ.get('XSA_LAST_N',11));model_dim=int(os.environ.get('MODEL_DIM',512));embedding_dim=int(os.environ.get('EMBEDDING_DIM',512));num_kv_heads=int(os.environ.get('NUM_KV_HEADS',4));num_heads=int(os.environ.get('NUM_HEADS',8));mlp_mult=float(os.environ.get('MLP_MULT',4.));skip_gates_enabled=bool(int(os.environ.get('SKIP_GATES_ENABLED','1')));tie_embeddings=bool(int(os.environ.get('TIE_EMBEDDINGS','1')));logit_softcap=float(os.environ.get('LOGIT_SOFTCAP',3e1));rope_base=float(os.environ.get('ROPE_BASE',1e4));rope_dims=int(os.environ.get('ROPE_DIMS',16));rope_train_seq_len=int(os.environ.get('ROPE_TRAIN_SEQ_LEN',2048));ln_scale=bool(int(os.environ.get('LN_SCALE','1')));qk_gain_init=float(os.environ.get('QK_GAIN_INIT',5.25));num_loops=int(os.environ.get('NUM_LOOPS',2));loop_start=int(os.environ.get('LOOP_START',3));loop_end=int(os.environ.get('LOOP_END',5));enable_looping_at=float(os.environ.get('ENABLE_LOOPING_AT',.35));parallel_residual_start=int(os.environ.get('PARALLEL_RESIDUAL_START',7));min_lr=float(os.environ.get('MIN_LR',.1));embed_lr=float(os.environ.get('EMBED_LR',.6));head_lr=float(os.environ.get('HEAD_LR',.008));tied_embed_lr=float(os.environ.get('TIED_EMBED_LR',.03));tied_embed_init_std=float(os.environ.get('TIED_EMBED_INIT_STD',.005));matrix_lr=float(os.environ.get('MATRIX_LR',.022));scalar_lr=float(os.environ.get('SCALAR_LR',.02));muon_momentum=float(os.environ.get('MUON_MOMENTUM',.99));muon_backend_steps=int(os.environ.get('MUON_BACKEND_STEPS',5));muon_momentum_warmup_start=float(os.environ.get('MUON_MOMENTUM_WARMUP_START',.92));muon_momentum_warmup_fraction=float(os.environ.get('MUON_MOMENTUM_WARMUP_FRACTION',.22));muon_row_normalize=bool(int(os.environ.get('MUON_ROW_NORMALIZE','1')));beta1=float(os.environ.get('BETA1',.9));beta2=float(os.environ.get('BETA2',.95));adam_eps=float(os.environ.get('ADAM_EPS',1e-08));grad_clip_norm=float(os.environ.get('GRAD_CLIP_NORM',.3));eval_stride=int(os.environ.get('EVAL_STRIDE',64));muon_beta2=float(os.environ.get('MUON_BETA2',.95));adam_wd=float(os.environ.get('ADAM_WD',.005));muon_wd=float(os.environ.get('MUON_WD',.095));muon_wd_mlp=float(os.environ.get('MUON_WD_MLP',.115));embed_wd=float(os.environ.get('EMBED_WD',.085));ema_decay=float(os.environ.get('EMA_DECAY',.9965));ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','1')));ttt_lr=float(os.environ.get('TTT_LR',.005));ttt_epochs=int(os.environ.get('TTT_EPOCHS',4));ttt_momentum=float(os.environ.get('TTT_MOMENTUM',.9));ttt_chunk_tokens=int(os.environ.get('TTT_CHUNK_TOKENS',40960));compressor=os.environ.get('COMPRESSOR','brotli');gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES',64));matrix_bits=int(os.environ.get('MATRIX_BITS',6));embed_bits=int(os.environ.get('EMBED_BITS',8));matrix_clip_sigmas=float(os.environ.get('MATRIX_CLIP_SIGMAS',12.85));embed_clip_sigmas=float(os.environ.get('EMBED_CLIP_SIGMAS',2e1));lowbit_layers=os.environ.get('LOWBIT_LAYERS','');distributed='RANK'in os.environ and'WORLD_SIZE'in os.environ;rank=int(os.environ.get('RANK','0'));world_size=int(os.environ.get('WORLD_SIZE','1'));local_rank=int(os.environ.get('LOCAL_RANK','0'));is_main_process=rank==0;grad_accum_steps=max(1,8//world_size);logfile=f"logs/{run_id}.txt";os.makedirs('ckpt',exist_ok=True);model_path='ckpt/final_model.pt';quantized_model_path='ckpt/final_model.int6.ptz'
-if _SMOKE_TEST:Hyperparameters.iterations=int(os.environ.get('ITERATIONS','30'));Hyperparameters.train_batch_tokens=int(os.environ.get('TRAIN_BATCH_TOKENS','32768'));Hyperparameters.train_seq_len=int(os.environ.get('TRAIN_SEQ_LEN','512'));Hyperparameters.eval_seq_len=int(os.environ.get('EVAL_SEQ_LEN','512'));Hyperparameters.max_wallclock_seconds=float(os.environ.get('MAX_WALLCLOCK_SECONDS','120.0'));Hyperparameters.val_batch_tokens=int(os.environ.get('VAL_BATCH_TOKENS','2097152'));Hyperparameters.warmdown_frac=float(os.environ.get('WARMDOWN_FRAC','0.2'));Hyperparameters.val_loss_every=int(os.environ.get('VAL_LOSS_EVERY','0'));Hyperparameters.train_log_every=int(os.environ.get('TRAIN_LOG_EVERY','5'));Hyperparameters.warmup_steps=int(os.environ.get('WARMUP_STEPS','0'));Hyperparameters.ttt_enabled=bool(int(os.environ.get('TTT_ENABLED','0')));Hyperparameters.gptq_calibration_batches=int(os.environ.get('GPTQ_CALIBRATION_BATCHES','2'))
 _logger_hparams=None
 def set_logging_hparams(h):global _logger_hparams;_logger_hparams=h
 def log(msg,console=True):
@@ -428,8 +425,7 @@ def eval_val_ttt(h,device,val_data,base_model,batch_seqs=32):
 def timed_eval(label,fn,*args,**kwargs):torch.cuda.synchronize();t0=time.perf_counter();val_loss,val_bpb=fn(*args,**kwargs);torch.cuda.synchronize();elapsed_ms=1e3*(time.perf_counter()-t0);log(f"{label} val_loss:{val_loss:.8f} val_bpb:{val_bpb:.8f} eval_time:{elapsed_ms:.0f}ms");return val_loss,val_bpb
 def train_model(h,device,val_data):
 	base_model=GPT(h).to(device).bfloat16();restore_fp32_params(base_model)
-	if _SMOKE_TEST:compiled_model=base_model;log('smoke_test: torch.compile disabled (eager mode)')
-	else:compiled_model=torch.compile(base_model,dynamic=False,fullgraph=True)
+	compiled_model=torch.compile(base_model,dynamic=False,fullgraph=True)
 	if h.distributed:model=DDP(compiled_model,device_ids=[h.local_rank],broadcast_buffers=False)
 	else:model=compiled_model
 	log(f"model_params:{sum(p.numel()for p in base_model.parameters())}");optimizers=Optimizers(h,base_model);train_loader=ShuffledSequenceLoader(h,device);max_wallclock_ms=1e3*h.max_wallclock_seconds if h.max_wallclock_seconds>0 else None
@@ -477,7 +473,6 @@ def train_model(h,device,val_data):
 		last_step=step==h.iterations or stop_after_step is not None and step>=stop_after_step;should_validate=last_step or h.val_loss_every>0 and step%h.val_loss_every==0
 		if should_validate:
 			torch.cuda.synchronize();training_time_ms+=1e3*(time.perf_counter()-t0)
-			if _SMOKE_TEST and last_step:break
 			val_loss,val_bpb=eval_val(h,device,val_data,model);log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}");torch.cuda.synchronize();t0=time.perf_counter()
 		if last_step:
 			if stop_after_step is not None and step<h.iterations:log(f"stopping_early: wallclock_cap train_time: {training_time_ms:.0f}ms step: {step}/{h.iterations}")
@@ -495,10 +490,6 @@ def train_model(h,device,val_data):
 	log(f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB");log('ema:applying EMA weights');current_state=base_model.state_dict();avg_state={name:t.to(dtype=current_state[name].dtype)for(name,t)in ema_state.items()};base_model.load_state_dict(avg_state,strict=True);return base_model,compiled_model
 def train_and_eval(h,device):
 	random.seed(h.seed);np.random.seed(h.seed);torch.manual_seed(h.seed);torch.cuda.manual_seed_all(h.seed);val_data=ValidationData(h,device);log(f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob("fineweb_train_*.bin")))}");log(f"val_tokens: {val_data.val_tokens.numel()-1}");base_model,compiled_model=train_model(h,device,val_data)
-	if _SMOKE_TEST:
-		log('smoke_test: training complete — running GPTQ+brotli pack for size check');serialize(h,base_model)
-		if h.is_main_process:from pathlib import Path as _Path;code_b=len(_Path(__file__).read_bytes());model_b=os.path.getsize(h.quantized_model_path);total=code_b+model_b;log(f"smoke_pack_bytes: code={code_b} model={model_b} total={total}")
-		log('smoke_test:complete (code ran successfully; val_bpb not computed in smoke mode)');return
 	torch._dynamo.reset();timed_eval('pre-quantization post-ema',eval_val,h,device,val_data,compiled_model);serialize(h,base_model)
 	if h.distributed:dist.barrier()
 	eval_model=deserialize(h,device)
@@ -522,7 +513,6 @@ def main():
 		for(k,v)in sorted(vars(type(h)).items()):
 			if not k.startswith('_'):log(f"  {k}: {v}",console=True)
 		log('='*100,console=False);log(f"Running Python {sys.version}",console=False);log(f"Running PyTorch {torch.__version__}",console=False);log(subprocess.run(['nvidia-smi'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False).stdout,console=False);log('='*100,console=False)
-	if _SMOKE_TEST:log(f"[SMOKE_TEST] attention_backend=sdpa_fallback  FA3=False  smoke_test=True");log(f"[SMOKE_TEST] val_bpb from this run is NOT comparable to full 8x runs")
-	log(f"attention_backend:{"flash_attn_3"if _USE_FA3 else"sdpa_fallback(smoke)"} smoke_test:{_SMOKE_TEST}");train_and_eval(h,device)
+	log(f"attention_backend:{"flash_attn_3"if _USE_FA3 else"sdpa_fallback"}");train_and_eval(h,device)
 	if distributed:dist.destroy_process_group()
 if __name__=='__main__':main()
