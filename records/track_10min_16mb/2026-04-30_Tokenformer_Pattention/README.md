@@ -8,9 +8,9 @@
 Tokenformer (Pattention) reduces model artifact size by ~40% at matched params, unlocking significant byte-budget margin for future improvements – though with a notable impact on validation BPB (+0.1466 vs. baseline).
 
 **Relevance:**  
-1. Novelty: No prior Tokenformer/Pattention attempts in Parameter Golf PRs (`n` ≈ 1,867) – this submission serves as a POC, many unexplored directions (listed below)
-2. Mechanistic Fit: Tokenformer targets parameter-count efficiency (`L(N)`), directly aligning with Parameter Golf's objective; allows explicit comparison of Pattention's inductive bias at matched or scaled-down param counts.  
-3. SOTA Stack Compatibility: Pattention is readily composable with leading SOTA methods (quant, TTT, etc), and supports parameter-token sharing for further model compression. This v1 baseline strictly isolates Pattention for fair apples-to-apples comparison.
+1. Novelty: no prior submissions
+2. Fit: Tokenformer targets parameter-count efficiency (L(N))
+3. SOTA Stack Compatibility: Pattention is readily composable with leading SOTA methods (quant, TTT, etc)
 
 ## TokenFormer background
 
