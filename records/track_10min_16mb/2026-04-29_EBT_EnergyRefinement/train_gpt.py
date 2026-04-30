@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import glob
 import io
+import json
 import math
 import os
 import random
@@ -1074,6 +1075,12 @@ def main() -> None:
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
+    # Track the last pre-quantization val numbers and timing so we can emit a
+    # structured train_log.json at the end of main().
+    last_val_loss: float | None = None
+    last_val_bpb: float | None = None
+    last_val_eval_ms: float = 0.0
+
     step = 0
     while True:
         last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
@@ -1082,6 +1089,7 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            t_eval = time.perf_counter()
             val_loss, val_bpb = eval_val(
                 args,
                 model,
@@ -1094,6 +1102,8 @@ def main() -> None:
                 has_leading_space_lut,
                 is_boundary_token_lut,
             )
+            last_val_loss, last_val_bpb = float(val_loss), float(val_bpb)
+            last_val_eval_ms = 1000.0 * (time.perf_counter() - t_eval)
             log0(
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
@@ -1219,11 +1229,54 @@ def main() -> None:
         is_boundary_token_lut,
     )
     torch.cuda.synchronize()
+    qeval_ms = 1000.0 * (time.perf_counter() - t_qeval)
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+        f"eval_time:{qeval_ms:.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    # Emit a structured train_log.json so external tooling (pgolf.py
+    # validate-submission, ablation aggregators) can consume run results
+    # without parsing run.log.
+    if master_process:
+        evals = {
+            "quantized": {
+                "val_bpb": float(q_val_bpb),
+                "val_loss": float(q_val_loss),
+                "eval_time_ms": float(qeval_ms),
+            }
+        }
+        if last_val_bpb is not None:
+            evals["pre_quantization"] = {
+                "val_bpb": float(last_val_bpb),
+                "val_loss": float(last_val_loss) if last_val_loss is not None else None,
+                "eval_time_ms": float(last_val_eval_ms),
+            }
+        train_log = {
+            "run_id": args.run_id,
+            "seed": args.seed,
+            "code_bytes": int(code_bytes),
+            "model_bytes": int(quant_file_bytes),
+            "total_bytes": int(code_bytes + quant_file_bytes),
+            "peak_vram_mib": int(torch.cuda.max_memory_allocated() // 1024 // 1024),
+            "steps": int(step),
+            "train_time_ms": float(training_time_ms),
+            "model_params": int(n_params),
+            "evals": evals,
+            "ebt": {
+                "energy_rank": int(args.energy_rank),
+                "refine_steps_train": int(args.refine_steps_train),
+                "refine_steps_eval": int(args.refine_steps_eval),
+                "refine_eta_init": float(args.refine_eta_init),
+                "aux_loss_weight": float(args.aux_loss_weight),
+                "h0_noise_std": float(args.h0_noise_std),
+                "final_refine_relchange": float(base_model.last_refine_relchange.item()),
+            },
+        }
+        with open("train_log.json", "w", encoding="utf-8") as f:
+            json.dump(train_log, f, indent=2)
+        log0(f"wrote train_log.json: total_bytes={train_log['total_bytes']} val_bpb={q_val_bpb:.6f}")
 
     if distributed:
         dist.destroy_process_group()
