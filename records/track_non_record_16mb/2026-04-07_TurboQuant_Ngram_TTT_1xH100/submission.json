@@ -1,0 +1,16 @@
+{
+  "author": "Kamil Krawczyk",
+  "github_id": "bsisduck",
+  "name": "Non-record: TurboQuant + N-gram Hybrid Eval + TTT (1xH100 NVL)",
+  "blurb": "Random-rotation quantization replacing GPTQ, entropy-adaptive n-gram cache, LoRA test-time training with Polyak averaging on 1xH100 NVL.",
+  "date": "2026-04-07T00:00:00Z",
+  "track": "non_record_16mb",
+  "val_loss": 0.5924,
+  "val_bpb": 0.3509,
+  "pre_quant_val_loss": 2.2231,
+  "pre_quant_val_bpb": 1.3167,
+  "step_stop": 586,
+  "wallclock_seconds": 601,
+  "bytes_total": 14922913,
+  "gpu": "1xH100 NVL"
+}

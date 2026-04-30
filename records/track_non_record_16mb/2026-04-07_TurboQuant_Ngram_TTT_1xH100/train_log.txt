@@ -1,0 +1,307 @@
+logs/tq5_t11.txt
+bpb:sp=./data/tokenizers/fineweb_1024_bpe.model
+tl:dataset:fineweb10B_sp1024 train_shards:10
+val:./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+v:opti-ms2 act:lr09sq xsa:last_4 qat:sr wd:WSD gptq:fh ttt:lora_polyak_adamw compression:lzma optimizer:PM prog_seq:enabled vrl:True gated_attn:True decoder_lr_mult:3.0 ngram:True ngram_order:9 complement_alpha:0.5 prune_pct:0.03
+comp:on alpha=0.5
+model_params:27301064
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:1 gas:8
+seed:1337
+lr_schedule:WSD wsd_stable_frac:0.75 decay_shape:cosine qat_trigger_frac:0.85
+optimizer:PM (NS)
+ttt_config: optimizer=AdamW(LoRA) epochs=1 lr=0.005 lora_rank=8 polyak_decay=0.995 chunk=65536 grad_clip=1.0 temperature=1.1
+decoder_lr_mult:3.0 encoder_matrix_lr:0.025 decoder_matrix_lr:0.07500000000000001
+gated_attn:enabled layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+value_residual:enabled layers:[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+gptq_config: samples=256 block_size=128 damp=0.01
+prune_pct:0.03
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9302 val_bpb:4.1045 train_time:0ms step_avg:0.01ms seq_len:2048
+step:1/20000 train_loss:6.9309 train_time:876ms step_avg:875.68ms seq_len:2048
+step:2/20000 train_loss:8.5616 train_time:1813ms step_avg:906.63ms seq_len:2048
+step:3/20000 train_loss:7.7187 train_time:2761ms step_avg:920.17ms seq_len:2048
+step:4/20000 train_loss:7.1726 train_time:3712ms step_avg:927.99ms seq_len:2048
+step:5/20000 train_loss:6.8515 train_time:4664ms step_avg:932.76ms seq_len:2048
+step:6/20000 train_loss:6.7726 train_time:5620ms step_avg:936.70ms seq_len:2048
+step:7/20000 train_loss:6.7179 train_time:6575ms step_avg:939.23ms seq_len:2048
+step:8/20000 train_loss:6.6229 train_time:7530ms step_avg:941.21ms seq_len:2048
+step:9/20000 train_loss:6.3567 train_time:8487ms step_avg:943.04ms seq_len:2048
+step:10/20000 train_loss:5.9847 train_time:9443ms step_avg:944.27ms seq_len:2048
+step:500/20000 train_loss:2.2626 train_time:486420ms step_avg:972.84ms seq_len:2048
+late_qat:enabled step:525 scale:0.6461 elapsed_ms:510846 trigger:wallclock@0.85
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4] Graph break from `Tensor.item()`, consider setting:
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4]     torch._dynamo.config.capture_scalar_outputs = True
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4] or:
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4]     env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4] to include these operations in the captured graph.
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4] 
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4] Graph break: from user code at:
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4]   File "/root/pgolf/train_gpt_850_slot.py", line 1590, in forward
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4]     x = x + self.bigram(input_ids)
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4]   File "/root/pgolf/train_gpt_850_slot.py", line 1414, in forward
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4]     h = self.proj(h)
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4]   File "/root/pgolf/train_gpt_850_slot.py", line 1252, in forward
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4]     alpha = self._soft_round_alpha.item()
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4] 
+[rank0]:W0407 20:05:58.781000 673324 torch/_dynamo/variables/tensor.py:1379] [0/4] 
+[rank0]:W0407 20:06:02.640000 673324 torch/_dynamo/convert_frame.py:1743] [9/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0407 20:06:02.640000 673324 torch/_dynamo/convert_frame.py:1743] [9/8]    function: 'forward' (/root/pgolf/train_gpt_850_slot.py:1467)
+[rank0]:W0407 20:06:02.640000 673324 torch/_dynamo/convert_frame.py:1743] [9/8]    last reason: 9/7: self.ln_scale_factor == 0.35355339059327373              # self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,  # oot/pgolf/train_gpt_850_slot.py:1472 in forward
+[rank0]:W0407 20:06:02.640000 673324 torch/_dynamo/convert_frame.py:1743] [9/8] User stack trace:
+[rank0]:W0407 20:06:02.640000 673324 torch/_dynamo/convert_frame.py:1743] [9/8]   File "/root/pgolf/train_gpt_850_slot.py", line 1472, in forward
+[rank0]:W0407 20:06:02.640000 673324 torch/_dynamo/convert_frame.py:1743] [9/8]     self.attn_norm(x_in) * self.ln_scale_factor, v_embed=v_embed,
+[rank0]:W0407 20:06:02.640000 673324 torch/_dynamo/convert_frame.py:1743] [9/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0407 20:06:02.640000 673324 torch/_dynamo/convert_frame.py:1743] [9/8] To diagnose recompilation issues, see https://docs.pytorch.org/docs/main/user_guide/torch_compiler/compile/programming_model.recompilation.html
+[rank0]:W0407 20:06:06.084000 673324 torch/_dynamo/convert_frame.py:1743] [4/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0407 20:06:06.084000 673324 torch/_dynamo/convert_frame.py:1743] [4/8]    function: 'torch_dynamo_resume_in_forward_at_1252' (/root/pgolf/train_gpt_850_slot.py:1252)
+[rank0]:W0407 20:06:06.084000 673324 torch/_dynamo/convert_frame.py:1743] [4/8]    last reason: 4/7: tensor 'w' size mismatch at index 0. expected 512, actual 256
+[rank0]:W0407 20:06:06.084000 673324 torch/_dynamo/convert_frame.py:1743] [4/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0407 20:06:06.084000 673324 torch/_dynamo/convert_frame.py:1743] [4/8] To diagnose recompilation issues, see https://docs.pytorch.org/docs/main/user_guide/torch_compiler/compile/programming_model.recompilation.html
+step:586/20000 val_loss:2.2231 val_bpb:1.3167 train_time:601188ms step_avg:1025.92ms seq_len:2048
+early_stop train_time:601188ms step:586/20000
+peak_mem: 25029 MiB reserved: 26108 MiB
+steps:586
+swa_n:0
+ema:applying EMA weights (no SWA checkpoints collected)
+DIAGNOSTIC post_ema val_loss:2.5343 val_bpb:1.5010 eval_time:23041ms
+turboquant:starting with 5 bits per weight
+turboquant:quantized 153 tensors
+turboquant:compressed 28347179 -> 14813304 bytes
+Serialized model turbo5+lzma: 14813308 bytes
+Total submission size: 14922913 bytes
+turboquant:reconstructing model for roundtrip eval
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]    function: 'forward' (/root/pgolf/train_gpt_850_slot.py:1587)
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]    last reason: 0/7: self._modules['blocks']._modules['0']._modules['attn']._modules['rotary']._cos_cached is None  # self._cos_cached is None  # oot/pgolf/train_gpt_850_slot.py:1294 in forward
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8] User stack trace:
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]   File "/root/pgolf/train_gpt_850_slot.py", line 1599, in forward
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]     x, raw_v = self.blocks[i](x, x0, v_embed=ve, v0=v0)
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]   File "/root/pgolf/train_gpt_850_slot.py", line 1471, in forward
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]     attn_out, raw_v = self.attn(
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]   File "/root/pgolf/train_gpt_850_slot.py", line 1374, in forward
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]   File "/root/pgolf/train_gpt_850_slot.py", line 1294, in forward
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8]     self._cos_cached is None
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0407 20:08:45.580000 673324 torch/_dynamo/convert_frame.py:1743] [0/8] To diagnose recompilation issues, see https://docs.pytorch.org/docs/main/user_guide/torch_compiler/compile/programming_model.recompilation.html
+final_int5_roundtrip val_loss:2.5745 val_bpb:1.5248 eval_time:55536ms
+final_int5_roundtrip_exact val_loss:2.57454872 val_bpb:1.52479277
+eval_budget: 56s elapsed, 544s remaining
+integrated_eval: starting single-pass TTT+N-gram evaluation
+integrated_eval: LoRA rank=8 on Q,V of blocks 9-10, 28672 LoRA params, 947 chunks, polyak_decay=0.995, ngram order=2-9 adaptive=True alpha=[0.12,0.6]
+integrated_eval: chunk 5/947 model_bpb=1.489020 ngram_bpb=1.642518 delta=0.153498 t=3s
+integrated_eval: chunk 10/947 model_bpb=1.501334 ngram_bpb=1.727001 delta=0.225667 t=6s
+integrated_eval: chunk 15/947 model_bpb=1.508941 ngram_bpb=1.764433 delta=0.255492 t=9s
+integrated_eval: chunk 20/947 model_bpb=1.503014 ngram_bpb=1.763655 delta=0.260641 t=12s
+integrated_eval: chunk 25/947 model_bpb=1.504120 ngram_bpb=1.754639 delta=0.250519 t=14s
+integrated_eval: chunk 30/947 model_bpb=1.507685 ngram_bpb=1.740203 delta=0.232518 t=17s
+integrated_eval: chunk 35/947 model_bpb=1.505850 ngram_bpb=1.713402 delta=0.207552 t=20s
+integrated_eval: chunk 40/947 model_bpb=1.500564 ngram_bpb=1.680084 delta=0.179520 t=23s
+integrated_eval: chunk 45/947 model_bpb=1.500535 ngram_bpb=1.649370 delta=0.148835 t=26s
+integrated_eval: chunk 50/947 model_bpb=1.502118 ngram_bpb=1.618478 delta=0.116360 t=29s
+integrated_eval: chunk 55/947 model_bpb=1.504147 ngram_bpb=1.587162 delta=0.083016 t=31s
+integrated_eval: chunk 60/947 model_bpb=1.499176 ngram_bpb=1.550035 delta=0.050859 t=34s
+integrated_eval: chunk 65/947 model_bpb=1.499144 ngram_bpb=1.516582 delta=0.017438 t=37s
+integrated_eval: chunk 70/947 model_bpb=1.496915 ngram_bpb=1.481701 delta=-0.015214 t=40s
+integrated_eval: chunk 75/947 model_bpb=1.497647 ngram_bpb=1.449965 delta=-0.047682 t=43s
+integrated_eval: chunk 80/947 model_bpb=1.498486 ngram_bpb=1.419006 delta=-0.079480 t=45s
+integrated_eval: chunk 85/947 model_bpb=1.500600 ngram_bpb=1.388757 delta=-0.111843 t=48s
+integrated_eval: chunk 90/947 model_bpb=1.500393 ngram_bpb=1.358774 delta=-0.141619 t=52s
+integrated_eval: chunk 95/947 model_bpb=1.503739 ngram_bpb=1.331742 delta=-0.171996 t=54s
+integrated_eval: chunk 100/947 model_bpb=1.502895 ngram_bpb=1.303109 delta=-0.199786 t=57s
+integrated_eval: chunk 105/947 model_bpb=1.501695 ngram_bpb=1.274930 delta=-0.226766 t=60s
+integrated_eval: chunk 110/947 model_bpb=1.502730 ngram_bpb=1.249177 delta=-0.253552 t=63s
+integrated_eval: chunk 115/947 model_bpb=1.502424 ngram_bpb=1.223917 delta=-0.278508 t=65s
+integrated_eval: chunk 120/947 model_bpb=1.503089 ngram_bpb=1.199944 delta=-0.303145 t=68s
+integrated_eval: chunk 125/947 model_bpb=1.501998 ngram_bpb=1.176128 delta=-0.325870 t=71s
+integrated_eval: chunk 130/947 model_bpb=1.502005 ngram_bpb=1.153346 delta=-0.348659 t=74s
+integrated_eval: chunk 135/947 model_bpb=1.500585 ngram_bpb=1.131006 delta=-0.369579 t=76s
+integrated_eval: chunk 140/947 model_bpb=1.501252 ngram_bpb=1.109690 delta=-0.391562 t=79s
+integrated_eval: chunk 145/947 model_bpb=1.500838 ngram_bpb=1.088653 delta=-0.412184 t=82s
+integrated_eval: chunk 150/947 model_bpb=1.500597 ngram_bpb=1.068530 delta=-0.432068 t=85s
+integrated_eval: chunk 155/947 model_bpb=1.500446 ngram_bpb=1.049170 delta=-0.451276 t=87s
+integrated_eval: chunk 160/947 model_bpb=1.500479 ngram_bpb=1.030497 delta=-0.469982 t=90s
+integrated_eval: chunk 165/947 model_bpb=1.499926 ngram_bpb=1.012395 delta=-0.487531 t=94s
+integrated_eval: chunk 170/947 model_bpb=1.499229 ngram_bpb=0.994574 delta=-0.504655 t=97s
+integrated_eval: chunk 175/947 model_bpb=1.499274 ngram_bpb=0.977707 delta=-0.521568 t=100s
+integrated_eval: chunk 180/947 model_bpb=1.500600 ngram_bpb=0.962989 delta=-0.537611 t=102s
+integrated_eval: chunk 185/947 model_bpb=1.499954 ngram_bpb=0.947200 delta=-0.552755 t=105s
+integrated_eval: chunk 190/947 model_bpb=1.499464 ngram_bpb=0.931978 delta=-0.567486 t=108s
+integrated_eval: chunk 195/947 model_bpb=1.499066 ngram_bpb=0.917376 delta=-0.581691 t=110s
+integrated_eval: chunk 200/947 model_bpb=1.498711 ngram_bpb=0.903359 delta=-0.595351 t=113s
+integrated_eval: chunk 205/947 model_bpb=1.497539 ngram_bpb=0.889623 delta=-0.607915 t=116s
+integrated_eval: chunk 210/947 model_bpb=1.497223 ngram_bpb=0.876447 delta=-0.620776 t=119s
+integrated_eval: chunk 215/947 model_bpb=1.497549 ngram_bpb=0.863718 delta=-0.633831 t=122s
+integrated_eval: chunk 220/947 model_bpb=1.496363 ngram_bpb=0.851057 delta=-0.645306 t=125s
+integrated_eval: chunk 225/947 model_bpb=1.496005 ngram_bpb=0.838902 delta=-0.657104 t=127s
+integrated_eval: chunk 230/947 model_bpb=1.495381 ngram_bpb=0.827112 delta=-0.668269 t=130s
+integrated_eval: chunk 235/947 model_bpb=1.494731 ngram_bpb=0.815696 delta=-0.679035 t=133s
+integrated_eval: chunk 240/947 model_bpb=1.494238 ngram_bpb=0.804966 delta=-0.689271 t=135s
+integrated_eval: chunk 245/947 model_bpb=1.493921 ngram_bpb=0.794595 delta=-0.699327 t=138s
+integrated_eval: chunk 250/947 model_bpb=1.493381 ngram_bpb=0.784257 delta=-0.709124 t=141s
+integrated_eval: chunk 255/947 model_bpb=1.492628 ngram_bpb=0.774362 delta=-0.718267 t=144s
+integrated_eval: chunk 260/947 model_bpb=1.492277 ngram_bpb=0.764930 delta=-0.727347 t=146s
+integrated_eval: chunk 265/947 model_bpb=1.492623 ngram_bpb=0.755684 delta=-0.736938 t=149s
+integrated_eval: chunk 270/947 model_bpb=1.492065 ngram_bpb=0.746449 delta=-0.745616 t=152s
+integrated_eval: chunk 275/947 model_bpb=1.491358 ngram_bpb=0.737599 delta=-0.753758 t=154s
+integrated_eval: chunk 280/947 model_bpb=1.491047 ngram_bpb=0.728967 delta=-0.762080 t=157s
+integrated_eval: chunk 285/947 model_bpb=1.490302 ngram_bpb=0.720761 delta=-0.769541 t=160s
+integrated_eval: chunk 290/947 model_bpb=1.489764 ngram_bpb=0.712772 delta=-0.776992 t=163s
+integrated_eval: chunk 295/947 model_bpb=1.489160 ngram_bpb=0.705070 delta=-0.784091 t=165s
+integrated_eval: chunk 300/947 model_bpb=1.489108 ngram_bpb=0.697496 delta=-0.791612 t=168s
+integrated_eval: chunk 305/947 model_bpb=1.488530 ngram_bpb=0.690190 delta=-0.798340 t=171s
+integrated_eval: chunk 310/947 model_bpb=1.488431 ngram_bpb=0.682966 delta=-0.805465 t=173s
+integrated_eval: chunk 315/947 model_bpb=1.487960 ngram_bpb=0.675861 delta=-0.812099 t=176s
+integrated_eval: chunk 320/947 model_bpb=1.487065 ngram_bpb=0.668903 delta=-0.818162 t=179s
+integrated_eval: chunk 325/947 model_bpb=1.486486 ngram_bpb=0.662215 delta=-0.824271 t=181s
+integrated_eval: chunk 330/947 model_bpb=1.486056 ngram_bpb=0.655771 delta=-0.830285 t=184s
+integrated_eval: chunk 335/947 model_bpb=1.485644 ngram_bpb=0.649417 delta=-0.836227 t=187s
+integrated_eval: chunk 340/947 model_bpb=1.484738 ngram_bpb=0.643127 delta=-0.841611 t=190s
+integrated_eval: chunk 345/947 model_bpb=1.484645 ngram_bpb=0.637058 delta=-0.847587 t=192s
+integrated_eval: chunk 350/947 model_bpb=1.483846 ngram_bpb=0.631102 delta=-0.852743 t=195s
+integrated_eval: chunk 355/947 model_bpb=1.483543 ngram_bpb=0.625449 delta=-0.858094 t=198s
+integrated_eval: chunk 360/947 model_bpb=1.483306 ngram_bpb=0.619919 delta=-0.863387 t=200s
+integrated_eval: chunk 365/947 model_bpb=1.483578 ngram_bpb=0.614524 delta=-0.869054 t=203s
+integrated_eval: chunk 370/947 model_bpb=1.483821 ngram_bpb=0.609208 delta=-0.874612 t=206s
+integrated_eval: chunk 375/947 model_bpb=1.483144 ngram_bpb=0.603991 delta=-0.879153 t=208s
+integrated_eval: chunk 380/947 model_bpb=1.483490 ngram_bpb=0.599022 delta=-0.884468 t=211s
+integrated_eval: chunk 385/947 model_bpb=1.483393 ngram_bpb=0.594148 delta=-0.889245 t=214s
+integrated_eval: chunk 390/947 model_bpb=1.483543 ngram_bpb=0.589409 delta=-0.894134 t=216s
+integrated_eval: chunk 395/947 model_bpb=1.483650 ngram_bpb=0.584826 delta=-0.898824 t=219s
+integrated_eval: chunk 400/947 model_bpb=1.483520 ngram_bpb=0.580119 delta=-0.903401 t=222s
+integrated_eval: chunk 405/947 model_bpb=1.483599 ngram_bpb=0.575671 delta=-0.907928 t=224s
+integrated_eval: chunk 410/947 model_bpb=1.483567 ngram_bpb=0.571235 delta=-0.912332 t=227s
+integrated_eval: chunk 415/947 model_bpb=1.483401 ngram_bpb=0.566976 delta=-0.916426 t=230s
+integrated_eval: chunk 420/947 model_bpb=1.483500 ngram_bpb=0.562835 delta=-0.920665 t=232s
+integrated_eval: chunk 425/947 model_bpb=1.483628 ngram_bpb=0.558778 delta=-0.924849 t=235s
+integrated_eval: chunk 430/947 model_bpb=1.483907 ngram_bpb=0.554838 delta=-0.929069 t=238s
+integrated_eval: chunk 435/947 model_bpb=1.484189 ngram_bpb=0.550874 delta=-0.933316 t=241s
+integrated_eval: chunk 440/947 model_bpb=1.484521 ngram_bpb=0.547142 delta=-0.937378 t=243s
+integrated_eval: chunk 445/947 model_bpb=1.484204 ngram_bpb=0.543490 delta=-0.940715 t=246s
+integrated_eval: chunk 450/947 model_bpb=1.484394 ngram_bpb=0.539930 delta=-0.944464 t=249s
+integrated_eval: chunk 455/947 model_bpb=1.484264 ngram_bpb=0.536334 delta=-0.947931 t=251s
+integrated_eval: chunk 460/947 model_bpb=1.484412 ngram_bpb=0.532803 delta=-0.951610 t=254s
+integrated_eval: chunk 465/947 model_bpb=1.484409 ngram_bpb=0.529454 delta=-0.954956 t=257s
+integrated_eval: chunk 470/947 model_bpb=1.484790 ngram_bpb=0.525982 delta=-0.958808 t=259s
+integrated_eval: chunk 475/947 model_bpb=1.485320 ngram_bpb=0.522654 delta=-0.962666 t=262s
+integrated_eval: chunk 480/947 model_bpb=1.485298 ngram_bpb=0.519214 delta=-0.966084 t=265s
+integrated_eval: chunk 485/947 model_bpb=1.485823 ngram_bpb=0.515919 delta=-0.969904 t=267s
+integrated_eval: chunk 490/947 model_bpb=1.485887 ngram_bpb=0.512591 delta=-0.973297 t=270s
+integrated_eval: chunk 495/947 model_bpb=1.485948 ngram_bpb=0.509418 delta=-0.976530 t=273s
+integrated_eval: chunk 500/947 model_bpb=1.486186 ngram_bpb=0.506265 delta=-0.979921 t=275s
+integrated_eval: chunk 505/947 model_bpb=1.486466 ngram_bpb=0.503240 delta=-0.983226 t=278s
+integrated_eval: chunk 510/947 model_bpb=1.486672 ngram_bpb=0.500216 delta=-0.986456 t=281s
+integrated_eval: chunk 515/947 model_bpb=1.487011 ngram_bpb=0.497191 delta=-0.989820 t=284s
+integrated_eval: chunk 520/947 model_bpb=1.487243 ngram_bpb=0.494228 delta=-0.993015 t=286s
+integrated_eval: chunk 525/947 model_bpb=1.487086 ngram_bpb=0.491323 delta=-0.995763 t=289s
+integrated_eval: chunk 530/947 model_bpb=1.487177 ngram_bpb=0.488452 delta=-0.998725 t=292s
+integrated_eval: chunk 535/947 model_bpb=1.487367 ngram_bpb=0.485752 delta=-1.001615 t=296s
+integrated_eval: chunk 540/947 model_bpb=1.487419 ngram_bpb=0.482977 delta=-1.004442 t=299s
+integrated_eval: chunk 545/947 model_bpb=1.487565 ngram_bpb=0.480233 delta=-1.007333 t=302s
+integrated_eval: chunk 550/947 model_bpb=1.487705 ngram_bpb=0.477586 delta=-1.010119 t=304s
+integrated_eval: chunk 555/947 model_bpb=1.487465 ngram_bpb=0.474995 delta=-1.012470 t=307s
+integrated_eval: chunk 560/947 model_bpb=1.487254 ngram_bpb=0.472422 delta=-1.014832 t=310s
+integrated_eval: chunk 565/947 model_bpb=1.486989 ngram_bpb=0.469911 delta=-1.017078 t=313s
+integrated_eval: chunk 570/947 model_bpb=1.486596 ngram_bpb=0.467377 delta=-1.019219 t=316s
+integrated_eval: chunk 575/947 model_bpb=1.486670 ngram_bpb=0.464954 delta=-1.021716 t=319s
+integrated_eval: chunk 580/947 model_bpb=1.486471 ngram_bpb=0.462481 delta=-1.023990 t=321s
+integrated_eval: chunk 585/947 model_bpb=1.486076 ngram_bpb=0.460066 delta=-1.026010 t=324s
+integrated_eval: chunk 590/947 model_bpb=1.485751 ngram_bpb=0.457688 delta=-1.028062 t=327s
+integrated_eval: chunk 595/947 model_bpb=1.485796 ngram_bpb=0.455345 delta=-1.030451 t=329s
+integrated_eval: chunk 600/947 model_bpb=1.485971 ngram_bpb=0.453074 delta=-1.032897 t=332s
+integrated_eval: chunk 605/947 model_bpb=1.485564 ngram_bpb=0.450865 delta=-1.034700 t=335s
+integrated_eval: chunk 610/947 model_bpb=1.485923 ngram_bpb=0.448745 delta=-1.037178 t=337s
+integrated_eval: chunk 615/947 model_bpb=1.485768 ngram_bpb=0.446546 delta=-1.039222 t=340s
+integrated_eval: chunk 620/947 model_bpb=1.485434 ngram_bpb=0.444347 delta=-1.041087 t=343s
+integrated_eval: chunk 625/947 model_bpb=1.484974 ngram_bpb=0.442304 delta=-1.042669 t=345s
+integrated_eval: chunk 630/947 model_bpb=1.484638 ngram_bpb=0.440243 delta=-1.044395 t=348s
+integrated_eval: chunk 635/947 model_bpb=1.484450 ngram_bpb=0.438175 delta=-1.046275 t=351s
+integrated_eval: chunk 640/947 model_bpb=1.483969 ngram_bpb=0.436090 delta=-1.047878 t=353s
+integrated_eval: chunk 645/947 model_bpb=1.483631 ngram_bpb=0.434063 delta=-1.049568 t=356s
+integrated_eval: chunk 650/947 model_bpb=1.483490 ngram_bpb=0.432082 delta=-1.051407 t=359s
+integrated_eval: chunk 655/947 model_bpb=1.483160 ngram_bpb=0.430146 delta=-1.053014 t=361s
+integrated_eval: chunk 660/947 model_bpb=1.482775 ngram_bpb=0.428184 delta=-1.054592 t=364s
+integrated_eval: chunk 665/947 model_bpb=1.482451 ngram_bpb=0.426260 delta=-1.056191 t=367s
+integrated_eval: chunk 670/947 model_bpb=1.482331 ngram_bpb=0.424391 delta=-1.057940 t=369s
+integrated_eval: chunk 675/947 model_bpb=1.482211 ngram_bpb=0.422571 delta=-1.059640 t=372s
+integrated_eval: chunk 680/947 model_bpb=1.482469 ngram_bpb=0.420839 delta=-1.061631 t=375s
+integrated_eval: chunk 685/947 model_bpb=1.482722 ngram_bpb=0.419116 delta=-1.063606 t=378s
+integrated_eval: chunk 690/947 model_bpb=1.483192 ngram_bpb=0.417462 delta=-1.065730 t=380s
+integrated_eval: chunk 695/947 model_bpb=1.482913 ngram_bpb=0.415727 delta=-1.067186 t=383s
+integrated_eval: chunk 700/947 model_bpb=1.483000 ngram_bpb=0.414036 delta=-1.068963 t=386s
+integrated_eval: chunk 705/947 model_bpb=1.483276 ngram_bpb=0.412416 delta=-1.070860 t=388s
+integrated_eval: chunk 710/947 model_bpb=1.483310 ngram_bpb=0.410756 delta=-1.072555 t=391s
+integrated_eval: chunk 715/947 model_bpb=1.483375 ngram_bpb=0.409256 delta=-1.074119 t=394s
+integrated_eval: chunk 720/947 model_bpb=1.483821 ngram_bpb=0.407662 delta=-1.076159 t=396s
+integrated_eval: chunk 725/947 model_bpb=1.483872 ngram_bpb=0.406121 delta=-1.077751 t=399s
+integrated_eval: chunk 730/947 model_bpb=1.483878 ngram_bpb=0.404592 delta=-1.079286 t=402s
+integrated_eval: chunk 735/947 model_bpb=1.484567 ngram_bpb=0.403062 delta=-1.081505 t=405s
+integrated_eval: chunk 740/947 model_bpb=1.484591 ngram_bpb=0.401556 delta=-1.083035 t=408s
+integrated_eval: chunk 745/947 model_bpb=1.485019 ngram_bpb=0.400104 delta=-1.084915 t=411s
+integrated_eval: chunk 750/947 model_bpb=1.485152 ngram_bpb=0.398675 delta=-1.086477 t=414s
+integrated_eval: chunk 755/947 model_bpb=1.485350 ngram_bpb=0.397211 delta=-1.088139 t=416s
+integrated_eval: chunk 760/947 model_bpb=1.485501 ngram_bpb=0.395804 delta=-1.089697 t=419s
+integrated_eval: chunk 765/947 model_bpb=1.485846 ngram_bpb=0.394405 delta=-1.091441 t=422s
+integrated_eval: chunk 770/947 model_bpb=1.485884 ngram_bpb=0.392960 delta=-1.092924 t=425s
+integrated_eval: chunk 775/947 model_bpb=1.486195 ngram_bpb=0.391554 delta=-1.094641 t=427s
+integrated_eval: chunk 780/947 model_bpb=1.486318 ngram_bpb=0.390161 delta=-1.096157 t=430s
+integrated_eval: chunk 785/947 model_bpb=1.486518 ngram_bpb=0.388794 delta=-1.097724 t=433s
+integrated_eval: chunk 790/947 model_bpb=1.486802 ngram_bpb=0.387468 delta=-1.099334 t=435s
+integrated_eval: chunk 795/947 model_bpb=1.486731 ngram_bpb=0.386043 delta=-1.100688 t=438s
+integrated_eval: chunk 800/947 model_bpb=1.486898 ngram_bpb=0.384671 delta=-1.102228 t=441s
+integrated_eval: chunk 805/947 model_bpb=1.487056 ngram_bpb=0.383292 delta=-1.103764 t=443s
+integrated_eval: chunk 810/947 model_bpb=1.486883 ngram_bpb=0.382007 delta=-1.104876 t=446s
+integrated_eval: chunk 815/947 model_bpb=1.486905 ngram_bpb=0.380692 delta=-1.106214 t=449s
+integrated_eval: chunk 820/947 model_bpb=1.486912 ngram_bpb=0.379381 delta=-1.107531 t=451s
+integrated_eval: chunk 825/947 model_bpb=1.486951 ngram_bpb=0.378104 delta=-1.108847 t=454s
+integrated_eval: chunk 830/947 model_bpb=1.487095 ngram_bpb=0.376845 delta=-1.110249 t=457s
+integrated_eval: chunk 835/947 model_bpb=1.487289 ngram_bpb=0.375604 delta=-1.111685 t=460s
+integrated_eval: chunk 840/947 model_bpb=1.487332 ngram_bpb=0.374359 delta=-1.112972 t=462s
+integrated_eval: chunk 845/947 model_bpb=1.487354 ngram_bpb=0.373134 delta=-1.114220 t=465s
+integrated_eval: chunk 850/947 model_bpb=1.487576 ngram_bpb=0.371922 delta=-1.115654 t=468s
+integrated_eval: chunk 855/947 model_bpb=1.487547 ngram_bpb=0.370703 delta=-1.116844 t=470s
+integrated_eval: chunk 860/947 model_bpb=1.487428 ngram_bpb=0.369526 delta=-1.117902 t=473s
+integrated_eval: chunk 865/947 model_bpb=1.487384 ngram_bpb=0.368352 delta=-1.119032 t=476s
+integrated_eval: chunk 870/947 model_bpb=1.487155 ngram_bpb=0.367168 delta=-1.119986 t=478s
+integrated_eval: chunk 875/947 model_bpb=1.486914 ngram_bpb=0.365995 delta=-1.120919 t=481s
+integrated_eval: chunk 880/947 model_bpb=1.486927 ngram_bpb=0.364855 delta=-1.122072 t=484s
+integrated_eval: chunk 885/947 model_bpb=1.486876 ngram_bpb=0.363711 delta=-1.123165 t=486s
+integrated_eval: chunk 890/947 model_bpb=1.486812 ngram_bpb=0.362610 delta=-1.124202 t=489s
+integrated_eval: chunk 895/947 model_bpb=1.486426 ngram_bpb=0.361503 delta=-1.124923 t=492s
+integrated_eval: chunk 900/947 model_bpb=1.486315 ngram_bpb=0.360406 delta=-1.125909 t=495s
+integrated_eval: chunk 905/947 model_bpb=1.486246 ngram_bpb=0.359327 delta=-1.126919 t=497s
+integrated_eval: chunk 910/947 model_bpb=1.486302 ngram_bpb=0.358244 delta=-1.128058 t=500s
+integrated_eval: chunk 915/947 model_bpb=1.486063 ngram_bpb=0.357170 delta=-1.128892 t=503s
+integrated_eval: chunk 920/947 model_bpb=1.486102 ngram_bpb=0.356166 delta=-1.129936 t=505s
+integrated_eval: chunk 925/947 model_bpb=1.485835 ngram_bpb=0.355138 delta=-1.130697 t=508s
+integrated_eval: chunk 930/947 model_bpb=1.485684 ngram_bpb=0.354111 delta=-1.131573 t=511s
+integrated_eval: chunk 935/947 model_bpb=1.485615 ngram_bpb=0.353102 delta=-1.132514 t=515s
+integrated_eval: chunk 940/947 model_bpb=1.485354 ngram_bpb=0.352103 delta=-1.133251 t=517s
+integrated_eval: chunk 945/947 model_bpb=1.485300 ngram_bpb=0.351116 delta=-1.134184 t=520s
+integrated_eval: DONE model_bpb=1.4854 ngram_bpb=0.3509 delta=-1.1345 elapsed=521s
+final_integrated model_val_loss:2.5080 model_val_bpb:1.4854
+final_integrated ngram_val_loss:0.5924 ngram_val_bpb:0.3509
+final_integrated delta_bpb:-1.1345
+final_integrated_exact model_bpb:1.48535122 ngram_bpb:0.35085540
+final_integrated_time:521112ms
