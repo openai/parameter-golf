@@ -45,7 +45,95 @@ def _write_result_json(path: str | None, result: dict):
     output_volume.commit()
 
 
+def _write_running_result_json(path: str | None, label: str, cmd: list[str]):
+    _write_result_json(
+        path,
+        {
+            "label": label,
+            "command": cmd,
+            "returncode": None,
+            "status": "running",
+            "tail": "",
+        },
+    )
+
+
+def _coerce_metric_value(raw: str):
+    value = raw.strip()
+    lower = value.lower()
+    if lower == "true":
+        return True
+    if lower == "false":
+        return False
+    try:
+        if any(ch in value for ch in (".", "e", "E")):
+            return float(value)
+        return int(value)
+    except ValueError:
+        return value
+
+
+def _parse_key_value_metrics(text: str) -> dict:
+    metrics: dict[str, object] = {}
+    for line in text.splitlines():
+        if "=" not in line or line.startswith("["):
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or " " in key or key.endswith("_json"):
+            continue
+        metrics[key] = _coerce_metric_value(value)
+    _add_per_step_timing_metrics(metrics)
+    return metrics
+
+
+def _add_per_step_timing_metrics(metrics: dict[str, object]) -> None:
+    steps = metrics.get("timing_steps")
+    if not isinstance(steps, int) or steps <= 0:
+        return
+    for key, value in list(metrics.items()):
+        if not key.startswith("timing_") or key.endswith("_per_step"):
+            continue
+        if key in {"timing_steps", "timing_measured_ms_per_step"}:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        metrics[f"{key}_per_step"] = float(value) / float(steps)
+
+
 def _apply_gpu_env_flags(forwarded: list[str]):
+    if "--frontier-fast-record-profile" in forwarded:
+        forwarded.remove("--frontier-fast-record-profile")
+        # Matches the best measured record-shaped profile line. Keep this as an
+        # explicit opt-in so slow correctness baselines remain easy to run.
+        os.environ["PG_CUDA_EVENT_TIMING"] = "1"
+        os.environ["PG_GPU_BACKWARD_STAGE_TIMING"] = "1"
+        os.environ["PG_GPU_SAVE_LAYER_ACTS"] = "all"
+        os.environ["PG_GPU_DIRECT_SAVED_ACTS"] = "1"
+        os.environ["PG_GPU_BF16_PRIMARY_FORWARD_GEMM"] = "1"
+        os.environ["PG_GPU_BF16_LOGITS"] = "1"
+        os.environ["PG_GPU_QKV_DX_BETA_ACCUM"] = "1"
+        os.environ["PG_GPU_FUSED_QKV_PROJ"] = "1"
+        os.environ["PG_GPU_FUSED_QKV_PROJ_RECORD_OK"] = "1"
+        os.environ["PG_GPU_BF16_MLP_UP_OUTPUT"] = "1"
+        os.environ["PG_GPU_BF16_NORM_SIDE_OUTPUTS"] = "1"
+        os.environ["PG_GPU_BF16_NORM_GRAD_PATH"] = "1"
+        os.environ["PG_GPU_BF16_RESIDUAL_PROJ_OUTPUT"] = "1"
+        os.environ["PG_GPU_BF16_ATTN_PROJ_OUTPUT"] = "1"
+        os.environ["PG_GPU_FINAL_NORM_BF16_OUTPUT"] = "1"
+        os.environ["PG_GPU_CUDNN_PREPACKED_BF16_ATTN"] = "1"
+        os.environ["PG_GPU_CUDNN_PREPACKED_BF16_POISON"] = "1"
+        os.environ["PG_GPU_BF16_SPARSE_XSA_FWD"] = "1"
+        os.environ["PG_GPU_SPARSE_XSA_WARPHEAD_BWD"] = "1"
+        os.environ["PG_GPU_HOST_SCALAR_UPDATES"] = "0"
+        os.environ["PG_GPU_MUON_NS_PROFILE"] = "polar_express"
+        os.environ.setdefault("PG_NCCL_BF16_BANK_GRAD_WIRE", "0")
+        os.environ.setdefault("PG_NCCL_GROUP_SHARDED_GRAD_COLLECTIVES", "0")
+        os.environ["PG_GPU_RESIDUAL_SCALE_REDUCE"] = "1"
+        os.environ["PG_GPU_CHUNKED_Q_GAIN_BWD"] = "1"
+        os.environ["PG_GPU_TILED_OUTPUT_CE"] = "0"
+        os.environ["PG_GPU_SPLIT_RESIDUAL_MIX_GRAD"] = "0"
+        os.environ.setdefault("PG_RECORD_TIMING_SKIP_STEPS", "2")
     if "--cuda-event-timing" in forwarded:
         forwarded.remove("--cuda-event-timing")
         os.environ["PG_CUDA_EVENT_TIMING"] = "1"
@@ -58,6 +146,10 @@ def _apply_gpu_env_flags(forwarded: list[str]):
     if "--cuda-backward-graph" in forwarded:
         forwarded.remove("--cuda-backward-graph")
         os.environ["PG_CUDA_BACKWARD_GRAPH"] = "1"
+    if "--cuda-backward-graph-strict" in forwarded:
+        forwarded.remove("--cuda-backward-graph-strict")
+        os.environ["PG_CUDA_BACKWARD_GRAPH"] = "1"
+        os.environ["PG_CUDA_BACKWARD_GRAPH_STRICT"] = "1"
     if "--save-layer-acts" in forwarded:
         forwarded.remove("--save-layer-acts")
         os.environ["PG_GPU_SAVE_LAYER_ACTS"] = "1"
@@ -76,9 +168,24 @@ def _apply_gpu_env_flags(forwarded: list[str]):
     if "--ttt-audit" in forwarded:
         forwarded.remove("--ttt-audit")
         os.environ["PG_TTT_AUDIT"] = "1"
+    if "--assert-ttt-score-no-mutation" in forwarded:
+        forwarded.remove("--assert-ttt-score-no-mutation")
+        os.environ["PG_TTT_ASSERT_SCORE_NO_MUTATION"] = "1"
+    if "--eval-gpu-world-size" in forwarded:
+        idx = forwarded.index("--eval-gpu-world-size")
+        if idx + 1 >= len(forwarded):
+            raise RuntimeError("--eval-gpu-world-size requires a positive integer")
+        os.environ["PG_EVAL_GPU_WORLD_SIZE"] = forwarded[idx + 1]
+        del forwarded[idx : idx + 2]
     if "--skip-first-step-timing" in forwarded:
         forwarded.remove("--skip-first-step-timing")
         os.environ["PG_RECORD_TIMING_SKIP_STEPS"] = "1"
+    if "--record-max-ms-per-step" in forwarded:
+        idx = forwarded.index("--record-max-ms-per-step")
+        if idx + 1 >= len(forwarded):
+            raise RuntimeError("--record-max-ms-per-step requires a numeric ceiling")
+        os.environ["PG_RECORD_MAX_MS_PER_STEP"] = forwarded[idx + 1]
+        del forwarded[idx : idx + 2]
     if "--fast-tf32" in forwarded:
         forwarded.remove("--fast-tf32")
         os.environ["PG_CUBLAS_FAST_TF32"] = "1"
@@ -107,18 +214,45 @@ def _apply_gpu_env_flags(forwarded: list[str]):
     if "--disable-bf16-output-backward-gemm" in forwarded:
         forwarded.remove("--disable-bf16-output-backward-gemm")
         os.environ["PG_GPU_BF16_OUTPUT_BACKWARD_GEMM"] = "0"
+    if "--enable-bf16-logits" in forwarded:
+        forwarded.remove("--enable-bf16-logits")
+        os.environ["PG_GPU_BF16_LOGITS"] = "1"
+    if "--disable-bf16-logits" in forwarded:
+        forwarded.remove("--disable-bf16-logits")
+        os.environ["PG_GPU_BF16_LOGITS"] = "0"
     if "--disable-fused-ce-loss-bwd" in forwarded:
         forwarded.remove("--disable-fused-ce-loss-bwd")
         os.environ["PG_GPU_FUSED_CE_LOSS_BWD"] = "0"
+    if "--enable-tiled-output-ce" in forwarded:
+        forwarded.remove("--enable-tiled-output-ce")
+        os.environ["PG_GPU_TILED_OUTPUT_CE"] = "1"
+    if "--disable-tiled-output-ce" in forwarded:
+        forwarded.remove("--disable-tiled-output-ce")
+        os.environ["PG_GPU_TILED_OUTPUT_CE"] = "0"
+    if "--output-ce-tile-vocab" in forwarded:
+        idx = forwarded.index("--output-ce-tile-vocab")
+        if idx + 1 >= len(forwarded):
+            raise RuntimeError("--output-ce-tile-vocab requires a tile size")
+        os.environ["PG_GPU_OUTPUT_CE_TILE_VOCAB"] = forwarded[idx + 1]
+        del forwarded[idx : idx + 2]
     if "--enable-qkv-dx-beta-accum" in forwarded:
         forwarded.remove("--enable-qkv-dx-beta-accum")
         os.environ["PG_GPU_QKV_DX_BETA_ACCUM"] = "1"
     if "--experimental-fused-qkv-proj" in forwarded:
         forwarded.remove("--experimental-fused-qkv-proj")
         os.environ["PG_GPU_FUSED_QKV_PROJ"] = "1"
+    if "--fused-qkv-proj-record-ok" in forwarded:
+        forwarded.remove("--fused-qkv-proj-record-ok")
+        os.environ["PG_GPU_FUSED_QKV_PROJ_RECORD_OK"] = "1"
     if "--qkv-dx-beta-accum" in forwarded:
         forwarded.remove("--qkv-dx-beta-accum")
         os.environ["PG_GPU_QKV_DX_BETA_ACCUM"] = "1"
+    if "--enable-bf16-qkv-dx-output" in forwarded:
+        forwarded.remove("--enable-bf16-qkv-dx-output")
+        os.environ["PG_GPU_BF16_QKV_DX_OUTPUT"] = "1"
+    if "--disable-bf16-qkv-dx-output" in forwarded:
+        forwarded.remove("--disable-bf16-qkv-dx-output")
+        os.environ["PG_GPU_BF16_QKV_DX_OUTPUT"] = "0"
     if "--disable-fused-qk-rope-gain-bwd" in forwarded:
         forwarded.remove("--disable-fused-qk-rope-gain-bwd")
         os.environ["PG_GPU_FUSED_QK_ROPE_GAIN_BWD"] = "0"
@@ -158,12 +292,51 @@ def _apply_gpu_env_flags(forwarded: list[str]):
     if "--disable-bf16-attn-proj-output" in forwarded:
         forwarded.remove("--disable-bf16-attn-proj-output")
         os.environ["PG_GPU_BF16_ATTN_PROJ_OUTPUT"] = "0"
+    if "--enable-final-norm-bf16-output" in forwarded:
+        forwarded.remove("--enable-final-norm-bf16-output")
+        os.environ["PG_GPU_FINAL_NORM_BF16_OUTPUT"] = "1"
+    if "--disable-final-norm-bf16-output" in forwarded:
+        forwarded.remove("--disable-final-norm-bf16-output")
+        os.environ["PG_GPU_FINAL_NORM_BF16_OUTPUT"] = "0"
     if "--enable-prepacked-bf16-attention" in forwarded:
         forwarded.remove("--enable-prepacked-bf16-attention")
         os.environ["PG_GPU_CUDNN_PREPACKED_BF16_ATTN"] = "1"
     if "--disable-prepacked-bf16-attention" in forwarded:
         forwarded.remove("--disable-prepacked-bf16-attention")
         os.environ["PG_GPU_CUDNN_PREPACKED_BF16_ATTN"] = "0"
+    if "--poison-prepacked-bf16-attention" in forwarded:
+        forwarded.remove("--poison-prepacked-bf16-attention")
+        os.environ["PG_GPU_CUDNN_PREPACKED_BF16_POISON"] = "1"
+    if "--enable-bf16-sparse-xsa-forward" in forwarded:
+        forwarded.remove("--enable-bf16-sparse-xsa-forward")
+        os.environ["PG_GPU_BF16_SPARSE_XSA_FWD"] = "1"
+    if "--disable-bf16-sparse-xsa-forward" in forwarded:
+        forwarded.remove("--disable-bf16-sparse-xsa-forward")
+        os.environ["PG_GPU_BF16_SPARSE_XSA_FWD"] = "0"
+    if "--enable-sparse-xsa-warphead-bwd" in forwarded:
+        forwarded.remove("--enable-sparse-xsa-warphead-bwd")
+        os.environ["PG_GPU_SPARSE_XSA_WARPHEAD_BWD"] = "1"
+    if "--disable-sparse-xsa-warphead-bwd" in forwarded:
+        forwarded.remove("--disable-sparse-xsa-warphead-bwd")
+        os.environ["PG_GPU_SPARSE_XSA_WARPHEAD_BWD"] = "0"
+    if "--disable-host-scalar-updates" in forwarded:
+        forwarded.remove("--disable-host-scalar-updates")
+        os.environ["PG_GPU_HOST_SCALAR_UPDATES"] = "0"
+    if "--enable-host-scalar-updates" in forwarded:
+        forwarded.remove("--enable-host-scalar-updates")
+        os.environ["PG_GPU_HOST_SCALAR_UPDATES"] = "1"
+    if "--enable-bf16-bank-grad-wire" in forwarded:
+        forwarded.remove("--enable-bf16-bank-grad-wire")
+        os.environ["PG_NCCL_BF16_BANK_GRAD_WIRE"] = "1"
+    if "--disable-bf16-bank-grad-wire" in forwarded:
+        forwarded.remove("--disable-bf16-bank-grad-wire")
+        os.environ["PG_NCCL_BF16_BANK_GRAD_WIRE"] = "0"
+    if "--enable-grouped-sharded-grad-collectives" in forwarded:
+        forwarded.remove("--enable-grouped-sharded-grad-collectives")
+        os.environ["PG_NCCL_GROUP_SHARDED_GRAD_COLLECTIVES"] = "1"
+    if "--disable-grouped-sharded-grad-collectives" in forwarded:
+        forwarded.remove("--disable-grouped-sharded-grad-collectives")
+        os.environ["PG_NCCL_GROUP_SHARDED_GRAD_COLLECTIVES"] = "0"
     if "--disable-fused-attn-residual-from-base" in forwarded:
         forwarded.remove("--disable-fused-attn-residual-from-base")
         os.environ["PG_GPU_FUSED_ATTN_RESIDUAL_FROM_BASE"] = "0"
@@ -173,6 +346,18 @@ def _apply_gpu_env_flags(forwarded: list[str]):
     if "--disable-batched-muon-ns" in forwarded:
         forwarded.remove("--disable-batched-muon-ns")
         os.environ["PG_GPU_MUON_BATCHED_NS"] = "0"
+    if "--muon-ns-profile" in forwarded:
+        idx = forwarded.index("--muon-ns-profile")
+        if idx + 1 >= len(forwarded):
+            raise RuntimeError("--muon-ns-profile requires simple|quintic|polar_express")
+        os.environ["PG_GPU_MUON_NS_PROFILE"] = forwarded[idx + 1]
+        del forwarded[idx : idx + 2]
+    if "--legacy-muon-ns" in forwarded:
+        forwarded.remove("--legacy-muon-ns")
+        os.environ["PG_GPU_MUON_NS_PROFILE"] = "simple"
+    if "--polar-express-muon-ns" in forwarded:
+        forwarded.remove("--polar-express-muon-ns")
+        os.environ["PG_GPU_MUON_NS_PROFILE"] = "polar_express"
     if "--disable-cudnn-saved-bf16-attn" in forwarded:
         forwarded.remove("--disable-cudnn-saved-bf16-attn")
         os.environ["PG_GPU_CUDNN_SAVED_BF16_ATTN"] = "0"
@@ -188,6 +373,30 @@ def _apply_gpu_env_flags(forwarded: list[str]):
     if "--disable-recompute-residual-mix-norm-inputs" in forwarded:
         forwarded.remove("--disable-recompute-residual-mix-norm-inputs")
         os.environ["PG_GPU_RECOMPUTE_RESIDUAL_MIX_NORM_INPUTS"] = "0"
+    if "--enable-residual-scale-reduce" in forwarded:
+        forwarded.remove("--enable-residual-scale-reduce")
+        os.environ["PG_GPU_RESIDUAL_SCALE_REDUCE"] = "1"
+    if "--disable-residual-scale-reduce" in forwarded:
+        forwarded.remove("--disable-residual-scale-reduce")
+        os.environ["PG_GPU_RESIDUAL_SCALE_REDUCE"] = "0"
+    if "--enable-chunked-q-gain-bwd" in forwarded:
+        forwarded.remove("--enable-chunked-q-gain-bwd")
+        os.environ["PG_GPU_CHUNKED_Q_GAIN_BWD"] = "1"
+    if "--disable-chunked-q-gain-bwd" in forwarded:
+        forwarded.remove("--disable-chunked-q-gain-bwd")
+        os.environ["PG_GPU_CHUNKED_Q_GAIN_BWD"] = "0"
+    if "--enable-chunked-residual-mix-bwd" in forwarded:
+        forwarded.remove("--enable-chunked-residual-mix-bwd")
+        os.environ["PG_GPU_CHUNKED_RESIDUAL_MIX_BWD"] = "1"
+    if "--disable-chunked-residual-mix-bwd" in forwarded:
+        forwarded.remove("--disable-chunked-residual-mix-bwd")
+        os.environ["PG_GPU_CHUNKED_RESIDUAL_MIX_BWD"] = "0"
+    if "--enable-split-residual-mix-grad" in forwarded:
+        forwarded.remove("--enable-split-residual-mix-grad")
+        os.environ["PG_GPU_SPLIT_RESIDUAL_MIX_GRAD"] = "1"
+    if "--disable-split-residual-mix-grad" in forwarded:
+        forwarded.remove("--disable-split-residual-mix-grad")
+        os.environ["PG_GPU_SPLIT_RESIDUAL_MIX_GRAD"] = "0"
 
 
 def _maybe_seed_data_env():
@@ -242,13 +451,11 @@ def _run_pg_train(args: list[str], label: str):
         mode_idx = forwarded.index("--mode")
         if mode_idx + 1 < len(forwarded):
             mode = forwarded[mode_idx + 1]
-    if mode in {"record", "record-shaped-proxy"}:
-        os.environ.setdefault("PG_GPU_HOST_SCALAR_UPDATES", "0")
     if mode == "record-shaped-proxy" and "--allow-unsupported-variants" not in forwarded:
         forwarded.append("--allow-unsupported-variants")
     if os.environ.get("PG_TRAIN_GLOB") and "--train-data" not in forwarded:
         forwarded.extend(["--train-data", os.environ["PG_TRAIN_GLOB"]])
-    include_val_data = os.environ.get("PG_INCLUDE_VAL_DATA") == "1"
+    include_val_data = mode == "record" or os.environ.get("PG_INCLUDE_VAL_DATA") == "1"
     if include_val_data and os.environ.get("PG_VAL_GLOB") and "--val-data" not in forwarded:
         forwarded.extend(["--val-data", os.environ["PG_VAL_GLOB"]])
     if os.environ.get("PG_TOKENIZER_VOCAB") and "--tokenizer-vocab" not in forwarded:
@@ -274,6 +481,7 @@ def _run_pg_train(args: list[str], label: str):
         flush=True,
     )
 
+    _write_running_result_json(result_json, label, cmd)
     tail = deque(maxlen=400)
     proc = subprocess.Popen(
         cmd,
@@ -295,14 +503,15 @@ def _run_pg_train(args: list[str], label: str):
         "returncode": proc.returncode,
         "tail": "".join(tail),
     }
+    result["metrics"] = _parse_key_value_metrics(result["tail"])
     _write_result_json(result_json, result)
+    output_volume.commit()
     if proc.returncode != 0:
         raise RuntimeError(
             f"{label} command failed with code {proc.returncode}\n"
             f"Command: {' '.join(cmd)}\n"
             f"Last output:\n{result['tail']}"
         )
-    output_volume.commit()
     return result
 
 
@@ -322,6 +531,17 @@ def _run_pg_eval(args: list[str]):
     ):
         forwarded.extend(["--caseops-byte-sidecar", os.environ["PG_CASEOPS_BYTE_SIDECAR"]])
     leaderboard_eval = "--leaderboard" in forwarded
+    if leaderboard_eval:
+        os.environ.setdefault("PG_TTT_AUDIT", "1")
+        os.environ.setdefault("PG_TTT_ASSERT_SCORE_NO_MUTATION", "1")
+    if leaderboard_eval and "PG_EVAL_GPU_WORLD_SIZE" not in os.environ:
+        visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+        if visible:
+            os.environ["PG_EVAL_GPU_WORLD_SIZE"] = str(
+                len([part for part in visible.split(",") if part.strip()])
+            )
+        else:
+            os.environ["PG_EVAL_GPU_WORLD_SIZE"] = "8"
     if (
         not leaderboard_eval
         and os.environ.get("PG_EVAL_MAX_TOKENS")
@@ -331,6 +551,7 @@ def _run_pg_eval(args: list[str]):
     cmd = ["pg-eval"] + forwarded
     print("Running eval command:", " ".join(cmd), flush=True)
 
+    _write_running_result_json(result_json, "eval", cmd)
     tail = deque(maxlen=400)
     proc = subprocess.Popen(
         cmd,
@@ -351,7 +572,9 @@ def _run_pg_eval(args: list[str]):
         "returncode": proc.returncode,
         "tail": "".join(tail),
     }
+    result["metrics"] = _parse_key_value_metrics(result["tail"])
     _write_result_json(result_json, result)
+    output_volume.commit()
     if proc.returncode != 0:
         raise RuntimeError(
             f"eval command failed with code {proc.returncode}\n"
@@ -471,6 +694,7 @@ def _run_pg_bench(args: list[str]):
     cmd = [binary] + list(forwarded[1:])
     print("Running bench command:", " ".join(cmd), flush=True)
 
+    _write_running_result_json(result_json, "bench", cmd)
     tail = deque(maxlen=400)
     proc = subprocess.Popen(
         cmd,
@@ -491,7 +715,9 @@ def _run_pg_bench(args: list[str]):
         "returncode": proc.returncode,
         "tail": "".join(tail),
     }
+    result["metrics"] = _parse_key_value_metrics(result["tail"])
     _write_result_json(result_json, result)
+    output_volume.commit()
     if proc.returncode != 0:
         raise RuntimeError(
             f"bench command failed with code {proc.returncode}\n"
@@ -637,6 +863,9 @@ def main(*args: str):
     use_multi = False
     forwarded = list(args)
     wait_for_result = os.environ.get("PG_WAIT") == "1"
+    if forwarded and forwarded[0] == "--modal-wait":
+        wait_for_result = True
+        forwarded.pop(0)
     if forwarded and forwarded[0] == "seed-data":
         if wait_for_result:
             result = seed_data.remote()

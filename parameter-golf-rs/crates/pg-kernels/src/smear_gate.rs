@@ -25,6 +25,31 @@ pub fn smear_gate_forward(
     }
 }
 
+/// Boundary-aware SmearGate used by leaderboard-safe packed document streams.
+///
+/// When the current token is the configured boundary/BOS token, the previous
+/// token contribution is masked out. This prevents the final token of one
+/// packed document from leaking into the BOS state of the next document.
+pub fn smear_gate_forward_boundary(
+    x: &[f32],
+    input_ids: &[u32],
+    gate: &[f32],
+    output: &mut [f32],
+    tokens: usize,
+    dim: usize,
+    boundary_token_id: u32,
+) {
+    for t in 0..tokens {
+        let use_prev = t > 0 && input_ids.get(t).copied() != Some(boundary_token_id);
+        for d in 0..dim {
+            let idx = t * dim + d;
+            let sig = sigmoid(gate[d]);
+            let x_prev = if use_prev { x[idx - dim] } else { 0.0 };
+            output[idx] = (1.0 - sig) * x[idx] + sig * x_prev;
+        }
+    }
+}
+
 /// Backward for SmearGate.
 /// Returns gradients for x, x_prev, and gate.
 pub fn smear_gate_backward(
@@ -53,6 +78,36 @@ pub fn smear_gate_backward(
             grad_x_prev[idx] = sig * go;
             // d/dgate = go * (x_prev - x) * sig * (1 - sig)
             grad_gate[d] += go * (x_prev[idx] - x[idx]) * sig * (1.0 - sig);
+        }
+    }
+}
+
+/// Boundary-aware SmearGate backward matching `smear_gate_forward_boundary`.
+pub fn smear_gate_backward_boundary(
+    x: &[f32],
+    input_ids: &[u32],
+    gate: &[f32],
+    grad_output: &[f32],
+    grad_x: &mut [f32],
+    grad_x_prev: &mut [f32],
+    grad_gate: &mut [f32],
+    tokens: usize,
+    dim: usize,
+    boundary_token_id: u32,
+) {
+    grad_gate.iter_mut().for_each(|g| *g = 0.0);
+
+    for t in 0..tokens {
+        let use_prev = t > 0 && input_ids.get(t).copied() != Some(boundary_token_id);
+        for d in 0..dim {
+            let idx = t * dim + d;
+            let sig = sigmoid(gate[d]);
+            let go = grad_output[idx];
+            let x_prev = if use_prev { x[idx - dim] } else { 0.0 };
+
+            grad_x[idx] = (1.0 - sig) * go;
+            grad_x_prev[idx] = if use_prev { sig * go } else { 0.0 };
+            grad_gate[d] += go * (x_prev - x[idx]) * sig * (1.0 - sig);
         }
     }
 }
@@ -149,5 +204,35 @@ mod tests {
                 numerical
             );
         }
+    }
+
+    #[test]
+    fn test_smear_gate_boundary_masks_previous_document() {
+        let dim = 2;
+        let tokens = 5;
+        let boundary = 1u32;
+        let ids = vec![boundary, 7, 8, boundary, 9];
+        let gate = vec![20.0, 20.0];
+        let mut x = vec![
+            1.0, 2.0, //
+            3.0, 4.0, //
+            5.0, 6.0, //
+            7.0, 8.0, //
+            9.0, 10.0,
+        ];
+        let mut out_a = vec![0.0; tokens * dim];
+        smear_gate_forward_boundary(&x, &ids, &gate, &mut out_a, tokens, dim, boundary);
+
+        x[dim] = 500.0;
+        x[dim + 1] = 600.0;
+        let mut out_b = vec![0.0; tokens * dim];
+        smear_gate_forward_boundary(&x, &ids, &gate, &mut out_b, tokens, dim, boundary);
+
+        let doc_b_bos = 3 * dim;
+        assert_eq!(
+            &out_a[doc_b_bos..doc_b_bos + dim],
+            &out_b[doc_b_bos..doc_b_bos + dim]
+        );
+        assert_ne!(&out_a[2 * dim..3 * dim], &out_b[2 * dim..3 * dim]);
     }
 }

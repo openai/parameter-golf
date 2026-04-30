@@ -23,6 +23,7 @@ eval_seq_len = 2048
 xsa_last_n = 11
 skip_topology = "unet"
 smear_gate = true
+smear_gate_boundary_token_id = 1
 logit_softcap = 30.0
 qk_gain_init = 5.25
 ln_scale = true
@@ -34,9 +35,9 @@ vocab_size = 3072
 dim = 112
 
 [model.value_embedding]
-enabled = true
+enabled = false
 dim = 128
-layers = [9, 10]
+layers = []
 
 [model.recurrence]
 enabled = true

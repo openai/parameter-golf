@@ -68,9 +68,23 @@ pub struct VariantResult {
     pub timing_cuda_backward_forward_block_mlp_ms: f64,
     pub timing_cuda_backward_block_recompute_ms: f64,
     pub timing_cuda_backward_block_mlp_ms: f64,
+    pub timing_cuda_backward_block_mlp_residual_ms: f64,
+    pub timing_cuda_backward_block_mlp_down_ms: f64,
+    pub timing_cuda_backward_block_mlp_act_ms: f64,
+    pub timing_cuda_backward_block_mlp_up_ms: f64,
+    pub timing_cuda_backward_block_mlp_norm_ms: f64,
     pub timing_cuda_backward_block_attn_out_ms: f64,
+    pub timing_cuda_backward_block_attn_out_residual_ms: f64,
+    pub timing_cuda_backward_block_attn_out_proj_ms: f64,
+    pub timing_cuda_backward_block_attn_out_gate_xsa_ms: f64,
     pub timing_cuda_backward_block_attention_ms: f64,
+    pub timing_cuda_backward_block_attention_sdpa_ms: f64,
+    pub timing_cuda_backward_block_attention_xsa_accum_ms: f64,
     pub timing_cuda_backward_block_qkv_ms: f64,
+    pub timing_cuda_backward_block_qkv_rope_ms: f64,
+    pub timing_cuda_backward_block_qkv_proj_ms: f64,
+    pub timing_cuda_backward_block_qkv_ve_ms: f64,
+    pub timing_cuda_backward_block_qkv_norm_resid_ms: f64,
     pub timing_cuda_backward_output_ms: f64,
     pub timing_cuda_backward_decoder_ms: f64,
     pub timing_cuda_backward_encoder_ms: f64,
@@ -122,9 +136,23 @@ struct RunTiming {
     cuda_backward_forward_block_mlp_ms: f64,
     cuda_backward_block_recompute_ms: f64,
     cuda_backward_block_mlp_ms: f64,
+    cuda_backward_block_mlp_residual_ms: f64,
+    cuda_backward_block_mlp_down_ms: f64,
+    cuda_backward_block_mlp_act_ms: f64,
+    cuda_backward_block_mlp_up_ms: f64,
+    cuda_backward_block_mlp_norm_ms: f64,
     cuda_backward_block_attn_out_ms: f64,
+    cuda_backward_block_attn_out_residual_ms: f64,
+    cuda_backward_block_attn_out_proj_ms: f64,
+    cuda_backward_block_attn_out_gate_xsa_ms: f64,
     cuda_backward_block_attention_ms: f64,
+    cuda_backward_block_attention_sdpa_ms: f64,
+    cuda_backward_block_attention_xsa_accum_ms: f64,
     cuda_backward_block_qkv_ms: f64,
+    cuda_backward_block_qkv_rope_ms: f64,
+    cuda_backward_block_qkv_proj_ms: f64,
+    cuda_backward_block_qkv_ve_ms: f64,
+    cuda_backward_block_qkv_norm_resid_ms: f64,
     cuda_backward_output_ms: f64,
     cuda_backward_decoder_ms: f64,
     cuda_backward_encoder_ms: f64,
@@ -167,7 +195,18 @@ fn cuda_backward_graph_enabled() -> bool {
             .to_ascii_lowercase()
             .as_str(),
         "1" | "true" | "yes" | "on"
+    ) && matches!(
+        std::env::var("PG_CUDA_BACKWARD_GRAPH_STRICT")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
     ) && !cuda_stage_timing_enabled()
+}
+
+#[cfg(not(feature = "cuda"))]
+fn cuda_backward_graph_enabled() -> bool {
+    false
 }
 
 #[cfg(feature = "cuda")]
@@ -298,8 +337,8 @@ struct CudaSingleFastRuntime {
     state_attn_gate_weight: Vec<GpuAdamWState>,
     state_attn_gate_bias: Vec<GpuAdamWState>,
     state_sparse_attn_gate_weight: Vec<GpuAdamWState>,
-    state_bigram_scale: AdamWState,
-    state_ve_scale: AdamWState,
+    state_bigram_scale: GpuAdamWState,
+    state_ve_scale: GpuAdamWState,
     grad_norm_scratch: pg_core::GpuTensor,
     gpu_muon: GpuMuon,
 }
@@ -419,8 +458,14 @@ impl CudaSingleFastRuntime {
                 .iter()
                 .map(|t| GpuAdamWState::new_like(t, stream.clone()))
                 .collect::<PgResult<_>>()?,
-            state_bigram_scale: AdamWState::new(1),
-            state_ve_scale: AdamWState::new(1),
+            state_bigram_scale: GpuAdamWState::new_like(
+                &gpu_model.weights.bigram_scale_param,
+                stream.clone(),
+            )?,
+            state_ve_scale: GpuAdamWState::new_like(
+                &gpu_model.weights.ve_scale_param,
+                stream.clone(),
+            )?,
             grad_norm_scratch: pg_core::GpuTensor::zeros_gpu(
                 stream.clone(),
                 &[1],
@@ -448,6 +493,7 @@ struct CudaDistributedRuntime {
     replicas: Vec<CudaSingleFastRuntime>,
     comms: Vec<pg_core::nccl::NcclComm>,
     parallel_muon: Option<ShardedParallelMuonRuntime>,
+    all_grad_sync: Vec<AllGradSyncBuffers>,
     non_bank_sync: Vec<NonBankSyncBuffers>,
     distributed_sync: bool,
 }
@@ -466,11 +512,18 @@ struct ShardedParallelMuonReplica {
 #[cfg(feature = "cuda")]
 struct ShardedBankBuffers {
     padded_grad: pg_core::GpuTensor,
+    padded_grad_bf16: pg_core::GpuTensor,
     shard_grad: pg_core::GpuTensor,
+    shard_grad_bf16: pg_core::GpuTensor,
     shard_param: pg_core::GpuTensor,
     padded_param: pg_core::GpuTensor,
     real_batch: usize,
     chunk_batch: usize,
+}
+
+#[cfg(feature = "cuda")]
+struct AllGradSyncBuffers {
+    packed_grad: pg_core::GpuTensor,
 }
 
 #[cfg(feature = "cuda")]
@@ -518,6 +571,25 @@ impl CudaDistributedRuntime {
             .map(|runtime| runtime.gpu_model.gemm.stream().clone())
             .collect::<Vec<_>>();
         let comms = pg_core::nccl::NcclComm::from_local_devices(streams)?;
+        let all_grad_sync = if plan.run_spec.train.distributed_optimizer_backend
+            == DistributedOptimizerBackend::AllReduceReplicatedMuon
+        {
+            replicas
+                .iter()
+                .map(|replica| {
+                    let len = all_grad_numel(&replica.gpu_grads);
+                    Ok(AllGradSyncBuffers {
+                        packed_grad: pg_core::GpuTensor::zeros_gpu(
+                            replica.gpu_model.gemm.stream().clone(),
+                            &[len],
+                            pg_core::DType::F32,
+                        )?,
+                    })
+                })
+                .collect::<PgResult<Vec<_>>>()?
+        } else {
+            Vec::new()
+        };
         let non_bank_sync = replicas
             .iter()
             .map(|replica| {
@@ -547,6 +619,7 @@ impl CudaDistributedRuntime {
             replicas,
             comms,
             parallel_muon,
+            all_grad_sync,
             non_bank_sync,
             distributed_sync: false,
         })
@@ -579,10 +652,20 @@ impl ShardedParallelMuonRuntime {
                             &padded_shape,
                             pg_core::DType::F32,
                         )?,
+                        padded_grad_bf16: pg_core::GpuTensor::zeros_gpu(
+                            stream.clone(),
+                            &padded_shape,
+                            pg_core::DType::BF16,
+                        )?,
                         shard_grad: pg_core::GpuTensor::zeros_gpu(
                             stream.clone(),
                             &shard_shape,
                             pg_core::DType::F32,
+                        )?,
+                        shard_grad_bf16: pg_core::GpuTensor::zeros_gpu(
+                            stream.clone(),
+                            &shard_shape,
+                            pg_core::DType::BF16,
                         )?,
                         shard_param: pg_core::GpuTensor::zeros_gpu(
                             stream.clone(),
@@ -921,9 +1004,59 @@ impl VariantRunner {
             let measure_step = step >= timing_skip_steps;
             let step_wall_t0 = Instant::now();
             let data_t0 = Instant::now();
+            #[cfg_attr(not(feature = "cuda"), allow(unused_mut, unused_variables))]
+            let mut distributed_batches_preloaded = false;
+            let synthetic_distributed_batches = || {
+                (0..world_size)
+                    .map(|rank_idx| {
+                        let local_tokens =
+                            batch_plan.microbatch_tokens * batch_plan.local_microbatches_per_step;
+                        let mut x = Vec::with_capacity(local_tokens);
+                        let mut y = Vec::with_capacity(local_tokens);
+                        for micro_idx in 0..batch_plan.local_microbatches_per_step {
+                            let offset = step * batch_plan.global_batch_tokens
+                                + micro_idx * batch_plan.microbatch_tokens * world_size
+                                + rank_idx * batch_plan.microbatch_tokens;
+                            x.extend(
+                                (0..batch_plan.microbatch_tokens)
+                                    .map(|i| ((offset + i) % model_config.vocab_size) as u32),
+                            );
+                            y.extend(
+                                (1..=batch_plan.microbatch_tokens)
+                                    .map(|i| ((offset + i) % model_config.vocab_size) as u32),
+                            );
+                        }
+                        vec![(x, y)]
+                    })
+                    .collect::<Vec<_>>()
+            };
             let distributed_batches: Option<Vec<Vec<(Vec<u32>, Vec<u32>)>>> =
                 if self.run_spec.train.backend == TrainBackend::CudaDistributed {
-                    if let Some(loaders) = distributed_data_loaders.as_mut() {
+                    if is_record_shaped_mode(mode) {
+                        #[cfg(feature = "cuda")]
+                        if let (Some(loaders), Some(runtime)) = (
+                            distributed_data_loaders.as_mut(),
+                            cuda_distributed_runtime.as_mut(),
+                        ) {
+                            for (loader, replica) in
+                                loaders.iter_mut().zip(runtime.replicas.iter_mut())
+                            {
+                                loader.next_batch_u32_into(
+                                    batch_plan.global_batch_tokens,
+                                    &mut replica.host_input_ids,
+                                    &mut replica.host_targets,
+                                )?;
+                            }
+                            distributed_batches_preloaded = true;
+                            None
+                        } else {
+                            Some(synthetic_distributed_batches())
+                        }
+                        #[cfg(not(feature = "cuda"))]
+                        {
+                            Some(synthetic_distributed_batches())
+                        }
+                    } else if let Some(loaders) = distributed_data_loaders.as_mut() {
                         Some(
                             loaders
                                 .iter_mut()
@@ -940,64 +1073,44 @@ impl VariantRunner {
                                 .collect::<PgResult<Vec<_>>>()?,
                         )
                     } else {
-                        Some(
-                            (0..world_size)
-                                .map(|rank_idx| {
-                                    let local_tokens = batch_plan.microbatch_tokens
-                                        * batch_plan.local_microbatches_per_step;
-                                    let mut x = Vec::with_capacity(local_tokens);
-                                    let mut y = Vec::with_capacity(local_tokens);
-                                    for micro_idx in 0..batch_plan.local_microbatches_per_step {
-                                        let offset = step * batch_plan.global_batch_tokens
-                                            + micro_idx * batch_plan.microbatch_tokens * world_size
-                                            + rank_idx * batch_plan.microbatch_tokens;
-                                        x.extend((0..batch_plan.microbatch_tokens).map(|i| {
-                                            ((offset + i) % model_config.vocab_size) as u32
-                                        }));
-                                        y.extend((1..=batch_plan.microbatch_tokens).map(|i| {
-                                            ((offset + i) % model_config.vocab_size) as u32
-                                        }));
-                                    }
-                                    vec![(x, y)]
-                                })
-                                .collect(),
-                        )
+                        Some(synthetic_distributed_batches())
                     }
                 } else {
                     None
                 };
-            let local_batches: Vec<(Vec<u32>, Vec<u32>)> =
-                if let Some(batches) = distributed_batches.as_ref() {
-                    batches[0].clone()
-                } else if let Some(loader) = data_loader.as_mut() {
-                    (0..batch_plan.local_microbatches_per_step)
-                        .map(|_| {
-                            let global_tokens = batch_plan.microbatch_tokens * world_size;
-                            let (x, y) =
-                                loader.next_batch(global_tokens, batch_plan.microbatch_tokens)?;
-                            Ok::<_, pg_core::PgError>((
-                                x.into_iter().map(|v| v as u32).collect(),
-                                y.into_iter().map(|v| v as u32).collect(),
-                            ))
-                        })
-                        .collect::<PgResult<Vec<_>>>()?
-                } else {
-                    (0..batch_plan.local_microbatches_per_step)
-                        .map(|micro_idx| {
-                            let offset = step * batch_plan.global_batch_tokens
-                                + micro_idx * batch_plan.microbatch_tokens * world_size
-                                + rank * batch_plan.microbatch_tokens;
-                            (
-                                (0..batch_plan.microbatch_tokens)
-                                    .map(|i| ((offset + i) % model_config.vocab_size) as u32)
-                                    .collect(),
-                                (1..=batch_plan.microbatch_tokens)
-                                    .map(|i| ((offset + i) % model_config.vocab_size) as u32)
-                                    .collect(),
-                            )
-                        })
-                        .collect()
-                };
+            let local_batches: Vec<(Vec<u32>, Vec<u32>)> = if distributed_batches_preloaded {
+                Vec::new()
+            } else if let Some(batches) = distributed_batches.as_ref() {
+                batches[0].clone()
+            } else if let Some(loader) = data_loader.as_mut() {
+                (0..batch_plan.local_microbatches_per_step)
+                    .map(|_| {
+                        let global_tokens = batch_plan.microbatch_tokens * world_size;
+                        let (x, y) =
+                            loader.next_batch(global_tokens, batch_plan.microbatch_tokens)?;
+                        Ok::<_, pg_core::PgError>((
+                            x.into_iter().map(|v| v as u32).collect(),
+                            y.into_iter().map(|v| v as u32).collect(),
+                        ))
+                    })
+                    .collect::<PgResult<Vec<_>>>()?
+            } else {
+                (0..batch_plan.local_microbatches_per_step)
+                    .map(|micro_idx| {
+                        let offset = step * batch_plan.global_batch_tokens
+                            + micro_idx * batch_plan.microbatch_tokens * world_size
+                            + rank * batch_plan.microbatch_tokens;
+                        (
+                            (0..batch_plan.microbatch_tokens)
+                                .map(|i| ((offset + i) % model_config.vocab_size) as u32)
+                                .collect(),
+                            (1..=batch_plan.microbatch_tokens)
+                                .map(|i| ((offset + i) % model_config.vocab_size) as u32)
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            };
             if measure_step {
                 timing.data_sampling_ms += data_t0.elapsed().as_secs_f64() * 1000.0;
             }
@@ -1087,9 +1200,15 @@ impl VariantRunner {
                     };
                     cuda_distributed_step(
                         runtime,
-                        distributed_batches
-                            .as_ref()
-                            .expect("distributed backend must materialize per-rank batches"),
+                        if distributed_batches_preloaded {
+                            None
+                        } else {
+                            Some(
+                                distributed_batches.as_ref().expect(
+                                    "distributed backend must materialize per-rank batches",
+                                ),
+                            )
+                        },
                         &train_config,
                         step,
                         lr_scale,
@@ -1269,6 +1388,14 @@ impl VariantRunner {
         } else {
             0.0
         };
+        if mode == RunMode::Record && timing_steps > 0 {
+            let max_ms = record_max_ms_per_step_for_submission();
+            if max_ms > 0.0 && timing_measured_ms_per_step > max_ms {
+                return Err(pg_core::PgError::InvalidOp(format!(
+                    "record run is too slow for a leaderboard submission: measured_ms_per_step={timing_measured_ms_per_step:.3} max_ms_per_step={max_ms:.3}. Set PG_RECORD_MAX_MS_PER_STEP=0 only for non-submission debugging."
+                )));
+            }
+        }
 
         let needs_cpu_model_after_training =
             !matches!(mode, RunMode::Smoke | RunMode::RecordShapedProxy);
@@ -1320,7 +1447,11 @@ impl VariantRunner {
             .zip(submission_code_bytes)
             .map(|(a, c)| a + c);
         let artifact_budget_ok =
-            submission_total_bytes.map(|bytes| self.plan.artifact_budget_ok(bytes));
+            artifact_bytes
+                .zip(submission_code_bytes)
+                .map(|(model_bytes, code_bytes)| {
+                    self.plan.submission_budget_ok(code_bytes, model_bytes)
+                });
         if mode == RunMode::Record && artifact_budget_ok != Some(true) {
             return Err(pg_core::PgError::InvalidOp(format!(
                 "record artifact budget failed: artifact_bytes={artifact_bytes:?} submission_code_bytes={submission_code_bytes:?} submission_total_bytes={submission_total_bytes:?} limit={}",
@@ -1473,9 +1604,29 @@ impl VariantRunner {
             timing_cuda_backward_forward_block_mlp_ms: timing.cuda_backward_forward_block_mlp_ms,
             timing_cuda_backward_block_recompute_ms: timing.cuda_backward_block_recompute_ms,
             timing_cuda_backward_block_mlp_ms: timing.cuda_backward_block_mlp_ms,
+            timing_cuda_backward_block_mlp_residual_ms: timing.cuda_backward_block_mlp_residual_ms,
+            timing_cuda_backward_block_mlp_down_ms: timing.cuda_backward_block_mlp_down_ms,
+            timing_cuda_backward_block_mlp_act_ms: timing.cuda_backward_block_mlp_act_ms,
+            timing_cuda_backward_block_mlp_up_ms: timing.cuda_backward_block_mlp_up_ms,
+            timing_cuda_backward_block_mlp_norm_ms: timing.cuda_backward_block_mlp_norm_ms,
             timing_cuda_backward_block_attn_out_ms: timing.cuda_backward_block_attn_out_ms,
+            timing_cuda_backward_block_attn_out_residual_ms: timing
+                .cuda_backward_block_attn_out_residual_ms,
+            timing_cuda_backward_block_attn_out_proj_ms: timing
+                .cuda_backward_block_attn_out_proj_ms,
+            timing_cuda_backward_block_attn_out_gate_xsa_ms: timing
+                .cuda_backward_block_attn_out_gate_xsa_ms,
             timing_cuda_backward_block_attention_ms: timing.cuda_backward_block_attention_ms,
+            timing_cuda_backward_block_attention_sdpa_ms: timing
+                .cuda_backward_block_attention_sdpa_ms,
+            timing_cuda_backward_block_attention_xsa_accum_ms: timing
+                .cuda_backward_block_attention_xsa_accum_ms,
             timing_cuda_backward_block_qkv_ms: timing.cuda_backward_block_qkv_ms,
+            timing_cuda_backward_block_qkv_rope_ms: timing.cuda_backward_block_qkv_rope_ms,
+            timing_cuda_backward_block_qkv_proj_ms: timing.cuda_backward_block_qkv_proj_ms,
+            timing_cuda_backward_block_qkv_ve_ms: timing.cuda_backward_block_qkv_ve_ms,
+            timing_cuda_backward_block_qkv_norm_resid_ms: timing
+                .cuda_backward_block_qkv_norm_resid_ms,
             timing_cuda_backward_output_ms: timing.cuda_backward_output_ms,
             timing_cuda_backward_decoder_ms: timing.cuda_backward_decoder_ms,
             timing_cuda_backward_encoder_ms: timing.cuda_backward_encoder_ms,
@@ -1606,16 +1757,23 @@ fn cuda_single_hybrid_step(
     {
         dst.copy_from_slice(&download_gpu_f32(src)?);
     }
-    grads
-        .ve_embed
-        .copy_from_slice(&download_gpu_f32(&gpu_grads.ve_embed)?);
-    grads
-        .ve_proj
-        .copy_from_slice(&download_gpu_f32(&gpu_grads.ve_proj)?);
-    grads.ve_scale = download_gpu_f32(&gpu_grads.ve_scale)?[0];
-    grads
-        .ve_layer_scales
-        .copy_from_slice(&download_gpu_f32(&gpu_grads.ve_layer_scales)?);
+    if model.config.ve_enabled {
+        grads
+            .ve_embed
+            .copy_from_slice(&download_gpu_f32(&gpu_grads.ve_embed)?);
+        grads
+            .ve_proj
+            .copy_from_slice(&download_gpu_f32(&gpu_grads.ve_proj)?);
+        grads.ve_scale = download_gpu_f32(&gpu_grads.ve_scale)?[0];
+        grads
+            .ve_layer_scales
+            .copy_from_slice(&download_gpu_f32(&gpu_grads.ve_layer_scales)?);
+    } else {
+        grads.ve_embed.fill(0.0);
+        grads.ve_proj.fill(0.0);
+        grads.ve_scale = 0.0;
+        grads.ve_layer_scales.fill(0.0);
+    }
 
     Ok(loss)
 }
@@ -1847,14 +2005,56 @@ fn accumulate_gpu_backward_stage_timing(
             .max(t.backward_block_recompute_ms);
         max_stage.backward_block_mlp_ms =
             max_stage.backward_block_mlp_ms.max(t.backward_block_mlp_ms);
+        max_stage.backward_block_mlp_residual_ms = max_stage
+            .backward_block_mlp_residual_ms
+            .max(t.backward_block_mlp_residual_ms);
+        max_stage.backward_block_mlp_down_ms = max_stage
+            .backward_block_mlp_down_ms
+            .max(t.backward_block_mlp_down_ms);
+        max_stage.backward_block_mlp_act_ms = max_stage
+            .backward_block_mlp_act_ms
+            .max(t.backward_block_mlp_act_ms);
+        max_stage.backward_block_mlp_up_ms = max_stage
+            .backward_block_mlp_up_ms
+            .max(t.backward_block_mlp_up_ms);
+        max_stage.backward_block_mlp_norm_ms = max_stage
+            .backward_block_mlp_norm_ms
+            .max(t.backward_block_mlp_norm_ms);
         max_stage.backward_block_attn_out_ms = max_stage
             .backward_block_attn_out_ms
             .max(t.backward_block_attn_out_ms);
+        max_stage.backward_block_attn_out_residual_ms = max_stage
+            .backward_block_attn_out_residual_ms
+            .max(t.backward_block_attn_out_residual_ms);
+        max_stage.backward_block_attn_out_proj_ms = max_stage
+            .backward_block_attn_out_proj_ms
+            .max(t.backward_block_attn_out_proj_ms);
+        max_stage.backward_block_attn_out_gate_xsa_ms = max_stage
+            .backward_block_attn_out_gate_xsa_ms
+            .max(t.backward_block_attn_out_gate_xsa_ms);
         max_stage.backward_block_attention_ms = max_stage
             .backward_block_attention_ms
             .max(t.backward_block_attention_ms);
+        max_stage.backward_block_attention_sdpa_ms = max_stage
+            .backward_block_attention_sdpa_ms
+            .max(t.backward_block_attention_sdpa_ms);
+        max_stage.backward_block_attention_xsa_accum_ms = max_stage
+            .backward_block_attention_xsa_accum_ms
+            .max(t.backward_block_attention_xsa_accum_ms);
         max_stage.backward_block_qkv_ms =
             max_stage.backward_block_qkv_ms.max(t.backward_block_qkv_ms);
+        max_stage.backward_block_qkv_rope_ms = max_stage
+            .backward_block_qkv_rope_ms
+            .max(t.backward_block_qkv_rope_ms);
+        max_stage.backward_block_qkv_proj_ms = max_stage
+            .backward_block_qkv_proj_ms
+            .max(t.backward_block_qkv_proj_ms);
+        max_stage.backward_block_qkv_ve_ms = max_stage
+            .backward_block_qkv_ve_ms
+            .max(t.backward_block_qkv_ve_ms);
+        max_stage.backward_block_qkv_norm_resid_ms = max_stage
+            .backward_block_qkv_norm_resid_ms
+            .max(t.backward_block_qkv_norm_resid_ms);
         max_stage.output_ms = max_stage.output_ms.max(t.output_ms);
         max_stage.decoder_ms = max_stage.decoder_ms.max(t.decoder_ms);
         max_stage.encoder_ms = max_stage.encoder_ms.max(t.encoder_ms);
@@ -1873,9 +2073,26 @@ fn accumulate_gpu_backward_stage_timing(
     timing.cuda_backward_forward_block_mlp_ms += max_stage.forward_block_mlp_ms;
     timing.cuda_backward_block_recompute_ms += max_stage.backward_block_recompute_ms;
     timing.cuda_backward_block_mlp_ms += max_stage.backward_block_mlp_ms;
+    timing.cuda_backward_block_mlp_residual_ms += max_stage.backward_block_mlp_residual_ms;
+    timing.cuda_backward_block_mlp_down_ms += max_stage.backward_block_mlp_down_ms;
+    timing.cuda_backward_block_mlp_act_ms += max_stage.backward_block_mlp_act_ms;
+    timing.cuda_backward_block_mlp_up_ms += max_stage.backward_block_mlp_up_ms;
+    timing.cuda_backward_block_mlp_norm_ms += max_stage.backward_block_mlp_norm_ms;
     timing.cuda_backward_block_attn_out_ms += max_stage.backward_block_attn_out_ms;
+    timing.cuda_backward_block_attn_out_residual_ms +=
+        max_stage.backward_block_attn_out_residual_ms;
+    timing.cuda_backward_block_attn_out_proj_ms += max_stage.backward_block_attn_out_proj_ms;
+    timing.cuda_backward_block_attn_out_gate_xsa_ms +=
+        max_stage.backward_block_attn_out_gate_xsa_ms;
     timing.cuda_backward_block_attention_ms += max_stage.backward_block_attention_ms;
+    timing.cuda_backward_block_attention_sdpa_ms += max_stage.backward_block_attention_sdpa_ms;
+    timing.cuda_backward_block_attention_xsa_accum_ms +=
+        max_stage.backward_block_attention_xsa_accum_ms;
     timing.cuda_backward_block_qkv_ms += max_stage.backward_block_qkv_ms;
+    timing.cuda_backward_block_qkv_rope_ms += max_stage.backward_block_qkv_rope_ms;
+    timing.cuda_backward_block_qkv_proj_ms += max_stage.backward_block_qkv_proj_ms;
+    timing.cuda_backward_block_qkv_ve_ms += max_stage.backward_block_qkv_ve_ms;
+    timing.cuda_backward_block_qkv_norm_resid_ms += max_stage.backward_block_qkv_norm_resid_ms;
     timing.cuda_backward_output_ms += max_stage.output_ms;
     timing.cuda_backward_decoder_ms += max_stage.decoder_ms;
     timing.cuda_backward_encoder_ms += max_stage.encoder_ms;
@@ -2059,10 +2276,10 @@ fn cuda_fast_apply_updates_inner(
     )?;
     runtime.gpu_optimizer.adamw_step(
         &runtime.gpu_model.kernels,
-        &runtime.gpu_model.weights.ve_embed,
-        &runtime.gpu_grads.ve_embed,
-        &mut runtime.state_ve_embed,
-        embed_hyper,
+        &runtime.gpu_model.weights.bigram_scale_param,
+        &runtime.gpu_grads.bigram_scale,
+        &mut runtime.state_bigram_scale,
+        scalar_hyper,
     )?;
     runtime.gpu_optimizer.adamw_step(
         &runtime.gpu_model.kernels,
@@ -2078,14 +2295,28 @@ fn cuda_fast_apply_updates_inner(
         &mut runtime.state_skip_weights,
         scalar_hyper,
     )?;
-    runtime.gpu_optimizer.adamw_step(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_model.weights.ve_proj,
-        &runtime.gpu_grads.ve_proj,
-        &mut runtime.state_ve_proj,
-        scalar_hyper,
-    )?;
-    if gpu_host_scalar_updates_enabled() {
+    if runtime.gpu_model.config.ve_enabled {
+        runtime.gpu_optimizer.adamw_step(
+            &runtime.gpu_model.kernels,
+            &runtime.gpu_model.weights.ve_embed,
+            &runtime.gpu_grads.ve_embed,
+            &mut runtime.state_ve_embed,
+            embed_hyper,
+        )?;
+        runtime.gpu_optimizer.adamw_step(
+            &runtime.gpu_model.kernels,
+            &runtime.gpu_model.weights.ve_proj,
+            &runtime.gpu_grads.ve_proj,
+            &mut runtime.state_ve_proj,
+            scalar_hyper,
+        )?;
+        runtime.gpu_optimizer.adamw_step(
+            &runtime.gpu_model.kernels,
+            &runtime.gpu_model.weights.ve_scale_param,
+            &runtime.gpu_grads.ve_scale,
+            &mut runtime.state_ve_scale,
+            scalar_hyper,
+        )?;
         runtime.gpu_optimizer.adamw_step(
             &runtime.gpu_model.kernels,
             &runtime.gpu_model.weights.ve_layer_scales,
@@ -2155,28 +2386,14 @@ fn cuda_fast_apply_updates_inner(
         stream
             .synchronize()
             .map_err(|e| pg_core::PgError::InvalidOp(format!("stream sync failed: {:?}", e)))?;
-
-        let scalar_adam = AdamW::new(
-            train_config.scalar_lr * lr_scale,
-            train_config.adam_beta1,
-            train_config.adam_beta2,
-            train_config.adam_eps,
-            train_config.adam_wd,
-        );
-        {
-            let mut param = [runtime.gpu_model.weights.bigram_scale];
-            let grad = [download_gpu_f32(&runtime.gpu_grads.bigram_scale)?[0]];
-            scalar_adam.step(&mut param, &grad, &mut runtime.state_bigram_scale);
-            runtime.gpu_model.weights.bigram_scale = param[0];
+        runtime.gpu_model.weights.bigram_scale =
+            download_gpu_f32(&runtime.gpu_model.weights.bigram_scale_param)?[0];
+        if runtime.gpu_model.config.ve_enabled {
+            runtime.gpu_model.weights.ve_scale =
+                download_gpu_f32(&runtime.gpu_model.weights.ve_scale_param)?[0];
+            runtime.gpu_model.weights.ve_layer_scales_host =
+                download_gpu_f32(&runtime.gpu_model.weights.ve_layer_scales)?;
         }
-        {
-            let mut param = [runtime.gpu_model.weights.ve_scale];
-            let grad = [download_gpu_f32(&runtime.gpu_grads.ve_scale)?[0]];
-            scalar_adam.step(&mut param, &grad, &mut runtime.state_ve_scale);
-            runtime.gpu_model.weights.ve_scale = param[0];
-        }
-        runtime.gpu_model.weights.ve_layer_scales_host =
-            download_gpu_f32(&runtime.gpu_model.weights.ve_layer_scales)?;
     }
     runtime.gpu_model.refresh_bf16_shadows()?;
 
@@ -2187,7 +2404,7 @@ fn cuda_fast_apply_updates_inner(
 fn gpu_host_scalar_updates_enabled() -> bool {
     !matches!(
         std::env::var("PG_GPU_HOST_SCALAR_UPDATES")
-            .unwrap_or_else(|_| "1".to_string())
+            .unwrap_or_else(|_| "0".to_string())
             .to_ascii_lowercase()
             .as_str(),
         "0" | "false" | "no" | "off"
@@ -2232,6 +2449,14 @@ fn copy_gpu_tensor(
         pg_kernels::gpu_kernels::CudaPtr(dst.cu_ptr(kernels.stream())?),
         src.numel() as u32,
     )
+}
+
+#[cfg(feature = "cuda")]
+fn all_grad_numel(grads: &pg_model::gpu::GpuGradBuffers) -> usize {
+    collect_gpu_grad_refs(grads)
+        .into_iter()
+        .map(pg_core::GpuTensor::numel)
+        .sum()
 }
 
 #[cfg(feature = "cuda")]
@@ -2283,6 +2508,130 @@ fn non_bank_grad_numel(grads: &pg_model::gpu::GpuGradBuffers) -> usize {
         .map(pg_core::GpuTensor::numel)
         .sum::<usize>();
     total
+}
+
+#[cfg(feature = "cuda")]
+fn pack_all_gpu_grads(
+    kernels: &pg_kernels::gpu_kernels::GpuKernels,
+    grads: &pg_model::gpu::GpuGradBuffers,
+    packed: &pg_core::GpuTensor,
+) -> PgResult<()> {
+    let mut offset = 0usize;
+    macro_rules! pack_one {
+        ($tensor:expr) => {{
+            let tensor = $tensor;
+            let end = offset + tensor.numel();
+            let dst = packed.slice_range(offset, end)?;
+            copy_gpu_tensor(kernels, tensor, &dst)?;
+            offset = end;
+        }};
+    }
+
+    pack_one!(&grads.tok_emb);
+    pack_one!(&grads.bigram_embed);
+    pack_one!(&grads.bigram_proj);
+    pack_one!(&grads.bigram_scale);
+    pack_one!(&grads.smear_gate);
+    pack_one!(&grads.skip_weights);
+    pack_one!(&grads.qo_bank);
+    pack_one!(&grads.kv_bank);
+    pack_one!(&grads.mlp_up_bank);
+    pack_one!(&grads.mlp_down_bank);
+    pack_one!(&grads.ve_embed);
+    pack_one!(&grads.ve_proj);
+    pack_one!(&grads.ve_scale);
+    pack_one!(&grads.ve_layer_scales);
+    for tensor in &grads.block_attn_scale {
+        pack_one!(tensor);
+    }
+    for tensor in &grads.block_mlp_scale {
+        pack_one!(tensor);
+    }
+    for tensor in &grads.block_resid_mix {
+        pack_one!(tensor);
+    }
+    for tensor in &grads.block_q_gain {
+        pack_one!(tensor);
+    }
+    for tensor in &grads.block_attn_gate_weight {
+        pack_one!(tensor);
+    }
+    for tensor in &grads.block_attn_gate_bias {
+        pack_one!(tensor);
+    }
+    for tensor in &grads.block_sparse_attn_gate_weight {
+        pack_one!(tensor);
+    }
+    if offset != packed.numel() {
+        return Err(pg_core::PgError::InvalidOp(format!(
+            "packed all-grad length mismatch: wrote {}, buffer has {}",
+            offset,
+            packed.numel()
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "cuda")]
+fn unpack_all_gpu_grads(
+    kernels: &pg_kernels::gpu_kernels::GpuKernels,
+    packed: &pg_core::GpuTensor,
+    grads: &mut pg_model::gpu::GpuGradBuffers,
+) -> PgResult<()> {
+    let mut offset = 0usize;
+    macro_rules! unpack_one {
+        ($tensor:expr) => {{
+            let tensor = $tensor;
+            let end = offset + tensor.numel();
+            let src = packed.slice_range(offset, end)?;
+            copy_gpu_tensor(kernels, &src, tensor)?;
+            offset = end;
+        }};
+    }
+
+    unpack_one!(&grads.tok_emb);
+    unpack_one!(&grads.bigram_embed);
+    unpack_one!(&grads.bigram_proj);
+    unpack_one!(&grads.bigram_scale);
+    unpack_one!(&grads.smear_gate);
+    unpack_one!(&grads.skip_weights);
+    unpack_one!(&grads.qo_bank);
+    unpack_one!(&grads.kv_bank);
+    unpack_one!(&grads.mlp_up_bank);
+    unpack_one!(&grads.mlp_down_bank);
+    unpack_one!(&grads.ve_embed);
+    unpack_one!(&grads.ve_proj);
+    unpack_one!(&grads.ve_scale);
+    unpack_one!(&grads.ve_layer_scales);
+    for tensor in &grads.block_attn_scale {
+        unpack_one!(tensor);
+    }
+    for tensor in &grads.block_mlp_scale {
+        unpack_one!(tensor);
+    }
+    for tensor in &grads.block_resid_mix {
+        unpack_one!(tensor);
+    }
+    for tensor in &grads.block_q_gain {
+        unpack_one!(tensor);
+    }
+    for tensor in &grads.block_attn_gate_weight {
+        unpack_one!(tensor);
+    }
+    for tensor in &grads.block_attn_gate_bias {
+        unpack_one!(tensor);
+    }
+    for tensor in &grads.block_sparse_attn_gate_weight {
+        unpack_one!(tensor);
+    }
+    if offset != packed.numel() {
+        return Err(pg_core::PgError::InvalidOp(format!(
+            "unpacked all-grad length mismatch: read {}, buffer has {}",
+            offset,
+            packed.numel()
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(feature = "cuda")]
@@ -2402,160 +2751,51 @@ fn unpack_non_bank_gpu_grads(
 }
 
 #[cfg(feature = "cuda")]
-fn scale_all_gpu_grads(runtime: &mut CudaSingleFastRuntime, scale: f32) -> PgResult<()> {
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.tok_emb,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.bigram_embed,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.bigram_proj,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.bigram_scale,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.smear_gate,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.skip_weights,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.qo_bank,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.kv_bank,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.mlp_up_bank,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.mlp_down_bank,
-        scale,
-    )?;
-    for tensor in &runtime.gpu_grads.block_attn_scale {
-        scale_gpu_tensor(&runtime.gpu_model.kernels, tensor, scale)?;
-    }
-    for tensor in &runtime.gpu_grads.block_mlp_scale {
-        scale_gpu_tensor(&runtime.gpu_model.kernels, tensor, scale)?;
-    }
-    for tensor in &runtime.gpu_grads.block_resid_mix {
-        scale_gpu_tensor(&runtime.gpu_model.kernels, tensor, scale)?;
-    }
-    for tensor in &runtime.gpu_grads.block_q_gain {
-        scale_gpu_tensor(&runtime.gpu_model.kernels, tensor, scale)?;
-    }
-    for tensor in &runtime.gpu_grads.block_attn_gate_weight {
-        scale_gpu_tensor(&runtime.gpu_model.kernels, tensor, scale)?;
-    }
-    for tensor in &runtime.gpu_grads.block_attn_gate_bias {
-        scale_gpu_tensor(&runtime.gpu_model.kernels, tensor, scale)?;
-    }
-    for tensor in &runtime.gpu_grads.block_sparse_attn_gate_weight {
-        scale_gpu_tensor(&runtime.gpu_model.kernels, tensor, scale)?;
-    }
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.ve_embed,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.ve_proj,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.ve_scale,
-        scale,
-    )?;
-    scale_gpu_tensor(
-        &runtime.gpu_model.kernels,
-        &runtime.gpu_grads.ve_layer_scales,
-        scale,
-    )?;
-    Ok(())
-}
-
-#[cfg(feature = "cuda")]
 fn cuda_distributed_all_reduce_average(
     runtime: &mut CudaDistributedRuntime,
     local_microbatches: usize,
 ) -> PgResult<()> {
+    if runtime.all_grad_sync.len() != runtime.replicas.len() {
+        return Err(pg_core::PgError::InvalidOp(format!(
+            "all-grad sync buffer count {} does not match replica count {}",
+            runtime.all_grad_sync.len(),
+            runtime.replicas.len()
+        )));
+    }
+    for rank in 0..runtime.replicas.len() {
+        let replica = &runtime.replicas[rank];
+        let packed = &runtime.all_grad_sync[rank].packed_grad;
+        if packed.numel() != all_grad_numel(&replica.gpu_grads) {
+            return Err(pg_core::PgError::InvalidOp(format!(
+                "rank {rank} packed all-grad buffer has {} elements, expected {}",
+                packed.numel(),
+                all_grad_numel(&replica.gpu_grads)
+            )));
+        }
+        pack_all_gpu_grads(&replica.gpu_model.kernels, &replica.gpu_grads, packed)?;
+    }
+
     cudarc::nccl::group_start()
         .map_err(|e| pg_core::PgError::Nccl(format!("group_start failed: {e:?}")))?;
-    let n_blocks = runtime
-        .replicas
-        .first()
-        .map(|replica| replica.gpu_grads.block_attn_scale.len())
-        .unwrap_or(0);
-    for (replica, comm) in runtime.replicas.iter_mut().zip(runtime.comms.iter()) {
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.tok_emb)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.bigram_embed)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.bigram_proj)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.bigram_scale)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.smear_gate)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.skip_weights)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.qo_bank)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.kv_bank)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.mlp_up_bank)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.mlp_down_bank)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.ve_embed)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.ve_proj)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.ve_scale)?;
-        comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.ve_layer_scales)?;
-        for i in 0..n_blocks {
-            comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.block_attn_scale[i])?;
-            comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.block_mlp_scale[i])?;
-            comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.block_resid_mix[i])?;
-            comm.all_reduce_sum_tensor_f32_in_place(&mut replica.gpu_grads.block_q_gain[i])?;
-            comm.all_reduce_sum_tensor_f32_in_place(
-                &mut replica.gpu_grads.block_attn_gate_weight[i],
-            )?;
-            comm.all_reduce_sum_tensor_f32_in_place(
-                &mut replica.gpu_grads.block_attn_gate_bias[i],
-            )?;
-            comm.all_reduce_sum_tensor_f32_in_place(
-                &mut replica.gpu_grads.block_sparse_attn_gate_weight[i],
-            )?;
-        }
+    for (buffers, comm) in runtime.all_grad_sync.iter_mut().zip(runtime.comms.iter()) {
+        comm.all_reduce_sum_tensor_f32_in_place(&mut buffers.packed_grad)?;
     }
     cudarc::nccl::group_end()
         .map_err(|e| pg_core::PgError::Nccl(format!("group_end failed: {e:?}")))?;
 
     let inv_world = 1.0f32 / (runtime.replicas.len() * local_microbatches.max(1)) as f32;
-    for replica in runtime.replicas.iter_mut() {
-        scale_all_gpu_grads(replica, inv_world)?;
+    for rank in 0..runtime.replicas.len() {
+        let replica = &mut runtime.replicas[rank];
+        let packed = &runtime.all_grad_sync[rank].packed_grad;
+        scale_gpu_tensor(&replica.gpu_model.kernels, packed, inv_world)?;
+        unpack_all_gpu_grads(&replica.gpu_model.kernels, packed, &mut replica.gpu_grads)?;
     }
     runtime.distributed_sync = true;
     Ok(())
 }
 
 #[cfg(feature = "cuda")]
-fn cuda_distributed_all_reduce_non_bank_average(
-    runtime: &mut CudaDistributedRuntime,
-    local_microbatches: usize,
-) -> PgResult<()> {
+fn pack_non_bank_sync_buffers(runtime: &mut CudaDistributedRuntime) -> PgResult<()> {
     if runtime.non_bank_sync.len() != runtime.replicas.len() {
         return Err(pg_core::PgError::InvalidOp(format!(
             "non-bank sync buffer count {} does not match replica count {}",
@@ -2575,23 +2815,20 @@ fn cuda_distributed_all_reduce_non_bank_average(
         }
         pack_non_bank_gpu_grads(&replica.gpu_model.kernels, &replica.gpu_grads, packed)?;
     }
+    Ok(())
+}
 
-    cudarc::nccl::group_start()
-        .map_err(|e| pg_core::PgError::Nccl(format!("group_start failed: {e:?}")))?;
-    for (buffers, comm) in runtime.non_bank_sync.iter_mut().zip(runtime.comms.iter()) {
-        comm.all_reduce_sum_tensor_f32_in_place(&mut buffers.packed_grad)?;
-    }
-    cudarc::nccl::group_end()
-        .map_err(|e| pg_core::PgError::Nccl(format!("group_end failed: {e:?}")))?;
-
-    let inv_world = 1.0f32 / (runtime.replicas.len() * local_microbatches.max(1)) as f32;
+#[cfg(feature = "cuda")]
+fn scale_and_unpack_non_bank_sync_buffers(
+    runtime: &mut CudaDistributedRuntime,
+    scale: f32,
+) -> PgResult<()> {
     for rank in 0..runtime.replicas.len() {
         let replica = &mut runtime.replicas[rank];
         let packed = &runtime.non_bank_sync[rank].packed_grad;
-        scale_gpu_tensor(&replica.gpu_model.kernels, packed, inv_world)?;
+        scale_gpu_tensor(&replica.gpu_model.kernels, packed, scale)?;
         unpack_non_bank_gpu_grads(&replica.gpu_model.kernels, packed, &mut replica.gpu_grads)?;
     }
-    runtime.distributed_sync = true;
     Ok(())
 }
 
@@ -2631,20 +2868,13 @@ fn cuda_distributed_sharded_parallel_muon_step(
     timing: &mut RunTiming,
 ) -> PgResult<()> {
     let event_timing = cuda_event_timing_enabled();
-    let sync_start_events = if event_timing {
+    let bank_start_events = if event_timing {
         Some(record_replica_events(runtime)?)
     } else {
         None
     };
-    let sync_t0 = Instant::now();
-    cuda_distributed_all_reduce_non_bank_average(runtime, local_microbatches)?;
-    let sync_host_ms = sync_t0.elapsed().as_secs_f64() * 1000.0;
-    if let Some(starts) = sync_start_events {
-        let ends = record_replica_events(runtime)?;
-        timing.cuda_non_bank_sync_ms += max_elapsed_replica_events_ms(starts, ends)?;
-    } else {
-        timing.cuda_non_bank_sync_ms += sync_host_ms;
-    }
+    let bank_t0 = Instant::now();
+    pack_non_bank_sync_buffers(runtime)?;
     let world_size = runtime.replicas.len();
     let inv_total = 1.0f32 / (world_size * local_microbatches.max(1)) as f32;
     let bank_count = runtime
@@ -2668,12 +2898,6 @@ fn cuda_distributed_sharded_parallel_muon_step(
         ));
     }
 
-    let bank_start_events = if event_timing {
-        Some(record_replica_events(runtime)?)
-    } else {
-        None
-    };
-    let bank_t0 = Instant::now();
     {
         let parallel_muon = runtime
             .parallel_muon
@@ -2701,6 +2925,17 @@ fn cuda_distributed_sharded_parallel_muon_step(
                     pg_kernels::gpu_kernels::CudaPtr(grad_dst.cu_ptr(kernels.stream())?),
                     grad.numel() as u32,
                 )?;
+                if sharded_bank_grad_bf16_wire_enabled_for_audit() {
+                    kernels.f32_to_bf16(
+                        pg_kernels::gpu_kernels::CudaPtr(
+                            buffers.padded_grad.cu_ptr(kernels.stream())?,
+                        ),
+                        pg_kernels::gpu_kernels::CudaPtr(
+                            buffers.padded_grad_bf16.cu_ptr(kernels.stream())?,
+                        ),
+                        buffers.padded_grad.numel() as u32,
+                    )?;
+                }
 
                 let shard_start = rank * buffers.chunk_batch;
                 let shard_end = (shard_start + buffers.chunk_batch).min(buffers.real_batch);
@@ -2715,35 +2950,101 @@ fn cuda_distributed_sharded_parallel_muon_step(
                     )?;
                 }
             }
+        }
 
+        if sharded_grouped_grad_collectives_enabled_for_audit() {
             cudarc::nccl::group_start()
                 .map_err(|e| pg_core::PgError::Nccl(format!("group_start failed: {e:?}")))?;
-            for rank in 0..world_size {
-                let buffers = &mut parallel_muon.replicas[rank].banks[bank_idx];
-                runtime.comms[rank]
-                    .reduce_scatter_sum_tensor_f32(&buffers.padded_grad, &mut buffers.shard_grad)?;
+            for (buffers, comm) in runtime.non_bank_sync.iter_mut().zip(runtime.comms.iter()) {
+                comm.all_reduce_sum_tensor_f32_in_place(&mut buffers.packed_grad)?;
+            }
+            for bank_idx in 0..bank_count {
+                for rank in 0..world_size {
+                    let buffers = &mut parallel_muon.replicas[rank].banks[bank_idx];
+                    if sharded_bank_grad_bf16_wire_enabled_for_audit() {
+                        runtime.comms[rank].reduce_scatter_sum_tensor_bf16(
+                            &buffers.padded_grad_bf16,
+                            &mut buffers.shard_grad_bf16,
+                        )?;
+                    } else {
+                        runtime.comms[rank].reduce_scatter_sum_tensor_f32(
+                            &buffers.padded_grad,
+                            &mut buffers.shard_grad,
+                        )?;
+                    }
+                }
+            }
+            cudarc::nccl::group_end()
+                .map_err(|e| pg_core::PgError::Nccl(format!("group_end failed: {e:?}")))?;
+        } else {
+            cudarc::nccl::group_start()
+                .map_err(|e| pg_core::PgError::Nccl(format!("group_start failed: {e:?}")))?;
+            for (buffers, comm) in runtime.non_bank_sync.iter_mut().zip(runtime.comms.iter()) {
+                comm.all_reduce_sum_tensor_f32_in_place(&mut buffers.packed_grad)?;
             }
             cudarc::nccl::group_end()
                 .map_err(|e| pg_core::PgError::Nccl(format!("group_end failed: {e:?}")))?;
 
-            for rank in 0..world_size {
-                let replica = &runtime.replicas[rank];
-                let buffers = &mut parallel_muon.replicas[rank].banks[bank_idx];
-                scale_gpu_tensor(&replica.gpu_model.kernels, &buffers.shard_grad, inv_total)?;
+            for bank_idx in 0..bank_count {
+                cudarc::nccl::group_start()
+                    .map_err(|e| pg_core::PgError::Nccl(format!("group_start failed: {e:?}")))?;
+                for rank in 0..world_size {
+                    let buffers = &mut parallel_muon.replicas[rank].banks[bank_idx];
+                    if sharded_bank_grad_bf16_wire_enabled_for_audit() {
+                        runtime.comms[rank].reduce_scatter_sum_tensor_bf16(
+                            &buffers.padded_grad_bf16,
+                            &mut buffers.shard_grad_bf16,
+                        )?;
+                    } else {
+                        runtime.comms[rank].reduce_scatter_sum_tensor_f32(
+                            &buffers.padded_grad,
+                            &mut buffers.shard_grad,
+                        )?;
+                    }
+                }
+                cudarc::nccl::group_end()
+                    .map_err(|e| pg_core::PgError::Nccl(format!("group_end failed: {e:?}")))?;
             }
         }
     }
 
+    scale_and_unpack_non_bank_sync_buffers(runtime, inv_total)?;
+    {
+        let parallel_muon = runtime
+            .parallel_muon
+            .as_mut()
+            .expect("validated sharded Parallel Muon runtime");
+        for bank_idx in 0..bank_count {
+            for rank in 0..world_size {
+                let replica = &runtime.replicas[rank];
+                let buffers = &mut parallel_muon.replicas[rank].banks[bank_idx];
+                if sharded_bank_grad_bf16_wire_enabled_for_audit() {
+                    replica.gpu_model.kernels.bf16_to_f32(
+                        pg_kernels::gpu_kernels::CudaPtr(
+                            buffers
+                                .shard_grad_bf16
+                                .cu_ptr(replica.gpu_model.kernels.stream())?,
+                        ),
+                        pg_kernels::gpu_kernels::CudaPtr(
+                            buffers
+                                .shard_grad
+                                .cu_ptr(replica.gpu_model.kernels.stream())?,
+                        ),
+                        buffers.shard_grad.numel() as u32,
+                    )?;
+                }
+                scale_gpu_tensor(&replica.gpu_model.kernels, &buffers.shard_grad, inv_total)?;
+            }
+        }
+    }
     // Exact global-norm clipping for sharded Parallel Muon:
     // - non-bank grads are replicated after all-reduce, so each rank contributes
     //   1/world_size of their squared norm before the scalar all-reduce.
     // - bank grads are reduce-scattered, so each rank contributes only its shard.
     for rank in 0..world_size {
         let replica = &mut runtime.replicas[rank];
-        replica
-            .grad_norm_scratch
-            .copy_from_host_bytes(bytemuck::bytes_of(&0.0f32))?;
         let kernels = &replica.gpu_model.kernels;
+        scale_gpu_tensor(kernels, &replica.grad_norm_scratch, 0.0)?;
         let scratch =
             pg_kernels::gpu_kernels::CudaPtr(replica.grad_norm_scratch.cu_ptr(kernels.stream())?);
         let non_bank_alpha = 1.0f32 / world_size as f32;
@@ -2900,7 +3201,7 @@ fn cuda_distributed_sharded_parallel_muon_step(
 #[cfg(feature = "cuda")]
 fn cuda_distributed_step(
     runtime: &mut CudaDistributedRuntime,
-    batches: &[Vec<(Vec<u32>, Vec<u32>)>],
+    batches: Option<&Vec<Vec<(Vec<u32>, Vec<u32>)>>>,
     train_config: &pg_model::TrainConfig,
     step: usize,
     lr_scale: f32,
@@ -2909,12 +3210,14 @@ fn cuda_distributed_step(
     runtime_seq_len: usize,
     timing: &mut RunTiming,
 ) -> PgResult<f32> {
-    if runtime.replicas.len() != batches.len() {
-        return Err(pg_core::PgError::InvalidOp(format!(
-            "cuda_distributed_step got {} batches for {} replicas",
-            batches.len(),
-            runtime.replicas.len()
-        )));
+    if let Some(batches) = batches {
+        if runtime.replicas.len() != batches.len() {
+            return Err(pg_core::PgError::InvalidOp(format!(
+                "cuda_distributed_step got {} batches for {} replicas",
+                batches.len(),
+                runtime.replicas.len()
+            )));
+        }
     }
 
     let mut total_loss = 0.0f32;
@@ -2922,9 +3225,8 @@ fn cuda_distributed_step(
     let event_timing = cuda_event_timing_enabled();
     let replica_results = std::thread::scope(|scope| {
         let mut handles = Vec::with_capacity(runtime.replicas.len());
-        for (rank_idx, (replica, rank_batches)) in
-            runtime.replicas.iter_mut().zip(batches.iter()).enumerate()
-        {
+        for (rank_idx, replica) in runtime.replicas.iter_mut().enumerate() {
+            let rank_batches = batches.map(|all_batches| &all_batches[rank_idx]);
             handles.push(
                 scope.spawn(move || -> PgResult<ReplicaBackwardLaunchResult> {
                     let stream = replica.gpu_model.gemm.stream().clone();
@@ -2984,11 +3286,13 @@ fn cuda_distributed_step(
                     }
 
                     let compute_loss = compute_step_loss && rank_idx == 0;
-                    flatten_microbatches_into(
-                        rank_batches,
-                        &mut replica.host_input_ids,
-                        &mut replica.host_targets,
-                    );
+                    if let Some(rank_batches) = rank_batches {
+                        flatten_microbatches_into(
+                            rank_batches,
+                            &mut replica.host_input_ids,
+                            &mut replica.host_targets,
+                        );
+                    }
                     let mut local_timing = RunTiming::default();
                     result.loss = cuda_fast_accumulate_runtime_grads(
                         replica,
@@ -3235,6 +3539,16 @@ fn record_path_audit_json(
         "\"effective_global_batch_tokens\":{}",
         batch_plan.microbatch_tokens * local_batch * world_size.max(1)
     ));
+    let record_max_ms = record_max_ms_per_step_for_submission();
+    fields.push(format!("\"record_max_ms_per_step\":{record_max_ms:.3}"));
+    let target_steps_per_600s = if record_max_ms > 0.0 {
+        600_000.0 / record_max_ms
+    } else {
+        0.0
+    };
+    fields.push(format!(
+        "\"record_target_steps_per_600s\":{target_steps_per_600s:.3}"
+    ));
     fields.push(json_str_field(
         "attention_backend",
         &format!("{:?}", run_spec.model.attention_backend),
@@ -3280,6 +3594,47 @@ fn record_path_audit_json(
         "distributed_optimizer_backend",
         &format!("{:?}", run_spec.train.distributed_optimizer_backend),
     ));
+    let sharded_parallel_muon = run_spec.train.backend == TrainBackend::CudaDistributed
+        && run_spec.train.distributed_optimizer_backend
+            == DistributedOptimizerBackend::ShardedParallelMuon;
+    fields.push(format!(
+        "\"sharded_parallel_muon_reduce_scatter\":{}",
+        sharded_parallel_muon
+    ));
+    fields.push(format!(
+        "\"sharded_parallel_muon_local_shard_update\":{}",
+        sharded_parallel_muon
+    ));
+    fields.push(format!(
+        "\"sharded_parallel_muon_all_gather\":{}",
+        sharded_parallel_muon
+    ));
+    fields.push(format!(
+        "\"sharded_parallel_muon_grouped_grad_collectives\":{}",
+        sharded_parallel_muon && sharded_grouped_grad_collectives_enabled_for_audit()
+    ));
+    fields.push(format!(
+        "\"sharded_parallel_muon_host_scalar_sync\":{}",
+        false
+    ));
+    fields.push(format!(
+        "\"replicated_allreduce_packed_all_grads\":{}",
+        run_spec.train.backend == TrainBackend::CudaDistributed
+            && run_spec.train.distributed_optimizer_backend
+                == DistributedOptimizerBackend::AllReduceReplicatedMuon
+    ));
+    fields.push(json_str_field(
+        "sharded_parallel_muon_bank_grad_wire_dtype",
+        if sharded_bank_grad_bf16_wire_enabled_for_audit() {
+            "bf16"
+        } else {
+            "f32"
+        },
+    ));
+    fields.push(format!(
+        "\"backward_nccl_bucket_overlap\":{}",
+        backward_nccl_bucket_overlap_enabled_for_audit()
+    ));
     fields.push(format!(
         "\"distributed_configured\":{}",
         run_spec.train.backend == TrainBackend::CudaDistributed
@@ -3296,6 +3651,7 @@ fn record_path_audit_json(
         "\"host_scalar_updates\":{}",
         gpu_host_scalar_updates_enabled_for_audit()
     ));
+    fields.push("\"device_scalar_params\":true".to_string());
     fields.push(format!("\"microbatch_count\":{}", local_batch));
     let host_batch_segments_per_rank =
         if matches!(run_spec.train.backend, TrainBackend::CudaDistributed) {
@@ -3309,6 +3665,10 @@ fn record_path_audit_json(
     ));
     fields.push(format!("\"gemm_m_dimension\":{}", local_tokens_per_rank));
     fields.push(format!("\"attention_batch_dimension\":{}", local_batch));
+    fields.push(format!(
+        "\"value_embedding_layers\":{}",
+        run_spec.model.to_model_config().ve_layers.len()
+    ));
     fields.push(format!(
         "\"bf16_forward_projection_gemm\":{}",
         bf16_forward_projection_gemm_enabled(run_spec)
@@ -3328,6 +3688,26 @@ fn record_path_audit_json(
     fields.push(format!(
         "\"qkv_dx_beta_accum\":{}",
         qkv_dx_beta_accum_enabled_for_audit()
+    ));
+    fields.push(format!(
+        "\"chunked_q_gain_backward\":{}",
+        chunked_q_gain_backward_enabled_for_audit()
+    ));
+    fields.push(format!(
+        "\"chunked_residual_mix_backward\":{}",
+        chunked_residual_mix_backward_enabled_for_audit()
+    ));
+    fields.push(format!(
+        "\"split_residual_mix_grad\":{}",
+        split_residual_mix_grad_enabled_for_audit()
+    ));
+    fields.push(format!(
+        "\"residual_scale_reduce\":{}",
+        residual_scale_reduce_enabled_for_audit()
+    ));
+    fields.push(format!(
+        "\"bf16_qkv_dx_output\":{}",
+        bf16_qkv_dx_output_enabled_for_audit(run_spec)
     ));
     fields.push(format!(
         "\"fused_qk_rope_gain_backward\":{}",
@@ -3366,6 +3746,22 @@ fn record_path_audit_json(
         bf16_attention_projection_output_enabled_for_audit(run_spec)
     ));
     fields.push(format!(
+        "\"final_norm_bf16_side_output\":{}",
+        final_norm_bf16_side_output_enabled_for_audit(run_spec)
+    ));
+    fields.push(format!(
+        "\"bf16_attention_output_bridge_to_f32\":{}",
+        bf16_attention_output_bridge_to_f32_for_audit(run_spec)
+    ));
+    fields.push(format!(
+        "\"bf16_sparse_xsa_forward\":{}",
+        bf16_sparse_xsa_forward_enabled_for_audit()
+    ));
+    fields.push(format!(
+        "\"sparse_xsa_warphead_backward\":{}",
+        sparse_xsa_warphead_backward_enabled_for_audit()
+    ));
+    fields.push(format!(
         "\"recompute_residual_mix_norm_inputs\":{}",
         recompute_residual_mix_norm_inputs_enabled_for_audit()
     ));
@@ -3381,6 +3777,14 @@ fn record_path_audit_json(
         "\"batched_muon_newton_schulz\":{}",
         batched_muon_newton_schulz_enabled_for_audit()
     ));
+    fields.push(json_str_field(
+        "muon_newton_schulz_profile",
+        &muon_ns_profile_for_audit(),
+    ));
+    fields.push(format!(
+        "\"polar_express_newton_schulz\":{}",
+        polar_express_muon_enabled_for_audit()
+    ));
     fields.push(format!(
         "\"cudnn_saved_bf16_attention\":{}",
         cudnn_saved_bf16_attention_enabled_for_audit(run_spec)
@@ -3388,6 +3792,15 @@ fn record_path_audit_json(
     fields.push(format!(
         "\"cudnn_prepacked_bf16_attention\":{}",
         cudnn_prepacked_bf16_attention_enabled_for_audit(run_spec)
+    ));
+    fields.push(format!(
+        "\"cudnn_prepacked_bf16_qk_fresh_producer\":{}",
+        cudnn_prepacked_bf16_attention_enabled_for_audit(run_spec)
+            && fused_qk_rope_gain_forward_enabled_for_audit()
+    ));
+    fields.push(format!(
+        "\"cudnn_prepacked_bf16_poison_check\":{}",
+        cudnn_prepacked_bf16_poison_check_enabled_for_audit(run_spec)
     ));
     fields.push(format!(
         "\"skip_f32_attention_saved_activations\":{}",
@@ -3414,10 +3827,52 @@ fn record_path_audit_json(
         bf16_output_backward_gemm_enabled(run_spec)
     ));
     fields.push(format!(
+        "\"bf16_output_logits\":{}",
+        bf16_output_logits_enabled_for_audit(run_spec)
+    ));
+    fields.push(format!(
         "\"fused_output_cross_entropy\":{}",
         fused_output_cross_entropy_enabled_for_audit(run_spec)
     ));
-    fields.push("\"materializes_full_logits\":true".to_string());
+    fields.push(format!(
+        "\"production_fused_output_projection_ce\":{}",
+        production_fused_output_projection_ce_enabled_for_audit(run_spec)
+    ));
+    let tiled_output_ce = tiled_output_cross_entropy_enabled_for_audit(run_spec);
+    fields.push(format!(
+        "\"tiled_output_cross_entropy\":{}",
+        tiled_output_ce
+    ));
+    fields.push(format!(
+        "\"output_loss_backend\":\"{}\"",
+        output_loss_backend_for_audit(run_spec)
+    ));
+    fields.push(format!(
+        "\"output_ce_tile_vocab\":{}",
+        output_ce_tile_vocab_for_audit()
+    ));
+    fields.push(format!(
+        "\"materializes_full_logits\":{}",
+        output_path_materializes_full_logits_for_audit(run_spec)
+    ));
+    fields.push(format!(
+        "\"smear_gate_boundary_token_id\":{}",
+        run_spec
+            .model
+            .smear_gate_boundary_token_id
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| "null".to_string())
+    ));
+    fields.push(format!(
+        "\"gpu_lora_prefix_doc_ttt_schedule\":{}",
+        run_spec.eval.adaptation_backend == EvalAdaptationBackend::GpuLoraPhased
+            && run_spec.eval.phased_ttt_prefix_docs > 0
+            && run_spec.model.smear_gate_boundary_token_id.is_some()
+    ));
+    fields.push(format!(
+        "\"gpu_lora_prefix_docs\":{}",
+        run_spec.eval.phased_ttt_prefix_docs
+    ));
     fields.push(format!(
         "\"frontier_record_ready\":{}",
         frontier_record_ready
@@ -3462,6 +3917,12 @@ fn record_path_audit_json(
         "\"validation_data_configured\":{}",
         run_spec.train.validation_data_pattern.is_some()
     ));
+    fields.push(format!(
+        "\"record_host_batch_u32_preload\":{}",
+        is_record_shaped_mode(mode) && run_spec.train.backend == TrainBackend::CudaDistributed
+    ));
+    fields.push("\"gpu_resident_data_sampler\":false".to_string());
+    fields.push("\"host_input_copy_per_step\":true".to_string());
     fields.push(format!(
         "\"tokenizer_vocab_configured\":{}",
         run_spec.eval.tokenizer_vocab_path.is_some()
@@ -3533,6 +3994,16 @@ fn experimental_fused_qkv_projection_enabled() -> bool {
     )
 }
 
+fn fused_qkv_projection_record_ok() -> bool {
+    matches!(
+        std::env::var("PG_GPU_FUSED_QKV_PROJ_RECORD_OK")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
 fn qkv_dx_beta_accum_enabled_for_audit() -> bool {
     matches!(
         std::env::var("PG_GPU_QKV_DX_BETA_ACCUM")
@@ -3541,6 +4012,60 @@ fn qkv_dx_beta_accum_enabled_for_audit() -> bool {
             .as_str(),
         "1" | "true" | "yes" | "on"
     )
+}
+
+fn chunked_q_gain_backward_enabled_for_audit() -> bool {
+    matches!(
+        std::env::var("PG_GPU_CHUNKED_Q_GAIN_BWD")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+fn chunked_residual_mix_backward_enabled_for_audit() -> bool {
+    matches!(
+        std::env::var("PG_GPU_CHUNKED_RESIDUAL_MIX_BWD")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+fn split_residual_mix_grad_enabled_for_audit() -> bool {
+    // Experimental only: v43 H100 record-shaped A/B regressed this path.
+    // The audit field remains useful to prove the slow split reducer is off.
+    matches!(
+        std::env::var("PG_GPU_SPLIT_RESIDUAL_MIX_GRAD")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+fn residual_scale_reduce_enabled_for_audit() -> bool {
+    matches!(
+        std::env::var("PG_GPU_RESIDUAL_SCALE_REDUCE")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+fn bf16_qkv_dx_output_enabled_for_audit(run_spec: &RunSpec) -> bool {
+    run_spec.model.compute_precision == ModelComputePrecision::Bf16TensorCore
+        && bf16_backward_projection_gemm_enabled(run_spec)
+        && matches!(
+            std::env::var("PG_GPU_BF16_QKV_DX_OUTPUT")
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .as_str(),
+            "1" | "true" | "yes" | "on"
+        )
 }
 
 fn fused_qk_rope_gain_backward_enabled_for_audit() -> bool {
@@ -3647,6 +4172,52 @@ fn bf16_attention_projection_output_enabled_for_audit(run_spec: &RunSpec) -> boo
         )
 }
 
+fn final_norm_bf16_side_output_enabled_for_audit(run_spec: &RunSpec) -> bool {
+    run_spec.model.compute_precision == ModelComputePrecision::Bf16TensorCore
+        && bf16_forward_projection_gemm_enabled(run_spec)
+        && matches!(
+            std::env::var("PG_GPU_FINAL_NORM_BF16_OUTPUT")
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+}
+
+fn bf16_attention_output_bridge_to_f32_for_audit(run_spec: &RunSpec) -> bool {
+    let direct_plain_attention = run_spec.model.xsa_last_n == 0
+        && !run_spec.model.attn_out_gate.enabled
+        && !run_spec.model.sparse_attn_gate.enabled;
+    let direct_sparse_xsa = run_spec.model.xsa_last_n >= run_spec.model.num_layers
+        && run_spec.model.sparse_attn_gate.enabled
+        && !run_spec.model.attn_out_gate.enabled
+        && cudnn_prepacked_bf16_attention_enabled_for_audit(run_spec)
+        && bf16_sparse_xsa_forward_enabled_for_audit();
+    !(bf16_attention_projection_output_enabled_for_audit(run_spec)
+        && cudnn_saved_bf16_attention_enabled_for_audit(run_spec)
+        && (direct_plain_attention || direct_sparse_xsa))
+}
+
+fn bf16_sparse_xsa_forward_enabled_for_audit() -> bool {
+    !matches!(
+        std::env::var("PG_GPU_BF16_SPARSE_XSA_FWD")
+            .unwrap_or_else(|_| "1".to_string())
+            .to_ascii_lowercase()
+            .as_str(),
+        "0" | "false" | "no" | "off"
+    )
+}
+
+fn sparse_xsa_warphead_backward_enabled_for_audit() -> bool {
+    matches!(
+        std::env::var("PG_GPU_SPARSE_XSA_WARPHEAD_BWD")
+            .unwrap_or_else(|_| "0".to_string())
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
 fn recompute_residual_mix_norm_inputs_enabled_for_audit() -> bool {
     matches!(
         std::env::var("PG_GPU_RECOMPUTE_RESIDUAL_MIX_NORM_INPUTS")
@@ -3689,6 +4260,20 @@ fn batched_muon_newton_schulz_enabled_for_audit() -> bool {
     )
 }
 
+fn muon_ns_profile_for_audit() -> String {
+    std::env::var("PG_GPU_MUON_NS_PROFILE")
+        .or_else(|_| std::env::var("PG_MUON_NS_PROFILE"))
+        .unwrap_or_else(|_| "polar_express".to_string())
+        .to_ascii_lowercase()
+}
+
+fn polar_express_muon_enabled_for_audit() -> bool {
+    matches!(
+        muon_ns_profile_for_audit().as_str(),
+        "polar" | "polar_express" | "polarns" | "polar_ns"
+    )
+}
+
 fn cudnn_saved_bf16_attention_enabled_for_audit(run_spec: &RunSpec) -> bool {
     matches!(
         run_spec.model.attention_backend,
@@ -3702,10 +4287,26 @@ fn cudnn_saved_bf16_attention_enabled_for_audit(run_spec: &RunSpec) -> bool {
     )
 }
 
+fn cudnn_prepacked_bf16_attention_requested_for_audit() -> bool {
+    matches!(
+        std::env::var("PG_GPU_CUDNN_PREPACKED_BF16_ATTN")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
 fn cudnn_prepacked_bf16_attention_enabled_for_audit(run_spec: &RunSpec) -> bool {
     cudnn_saved_bf16_attention_enabled_for_audit(run_spec)
+        && fused_qk_rope_gain_forward_enabled_for_audit()
+        && cudnn_prepacked_bf16_attention_requested_for_audit()
+}
+
+fn cudnn_prepacked_bf16_poison_check_enabled_for_audit(run_spec: &RunSpec) -> bool {
+    cudnn_prepacked_bf16_attention_enabled_for_audit(run_spec)
         && matches!(
-            std::env::var("PG_GPU_CUDNN_PREPACKED_BF16_ATTN")
+            std::env::var("PG_GPU_CUDNN_PREPACKED_BF16_POISON")
                 .unwrap_or_default()
                 .to_ascii_lowercase()
                 .as_str(),
@@ -3787,14 +4388,105 @@ fn fused_output_cross_entropy_enabled_for_audit(run_spec: &RunSpec) -> bool {
         )
 }
 
+fn bf16_output_logits_enabled_for_audit(run_spec: &RunSpec) -> bool {
+    run_spec.model.compute_precision == ModelComputePrecision::Bf16TensorCore
+        && bf16_output_projection_gemm_enabled(run_spec)
+        && bf16_output_backward_gemm_enabled(run_spec)
+        && !tiled_output_cross_entropy_enabled_for_audit(run_spec)
+        && matches!(
+            std::env::var("PG_GPU_BF16_LOGITS")
+                .unwrap_or_else(|_| "0".to_string())
+                .to_ascii_lowercase()
+                .as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+}
+
+fn output_ce_tile_vocab_for_audit() -> usize {
+    std::env::var("PG_GPU_OUTPUT_CE_TILE_VOCAB")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&value| value > 0)
+        .unwrap_or(512)
+}
+
+fn tiled_output_cross_entropy_enabled_for_audit(run_spec: &RunSpec) -> bool {
+    run_spec.model.compute_precision == ModelComputePrecision::Bf16TensorCore
+        && bf16_output_projection_gemm_enabled(run_spec)
+        && bf16_output_backward_gemm_enabled(run_spec)
+        && run_spec.model.vocab_size % output_ce_tile_vocab_for_audit() == 0
+        && matches!(
+            std::env::var("PG_GPU_TILED_OUTPUT_CE")
+                .unwrap_or_else(|_| "0".to_string())
+                .to_ascii_lowercase()
+                .as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+}
+
+fn output_path_materializes_full_logits_for_audit(run_spec: &RunSpec) -> bool {
+    if !tiled_output_cross_entropy_enabled_for_audit(run_spec) {
+        return true;
+    }
+    // A full-vocab "tile" avoids the persistent activation logits field, but
+    // still allocates and writes a [tokens, vocab] scratch tile. For record
+    // readiness, only sub-vocab tiling counts as removing full logits.
+    output_ce_tile_vocab_for_audit() >= run_spec.model.vocab_size
+}
+
+fn output_loss_backend_for_audit(run_spec: &RunSpec) -> &'static str {
+    if !tiled_output_cross_entropy_enabled_for_audit(run_spec) {
+        if bf16_output_logits_enabled_for_audit(run_spec) {
+            "full_logits_bf16_single_gemm"
+        } else {
+            "full_logits_single_gemm"
+        }
+    } else if output_path_materializes_full_logits_for_audit(run_spec) {
+        "full_vocab_tile_repeated_gemm"
+    } else {
+        "tiled_repeated_gemm"
+    }
+}
+
+fn production_fused_output_projection_ce_enabled_for_audit(_run_spec: &RunSpec) -> bool {
+    // The current "fused CE" path fuses softcapped CE loss/backward only after
+    // logits already exist. It does not fuse the tied output projection with CE,
+    // so record mode must not count it as the production no-logits output path.
+    false
+}
+
 fn gpu_host_scalar_updates_enabled_for_audit() -> bool {
     !matches!(
         std::env::var("PG_GPU_HOST_SCALAR_UPDATES")
-            .unwrap_or_else(|_| "1".to_string())
+            .unwrap_or_else(|_| "0".to_string())
             .to_ascii_lowercase()
             .as_str(),
         "0" | "false" | "no" | "off"
     )
+}
+
+fn sharded_bank_grad_bf16_wire_enabled_for_audit() -> bool {
+    matches!(
+        std::env::var("PG_NCCL_BF16_BANK_GRAD_WIRE")
+            .unwrap_or_else(|_| "0".to_string())
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
+fn sharded_grouped_grad_collectives_enabled_for_audit() -> bool {
+    !matches!(
+        std::env::var("PG_NCCL_GROUP_SHARDED_GRAD_COLLECTIVES")
+            .unwrap_or_else(|_| "0".to_string())
+            .to_ascii_lowercase()
+            .as_str(),
+        "0" | "false" | "no" | "off"
+    )
+}
+
+fn backward_nccl_bucket_overlap_enabled_for_audit() -> bool {
+    false
 }
 
 fn cudnn_frontend_sdpa_available() -> bool {
@@ -3828,6 +4520,29 @@ fn frontier_record_gaps(run_spec: &RunSpec) -> Vec<&'static str> {
     {
         gaps.push("distributed_optimizer_backend must be sharded_parallel_muon; current all-reduce replicated path is not true Parallel Muon");
     }
+    if !polar_express_muon_enabled_for_audit() {
+        gaps.push("frontier record target requires Polar Express Newton-Schulz coefficients for Muon; legacy/simple NS is only a parity fallback");
+    }
+    if matches!(
+        run_spec.model.attention_backend,
+        AttentionBackend::CudnnSdpaBf16
+    ) {
+        if !cudnn_saved_bf16_attention_enabled_for_audit(run_spec) {
+            gaps.push("record-grade cuDNN SDPA requires saved BF16 attention tensors for backward; PG_GPU_CUDNN_SAVED_BF16_ATTN is disabled");
+        }
+        if !cudnn_prepacked_bf16_attention_enabled_for_audit(run_spec) {
+            gaps.push("record-grade cuDNN SDPA requires prepacked BF16 Q/K/V from the fused QK/RoPE/Gain producer; enable PG_GPU_CUDNN_PREPACKED_BF16_ATTN with the fused producer");
+        }
+        if bf16_attention_output_bridge_to_f32_for_audit(run_spec) {
+            gaps.push("record-grade cuDNN SDPA must keep the attention output on the BF16 projection path; current config still bridges BF16 attention output back to F32");
+        }
+        if gpu_saved_layer_activations_mode_for_audit().to_ascii_lowercase() != "all"
+            || !direct_saved_layer_activations_enabled_for_audit()
+            || !skip_f32_attention_saved_activations_enabled_for_audit(run_spec)
+        {
+            gaps.push("record-grade cuDNN SDPA backward requires direct all-layer BF16 saved activations; otherwise backward can fall back to F32 recompute or saved F32 attention state");
+        }
+    }
     match run_spec.model.compute_precision {
         ModelComputePrecision::F32Tf32 => {
             gaps.push("frontier record target requires compute_precision=bf16_tensor_core; current target is f32_tf32");
@@ -3836,7 +4551,25 @@ fn frontier_record_gaps(run_spec: &RunSpec) -> Vec<&'static str> {
             gaps.push("compute_precision=bf16_tensor_core is requested, but Rust still stores activations/gradients in f32; projection/output GEMMs use BF16 shadows, but a full BF16/FP16 activation graph is not implemented yet");
         }
     }
-    gaps.push("current GPU output path still materializes full [batch_tokens, vocab] logits; fused softcapped cross-entropy/output-gradient is present, but the record path still needs a fused output-projection+CE hot path");
+    if !production_fused_output_projection_ce_enabled_for_audit(run_spec) {
+        if !tiled_output_cross_entropy_enabled_for_audit(run_spec) {
+            gaps.push("current GPU output path still materializes full [batch_tokens, vocab] logits; the measured tiled-CE workaround is not sufficient, so the remaining record cut is a real fused output projection + softcapped CE/backward kernel");
+        } else if output_path_materializes_full_logits_for_audit(run_spec) {
+            gaps.push("PG_GPU_TILED_OUTPUT_CE is enabled, but output_ce_tile_vocab is >= vocab_size, so the output path still materializes a full [batch_tokens, vocab] scratch tile");
+        } else {
+            gaps.push("PG_GPU_TILED_OUTPUT_CE avoids persistent logits but repeats output GEMMs and is not the production fused output projection + softcapped CE/backward kernel required by the final record engine");
+        }
+    }
+    if gpu_host_scalar_updates_enabled_for_audit() {
+        gaps.push("PG_GPU_HOST_SCALAR_UPDATES=1 enables legacy per-step host scalar mirror synchronization; record mode should keep trainable scalar params device-resident and sync them only for export");
+    }
+    if !backward_nccl_bucket_overlap_enabled_for_audit() {
+        gaps.push("distributed bank communication is still launched after full backward; final record runtime still needs bucketed reduce-scatter overlap with backward");
+    }
+    if run_spec.model.smear_gate && run_spec.model.smear_gate_boundary_token_id.is_none() {
+        gaps.push("SmearGate must be BOS/document-boundary masked before record-shaped frontier runs; unmasked previous-token mixing can leak across packed documents");
+    }
+    gaps.push("record data path is still host-sampled with per-step H2D input/target copies; final CUDA-graphable record engine needs a GPU-resident sampler");
     if !run_spec.model.recurrence.enabled {
         gaps.push("frontier record target requires recurrence enabled");
     }
@@ -3877,6 +4610,9 @@ fn leaderboard_algorithm_gaps(run_spec: &RunSpec) -> Vec<&'static str> {
     if !run_spec.model.smear_gate {
         gaps.push("PR1797 algorithm target requires SmearGate");
     }
+    if run_spec.model.smear_gate && run_spec.model.smear_gate_boundary_token_id.is_none() {
+        gaps.push("SmearGate must be BOS/document-boundary masked; unmasked previous-token mixing can leak across packed documents");
+    }
     if !run_spec.quant.lqer.enabled {
         gaps.push("PR1797 algorithm target requires LQER asymmetric post-GPTQ correction");
     }
@@ -3887,6 +4623,13 @@ fn allow_frontier_record_gaps_for_development() -> bool {
     std::env::var("PG_ALLOW_FRONTIER_RECORD_GAPS")
         .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
         .unwrap_or(false)
+}
+
+fn record_max_ms_per_step_for_submission() -> f64 {
+    std::env::var("PG_RECORD_MAX_MS_PER_STEP")
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(150.0)
 }
 
 #[cfg(feature = "cuda")]
@@ -3928,10 +4671,18 @@ fn validate_backend_request(run_spec: &RunSpec, mode: RunMode) -> PgResult<()> {
             "record-shaped modes require --train-data; synthetic data is not representative of the submission train surface".into(),
         ));
     }
+    if is_record_shaped_mode(mode)
+        && cudnn_prepacked_bf16_attention_requested_for_audit()
+        && !fused_qk_rope_gain_forward_enabled_for_audit()
+    {
+        return Err(pg_core::PgError::InvalidOp(
+            "record-shaped modes refuse PG_GPU_CUDNN_PREPACKED_BF16_ATTN when PG_GPU_FUSED_QK_ROPE_GAIN_FWD is disabled; prepacked BF16 Q/K requires the fused producer".into(),
+        ));
+    }
     if mode == RunMode::Record {
-        if experimental_fused_qkv_projection_enabled() {
+        if experimental_fused_qkv_projection_enabled() && !fused_qkv_projection_record_ok() {
             return Err(pg_core::PgError::InvalidOp(
-                "record mode refuses PG_GPU_FUSED_QKV_PROJ because the packed QKV projection path is still experimental and has not passed BF16 parity".into(),
+                "record mode refuses PG_GPU_FUSED_QKV_PROJ unless PG_GPU_FUSED_QKV_PROJ_RECORD_OK=1; promote the packed QKV path only after the BF16 parity and record-shaped timing gates pass".into(),
             ));
         }
         if run_spec.train.validation_data_pattern.is_none() {
@@ -4284,6 +5035,40 @@ fn flatten_params_into(model: &GptModel, flat: &mut [f32]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn with_tiled_output_ce_env<T>(
+        enabled: Option<&str>,
+        tile_vocab: Option<&str>,
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let _guard = env_lock().lock().expect("env lock poisoned");
+        let old_enabled = std::env::var("PG_GPU_TILED_OUTPUT_CE").ok();
+        let old_tile = std::env::var("PG_GPU_OUTPUT_CE_TILE_VOCAB").ok();
+        match enabled {
+            Some(value) => unsafe { std::env::set_var("PG_GPU_TILED_OUTPUT_CE", value) },
+            None => unsafe { std::env::remove_var("PG_GPU_TILED_OUTPUT_CE") },
+        }
+        match tile_vocab {
+            Some(value) => unsafe { std::env::set_var("PG_GPU_OUTPUT_CE_TILE_VOCAB", value) },
+            None => unsafe { std::env::remove_var("PG_GPU_OUTPUT_CE_TILE_VOCAB") },
+        }
+        let out = f();
+        match old_enabled {
+            Some(value) => unsafe { std::env::set_var("PG_GPU_TILED_OUTPUT_CE", value) },
+            None => unsafe { std::env::remove_var("PG_GPU_TILED_OUTPUT_CE") },
+        }
+        match old_tile {
+            Some(value) => unsafe { std::env::set_var("PG_GPU_OUTPUT_CE_TILE_VOCAB", value) },
+            None => unsafe { std::env::remove_var("PG_GPU_OUTPUT_CE_TILE_VOCAB") },
+        }
+        out
+    }
 
     #[test]
     fn record_requires_distributed_backend() {
@@ -4489,9 +5274,11 @@ mod tests {
         spec.eval.adaptation_backend = EvalAdaptationBackend::GpuLoraPhased;
         let gaps = frontier_record_gaps(&spec);
         if cudnn_frontend_sdpa_available() {
-            assert_eq!(gaps.len(), 2, "{gaps:?}");
+            assert!(
+                gaps.iter().any(|gap| gap.contains("prepacked BF16 Q/K/V")),
+                "{gaps:?}"
+            );
         } else {
-            assert_eq!(gaps.len(), 3, "{gaps:?}");
             assert!(
                 gaps.iter()
                     .any(|gap| gap.contains("unavailable at build time")),
@@ -4507,6 +5294,48 @@ mod tests {
                 .any(|gap| gap.contains("full [batch_tokens, vocab] logits")),
             "{gaps:?}"
         );
+        assert!(
+            gaps.iter()
+                .any(|gap| gap.contains("bridges BF16 attention output back to F32")),
+            "{gaps:?}"
+        );
+    }
+
+    #[test]
+    fn frontier_gap_detector_requires_polar_express_muon() {
+        let old_gpu_profile = std::env::var("PG_GPU_MUON_NS_PROFILE").ok();
+        let old_profile = std::env::var("PG_MUON_NS_PROFILE").ok();
+
+        unsafe {
+            std::env::set_var("PG_GPU_MUON_NS_PROFILE", "simple");
+            std::env::remove_var("PG_MUON_NS_PROFILE");
+        }
+        let mut spec = RunSpec::for_family(pg_model::VariantFamily::HybridCompetitiveSp8192);
+        spec.train.distributed_optimizer_backend = DistributedOptimizerBackend::ShardedParallelMuon;
+        spec.eval.adaptation_backend = EvalAdaptationBackend::GpuLoraPhased;
+        let gaps = frontier_record_gaps(&spec);
+        assert!(
+            gaps.iter().any(|gap| gap.contains("Polar Express")),
+            "legacy/simple NS should remain a frontier record gap: {gaps:?}"
+        );
+
+        unsafe {
+            std::env::set_var("PG_GPU_MUON_NS_PROFILE", "polar_express");
+        }
+        let gaps = frontier_record_gaps(&spec);
+        assert!(
+            !gaps.iter().any(|gap| gap.contains("Polar Express")),
+            "Polar Express profile should satisfy the Muon coefficient gate: {gaps:?}"
+        );
+
+        match old_gpu_profile {
+            Some(value) => unsafe { std::env::set_var("PG_GPU_MUON_NS_PROFILE", value) },
+            None => unsafe { std::env::remove_var("PG_GPU_MUON_NS_PROFILE") },
+        }
+        match old_profile {
+            Some(value) => unsafe { std::env::set_var("PG_MUON_NS_PROFILE", value) },
+            None => unsafe { std::env::remove_var("PG_MUON_NS_PROFILE") },
+        }
     }
 
     #[test]
@@ -4602,6 +5431,27 @@ mod tests {
             "{json}"
         );
         assert!(
+            json.contains("\"record_host_batch_u32_preload\":true"),
+            "{json}"
+        );
+        assert!(
+            json.contains("\"muon_newton_schulz_profile\":\"polar_express\""),
+            "{json}"
+        );
+        assert!(
+            json.contains("\"polar_express_newton_schulz\":true"),
+            "{json}"
+        );
+        assert!(
+            json.contains("\"gpu_resident_data_sampler\":false"),
+            "{json}"
+        );
+        assert!(
+            json.contains("\"gpu_lora_prefix_doc_ttt_schedule\":false"),
+            "{json}"
+        );
+        assert!(json.contains("\"gpu_lora_prefix_docs\":2000"), "{json}");
+        assert!(
             json.contains("\"timing_backend\":\"host_wallclock_cuda_boundary\""),
             "{json}"
         );
@@ -4649,9 +5499,114 @@ mod tests {
             "{json}"
         );
         assert!(json.contains("\"qkv_dx_beta_accum\":false"), "{json}");
+        assert!(json.contains("\"bf16_qkv_dx_output\":false"), "{json}");
         assert!(
             json.contains("\"direct_saved_layer_activations\":false"),
             "{json}"
+        );
+    }
+
+    #[test]
+    fn record_audit_treats_full_vocab_output_tile_as_full_logits() {
+        with_tiled_output_ce_env(Some("1"), Some("8192"), || {
+            let mut spec = RunSpec::default();
+            spec.train.backend = TrainBackend::CudaDistributed;
+            spec.train.world_size = 8;
+            spec.train.seq_len = 2048;
+            spec.train.batch_tokens = 786_432;
+            spec.train.distributed_optimizer_backend =
+                DistributedOptimizerBackend::ShardedParallelMuon;
+            spec.model.compute_precision = ModelComputePrecision::Bf16TensorCore;
+            spec.model.vocab_size = 8192;
+            assert!(tiled_output_cross_entropy_enabled_for_audit(&spec));
+            assert!(output_path_materializes_full_logits_for_audit(&spec));
+            assert_eq!(
+                output_loss_backend_for_audit(&spec),
+                "full_vocab_tile_repeated_gemm"
+            );
+            assert!(!production_fused_output_projection_ce_enabled_for_audit(
+                &spec
+            ));
+        });
+    }
+
+    #[test]
+    fn record_audit_treats_sub_vocab_output_tile_as_no_full_logits() {
+        with_tiled_output_ce_env(Some("1"), Some("1024"), || {
+            let mut spec = RunSpec::default();
+            spec.train.backend = TrainBackend::CudaDistributed;
+            spec.train.world_size = 8;
+            spec.train.seq_len = 2048;
+            spec.train.batch_tokens = 786_432;
+            spec.train.distributed_optimizer_backend =
+                DistributedOptimizerBackend::ShardedParallelMuon;
+            spec.model.compute_precision = ModelComputePrecision::Bf16TensorCore;
+            spec.model.vocab_size = 8192;
+            assert!(tiled_output_cross_entropy_enabled_for_audit(&spec));
+            assert!(!output_path_materializes_full_logits_for_audit(&spec));
+            assert_eq!(output_loss_backend_for_audit(&spec), "tiled_repeated_gemm");
+            assert!(!production_fused_output_projection_ce_enabled_for_audit(
+                &spec
+            ));
+        });
+    }
+
+    #[test]
+    fn record_audit_labels_bf16_full_logits_as_intermediate_path() {
+        let _guard = env_lock().lock().expect("env lock poisoned");
+        let old_tiled = std::env::var("PG_GPU_TILED_OUTPUT_CE").ok();
+        let old_bf16_logits = std::env::var("PG_GPU_BF16_LOGITS").ok();
+        unsafe {
+            std::env::set_var("PG_GPU_TILED_OUTPUT_CE", "0");
+            std::env::set_var("PG_GPU_BF16_LOGITS", "1");
+        }
+
+        let mut spec = RunSpec::default();
+        spec.train.backend = TrainBackend::CudaDistributed;
+        spec.train.world_size = 8;
+        spec.train.seq_len = 2048;
+        spec.train.batch_tokens = 786_432;
+        spec.train.distributed_optimizer_backend = DistributedOptimizerBackend::ShardedParallelMuon;
+        spec.model.compute_precision = ModelComputePrecision::Bf16TensorCore;
+        spec.model.vocab_size = 8192;
+
+        assert!(bf16_output_logits_enabled_for_audit(&spec));
+        assert!(output_path_materializes_full_logits_for_audit(&spec));
+        assert_eq!(
+            output_loss_backend_for_audit(&spec),
+            "full_logits_bf16_single_gemm"
+        );
+        assert!(!production_fused_output_projection_ce_enabled_for_audit(
+            &spec
+        ));
+
+        match old_tiled {
+            Some(value) => unsafe { std::env::set_var("PG_GPU_TILED_OUTPUT_CE", value) },
+            None => unsafe { std::env::remove_var("PG_GPU_TILED_OUTPUT_CE") },
+        }
+        match old_bf16_logits {
+            Some(value) => unsafe { std::env::set_var("PG_GPU_BF16_LOGITS", value) },
+            None => unsafe { std::env::remove_var("PG_GPU_BF16_LOGITS") },
+        }
+    }
+
+    #[test]
+    fn frontier_audit_requires_smear_gate_document_boundary() {
+        let mut spec = RunSpec::default();
+        spec.model.smear_gate = true;
+        spec.model.smear_gate_boundary_token_id = Some(1);
+
+        let gaps = frontier_record_gaps(&spec);
+        assert!(
+            !gaps.iter().any(|gap| gap.contains("SmearGate must be BOS")),
+            "boundary-aware SmearGate should not be reported as a leakage gap: {gaps:?}"
+        );
+
+        spec.model.smear_gate_boundary_token_id = None;
+        let gaps = frontier_record_gaps(&spec);
+        assert!(
+            gaps.iter().any(|gap| gap.contains("SmearGate must be BOS")),
+            "unmasked SmearGate must be a frontier record gap: {gaps:?}"
         );
     }
 

@@ -82,6 +82,20 @@ unsafe extern "C" {
         head_dim: i32,
     ) -> i32;
 
+    fn run_cudnn_sdpa_bf16_forward_with_stats_prepacked_bf16_only(
+        stream: *mut c_void,
+        q_bf16: u64,
+        k_bf16: u64,
+        v_bf16: u64,
+        stats: u64,
+        out_bf16: u64,
+        batch_tokens: i32,
+        seq_len: i32,
+        num_heads: i32,
+        num_kv_heads: i32,
+        head_dim: i32,
+    ) -> i32;
+
     fn run_cudnn_sdpa_bf16_f32_backward(
         stream: *mut c_void,
         q: u64,
@@ -484,6 +498,63 @@ impl CudnnFrontendAttention {
                 k_bf16,
                 v_bf16,
                 out,
+                stats,
+                out_bf16,
+                batch_tokens,
+                seq_len,
+                num_heads,
+                num_kv_heads,
+                head_dim,
+            );
+            Err(PgError::InvalidOp(
+                "cuDNN frontend SDPA backend was not compiled for this build".into(),
+            ))
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn forward_with_stats_prepacked_bf16_only(
+        &self,
+        q_bf16: u64,
+        k_bf16: u64,
+        v_bf16: u64,
+        stats: u64,
+        out_bf16: u64,
+        batch_tokens: usize,
+        seq_len: usize,
+        num_heads: usize,
+        num_kv_heads: usize,
+        head_dim: usize,
+    ) -> PgResult<()> {
+        #[cfg(has_cudnn_frontend_sdpa)]
+        unsafe {
+            let status = run_cudnn_sdpa_bf16_forward_with_stats_prepacked_bf16_only(
+                self.stream.cu_stream() as *mut c_void,
+                q_bf16,
+                k_bf16,
+                v_bf16,
+                stats,
+                out_bf16,
+                batch_tokens as i32,
+                seq_len as i32,
+                num_heads as i32,
+                num_kv_heads as i32,
+                head_dim as i32,
+            );
+            if status != 0 {
+                return Err(PgError::InvalidOp(format!(
+                    "cuDNN frontend SDPA forward_with_stats_prepacked_bf16_only failed with status code {}",
+                    status
+                )));
+            }
+            Ok(())
+        }
+        #[cfg(not(has_cudnn_frontend_sdpa))]
+        {
+            let _ = (
+                q_bf16,
+                k_bf16,
+                v_bf16,
                 stats,
                 out_bf16,
                 batch_tokens,

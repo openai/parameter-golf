@@ -11,6 +11,8 @@ use std::sync::Arc;
 use cudarc::driver::{CudaSlice, CudaStream, DevicePtr, DevicePtrMut, DeviceSlice, SyncOnDrop};
 #[cfg(feature = "cuda")]
 use cudarc::nccl::{Comm, ReduceOp};
+#[cfg(feature = "cuda")]
+use half::bf16;
 
 #[cfg(feature = "cuda")]
 use crate::{GpuTensor, PgError, PgResult};
@@ -23,7 +25,25 @@ struct RawF32Buffer {
 }
 
 #[cfg(feature = "cuda")]
+struct RawBf16Buffer {
+    ptr: u64,
+    len: usize,
+    stream: Arc<CudaStream>,
+}
+
+#[cfg(feature = "cuda")]
 impl DeviceSlice<f32> for RawF32Buffer {
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn stream(&self) -> &Arc<CudaStream> {
+        &self.stream
+    }
+}
+
+#[cfg(feature = "cuda")]
+impl DeviceSlice<bf16> for RawBf16Buffer {
     fn len(&self) -> usize {
         self.len
     }
@@ -46,7 +66,27 @@ impl DevicePtr<f32> for RawF32Buffer {
 }
 
 #[cfg(feature = "cuda")]
+impl DevicePtr<bf16> for RawBf16Buffer {
+    fn device_ptr<'a>(
+        &'a self,
+        _stream: &'a CudaStream,
+    ) -> (cudarc::driver::sys::CUdeviceptr, SyncOnDrop<'a>) {
+        (self.ptr, SyncOnDrop::Record(None))
+    }
+}
+
+#[cfg(feature = "cuda")]
 impl DevicePtrMut<f32> for RawF32Buffer {
+    fn device_ptr_mut<'a>(
+        &'a mut self,
+        _stream: &'a CudaStream,
+    ) -> (cudarc::driver::sys::CUdeviceptr, SyncOnDrop<'a>) {
+        (self.ptr, SyncOnDrop::Record(None))
+    }
+}
+
+#[cfg(feature = "cuda")]
+impl DevicePtrMut<bf16> for RawBf16Buffer {
     fn device_ptr_mut<'a>(
         &'a mut self,
         _stream: &'a CudaStream,
@@ -187,6 +227,45 @@ impl NcclComm {
             .reduce_scatter::<_, _, f32>(&raw_send, &mut raw_recv, &ReduceOp::Sum)
             .map(|_| ())
             .map_err(|e| PgError::Nccl(format!("reduce_scatter_sum_tensor_f32 failed: {e:?}")))
+    }
+
+    pub fn reduce_scatter_sum_tensor_bf16(
+        &self,
+        send: &GpuTensor,
+        recv: &mut GpuTensor,
+    ) -> PgResult<()> {
+        if send.dtype() != crate::DType::BF16 || recv.dtype() != crate::DType::BF16 {
+            return Err(PgError::Nccl(format!(
+                "reduce_scatter_sum_tensor_bf16 requires BF16 tensors, got {:?} -> {:?}",
+                send.dtype(),
+                recv.dtype()
+            )));
+        }
+        if send.numel() != recv.numel() * self.world_size {
+            return Err(PgError::Nccl(format!(
+                "reduce_scatter_sum_tensor_bf16 shape mismatch: send elements {} must equal recv elements {} * world_size {}",
+                send.numel(),
+                recv.numel(),
+                self.world_size
+            )));
+        }
+        let stream = self.comm()?.stream();
+        let send_ptr = send.cu_ptr(&stream)?;
+        let recv_ptr = recv.cu_ptr(&stream)?;
+        let raw_send = RawBf16Buffer {
+            ptr: send_ptr,
+            len: send.numel(),
+            stream: stream.clone(),
+        };
+        let mut raw_recv = RawBf16Buffer {
+            ptr: recv_ptr,
+            len: recv.numel(),
+            stream,
+        };
+        self.comm()?
+            .reduce_scatter::<_, _, bf16>(&raw_send, &mut raw_recv, &ReduceOp::Sum)
+            .map(|_| ())
+            .map_err(|e| PgError::Nccl(format!("reduce_scatter_sum_tensor_bf16 failed: {e:?}")))
     }
 
     pub fn all_gather_tensor_f32(&self, send: &GpuTensor, recv: &mut GpuTensor) -> PgResult<()> {

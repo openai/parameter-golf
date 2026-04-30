@@ -1096,25 +1096,39 @@ impl GptModel {
         // where x_post_norm is the hidden state after initial RMSNorm
         {
             let x_post_norm = &cache.x_post_norm;
-            // Reconstruct x_prev (shifted x_post_norm)
-            let mut x_prev = vec![0.0f32; t * d];
-            for i in 1..t {
-                x_prev[i * d..(i + 1) * d].copy_from_slice(&x_post_norm[(i - 1) * d..i * d]);
-            }
-
             let mut grad_x_smear = vec![0.0f32; t * d];
             let mut grad_x_prev = vec![0.0f32; t * d];
-            pg_kernels::smear_gate::smear_gate_backward(
-                x_post_norm,
-                &x_prev,
-                &self.smear_gate,
-                &grad_x,
-                &mut grad_x_smear,
-                &mut grad_x_prev,
-                &mut grads.smear_gate,
-                t,
-                d,
-            );
+            if let Some(boundary) = self.config.smear_gate_boundary_token_id {
+                pg_kernels::smear_gate::smear_gate_backward_boundary(
+                    x_post_norm,
+                    input_ids,
+                    &self.smear_gate,
+                    &grad_x,
+                    &mut grad_x_smear,
+                    &mut grad_x_prev,
+                    &mut grads.smear_gate,
+                    t,
+                    d,
+                    boundary,
+                );
+            } else {
+                // Reconstruct x_prev (shifted x_post_norm)
+                let mut x_prev = vec![0.0f32; t * d];
+                for i in 1..t {
+                    x_prev[i * d..(i + 1) * d].copy_from_slice(&x_post_norm[(i - 1) * d..i * d]);
+                }
+                pg_kernels::smear_gate::smear_gate_backward(
+                    x_post_norm,
+                    &x_prev,
+                    &self.smear_gate,
+                    &grad_x,
+                    &mut grad_x_smear,
+                    &mut grad_x_prev,
+                    &mut grads.smear_gate,
+                    t,
+                    d,
+                );
+            }
 
             // grad_x_prev flows to shifted positions: grad_x_prev[i] → grad_x_post_norm[i-1]
             // Combine: grad_x_post_norm[i] = grad_x_smear[i] + grad_x_prev[i+1]
@@ -1314,6 +1328,7 @@ mod tests {
             sparse_attn_gate_enabled: false,
             sparse_attn_gate_width: 12,
             sparse_attn_gate_scale: 1.0,
+            smear_gate_boundary_token_id: Some(1),
             vrl_enabled: false,
             ve_enabled: false,
             ve_dim: 4,

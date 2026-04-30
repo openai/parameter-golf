@@ -15,7 +15,7 @@ xsa_last_n = 11
 skip_topology = "unet"
 smear_gate = true
 logit_softcap = 30.0
-qk_gain_init = 5.0
+qk_gain_init = 5.25
 ln_scale = true
 tie_embeddings = true
 
@@ -25,9 +25,9 @@ vocab_size = 3072
 dim = 112
 
 [model.value_embedding]
-enabled = true
+enabled = false
 dim = 128
-layers = [9, 10]
+layers = []
 
 [model.recurrence]
 enabled = true

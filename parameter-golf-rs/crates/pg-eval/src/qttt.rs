@@ -438,6 +438,7 @@ mod tests {
             sparse_attn_gate_enabled: false,
             sparse_attn_gate_width: 12,
             sparse_attn_gate_scale: 1.0,
+            smear_gate_boundary_token_id: Some(1),
             vrl_enabled: false,
             ve_enabled: false,
             ve_dim: 4,

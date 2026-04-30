@@ -32,6 +32,67 @@ fn batched_muon_ns_enabled() -> bool {
 }
 
 #[cfg(feature = "cuda")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MuonNsProfile {
+    Simple,
+    Quintic,
+    PolarExpress,
+}
+
+#[cfg(feature = "cuda")]
+impl MuonNsProfile {
+    fn from_env() -> Self {
+        let raw = std::env::var("PG_GPU_MUON_NS_PROFILE")
+            .or_else(|_| std::env::var("PG_MUON_NS_PROFILE"))
+            .unwrap_or_else(|_| "polar_express".to_string());
+        match raw.to_ascii_lowercase().as_str() {
+            "simple" | "legacy" | "ns5" => Self::Simple,
+            "quintic" | "modded_nanogpt" => Self::Quintic,
+            "polar" | "polar_express" | "polarns" | "polar_ns" => Self::PolarExpress,
+            _ => Self::PolarExpress,
+        }
+    }
+
+    fn coeff(self, step: usize) -> (f32, f32, f32) {
+        match self {
+            Self::Simple => SIMPLE_NS[0],
+            Self::Quintic => QUINTIC_NS[step % QUINTIC_NS.len()],
+            // Polar Express is designed with a safety-factor sequence; once the
+            // configured NS step count exceeds the table, repeat the stabilizing
+            // tail instead of cycling back to the aggressive first step.
+            Self::PolarExpress => {
+                let idx = step.min(POLAR_EXPRESS_NS.len() - 1);
+                POLAR_EXPRESS_NS[idx]
+            }
+        }
+    }
+}
+
+#[cfg(feature = "cuda")]
+const SIMPLE_NS: [(f32, f32, f32); 1] = [(3.4445, -4.7750, 2.0315)];
+
+#[cfg(feature = "cuda")]
+const QUINTIC_NS: [(f32, f32, f32); 5] = [
+    (4.0848, -6.8946, 2.9270),
+    (3.9505, -6.3029, 2.6377),
+    (3.7418, -5.5913, 2.3037),
+    (2.8769, -3.1427, 1.2046),
+    (2.8366, -3.0525, 1.2012),
+];
+
+#[cfg(feature = "cuda")]
+const POLAR_EXPRESS_NS: [(f32, f32, f32); 8] = [
+    (8.2051, -22.9019, 16.4607),
+    (4.0664, -2.8612, 0.5184),
+    (3.9096, -2.8234, 0.5250),
+    (3.2856, -2.4153, 0.4853),
+    (2.2779, -1.6198, 0.3985),
+    (1.8726, -1.2307, 0.3585),
+    (1.8564, -1.2132, 0.3568),
+    (1.8750, -1.2500, 0.3750),
+];
+
+#[cfg(feature = "cuda")]
 #[derive(Clone, Copy, Debug)]
 pub struct AdamWHyper {
     pub lr: f32,
@@ -111,6 +172,7 @@ pub struct GpuMuon {
     pub nesterov: bool,
     pub weight_decay: f32,
     pub ns_steps: usize,
+    ns_profile: MuonNsProfile,
     pub bank_states: Vec<GpuMuonBankState>,
 }
 
@@ -138,6 +200,7 @@ impl GpuMuon {
             nesterov,
             weight_decay,
             ns_steps,
+            ns_profile: MuonNsProfile::from_env(),
             bank_states,
         })
     }
@@ -149,10 +212,6 @@ impl GpuMuon {
         param: &GpuTensor,
         grad: &GpuTensor,
     ) -> PgResult<()> {
-        const NS_A: f32 = 3.4445;
-        const NS_B: f32 = -4.7750;
-        const NS_C: f32 = 2.0315;
-
         let state = self
             .bank_states
             .get_mut(bank_idx)
@@ -221,7 +280,8 @@ impl GpuMuon {
         )?;
 
         if batched_muon_ns_enabled() {
-            for _ in 0..self.ns_steps {
+            for ns_step in 0..self.ns_steps {
+                let (ns_a_coeff, ns_b_coeff, ns_c_coeff) = self.ns_profile.coeff(ns_step);
                 if state.rows <= state.cols {
                     unsafe {
                         self.gemm.batched_matmul_f32_bt(
@@ -254,13 +314,13 @@ impl GpuMuon {
                     )?;
                     kernels.scale_inplace(
                         CudaPtr(ns_b.cu_ptr(kernels.stream())?),
-                        NS_B,
+                        ns_b_coeff,
                         ns_b.numel() as u32,
                     )?;
                     kernels.add_scaled_fwd(
                         CudaPtr(ns_b.cu_ptr(kernels.stream())?),
                         CudaPtr(ns_aa.cu_ptr(kernels.stream())?),
-                        NS_C,
+                        ns_c_coeff,
                         ns_b.numel() as u32,
                     )?;
                     unsafe {
@@ -308,13 +368,13 @@ impl GpuMuon {
                     )?;
                     kernels.scale_inplace(
                         CudaPtr(ns_b.cu_ptr(kernels.stream())?),
-                        NS_B,
+                        ns_b_coeff,
                         ns_b.numel() as u32,
                     )?;
                     kernels.add_scaled_fwd(
                         CudaPtr(ns_b.cu_ptr(kernels.stream())?),
                         CudaPtr(ns_aa.cu_ptr(kernels.stream())?),
-                        NS_C,
+                        ns_c_coeff,
                         ns_b.numel() as u32,
                     )?;
                     unsafe {
@@ -333,7 +393,7 @@ impl GpuMuon {
                 }
                 kernels.scale_inplace(
                     CudaPtr(ns_x.cu_ptr(kernels.stream())?),
-                    NS_A,
+                    ns_a_coeff,
                     ns_x.numel() as u32,
                 )?;
                 kernels.add_scaled_fwd(
@@ -344,7 +404,8 @@ impl GpuMuon {
                 )?;
             }
         } else {
-            for _ in 0..self.ns_steps {
+            for ns_step in 0..self.ns_steps {
+                let (ns_a_coeff, ns_b_coeff, ns_c_coeff) = self.ns_profile.coeff(ns_step);
                 for bi in 0..active_batch {
                     let x_i = ns_x.slice_first(bi)?;
                     let a_i = ns_a.slice_first(bi)?;
@@ -382,13 +443,13 @@ impl GpuMuon {
                         )?;
                         kernels.scale_inplace(
                             CudaPtr(b_i.cu_ptr(kernels.stream())?),
-                            NS_B,
+                            ns_b_coeff,
                             b_i.numel() as u32,
                         )?;
                         kernels.add_scaled_fwd(
                             CudaPtr(b_i.cu_ptr(kernels.stream())?),
                             CudaPtr(aa_i.cu_ptr(kernels.stream())?),
-                            NS_C,
+                            ns_c_coeff,
                             b_i.numel() as u32,
                         )?;
                         unsafe {
@@ -433,13 +494,13 @@ impl GpuMuon {
                         )?;
                         kernels.scale_inplace(
                             CudaPtr(b_i.cu_ptr(kernels.stream())?),
-                            NS_B,
+                            ns_b_coeff,
                             b_i.numel() as u32,
                         )?;
                         kernels.add_scaled_fwd(
                             CudaPtr(b_i.cu_ptr(kernels.stream())?),
                             CudaPtr(aa_i.cu_ptr(kernels.stream())?),
-                            NS_C,
+                            ns_c_coeff,
                             b_i.numel() as u32,
                         )?;
                         unsafe {
@@ -458,7 +519,7 @@ impl GpuMuon {
 
                     kernels.scale_inplace(
                         CudaPtr(x_i.cu_ptr(kernels.stream())?),
-                        NS_A,
+                        ns_a_coeff,
                         x_i.numel() as u32,
                     )?;
                     kernels.add_scaled_fwd(
@@ -508,7 +569,7 @@ impl GpuOptimizer {
                 "scratch_sum_sq must be an F32 scalar tensor".into(),
             ));
         }
-        scratch_sum_sq.copy_from_host_bytes(bytemuck::bytes_of(&0.0f32))?;
+        kernels.scale_inplace(CudaPtr(scratch_sum_sq.cu_ptr(kernels.stream())?), 0.0, 1)?;
         for grad in grads {
             if grad.dtype() != DType::F32 {
                 return Err(PgError::InvalidOp(format!(

@@ -753,6 +753,67 @@ int run_cudnn_sdpa_bf16_f32_forward_with_stats_prepacked_bf16(
     return 0;
 }
 
+int run_cudnn_sdpa_bf16_forward_with_stats_prepacked_bf16_only(
+    void* stream_ptr,
+    uint64_t q_bf16_ptr,
+    uint64_t k_bf16_ptr,
+    uint64_t v_bf16_ptr,
+    uint64_t stats_ptr,
+    uint64_t out_bf16_ptr,
+    int tokens,
+    int seq_len,
+    int num_heads,
+    int num_kv_heads,
+    int head_dim
+) {
+    if (!valid_shape(tokens, seq_len, num_heads, num_kv_heads, head_dim)) {
+        return 1;
+    }
+    if (q_bf16_ptr == 0 || k_bf16_ptr == 0 || v_bf16_ptr == 0 || out_bf16_ptr == 0) {
+        return 3;
+    }
+    int device = 0;
+    cudaError_t dev_err = cudaGetDevice(&device);
+    if (dev_err != cudaSuccess) {
+        return 1200 + static_cast<int>(dev_err);
+    }
+    Key key{device, tokens / seq_len, seq_len, num_heads, num_kv_heads, head_dim};
+    auto cache = get_cache(key);
+    std::lock_guard<std::mutex> cache_lock(cache->mutex);
+    int status = ensure_cache(*cache, key);
+    if (status != 0) {
+        return status;
+    }
+
+    cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
+    cudnnStatus_t stream_status = cudnnSetStream(cache->handle, stream);
+    if (stream_status != CUDNN_STATUS_SUCCESS) {
+        return 2500 + static_cast<int>(stream_status);
+    }
+
+    void* q_bf16 = reinterpret_cast<void*>(q_bf16_ptr);
+    void* k_bf16 = reinterpret_cast<void*>(k_bf16_ptr);
+    void* v_bf16 = reinterpret_cast<void*>(v_bf16_ptr);
+    void* o_bf16 = reinterpret_cast<void*>(out_bf16_ptr);
+    void* stats_storage =
+        stats_ptr == 0 ? cache->stats.ptr : reinterpret_cast<void*>(stats_ptr);
+
+    std::unordered_map<fe::graph::Tensor_attributes::uid_t, void*> pack = {
+        {Q_UID, q_bf16},
+        {K_UID, k_bf16},
+        {V_UID, v_bf16},
+        {O_UID, o_bf16},
+        {STATS_UID, stats_storage},
+    };
+    auto exec_status = cache->fwd_graph->execute(cache->handle, pack, cache->workspace.ptr);
+    if (!exec_status.is_good()) {
+        cache->has_forward_stats = false;
+        return 3300;
+    }
+    cache->has_forward_stats = stats_ptr == 0;
+    return 0;
+}
+
 int run_cudnn_sdpa_bf16_f32_backward_with_stats(
     void* stream_ptr,
     uint64_t q_ptr,

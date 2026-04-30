@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Instant;
 
 use pg_model::{EvalAdaptationBackend, ExecutionPlan, GptModel, RunSpec, VariantFamily};
 
@@ -89,9 +90,9 @@ fn main() {
         println!("submission_total_bytes={total_bytes}");
         println!(
             "artifact_budget_ok={}",
-            plan.artifact_budget_ok(total_bytes)
+            plan.submission_budget_ok(code_bytes, bytes)
         );
-        if leaderboard_mode && !plan.artifact_budget_ok(total_bytes) {
+        if leaderboard_mode && !plan.submission_budget_ok(code_bytes, bytes) {
             fail(&format!(
                 "leaderboard eval artifact budget failed: artifact_bytes={bytes} code_bytes={code_bytes} total_bytes={total_bytes} limit={}",
                 plan.run_spec.quant.target_artifact_bytes
@@ -129,9 +130,11 @@ fn main() {
             .eval_seq_len
             .min(tokens.len().saturating_sub(1))
             .max(1);
+        let eval_t0 = Instant::now();
+        let eval_world_size = eval_gpu_world_size(&run_spec, leaderboard_mode);
         let (loss, bpb) =
             if run_spec.eval.adaptation_backend == EvalAdaptationBackend::GpuLoraPhased {
-                eval_gpu_lora_phased(&model, &plan, &tokens, &target_bytes)
+                eval_gpu_lora_phased(&model, &plan, &tokens, &target_bytes, eval_world_size)
                     .expect("GPU LoRA/phased TTT eval failed")
             } else if run_spec.eval.qttt {
                 let mut cfg = pg_eval::qttt::QttTConfig::paper_default(seq_len);
@@ -148,6 +151,18 @@ fn main() {
                     seq_len,
                 )
             };
+        let eval_wallclock_seconds = eval_t0.elapsed().as_secs_f64();
+        println!("eval_wallclock_seconds={eval_wallclock_seconds:.3}");
+        let max_eval_wallclock_seconds = leaderboard_eval_max_wallclock_seconds();
+        println!("eval_max_wallclock_seconds={max_eval_wallclock_seconds:.3}");
+        if leaderboard_mode
+            && max_eval_wallclock_seconds > 0.0
+            && eval_wallclock_seconds > max_eval_wallclock_seconds
+        {
+            fail(&format!(
+                "leaderboard eval exceeded wallclock budget: eval_wallclock_seconds={eval_wallclock_seconds:.3} max_eval_wallclock_seconds={max_eval_wallclock_seconds:.3}"
+            ));
+        }
         println!("eval_tokens={}", tokens.len());
         println!("eval_loss={loss:.6}");
         println!(
@@ -162,7 +177,7 @@ fn main() {
         );
         println!("eval_bpb={bpb:.6}");
         println!(
-            "eval_audit_json={{\"leaderboard_mode\":{},\"full_validation\":{},\"eval_tokens\":{},\"legal_score_first\":{},\"eval_adaptation_backend\":\"{:?}\",\"bpb_kind\":\"{}\",\"placeholder_bpb\":{},\"artifact_budget_checked\":{}}}",
+            "eval_audit_json={{\"leaderboard_mode\":{},\"full_validation\":{},\"eval_tokens\":{},\"legal_score_first\":{},\"eval_adaptation_backend\":\"{:?}\",\"bpb_kind\":\"{}\",\"placeholder_bpb\":{},\"artifact_budget_checked\":{},\"eval_wallclock_seconds\":{:.3},\"eval_max_wallclock_seconds\":{:.3}}}",
             leaderboard_mode,
             max_tokens.is_none(),
             tokens.len(),
@@ -178,10 +193,35 @@ fn main() {
             run_spec.eval.caseops_byte_sidecar_pattern.is_none()
                 && run_spec.eval.tokenizer_vocab_path.is_none(),
             artifact_bytes.is_some(),
+            eval_wallclock_seconds,
+            max_eval_wallclock_seconds,
         );
+        println!("eval_gpu_world_size={}", eval_world_size);
     } else {
         println!("eval_status=plan_only_no_validation_data");
     }
+}
+
+fn eval_gpu_world_size(run_spec: &RunSpec, leaderboard_mode: bool) -> usize {
+    if run_spec.eval.adaptation_backend == EvalAdaptationBackend::GpuLoraPhased {
+        if leaderboard_mode {
+            std::env::var("PG_EVAL_GPU_WORLD_SIZE")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(1)
+        } else {
+            1
+        }
+    } else {
+        0
+    }
+}
+
+fn leaderboard_eval_max_wallclock_seconds() -> f64 {
+    std::env::var("PG_EVAL_MAX_WALLCLOCK_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(600.0)
 }
 
 fn validate_leaderboard_eval_request(
@@ -220,6 +260,28 @@ fn leaderboard_eval_error(
     if !run_spec.eval.legal_score_first {
         return Some("leaderboard eval requires legal_score_first=true");
     }
+    if run_spec.eval.adaptation_backend == EvalAdaptationBackend::GpuLoraPhased
+        && run_spec.eval.phased_ttt_prefix_docs > 0
+        && run_spec.model.smear_gate_boundary_token_id.is_none()
+    {
+        return Some(
+            "leaderboard GPU LoRA/phased prefix-doc TTT requires model.smear_gate_boundary_token_id/BOS token",
+        );
+    }
+    if run_spec.eval.adaptation_backend == EvalAdaptationBackend::GpuLoraPhased
+        && eval_gpu_world_size(run_spec, leaderboard_mode) < run_spec.train.world_size.max(1)
+    {
+        return Some(
+            "leaderboard GPU LoRA/phased eval requires distributed eval across the configured H100 world_size; single-GPU eval is a development path only",
+        );
+    }
+    if run_spec.eval.adaptation_backend == EvalAdaptationBackend::GpuLoraPhased
+        && !ttt_score_mutation_guard_requested()
+    {
+        return Some(
+            "leaderboard GPU LoRA/phased eval requires PG_TTT_ASSERT_SCORE_NO_MUTATION=1 so score-before-update is runtime-audited",
+        );
+    }
     if run_spec.model.caseops.enabled && run_spec.model.caseops.byte_sidecar {
         if run_spec.eval.caseops_byte_sidecar_pattern.is_none() {
             return Some("leaderboard eval with CaseOps requires --caseops-byte-sidecar");
@@ -230,6 +292,16 @@ fn leaderboard_eval_error(
         );
     }
     None
+}
+
+fn ttt_score_mutation_guard_requested() -> bool {
+    matches!(
+        std::env::var("PG_TTT_ASSERT_SCORE_NO_MUTATION")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 fn eval_target_byte_counts(
@@ -259,9 +331,17 @@ fn eval_gpu_lora_phased(
     plan: &ExecutionPlan,
     tokens: &[u32],
     target_bytes: &[f32],
+    world_size: usize,
 ) -> pg_core::PgResult<(f64, f64)> {
     let cfg = pg_eval::gpu_lora_ttt::GpuLoraPhasedTttConfig::from_plan(plan, tokens.len());
-    pg_eval::gpu_lora_ttt::eval_gpu_lora_phased_ttt(model, plan, tokens, target_bytes, &cfg)
+    pg_eval::gpu_lora_ttt::eval_gpu_lora_phased_ttt_distributed(
+        model,
+        plan,
+        tokens,
+        target_bytes,
+        &cfg,
+        world_size,
+    )
 }
 
 #[cfg(not(feature = "cuda"))]
@@ -270,6 +350,7 @@ fn eval_gpu_lora_phased(
     _plan: &ExecutionPlan,
     _tokens: &[u32],
     _target_bytes: &[f32],
+    _world_size: usize,
 ) -> pg_core::PgResult<(f64, f64)> {
     Err(pg_core::PgError::InvalidOp(
         "eval_adaptation_backend=gpu_lora_phased requires pg-eval --features cuda".into(),
@@ -319,6 +400,12 @@ fn fail(message: &str) -> ! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn leaderboard_eval_requires_full_official_inputs() {
@@ -361,5 +448,112 @@ mod tests {
         );
         spec.eval.caseops_byte_sidecar_pattern = Some("/val_bytes/*.bin".to_string());
         assert_eq!(leaderboard_eval_error(&spec, true, None, true), None);
+    }
+
+    #[test]
+    fn leaderboard_eval_accepts_gpu_lora_prefix_doc_ttt_semantics() {
+        let _guard = env_lock().lock().expect("env lock poisoned");
+        let old_guard = std::env::var("PG_TTT_ASSERT_SCORE_NO_MUTATION").ok();
+        unsafe {
+            std::env::set_var("PG_TTT_ASSERT_SCORE_NO_MUTATION", "1");
+        }
+        let mut spec = RunSpec::for_family(VariantFamily::BaselineSp8192);
+        spec.train.validation_data_pattern = Some("/val/*.bin".to_string());
+        spec.eval.tokenizer_vocab_path = Some("/tok.vocab".to_string());
+        spec.eval.adaptation_backend = EvalAdaptationBackend::GpuLoraPhased;
+        spec.eval.phased_ttt_prefix_docs = 2000;
+        assert_eq!(leaderboard_eval_error(&spec, true, None, true), None);
+        spec.model.smear_gate_boundary_token_id = None;
+        assert_eq!(
+            leaderboard_eval_error(&spec, true, None, true),
+            Some(
+                "leaderboard GPU LoRA/phased prefix-doc TTT requires model.smear_gate_boundary_token_id/BOS token"
+            )
+        );
+        spec.model.smear_gate_boundary_token_id = Some(1);
+        spec.eval.phased_ttt_prefix_docs = 0;
+        assert_eq!(leaderboard_eval_error(&spec, true, None, true), None);
+
+        match old_guard {
+            Some(value) => unsafe { std::env::set_var("PG_TTT_ASSERT_SCORE_NO_MUTATION", value) },
+            None => unsafe { std::env::remove_var("PG_TTT_ASSERT_SCORE_NO_MUTATION") },
+        }
+    }
+
+    #[test]
+    fn leaderboard_eval_rejects_single_gpu_lora_when_train_world_size_is_multi_gpu() {
+        let _guard = env_lock().lock().expect("env lock poisoned");
+        let old_world_size = std::env::var("PG_EVAL_GPU_WORLD_SIZE").ok();
+        let old_guard = std::env::var("PG_TTT_ASSERT_SCORE_NO_MUTATION").ok();
+        unsafe {
+            std::env::remove_var("PG_EVAL_GPU_WORLD_SIZE");
+            std::env::set_var("PG_TTT_ASSERT_SCORE_NO_MUTATION", "1");
+        }
+
+        let mut spec = RunSpec::for_family(VariantFamily::BaselineSp8192);
+        spec.train.world_size = 8;
+        spec.train.validation_data_pattern = Some("/val/*.bin".to_string());
+        spec.eval.tokenizer_vocab_path = Some("/tok.vocab".to_string());
+        spec.eval.adaptation_backend = EvalAdaptationBackend::GpuLoraPhased;
+        spec.eval.phased_ttt_prefix_docs = 0;
+
+        assert_eq!(
+            leaderboard_eval_error(&spec, true, None, true),
+            Some(
+                "leaderboard GPU LoRA/phased eval requires distributed eval across the configured H100 world_size; single-GPU eval is a development path only"
+            )
+        );
+
+        unsafe {
+            std::env::set_var("PG_EVAL_GPU_WORLD_SIZE", "8");
+        }
+        assert_eq!(leaderboard_eval_error(&spec, true, None, true), None);
+
+        match old_world_size {
+            Some(value) => unsafe { std::env::set_var("PG_EVAL_GPU_WORLD_SIZE", value) },
+            None => unsafe { std::env::remove_var("PG_EVAL_GPU_WORLD_SIZE") },
+        }
+        match old_guard {
+            Some(value) => unsafe { std::env::set_var("PG_TTT_ASSERT_SCORE_NO_MUTATION", value) },
+            None => unsafe { std::env::remove_var("PG_TTT_ASSERT_SCORE_NO_MUTATION") },
+        }
+    }
+
+    #[test]
+    fn leaderboard_eval_requires_ttt_score_mutation_guard_for_gpu_lora() {
+        let _guard = env_lock().lock().expect("env lock poisoned");
+        let old_world_size = std::env::var("PG_EVAL_GPU_WORLD_SIZE").ok();
+        let old_guard = std::env::var("PG_TTT_ASSERT_SCORE_NO_MUTATION").ok();
+        unsafe {
+            std::env::set_var("PG_EVAL_GPU_WORLD_SIZE", "8");
+            std::env::remove_var("PG_TTT_ASSERT_SCORE_NO_MUTATION");
+        }
+
+        let mut spec = RunSpec::for_family(VariantFamily::BaselineSp8192);
+        spec.train.world_size = 8;
+        spec.train.validation_data_pattern = Some("/val/*.bin".to_string());
+        spec.eval.tokenizer_vocab_path = Some("/tok.vocab".to_string());
+        spec.eval.adaptation_backend = EvalAdaptationBackend::GpuLoraPhased;
+        spec.eval.phased_ttt_prefix_docs = 0;
+
+        assert_eq!(
+            leaderboard_eval_error(&spec, true, None, true),
+            Some(
+                "leaderboard GPU LoRA/phased eval requires PG_TTT_ASSERT_SCORE_NO_MUTATION=1 so score-before-update is runtime-audited"
+            )
+        );
+        unsafe {
+            std::env::set_var("PG_TTT_ASSERT_SCORE_NO_MUTATION", "1");
+        }
+        assert_eq!(leaderboard_eval_error(&spec, true, None, true), None);
+
+        match old_world_size {
+            Some(value) => unsafe { std::env::set_var("PG_EVAL_GPU_WORLD_SIZE", value) },
+            None => unsafe { std::env::remove_var("PG_EVAL_GPU_WORLD_SIZE") },
+        }
+        match old_guard {
+            Some(value) => unsafe { std::env::set_var("PG_TTT_ASSERT_SCORE_NO_MUTATION", value) },
+            None => unsafe { std::env::remove_var("PG_TTT_ASSERT_SCORE_NO_MUTATION") },
+        }
     }
 }

@@ -31,6 +31,7 @@ pub struct ModelConfig {
     pub sparse_attn_gate_enabled: bool,
     pub sparse_attn_gate_width: usize,
     pub sparse_attn_gate_scale: f32,
+    pub smear_gate_boundary_token_id: Option<u32>,
 
     // Value Residual Learning
     pub vrl_enabled: bool,
@@ -89,6 +90,7 @@ impl ModelConfig {
             sparse_attn_gate_enabled: false,
             sparse_attn_gate_width: 12,
             sparse_attn_gate_scale: 1.0,
+            smear_gate_boundary_token_id: Some(1),
 
             vrl_enabled: false, // value_residual flag (separate from VE)
             ve_enabled: true,

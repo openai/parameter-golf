@@ -1,6 +1,8 @@
-/// Model artifact export: quantize → serialize → compress → write.
+/// Model artifact export: quantize -> serialize -> compress -> write.
 ///
-/// Target: < 16MB for competition submission.
+/// This module reports compressed model bytes only. Record-mode submission
+/// validity is checked in `pg-train` with code bytes plus compressed model
+/// bytes, matching the official 16,000,000-byte budget.
 ///
 /// Strategy:
 ///   - 4 parameter banks: int6 quantization with GPTQ-lite clip search
@@ -203,9 +205,9 @@ pub fn export_model_with_spec(
         raw_buf.len() as f64 / artifact_size as f64,
     );
 
-    if artifact_size > 16_000_000 {
+    if artifact_size > quant_spec.target_artifact_bytes {
         eprintln!(
-            "WARNING: artifact exceeds 16,000,000-byte model budget ({:.2}MB decimal)",
+            "WARNING: compressed model artifact alone exceeds configured byte target ({:.2}MB decimal); final record validity still requires code_bytes + model_bytes below target",
             artifact_size as f64 / 1_000_000.0
         );
     }
@@ -1263,6 +1265,7 @@ mod tests {
             sparse_attn_gate_width: 12,
             sparse_attn_gate_scale: 1.0,
             vrl_enabled: false,
+            smear_gate_boundary_token_id: Some(1),
             ve_enabled: true,
             ve_dim: 8,
             ve_layers: vec![1],

@@ -294,6 +294,7 @@ pub struct ModelSpec {
     pub sparse_attn_gate: SparseAttnGateSpec,
     pub rope: RopeSpec,
     pub smear_gate: bool,
+    pub smear_gate_boundary_token_id: Option<u32>,
     pub logit_softcap: f32,
     pub qk_gain_init: f32,
     pub ln_scale: bool,
@@ -331,6 +332,7 @@ impl ModelSpec {
             sparse_attn_gate: SparseAttnGateSpec::default(),
             rope: RopeSpec::default(),
             smear_gate: true,
+            smear_gate_boundary_token_id: Some(1),
             logit_softcap: 30.0,
             qk_gain_init: 5.0,
             ln_scale: true,
@@ -353,6 +355,8 @@ impl ModelSpec {
             VariantFamily::HybridCompetitiveSp8192 => {
                 spec.xsa_last_n = spec.num_layers;
                 spec.qk_gain_init = 5.25;
+                spec.value_embedding.enabled = false;
+                spec.value_embedding.layers.clear();
                 spec.recurrence.enabled = true;
                 spec.recurrence.start_layer = 4;
                 spec.recurrence.repeat_layers = 2;
@@ -397,10 +401,15 @@ impl ModelSpec {
             sparse_attn_gate_enabled: self.sparse_attn_gate.enabled,
             sparse_attn_gate_width: self.sparse_attn_gate.width,
             sparse_attn_gate_scale: self.sparse_attn_gate.scale,
+            smear_gate_boundary_token_id: self.smear_gate_boundary_token_id,
             vrl_enabled: false,
             ve_enabled: self.value_embedding.enabled,
             ve_dim: self.value_embedding.dim,
-            ve_layers: self.value_embedding.layers.clone(),
+            ve_layers: if self.value_embedding.enabled {
+                self.value_embedding.layers.clone()
+            } else {
+                Vec::new()
+            },
             bigram_vocab_size: if self.bigram.enabled {
                 self.bigram.vocab_size
             } else {

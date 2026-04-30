@@ -76,6 +76,79 @@ impl TokenStream {
         Ok(result)
     }
 
+    /// Take `n` tokens into a reusable u32 buffer.
+    ///
+    /// Record-shaped Rust/CUDA runs immediately upload u32 token IDs, so this
+    /// avoids per-step u16 batch allocation plus a second u16->u32 collect.
+    pub fn take_u32_into(&mut self, n: usize, out: &mut Vec<u32>) -> PgResult<()> {
+        out.clear();
+        out.reserve(n.saturating_sub(out.capacity()));
+        let mut remaining = n;
+
+        while remaining > 0 {
+            let avail = self.current_shard.num_tokens() - self.pos;
+            if avail == 0 {
+                self.advance_file()?;
+                continue;
+            }
+            let k = remaining.min(avail);
+            let chunk = self.current_shard.tokens(self.pos, self.pos + k);
+            out.extend(chunk.iter().map(|&tok| tok as u32));
+            self.pos += k;
+            remaining -= k;
+        }
+
+        Ok(())
+    }
+
+    /// Take `n` input tokens and the shifted `n` target tokens directly into
+    /// reusable u32 buffers.
+    ///
+    /// This reads `n + 1` stream tokens but avoids the temporary local span
+    /// allocation used by `take(n + 1)` plus slicing/copying into input/target.
+    pub fn take_shifted_u32_into(
+        &mut self,
+        n: usize,
+        input: &mut Vec<u32>,
+        target: &mut Vec<u32>,
+    ) -> PgResult<()> {
+        input.clear();
+        target.clear();
+        if n == 0 {
+            return Ok(());
+        }
+        input.reserve(n.saturating_sub(input.capacity()));
+        target.reserve(n.saturating_sub(target.capacity()));
+
+        let mut remaining = n + 1;
+        let mut prev = None;
+        while remaining > 0 {
+            let avail = self.current_shard.num_tokens() - self.pos;
+            if avail == 0 {
+                self.advance_file()?;
+                continue;
+            }
+            let k = remaining.min(avail);
+            let chunk = self.current_shard.tokens(self.pos, self.pos + k);
+            for &tok in chunk {
+                let token = tok as u32;
+                if prev.is_some() {
+                    target.push(token);
+                }
+                if input.len() < n {
+                    input.push(token);
+                }
+                prev = Some(token);
+            }
+            self.pos += k;
+            remaining -= k;
+        }
+
+        debug_assert_eq!(input.len(), n);
+        debug_assert_eq!(target.len(), n);
+        Ok(())
+    }
+
     /// Skip `n` tokens in the stream without allocating.
     pub fn skip(&mut self, n: usize) -> PgResult<()> {
         let mut remaining = n;
@@ -147,6 +220,30 @@ impl DistributedTokenLoader {
         let y = local[1..].to_vec();
 
         Ok((x, y))
+    }
+
+    /// Fill reusable u32 input/target buffers for this rank's next batch.
+    pub fn next_batch_u32_into(
+        &mut self,
+        global_tokens: usize,
+        input: &mut Vec<u32>,
+        target: &mut Vec<u32>,
+    ) -> PgResult<()> {
+        let local_tokens = global_tokens / self.world_size;
+        let per_rank_span = local_tokens + 1;
+
+        let skip_tokens = self.rank * per_rank_span;
+        if skip_tokens > 0 {
+            self.stream.skip(skip_tokens)?;
+        }
+        self.stream
+            .take_shifted_u32_into(local_tokens, input, target)?;
+
+        let remaining_skip = (self.world_size - self.rank - 1) * per_rank_span;
+        if remaining_skip > 0 {
+            self.stream.skip(remaining_skip)?;
+        }
+        Ok(())
     }
 }
 
@@ -282,6 +379,40 @@ mod tests {
 
         let _ = std::fs::remove_file(token_path);
         let _ = std::fs::remove_file(sidecar_path);
+        let _ = std::fs::remove_dir(dir);
+    }
+
+    #[test]
+    fn shifted_u32_loader_fills_input_and_target_without_scratch_span() {
+        let dir = std::env::temp_dir().join(format!(
+            "pg_shifted_u32_loader_{}_{}",
+            std::process::id(),
+            31
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let shard0 = dir.join("train_000.bin");
+        let shard1 = dir.join("train_001.bin");
+        write_test_shard(&shard0, &[10, 11, 12]);
+        write_test_shard(&shard1, &[13, 14, 15]);
+
+        let mut stream = TokenStream::from_files(vec![shard0.clone(), shard1.clone()]).unwrap();
+        let mut input = vec![999; 8];
+        let mut target = vec![999; 8];
+        stream
+            .take_shifted_u32_into(5, &mut input, &mut target)
+            .unwrap();
+
+        assert_eq!(input, vec![10, 11, 12, 13, 14]);
+        assert_eq!(target, vec![11, 12, 13, 14, 15]);
+
+        stream
+            .take_shifted_u32_into(0, &mut input, &mut target)
+            .unwrap();
+        assert!(input.is_empty());
+        assert!(target.is_empty());
+
+        let _ = std::fs::remove_file(shard0);
+        let _ = std::fs::remove_file(shard1);
         let _ = std::fs::remove_dir(dir);
     }
 }

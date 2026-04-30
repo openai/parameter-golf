@@ -6,6 +6,14 @@ use pg_model::{
 };
 use pg_train::VariantRunner;
 
+fn timing_per_step(value_ms: f64, timing_steps: usize) -> f64 {
+    if timing_steps > 0 {
+        value_ms / timing_steps as f64
+    } else {
+        0.0
+    }
+}
+
 fn main() {
     env_logger::init();
 
@@ -249,6 +257,7 @@ fn main() {
             println!("train_data_source={}", result.train_data_source);
             println!("bpb_byte_source={}", result.bpb_byte_source);
             println!("timing_backend={}", result.timing_backend);
+            println!("timing_cuda_stage_fields_unit=accumulated_over_timing_steps");
             println!(
                 "timing_data_sampling_ms={:.3}",
                 result.timing_data_sampling_ms
@@ -316,16 +325,72 @@ fn main() {
                 result.timing_cuda_backward_block_mlp_ms
             );
             println!(
+                "timing_cuda_backward_block_mlp_residual_ms={:.3}",
+                result.timing_cuda_backward_block_mlp_residual_ms
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_down_ms={:.3}",
+                result.timing_cuda_backward_block_mlp_down_ms
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_act_ms={:.3}",
+                result.timing_cuda_backward_block_mlp_act_ms
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_up_ms={:.3}",
+                result.timing_cuda_backward_block_mlp_up_ms
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_norm_ms={:.3}",
+                result.timing_cuda_backward_block_mlp_norm_ms
+            );
+            println!(
                 "timing_cuda_backward_block_attn_out_ms={:.3}",
                 result.timing_cuda_backward_block_attn_out_ms
+            );
+            println!(
+                "timing_cuda_backward_block_attn_out_residual_ms={:.3}",
+                result.timing_cuda_backward_block_attn_out_residual_ms
+            );
+            println!(
+                "timing_cuda_backward_block_attn_out_proj_ms={:.3}",
+                result.timing_cuda_backward_block_attn_out_proj_ms
+            );
+            println!(
+                "timing_cuda_backward_block_attn_out_gate_xsa_ms={:.3}",
+                result.timing_cuda_backward_block_attn_out_gate_xsa_ms
             );
             println!(
                 "timing_cuda_backward_block_attention_ms={:.3}",
                 result.timing_cuda_backward_block_attention_ms
             );
             println!(
+                "timing_cuda_backward_block_attention_sdpa_ms={:.3}",
+                result.timing_cuda_backward_block_attention_sdpa_ms
+            );
+            println!(
+                "timing_cuda_backward_block_attention_xsa_accum_ms={:.3}",
+                result.timing_cuda_backward_block_attention_xsa_accum_ms
+            );
+            println!(
                 "timing_cuda_backward_block_qkv_ms={:.3}",
                 result.timing_cuda_backward_block_qkv_ms
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_rope_ms={:.3}",
+                result.timing_cuda_backward_block_qkv_rope_ms
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_proj_ms={:.3}",
+                result.timing_cuda_backward_block_qkv_proj_ms
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_ve_ms={:.3}",
+                result.timing_cuda_backward_block_qkv_ve_ms
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_norm_resid_ms={:.3}",
+                result.timing_cuda_backward_block_qkv_norm_resid_ms
             );
             println!(
                 "timing_cuda_backward_output_ms={:.3}",
@@ -364,6 +429,179 @@ fn main() {
                 result.timing_artifact_export_ms
             );
             println!("timing_eval_ms={:.3}", result.timing_eval_ms);
+            println!(
+                "timing_data_sampling_ms_per_step={:.3}",
+                timing_per_step(result.timing_data_sampling_ms, result.timing_steps)
+            );
+            println!(
+                "timing_train_step_ms_per_step={:.3}",
+                timing_per_step(result.timing_train_step_ms, result.timing_steps)
+            );
+            println!(
+                "timing_cuda_zero_grads_ms_per_step={:.3}",
+                timing_per_step(result.timing_cuda_zero_grads_ms, result.timing_steps)
+            );
+            println!(
+                "timing_cuda_h2d_ms_per_step={:.3}",
+                timing_per_step(result.timing_cuda_h2d_ms, result.timing_steps)
+            );
+            println!(
+                "timing_cuda_backward_ms_per_step={:.3}",
+                timing_per_step(result.timing_cuda_backward_ms, result.timing_steps)
+            );
+            println!(
+                "timing_cuda_backward_forward_ms_per_step={:.3}",
+                timing_per_step(result.timing_cuda_backward_forward_ms, result.timing_steps)
+            );
+            println!(
+                "timing_cuda_backward_forward_logits_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_forward_logits_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_mlp_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_residual_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_mlp_residual_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_down_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_mlp_down_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_act_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_mlp_act_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_up_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_mlp_up_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_mlp_norm_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_mlp_norm_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_attn_out_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_attn_out_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_attn_out_residual_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_attn_out_residual_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_attn_out_proj_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_attn_out_proj_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_attn_out_gate_xsa_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_attn_out_gate_xsa_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_attention_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_attention_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_attention_sdpa_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_attention_sdpa_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_attention_xsa_accum_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_attention_xsa_accum_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_qkv_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_rope_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_qkv_rope_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_proj_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_qkv_proj_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_ve_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_qkv_ve_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_block_qkv_norm_resid_ms_per_step={:.3}",
+                timing_per_step(
+                    result.timing_cuda_backward_block_qkv_norm_resid_ms,
+                    result.timing_steps
+                )
+            );
+            println!(
+                "timing_cuda_backward_output_ms_per_step={:.3}",
+                timing_per_step(result.timing_cuda_backward_output_ms, result.timing_steps)
+            );
+            println!(
+                "timing_cuda_non_bank_sync_ms_per_step={:.3}",
+                timing_per_step(result.timing_cuda_non_bank_sync_ms, result.timing_steps)
+            );
+            println!(
+                "timing_cuda_bank_update_ms_per_step={:.3}",
+                timing_per_step(result.timing_cuda_bank_update_ms, result.timing_steps)
+            );
+            println!(
+                "timing_cuda_non_bank_update_ms_per_step={:.3}",
+                timing_per_step(result.timing_cuda_non_bank_update_ms, result.timing_steps)
+            );
             if let Some(bytes) = result.artifact_bytes {
                 println!("artifact_bytes={bytes}");
             }

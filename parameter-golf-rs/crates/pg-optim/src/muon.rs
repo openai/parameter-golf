@@ -9,6 +9,59 @@
 ///   3. update = NS5(update)  (orthogonalize)
 ///   4. param -= lr * scale * update + lr * wd * param
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MuonNsProfile {
+    Simple,
+    Quintic,
+    PolarExpress,
+}
+
+impl MuonNsProfile {
+    fn from_env() -> Self {
+        let raw = std::env::var("PG_MUON_NS_PROFILE")
+            .or_else(|_| std::env::var("PG_GPU_MUON_NS_PROFILE"))
+            .unwrap_or_else(|_| "polar_express".to_string());
+        match raw.to_ascii_lowercase().as_str() {
+            "simple" | "legacy" | "ns5" => Self::Simple,
+            "quintic" | "modded_nanogpt" => Self::Quintic,
+            "polar" | "polar_express" | "polarns" | "polar_ns" => Self::PolarExpress,
+            _ => Self::PolarExpress,
+        }
+    }
+
+    fn coeff(self, step: usize) -> (f32, f32, f32) {
+        match self {
+            Self::Simple => SIMPLE_NS[0],
+            Self::Quintic => QUINTIC_NS[step % QUINTIC_NS.len()],
+            Self::PolarExpress => {
+                let idx = step.min(POLAR_EXPRESS_NS.len() - 1);
+                POLAR_EXPRESS_NS[idx]
+            }
+        }
+    }
+}
+
+const SIMPLE_NS: [(f32, f32, f32); 1] = [(3.4445, -4.7750, 2.0315)];
+
+const QUINTIC_NS: [(f32, f32, f32); 5] = [
+    (4.0848, -6.8946, 2.9270),
+    (3.9505, -6.3029, 2.6377),
+    (3.7418, -5.5913, 2.3037),
+    (2.8769, -3.1427, 1.2046),
+    (2.8366, -3.0525, 1.2012),
+];
+
+const POLAR_EXPRESS_NS: [(f32, f32, f32); 8] = [
+    (8.2051, -22.9019, 16.4607),
+    (4.0664, -2.8612, 0.5184),
+    (3.9096, -2.8234, 0.5250),
+    (3.2856, -2.4153, 0.4853),
+    (2.2779, -1.6198, 0.3985),
+    (1.8726, -1.2307, 0.3585),
+    (1.8564, -1.2132, 0.3568),
+    (1.8750, -1.2500, 0.3750),
+];
+
 /// Newton-Schulz 5-step orthogonalization.
 /// G: [B, M, N] or [M, N] — finds the closest orthogonal matrix.
 /// Returns X with X^T X ≈ I (or X X^T ≈ I if transposed).
@@ -23,7 +76,7 @@ pub fn newton_schulz5(
     new_x: &mut [f32],
     result: &mut [f32],
 ) {
-    let (a, b, c) = (3.4445_f32, -4.7750_f32, 2.0315_f32);
+    let profile = MuonNsProfile::from_env();
 
     // Handle 2D or 3D input
     let (batch, m, n) = match shape.len() {
@@ -64,7 +117,8 @@ pub fn newton_schulz5(
         }
     }
 
-    for _ in 0..steps {
+    for ns_step in 0..steps {
+        let (a, b, c) = profile.coeff(ns_step);
         for bi in 0..batch {
             let x_off = bi * rows * cols;
             let a_off = bi * rows * rows;

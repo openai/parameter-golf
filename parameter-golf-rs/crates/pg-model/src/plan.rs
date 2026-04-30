@@ -60,6 +60,29 @@ pub struct EvalPlan {
     pub chunk_tokens: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SubmissionBudget {
+    pub code_bytes: usize,
+    pub compressed_model_bytes: usize,
+    pub total_bytes: usize,
+    pub limit_bytes: usize,
+}
+
+impl SubmissionBudget {
+    pub fn new(code_bytes: usize, compressed_model_bytes: usize, limit_bytes: usize) -> Self {
+        Self {
+            code_bytes,
+            compressed_model_bytes,
+            total_bytes: code_bytes + compressed_model_bytes,
+            limit_bytes,
+        }
+    }
+
+    pub fn ok(&self) -> bool {
+        self.total_bytes < self.limit_bytes
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ExecutionPlan {
     pub run_spec: RunSpec,
@@ -150,8 +173,25 @@ impl ExecutionPlan {
         self.run_spec.mode
     }
 
-    pub fn artifact_budget_ok(&self, estimated_bytes: usize) -> bool {
-        estimated_bytes <= self.quant_layout.target_artifact_bytes
+    pub fn submission_budget(
+        &self,
+        code_bytes: usize,
+        compressed_model_bytes: usize,
+    ) -> SubmissionBudget {
+        SubmissionBudget::new(
+            code_bytes,
+            compressed_model_bytes,
+            self.quant_layout.target_artifact_bytes,
+        )
+    }
+
+    pub fn submission_budget_ok(&self, code_bytes: usize, compressed_model_bytes: usize) -> bool {
+        self.submission_budget(code_bytes, compressed_model_bytes)
+            .ok()
+    }
+
+    pub fn total_submission_budget_ok(&self, total_bytes: usize) -> bool {
+        total_bytes < self.quant_layout.target_artifact_bytes
     }
 
     pub fn has_skip_connections(&self) -> bool {
@@ -254,6 +294,12 @@ impl ExecutionPlan {
                 spec.sparse_attn_gate.scale, config.sparse_attn_gate_scale,
             )));
         }
+        if spec.smear_gate_boundary_token_id != config.smear_gate_boundary_token_id {
+            return Err(PgError::InvalidOp(format!(
+                "execution plan mismatch for smear_gate_boundary_token_id: expected {:?}, got {:?}",
+                spec.smear_gate_boundary_token_id, config.smear_gate_boundary_token_id,
+            )));
+        }
         if spec.ln_scale != config.ln_scale {
             return Err(PgError::InvalidOp(format!(
                 "execution plan mismatch for ln_scale: expected {}, got {}",
@@ -266,10 +312,15 @@ impl ExecutionPlan {
                 spec.tie_embeddings, config.tie_embeddings,
             )));
         }
-        if spec.value_embedding.layers != config.ve_layers {
+        let expected_ve_layers = if spec.value_embedding.enabled {
+            spec.value_embedding.layers.as_slice()
+        } else {
+            &[]
+        };
+        if expected_ve_layers != config.ve_layers.as_slice() {
             return Err(PgError::InvalidOp(format!(
                 "execution plan mismatch for ve_layers: expected {:?}, got {:?}",
-                spec.value_embedding.layers, config.ve_layers,
+                expected_ve_layers, config.ve_layers,
             )));
         }
         if (spec.rope.base - config.rope_base).abs() > f32::EPSILON {
@@ -463,5 +514,32 @@ mod tests {
             err.to_string().contains("mutually exclusive"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn disabled_value_embedding_clears_runtime_layers() {
+        let mut spec = RunSpec::for_family(VariantFamily::HybridCompetitiveSp8192);
+        spec.model.value_embedding.enabled = false;
+        spec.model.value_embedding.layers = vec![9, 10];
+        let plan = ExecutionPlan::from_run_spec(&spec).unwrap();
+        let config = spec.model.to_model_config();
+        assert!(config.ve_layers.is_empty());
+        plan.validate_model_config(&config).unwrap();
+        assert!(
+            plan.layer_schedule
+                .iter()
+                .all(|layer| !layer.value_embedding)
+        );
+    }
+
+    #[test]
+    fn submission_budget_counts_code_and_model_bytes_strictly() {
+        let spec = RunSpec::for_family(VariantFamily::HybridCompetitiveSp8192);
+        let plan = ExecutionPlan::from_run_spec(&spec).unwrap();
+        assert!(plan.submission_budget_ok(100, 15_999_899));
+        assert!(!plan.submission_budget_ok(100, 15_999_900));
+        let budget = plan.submission_budget(4_000_000, 11_999_999);
+        assert_eq!(budget.total_bytes, 15_999_999);
+        assert!(budget.ok());
     }
 }

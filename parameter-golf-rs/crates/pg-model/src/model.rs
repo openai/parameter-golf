@@ -727,19 +727,31 @@ impl GptModel {
 
         // 4. SmearGate
         {
-            let mut x_prev = vec![0.0f32; t * d];
-            for i in 1..t {
-                x_prev[i * d..(i + 1) * d].copy_from_slice(&buf.x[(i - 1) * d..i * d]);
-            }
             let mut smeared = vec![0.0f32; t * d];
-            pg_kernels::smear_gate::smear_gate_forward(
-                &buf.x[..t * d],
-                &x_prev,
-                &self.smear_gate,
-                &mut smeared,
-                t,
-                d,
-            );
+            if let Some(boundary) = self.config.smear_gate_boundary_token_id {
+                pg_kernels::smear_gate::smear_gate_forward_boundary(
+                    &buf.x[..t * d],
+                    input_ids,
+                    &self.smear_gate,
+                    &mut smeared,
+                    t,
+                    d,
+                    boundary,
+                );
+            } else {
+                let mut x_prev = vec![0.0f32; t * d];
+                for i in 1..t {
+                    x_prev[i * d..(i + 1) * d].copy_from_slice(&buf.x[(i - 1) * d..i * d]);
+                }
+                pg_kernels::smear_gate::smear_gate_forward(
+                    &buf.x[..t * d],
+                    &x_prev,
+                    &self.smear_gate,
+                    &mut smeared,
+                    t,
+                    d,
+                );
+            }
             buf.x[..t * d].copy_from_slice(&smeared);
         }
 
@@ -861,6 +873,7 @@ mod tests {
             sparse_attn_gate_enabled: false,
             sparse_attn_gate_width: 12,
             sparse_attn_gate_scale: 1.0,
+            smear_gate_boundary_token_id: Some(1),
             vrl_enabled: false,
             ve_enabled: false,
             ve_dim: 4,
