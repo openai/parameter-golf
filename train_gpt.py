@@ -49,12 +49,12 @@ class Hyperparameters:
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
-    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 20))
+    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 40))
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 512))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 256))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 384))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -827,7 +827,7 @@ class GPT(nn.Module):
         self.logit_softcap = logit_softcap
         self.keep_prob = keep_prob
         self.lm_head = None if tie_embeddings else nn.Linear(model_dim, vocab_size, bias=False)
-        self.skip_scales = nn.Parameter(torch.full((self.num_encoder_layers,), 0.02, dtype=torch.float32))
+        self.skip_scales = nn.Parameter(torch.zeros(self.num_encoder_layers, model_dim, dtype=torch.float32))
         
         apply_zero_init(self, std=self.tied_embed_init_std)
 
@@ -843,8 +843,8 @@ class GPT(nn.Module):
             block_idx = j + self.num_encoder_layers
             skip_idx = self.num_encoder_layers - 1 - j
             if skip_idx >= 0:
-                scale = self.skip_scales[skip_idx]
-                x = x + (scale * skips[skip_idx])
+                skip_x = F.rms_norm(skips[skip_idx], (skips[skip_idx].size(-1),), eps=self.final_norm.eps)
+                x = x + (self.skip_scales[skip_idx] * skip_x)
             
             x = self.blocks[block_idx](x, emb)
         x = self.final_norm(x).reshape(-1, x.size(-1))
