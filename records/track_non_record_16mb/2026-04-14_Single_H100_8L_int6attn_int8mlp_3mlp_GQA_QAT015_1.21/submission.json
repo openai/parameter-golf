@@ -1,0 +1,18 @@
+{
+  "author": "Aditya Sasidhar",
+  "github_id": "adityasasidhar",
+  "name": "8L GQA + MLP3 + Partial RoPE + 2XSA + Mixed Quant",
+  "blurb": "Single-H100 non-record run with tied embeddings, GQA (8 query heads / 4 KV heads), Partial RoPE on 32 dims, XSA on the last 2 layers, FlashAttention interface, MLP 3x width, wallclock-aware warmdown over the final 20%, and late QAT over the final 15% of training. Export uses mixed quantization with zlib compression and sliding-window validation at stride 96.",
+  "date": "2026-04-11",
+  "val_loss": 2.8054,
+  "val_bpb": 1.2192,
+  "pre_quant_val_loss": 2.8374,
+  "pre_quant_val_bpb": 1.2331,
+  "mixed_quant_zlib_val_loss": 2.8454,
+  "mixed_quant_zlib_val_bpb": 1.2366,
+  "sliding_val_loss": 2.8054,
+  "sliding_val_bpb": 1.2192,
+  "bytes_total": 15921446,
+  "bytes_model_mixed_quant_zlib": 15867412,
+  "bytes_code": 54034
+}
