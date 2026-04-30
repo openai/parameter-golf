@@ -1,0 +1,36 @@
+{
+  "author": "someone114514",
+  "github_id": "someone114514",
+  "name": "SP8192 + LongCtx NoQV QK5.25 Prefix2750, seed42 1.05827 BPB",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "status": "single_seed_result",
+  "base_pr": 1953,
+  "base_val_bpb": 1.0585537,
+  "base_seed42_val_bpb": 1.0582472,
+  "candidate_change": {
+    "PHASED_TTT_PREFIX_DOCS": 2750,
+    "base_PHASED_TTT_PREFIX_DOCS": 2500,
+    "everything_else": "intended to match PR #1953"
+  },
+  "val_bpb": 1.05826976,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "pre_quant_bpb": 1.06162201,
+      "quantized_bpb": 1.07001475,
+      "quantized_ttt_phased_bpb": 1.05826976,
+      "eval_time_s": 495.0,
+      "total_submission_bytes": 15978173
+    }
+  },
+  "compliance": {
+    "no_tokenizer_change": true,
+    "no_ppm": true,
+    "no_ngram": true,
+    "no_slot": true,
+    "no_logit_bias": true,
+    "score_before_update": "inherits PR #1953 phased TTT score-first implementation"
+  }
+}
