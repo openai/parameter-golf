@@ -1,0 +1,9 @@
+{
+  "author": "Wenhao He",
+  "github_id": "He-Wenhao",
+  "name": "Non-record: MDLM Masked Diffusion + Depth Recurrence",
+  "blurb": "Extends PR #1403 MDLM baseline with depth recurrence (L1-L3 looped 1x extra = 12 effective layers), QAT/STE at lr_scale<0.40, EMA decay=0.997, GPTQ-lite 5-candidate clip search, linear LR->0, relu^2 MLP, Muon WD=0.01. Beats #1403 by 0.0057 BPB with 0.0049 quant penalty.",
+  "date": "2026-04-12T00:00:00Z",
+  "val_bpb": 1.34275319,
+  "bytes_total": 14726814
+}
