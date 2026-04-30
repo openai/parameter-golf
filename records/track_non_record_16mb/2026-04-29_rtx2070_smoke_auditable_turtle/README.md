@@ -27,3 +27,14 @@ Result:
 Causality:
 
 Standard causal LM path. input_ids produce logits. target_ids are used only for cross entropy. eval_val uses inference_mode. no validation-time update is performed.
+
+Submission intent:
+
+This submission is intentionally small. It is not a leaderboard attempt or a new architecture claim.
+
+It is a non-record local smoke artifact documenting an end-to-end Parameter Golf submission path from a first-time, non-ML participant using AI assistance, with emphasis on code/log/README/metadata alignment.
+
+See:
+
+- `SUBMISSION_INTENT.md` for why this non-record submission exists
+- `PR_ARCHAEOLOGY.md` for the auditability / log-alignment note
