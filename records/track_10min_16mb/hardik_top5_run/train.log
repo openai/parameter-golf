@@ -1,0 +1,27 @@
+# PLACEHOLDER TRAIN LOG
+# Replace this file with the real log produced by:
+#   cd records/track_10min_16mb/hardik_top5_run
+#   torchrun --standalone --nproc_per_node=8 train_gpt.py
+#
+# Expected items to preserve in the final log:
+# - hardware banner / nvidia-smi output
+# - model_params line
+# - training step logs
+# - final quantized artifact byte count
+# - final val_loss / val_bpb lines
+# - any sliding-window or legal_ttt evaluation lines you intend to claim
+#
+# Suggested final snippet to verify:
+#   final_int6_roundtrip val_loss:...
+#   final_int6_roundtrip_exact val_loss:... val_bpb:...
+#   final_int6_sliding_window val_loss:... val_bpb:...
+#   legal_ttt val_loss:... val_bpb:...   # only if claimed
+#
+# Fresh run metadata to fill:
+# RUN_ID=
+# SEED=
+# GPU=
+# WALLCLOCK_SECONDS=
+# BYTES_TOTAL=
+# VAL_LOSS=
+# VAL_BPB=
