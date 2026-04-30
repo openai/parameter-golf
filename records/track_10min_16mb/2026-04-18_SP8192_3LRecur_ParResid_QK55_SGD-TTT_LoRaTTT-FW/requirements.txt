@@ -1,0 +1,5 @@
+brotli
+sentencepiece
+torch>=2.9.0
+numpy
+flash-attn-3

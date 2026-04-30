@@ -1,0 +1,53 @@
+{
+  "author": "Anakintano",
+  "github_id": "Anakintano",
+  "name": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.5 + SGD-TTT + LoRA-TTT (Future Work)",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": null,
+  "val_bpb_note": "Pending official 3-seed eval. Single dev run (seed=42) reached 1.0857 sliding window. TTT eval not completed due to exhausted RunPod Quick Start Grant ($25). Expected ~1.082-1.084 with base SGD-TTT.",
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb_pre_quant": 1.09140,
+      "val_bpb_quantized": 1.10228,
+      "val_bpb_sliding": 1.08570,
+      "val_bpb_ttt": null,
+      "artifact_bytes": 15970000,
+      "training_time_s": 588,
+      "ttt_eval_completed": false
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + 3-Layer Depth Recurrence (L3-5, x2) + Parallel Residuals (L7+) + QK-Gain 5.5 + Recur-Alpha + EMA 0.9965 + SGD-TTT (3ep, cosine LR) + LoRA-TTT (65K params, 12ep, try/except fallback) + GPTQ int6/int8 SDClip + Brotli",
+  "novel_contributions": [
+    "LoRA-TTT: freeze base model, adapt rank-4 attn Q/V + rank-2 MLP gate per chunk (65K vs 30M params), 12 epochs/chunk",
+    "Recur-Alpha: learned scalar per recurrent block (init=0) carrying first-visit activations to second pass"
+  ],
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false,
+    "three_seeds_note": "Single seed dev run only — compute grant exhausted. Official OpenAI eval will provide 3-seed results."
+  },
+  "compute": {
+    "grant": "RunPod Quick Start Grant $25",
+    "training_cost_usd": 3.50,
+    "total_cost_usd": 21.50
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445)"
+  }
+}
