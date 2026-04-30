@@ -2627,7 +2627,7 @@ def _lrzip_decompress_bytes(data):
         os.close(lrz_fd)
         lrz_fd = -1
         r = subprocess.run(
-            ["lrzip", "-d", "-k", "-o", out_path, lrz_path],
+            ["lrzip", "-d", "-o", out_path, lrz_path],
             capture_output=True, timeout=300,
         )
         if r.returncode != 0:
@@ -2638,6 +2638,7 @@ def _lrzip_decompress_bytes(data):
         if lrz_fd != -1:
             try: os.close(lrz_fd)
             except OSError: pass
+        # lrzip -d removes the input .lrz by default; OSError caught if already gone
         for p in (lrz_path, out_path):
             try: os.unlink(p)
             except OSError: pass
