@@ -25,6 +25,8 @@ import torch.nn.functional as F
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+# Runtime mode for local shape/import checks. Full 8x runs keep FA3,
+# torch.compile, GPTQ, validation, and TTT enabled.
 _SMOKE_TEST: bool = bool(int(os.environ.get("SMOKE_TEST", "0")))
 try:
     if _SMOKE_TEST:
@@ -56,6 +58,8 @@ except ImportError:
 
 
 class Hyperparameters:
+    # Environment-driven config keeps the submitted file unchanged across
+    # organizer data paths and seed sweeps.
     _ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     _short = uuid.uuid4().hex[:8]
     run_id = os.environ.get("RUN_ID", f"{_ts}_{_short}")
@@ -99,6 +103,8 @@ class Hyperparameters:
     ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5.25))
 
+    # Reuse a middle layer span at runtime to increase effective depth without
+    # adding separately stored parameters.
     num_loops = int(os.environ.get("NUM_LOOPS", 2))
     loop_start = int(os.environ.get("LOOP_START", 3))
     loop_end = int(os.environ.get("LOOP_END", 5))
@@ -112,6 +118,8 @@ class Hyperparameters:
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.022))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
+    # Matrix weights use Muon; embeddings and scalar/control tensors use
+    # Adam-style optimizers.
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
@@ -133,6 +141,8 @@ class Hyperparameters:
     ttt_lr = float(os.environ.get("TTT_LR", 0.005))
     ttt_epochs = int(os.environ.get("TTT_EPOCHS", 4))
     ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
+    # TTT chunks are evaluated before updates from the same chunk, preserving
+    # the score-first adaptation rule.
     ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 40960))
 
     compressor = os.environ.get("COMPRESSOR", "brotli")
@@ -196,6 +206,8 @@ _MMAP_CACHE = {}
 
 
 def _read_num_tokens(file):
+    # FineWeb cache shards use a 256-int32 header. Cache token counts so the
+    # shuffled loader can rebalance shards without reopening every file.
     key = str(file)
     cached = _SHARD_NTOKENS_CACHE.get(key)
     if cached is not None:
@@ -236,6 +248,8 @@ def load_data_shard(file):
 
 
 def load_validation_tokens(pattern, seq_len):
+    # Keep one extra token after trimming to whole windows because targets are
+    # shifted by one position.
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
@@ -247,6 +261,8 @@ def load_validation_tokens(pattern, seq_len):
 
 
 def build_sentencepiece_luts(sp, vocab_size, device):
+    # BPB is byte-based. These lookup tables reproduce SentencePiece byte
+    # accounting without decoding text inside every evaluation batch.
     sp_vocab_size = int(sp.vocab_size())
     assert sp.piece_to_id("▁") != sp.unk_id(), "Tokenizer must have '▁' as a token for BPB byte counting"
     table_size = max(sp_vocab_size, vocab_size)
@@ -303,6 +319,8 @@ class ShuffledSequenceLoader:
             self._reset_shard(si)
 
     def _reset_shard(self, si):
+        # Rotate start phase per shard so training does not always see the same
+        # seq_len-aligned windows.
         max_phase = min(self.seq_len - 1, max(0, self.num_tokens[si] - self.seq_len - 1))
         if max_phase > 0:
             k = self._phase_order[si][self._phase_epoch[si] % 8]
@@ -315,6 +333,8 @@ class ShuffledSequenceLoader:
         self.start_inds[si] = (phase + sequence_order * self.seq_len).tolist()
 
     def next_batch(self, global_tokens, grad_accum_steps):
+        # Each rank owns a shard slice. Quotas preserve the remaining-shard
+        # distribution while returning a fixed-size device batch.
         device_tokens = global_tokens // (self.world_size * grad_accum_steps)
         device_batch_size = device_tokens // self.seq_len
         num_shards = len(self.files)
@@ -454,6 +474,8 @@ class CausalSelfAttention(nn.Module):
         self.use_xsa = False
 
     def _xsa_efficient(self, y, v):
+        # XSA subtracts the component of the attention output parallel to the
+        # grouped value vector, encouraging less redundant head outputs.
         B, T, H, D = y.shape
         Hkv = v.size(-2)
         group = H // Hkv
@@ -474,6 +496,8 @@ class CausalSelfAttention(nn.Module):
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         rd = self.rope_dims
         gain = self.q_gain.to(dtype=q.dtype)
+        # Separate gains let RoPE and non-RoPE channels settle at different
+        # query scales.
         if 0 < rd < q.size(-1):
             q_rope = q[..., :rd] * gain[None, None, :, 0:1]
             q_nope = q[..., rd:] * gain[None, None, :, 1:2]
@@ -529,10 +553,14 @@ class Block(nn.Module):
         self.parallel = False
 
     def forward(self, x, x0):
+        # Mix the current stream with the original embedding stream before each
+        # block; this keeps recurrent middle-layer reuse numerically stable.
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
         attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor)
         if self.parallel:
+            # In later layers, attention and MLP both consume x_in and their
+            # residuals are added together.
             mlp_out = self.mlp(self.mlp_norm(x_in) * self.ln_scale_factor)
             x_out = (
                     x_in
@@ -606,6 +634,8 @@ class GPT(nn.Module):
 
         self.looping_active = False
         if h.num_loops > 0:
+            # Runtime execution order is separate from the ModuleList, so looped
+            # layers are true parameter sharing rather than copied layers.
             loop_seg = list(range(h.loop_start, h.loop_end + 1))
             all_indices = list(range(h.loop_start))
             for _ in range(h.num_loops + 1):
@@ -656,6 +686,8 @@ class GPT(nn.Module):
             if self.looping_active
             else range(self.num_encoder_layers, self.num_encoder_layers + self.num_decoder_layers)
         )
+        # Decoder blocks consume encoder states in reverse order, giving a
+        # U-Net-style skip path without extra projection matrices.
         for i in enc_iter:
             x = self.blocks[i](x, x0)
             skips.append(x)
@@ -696,6 +728,8 @@ def classify_param(name):
 
 @torch.compile
 def zeropower_via_newtonschulz5(G, steps=10, eps=1e-07):
+    # Approximate the polar factor used by Muon to convert raw matrix gradients
+    # into near-orthogonal update directions.
     a, b, c = 3.4445, -4.775, 2.0315
     X = G.bfloat16()
     X /= X.norm() + eps
@@ -744,6 +778,8 @@ class Muon(torch.optim.Optimizer):
             updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
             curr = 0
             for i, p in enumerate(params):
+                # Compute expensive matrix updates on a rank subset, pack them
+                # into one vector, then all-reduce for identical model states.
                 if i % world_size == rank and p.grad is not None:
                     g = p.grad
                     state = self.state[p]
@@ -785,6 +821,8 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
 
 class Optimizers:
     def __init__(self, h, base_model):
+        # Route tensor classes to different optimizers: Muon for large matrix
+        # weights, AdamW for embeddings and scalar/control parameters.
         block_named_params = list(base_model.blocks.named_parameters())
         matrix_attn_params = []
         matrix_mlp_params = []
@@ -857,6 +895,8 @@ class Optimizers:
 
 
 def restore_fp32_params(model):
+    # Keep control tensors and CastedLinear weights in fp32 storage while
+    # forward passes cast them to bf16 activations.
     for module in model.modules():
         if isinstance(module, CastedLinear):
             module.float()
@@ -867,6 +907,8 @@ def restore_fp32_params(model):
 
 
 def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
+    # GPTQ uses activation second moments as a local curvature estimate. Hooks
+    # collect x^T x only for large linear weights that will be quantized.
     hessians = {}
     hooks = []
 
@@ -914,6 +956,8 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
 
 
 def gptq_quantize_weight(w, H, clip_sigmas=3.0, clip_range=63, block_size=32):
+    # Blockwise GPTQ quantizes one column at a time and propagates each
+    # quantization error through the inverse Hessian to compensate later columns.
     W_orig = w.float().clone()
     rows, cols = W_orig.shape
     H = H.float().clone()
@@ -961,6 +1005,8 @@ def _parse_lowbit_map(spec):
 
 
 def gptq_mixed_quantize(state_dict, hessians, h):
+    # Small tensors stay float16. Large matrices use GPTQ, with optional
+    # per-name low-bit overrides through LOWBIT_LAYERS.
     lowbit_map = _parse_lowbit_map(getattr(h, "lowbit_layers", ""))
     result = {}
     meta = {}
@@ -1018,6 +1064,8 @@ _BSHF_MAGIC = b"BSHF"
 
 
 def _byte_shuffle(data, stride=2):
+    # Group low/high byte positions before Brotli; the magic header makes the
+    # transform reversible and easy to detect at load time.
     if stride <= 1 or len(data) < stride:
         return data
     src = np.frombuffer(data, dtype=np.uint8)
@@ -1064,6 +1112,8 @@ def _decompress(data, compressor):
 
 
 def serialize(h, base_model):
+    # Final artifact path: save model state, collect GPTQ calibration stats,
+    # quantize, then byte-shuffle and Brotli-compress the payload.
     if h.is_main_process:
         torch.save(base_model.state_dict(), h.model_path)
         model_bytes = os.path.getsize(h.model_path)
@@ -1107,6 +1157,8 @@ def _loss_bpb(loss_sum, token_count, byte_count):
 
 
 def eval_val(h, device, val_data, model):
+    # Non-overlapping validation. Loss is accumulated in nats and converted to
+    # tokenizer-agnostic bits-per-byte using the SentencePiece byte LUTs.
     seq_len = h.eval_seq_len
     local_batch_tokens = h.val_batch_tokens // (h.world_size * h.grad_accum_steps)
     if local_batch_tokens < seq_len:
@@ -1152,6 +1204,8 @@ def eval_val(h, device, val_data, model):
 
 
 def eval_val_sliding(h, device, val_data, base_model, batch_seqs=32):
+    # Sliding validation feeds left context but excludes that context from the
+    # score, so each stride receives more history without double-counting.
     base_model.eval()
     logits_fn = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
     seq_len = h.eval_seq_len
@@ -1204,6 +1258,8 @@ def eval_val_sliding(h, device, val_data, base_model, batch_seqs=32):
 
 
 def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
+    # Legal score-first TTT: score all windows assigned to a chunk under
+    # no-grad before using that chunk for any adaptation step.
     rank = h.rank
     world_size = h.world_size
     seq_len = h.eval_seq_len
@@ -1273,6 +1329,8 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
                     byte_count += tb.sum()
         is_last_chunk = ci == num_chunks - 1
         if not is_last_chunk and h.ttt_epochs > 0:
+            # Skip adaptation on the final chunk because no later scored tokens
+            # could legally benefit from that update.
             base_model.train()
             chunk_seqs = (chunk_end - chunk_start) // seq_len
             if chunk_seqs > 0:
@@ -1326,6 +1384,8 @@ def timed_eval(label, fn, *args, **kwargs):
 
 
 def train_model(h, device, val_data):
+    # Wallclock-driven training: stop on the first completed step after the cap
+    # so all ranks exit with the same synchronized weights.
     base_model = GPT(h).to(device).bfloat16()
     restore_fp32_params(base_model)
     if _SMOKE_TEST:
@@ -1387,6 +1447,8 @@ def train_model(h, device, val_data):
         return train_loss
 
     if h.warmup_steps > 0:
+        # Warmup compiles kernels and exercises looped execution, then restores
+        # the initial state so warmup compute does not train the final model.
         initial_model_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
@@ -1447,6 +1509,7 @@ def train_model(h, device, val_data):
             )
         train_loss = step_fn(step, scale, elapsed_ms)
         with torch.no_grad():
+            # Keep EMA in fp32 and apply it once at the end before quantization.
             for name, t in base_model.state_dict().items():
                 ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
         step += 1
