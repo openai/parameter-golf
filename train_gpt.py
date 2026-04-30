@@ -66,21 +66,21 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 14))
     model_dim = int(os.environ.get("MODEL_DIM", 448))
     num_heads = int(os.environ.get("NUM_HEADS", 14))
-    mlp_mult = float(os.environ.get("MLP_MULT", 2))
+    mlp_mult = float(os.environ.get("MLP_MULT", 2.05))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_max_base = float(os.environ.get("ROPE_MAX_BASE", 8192.0))
     rope_min_base = float(os.environ.get("ROPE_MIN_BASE", 512.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
-    embed_lr = float(os.environ.get("EMBED_LR", 0.03))
-    head_lr = float(os.environ.get("HEAD_LR", 0.03))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.02))
+    embed_lr = float(os.environ.get("EMBED_LR", 0.4))
+    head_lr = float(os.environ.get("HEAD_LR", 0.01))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.125))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.03))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
-    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 4))
+    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 256))
     beta1 = float(os.environ.get("BETA1", 0.9))
@@ -777,7 +777,7 @@ def get_rope_base_progression(layer_idx: int, total_layers: int, min_base: float
     if total_layers <= 1:
         return max_base
     fraction = layer_idx / (total_layers - 1)
-    return min_base * ((max_base / min_base) ** fraction)
+    return min_base * (max_base / min_base) ** fraction
 
 def get_linear_progression_mlp_mult(layer_idx: int, total_layers: int, base_mult: int) -> float:
     # If base_mult is 2, this progresses from 1.0 (Layer 0) to 3.0 (Final Layer)
@@ -827,7 +827,7 @@ class GPT(nn.Module):
         self.final_norm = RMSNorm()
         self.logit_softcap = logit_softcap
         self.lm_head = None if tie_embeddings else nn.Linear(model_dim, vocab_size, bias=False)
-        self.skip_gate = nn.Parameter(torch.ones(self.num_encoder_layers, model_dim) * 1e-4)
+        self.skip_gate = nn.Parameter(torch.ones(self.num_encoder_layers, model_dim) * 1e-3)
         apply_zero_init(self, std=self.tied_embed_init_std)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
