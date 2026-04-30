@@ -1,0 +1,66 @@
+{
+  "title": "Raki v6: EngramLite + Mousse + Progressive Depth Recurrence + Score-First TTT",
+  "author": "Mertyandimata",
+  "track": "track_10min_16mb",
+  "val_bpb": 1.1026,
+  "seeds": {
+    "1337": {
+      "val_bpb": 1.1026,
+      "pre_quant_bpb": 1.1328,
+      "post_quant_bpb": 1.1401,
+      "sliding_bpb": 1.1038,
+      "ttt_bpb": 1.1026,
+      "steps": 5667,
+      "training_time_s": 590,
+      "eval_time_s": 382,
+      "artifact_bytes": 15948298,
+      "auto_qmax": 42,
+      "gptq_layers": 66
+    }
+  },
+  "original_contributions": [
+    "EngramLite: multi-head gated bigram+trigram hash (3072 buckets, 2 heads, sigmoid gate)",
+    "Mousse optimizer: diagonal curvature-aware Muon preconditioning (arXiv:2603.09697)",
+    "Progressive Depth Recurrence: phased activation (step 1500 partial, step 3000 full)",
+    "Auto-QMax binary search over clip range [31,127] to maximize artifact utilization",
+    "Adaptive Markov Curriculum: bigram-surprise-weighted loss scaling",
+    "LoRA TTT investigation: rank-4 adapters tested, full-weight found superior"
+  ],
+  "config": {
+    "vocab_size": 1024,
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 4.0,
+    "effective_layers": 13,
+    "recur_layers": "4,5",
+    "recur_start_step": 3000,
+    "prog_recur_step1": 1500,
+    "parallel_start_layer": 7,
+    "xsa_last_n": 11,
+    "rope_dims": 16,
+    "engram_buckets": 3072,
+    "engram_dim": 112,
+    "engram_heads": 2,
+    "engram_orders": "2,3",
+    "muon_wd": 0.090,
+    "matrix_lr": 0.025,
+    "ema_decay": 0.997,
+    "mousse_curvature_ema": 0.95,
+    "raki_power": 0.10,
+    "compressor": "brotli",
+    "quantization": "int6_gptq_auto_qmax",
+    "ttt_epochs": 3,
+    "ttt_lr": 0.01
+  },
+  "credits": {
+    "architecture_base": "PR #1339 (@bigbag), PR #1204 (@msisovic)",
+    "training_recipe": "PR #549 (@abaybektursun), PR #1331 (@dexhunter)",
+    "techniques": "PR #287 (@jfprincz), PR #198 (@unnir), PR #374 (@signalrush), PR #1260 (@dexhunter)",
+    "mousse": "arXiv:2603.09697"
+  },
+  "hardware": "8xH100 80GB SXM",
+  "date": "2026-04-07",
+  "notes": "Single seed due to compute budget constraints"
+}
