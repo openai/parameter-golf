@@ -145,6 +145,29 @@ Once you're happy with your local tests, or you want more compute, switch to a r
 
 You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make setup as easy as possible.  
 
+#### Running on Modal
+
+If you prefer Modal for iteration, install and authenticate the client first:
+
+```bash
+pip install modal
+python3 -m modal setup
+```
+
+Then launch the public baseline-style single-node 8xH100 worker with the helper script in this repo:
+
+```bash
+python3 -m modal run modal_train.py \
+  --run-id modal_baseline_sp1024 \
+  --script train_gpt.py
+```
+
+This launcher uses the public PyTorch `2.9.1 + cu128` stack, mounts only the trainer and dataset helper code, and stores datasets, tokenizers, Hugging Face cache, and run outputs in Modal Volumes. By default it prepares the `sp1024` dataset with `80` training shards. To reuse an existing cached dataset volume, add `--skip-dataset`.
+
+At the time of writing, the Modal H100 offering used with this launcher is the SXM variant.
+
+To tune the launcher or trainer, pass overrides with `--extra-env`, for example `--extra-env 'MAX_WALLCLOCK_SECONDS=600,VAL_LOSS_EVERY=200'`.
+
 #### Launching a 1xH100 Pod
 
 1. First, [create a Runpod account](https://console.runpod.io/deploy). You should also set up an SSH key in the Settings tab on the left so you can connect to your remote machine. If you're new to this, ask Codex to help you set it up.
