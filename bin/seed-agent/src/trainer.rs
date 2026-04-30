@@ -214,8 +214,21 @@ impl ExternalTrainer {
             .arg("--hidden")
             .arg(hidden.to_string())
             .arg("--lr")
-            .arg(format!("{lr:.6}"))
-            .stdout(Stdio::piped())
+            .arg(format!("{lr:.6}"));
+        // Pass --ctx if present in config (default 12).
+        if let Some(ctx) = self.config["ctx"].as_u64() {
+            cmd.arg("--ctx").arg(ctx.to_string());
+        }
+        // Pass --format if present (gf16, fp32, fp16, bf16, gf8, etc.).
+        // If trios-train doesn't support this flag, the subprocess fails — honest R5.
+        if let Some(fmt) = self.config["format"].as_str() {
+            cmd.arg("--format").arg(fmt);
+        }
+        // Pass --attn-layers if present (architecture axis: 0=MLP, 1-4=TF-NL).
+        if let Some(attn) = self.config["attn_layers"].as_u64() {
+            cmd.arg("--attn-layers").arg(attn.to_string());
+        }
+        cmd.stdout(Stdio::piped())
             .stderr(Stdio::inherit()); // R5: stream stderr to seed-agent logs
         // Set working directory only when it exists (present in Docker, absent on macOS dev).
         if workdir.is_dir() {

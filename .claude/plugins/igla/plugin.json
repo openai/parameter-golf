@@ -1,0 +1,16 @@
+{
+  "name": "igla",
+  "displayName": "IGLA Race Manager",
+  "version": "1.0.0",
+  "description": "Commands and agents for managing IGLA training competition, worker strategy, and monitoring",
+  "author": "playra",
+  "permissions": {
+    "bash": {
+      "description": "Execute bash commands for Railway deployment and database queries"
+    }
+  },
+  "settings": {
+    "enabled": true
+  },
+  "mcpServers": []
+}
