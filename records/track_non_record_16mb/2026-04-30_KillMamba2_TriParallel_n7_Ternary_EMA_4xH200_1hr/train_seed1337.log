@@ -1,0 +1,54 @@
+# Partial training log for seed 1337
+# (Pod was stopped before the full run.log could be synced from /workspace; the lines below were captured via the monitor stream during training and are sufficient to verify the headline numbers.)
+
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=../../data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=../../data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+[GPT] Depth-recurrence ENABLED: K=7 unique blocks, L=3 loops, effective depth K*L=21. U-Net skip-weights DISABLED.
+model_params:61657752
+world_size:4 grad_accum_steps:2
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.045 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:0 lr_warmup_steps:30 max_wallclock_seconds:3600.000
+seed:1337
+[ema] enabled beta=0.999 warmup_offset=30 shadowing 148 parameters
+
+# --- training (every 100 steps) ---
+step:100/20000 train_loss:3.3586 train_time:187400ms step_avg:1874.00ms
+step:200/20000 train_loss:2.8262 train_time:275752ms step_avg:1378.76ms
+step:300/20000 train_loss:2.5926 train_time:349866ms step_avg:1166.22ms
+step:400/20000 train_loss:2.3766 train_time:438347ms step_avg:1095.87ms
+step:500/20000 train_loss:2.4614 train_time:512539ms step_avg:1025.08ms
+step:600/20000 train_loss:2.5687 train_time:600424ms step_avg:1000.71ms
+step:700/20000 train_loss:2.4633 train_time:674462ms step_avg:963.52ms
+step:800/20000 train_loss:2.3569 train_time:751007ms step_avg:938.76ms
+step:900/20000 train_loss:2.3796 train_time:825810ms step_avg:917.57ms
+step:1000/20000 train_loss:2.4222 train_time:909235ms step_avg:909.24ms
+step:1500/20000 train_loss:2.3330 train_time:1289594ms step_avg:859.73ms
+step:2000/20000 train_loss:2.2737 train_time:1702121ms step_avg:851.06ms
+step:2500/20000 train_loss:2.2367 train_time:2095799ms step_avg:838.32ms
+step:3000/20000 train_loss:2.2197 train_time:2489456ms step_avg:829.82ms
+step:3500/20000 train_loss:2.2448 train_time:2903686ms step_avg:829.62ms
+step:3900/20000 train_loss:2.0272 train_time:3221626ms step_avg:826.06ms
+step:4000/20000 train_loss:2.1408 train_time:3295749ms step_avg:823.94ms
+step:4380/20000 train_loss:2.0161 train_time:3600100ms step_avg:821.94ms
+
+# --- eval (post-EMA-shadow swap) ---
+[ema] swapping shadow into model for final eval (beta=0.999)
+step:4380/20000 val_loss:2.1921 val_bpb:1.2983 train_time:3600102ms step_avg:821.94ms
+stopping_early: wallclock_cap train_time:3600102ms step:4380/20000
+peak memory allocated: 114125 MiB reserved: 115026 MiB
+
+# --- quantize export ---
+Serialized model: 123491967 bytes
+Code size: 104676 bytes
+Total submission size: 123596643 bytes
+v2 packed-ternary export: 63 BitLinear weights → 2-bit packed
+Serialized model int8+zlib: 11969746 bytes (payload:16033632 raw_torch:16083093 payload_ratio:7.70x)
+Total submission size int8+zlib: 12074422 bytes
+brotli_vs_zlib brotli_bytes:11969746 zlib_bytes:12156986 savings_bytes:187240 ratio:0.9846
+
+# --- post-quant eval (int8 + brotli round-trip) ---
+final_int8_zlib_roundtrip val_loss:2.1957 val_bpb:1.3004 eval_time:357422ms
+final_int8_zlib_roundtrip_exact val_loss:2.19567479 val_bpb:1.30040229

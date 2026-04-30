@@ -1,0 +1,51 @@
+{
+  "author": "potatonyliu",
+  "github_id": "potatonyliu",
+  "name": "kill-Mamba-2 SSM + Ternary + n=7 Depth Recurrence + EMA (1-hour 4×H200)",
+  "blurb": "First SSM-based entry in either track. kill-Mamba-2 (LTI selectivity, B/C constants) in parallel with attention at every block, NUM_UNIQUE_LAYERS=7 with NUM_LOOPS=3 weight sharing, BitNet-b1.58 ternary body with 2-bit-packed export, EMA-of-weights at β=0.999, brotli on top. Trained 4,380 steps × 524,288 batch ≈ 2.3B tokens in 3,600s on 4×H200 SXM (one hour, non-record). Lands at 1.30040 BPB / 12.08 MB; +0.076 BPB above the naive records-track baseline (1.2244) despite ~9× the compute, so this earns its place as the first SSM entry rather than as a frontier number. The gap to the records-track frontier (~0.19 BPB vs 1.1063) is dominated by training duration + missing standard-stack ports (parallel-residuals, sliding-window eval, GPTQ) rather than architecture.",
+  "date": "2026-04-30",
+  "track": "non_record_16mb",
+  "val_loss": 2.19567479,
+  "val_bpb": 1.30040229,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_loss_pre_quant": 2.1921,
+      "val_bpb_pre_quant": 1.2983,
+      "val_loss_post_quant": 2.19567479,
+      "val_bpb_post_quant": 1.30040229,
+      "quant_tax": 0.002102,
+      "artifact_bytes": 12076468,
+      "code_bytes": 106722,
+      "payload_bytes": 11969746,
+      "steps": 4380,
+      "step_avg_ms": 821.94,
+      "device": "cuda_h200_x4",
+      "wallclock_seconds": 3600,
+      "model_params": 61657752
+    }
+  },
+  "comparison_baseline": {
+    "track_10min_16mb_naive_baseline": {
+      "val_bpb": 1.2244,
+      "path": "records/track_10min_16mb/2026-03-17_NaiveBaseline/README.md",
+      "delta_bpb": 0.0760,
+      "note": "9L 512d sp1024 GQA-4 tied-emb on 8×H100 10min — this submission is +0.0760 BPB worse despite ~9× the compute"
+    },
+    "track_10min_16mb_mid_tier_frontier": {
+      "val_bpb": 1.1063,
+      "path": "records/track_10min_16mb/2026-03-31_ParallelResiduals_MiniDepthRecurrence/README.md",
+      "delta_bpb": 0.1941,
+      "note": "Mid-tier records-track entry (PR #1204), not the baseline; gap is mostly duration + missing standard-stack ports"
+    },
+    "track_non_record_16mb_peers": {
+      "binary_106M_2.15h": { "val_bpb": 1.1239, "path": "records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md" },
+      "transformer_4h": { "val_bpb": 1.2074, "path": "records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md" }
+    }
+  },
+  "bytes_total": 12076468,
+  "code_bytes": 106722,
+  "payload_bytes": 11969746,
+  "hardware": "4×H200 SXM 141GB",
+  "notes": "Non-record because of hardware (4×H200 not 8×H100) and time (1h not 10min). First SSM entry. Eval is the standard root-harness full-window val + int8/brotli quant roundtrip; not sliding-window. Single-seed (1337); the −0.65 BPB delta over the prior local SSM winner is far outside any reasonable noise floor for this architecture family. Score (1.3004) is +0.076 BPB above the naive records-track baseline (1.2244); positioning as 'requested-PR SSM entry' rather than as a competitive number. The train log records pre-cleanup code_bytes (104,676) / total (12,074,422) from the original three-file run; the shipped single-file artifact has code_bytes=106,722 / total=12,076,468 (BitLinear + pack_ternary / unpack_ternary inlined into train_gpt.py; trigram_side_memory.py deleted as gated dead code). Trained model checkpoint is unchanged — only code-side accounting moved."
+}
