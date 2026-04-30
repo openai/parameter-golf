@@ -1,0 +1,42 @@
+{
+  "name": "SP10240 + SimCTG + QAHSP + post-quant TTT",
+  "blurb": "PR #1855 lineage SOTA stack (11L x 512d x 8H, 3-Layer Recurrence loops 3-5, Parallel Residuals, LeakyReLU(0.5)^2, Partial RoPE 16/64, XSA all-layers, SP10240) + SimCTG (lambda=0.3, margin=0.4) + QAHSP quant-aware activation regularizer (lambda=0.3) + post-quant TTT (TTT_ENABLED=1, TTT_EPOCHS=1, LR 5e-3) + Polar Express NS Muon + GPTQ int6/int7 + brotli + lzma-compressed self-extracting code. 3-seed mean 1.07197 BPB post-quant TTT sliding-window stride 64. Beats prior leaderboard sliding-window SOTA 1.0827 by 10.7 mBPB and our prior Sub A (1.07502) by 3.05 mBPB.",
+  "date": "2026-04-30",
+  "val_bpb": 1.07197,
+  "val_bpb_std": 0.00023,
+  "val_bpb_metric": "quantized_ttt_sliding_window",
+  "shipped_seed": 2025,
+  "seeds": {
+    "42": {
+      "post_ema_bpb": 1.07522,
+      "quantized_bpb": 1.08978,
+      "sliding_window_bpb": 1.07386,
+      "ttt_sliding_window_bpb": 1.07218411
+    },
+    "1337": {
+      "post_ema_bpb": 1.07522,
+      "quantized_bpb": 1.08978,
+      "sliding_window_bpb": 1.07386,
+      "ttt_sliding_window_bpb": 1.07200099
+    },
+    "2025": {
+      "post_ema_bpb": 1.07491,
+      "quantized_bpb": 1.08939,
+      "sliding_window_bpb": 1.07350,
+      "ttt_sliding_window_bpb": 1.07172856
+    }
+  },
+  "novel_contributions": {
+    "qahsp": "Quant-Aware Hidden STE Penalty regularizer at lambda=0.3 (MSE between hidden states and STE-quantized-to-int6 versions). Novel to this submission. See companion Sub C (PR #2011) for cross-base ablation.",
+    "post_quant_ttt_integration": "Same legal score-first line as PR #1413; TTT_EPOCHS=1 to fit in the eval budget after sliding-window eval.",
+    "eval_val_ttt_bug_fix": "Original code referenced compiled_forward (defined only in the pre-quant TTT path); patched to use eager base_model(x, y) call."
+  },
+  "compliance_notes": "Post-quant TTT runs after the legal pre-quantization post-EMA grade pass. Eval ops total ~700-720s including TTT (sliding-window 115s + TTT 260-290s + pre/quantized eval ~30s); slightly over the 600s soft rule discussed in PR #1958 -- flagged for organizer review.",
+  "credits": "PR #1855 (Kevin Clark et al.) - architecture; PR #1413 (dexhunter) - legal score-first TTT line; PR #1493 (bigbag) - stride-64 sliding eval; PR #1394 (clarkkev), PR #287 (jfprincz), PR #1412 (Robby955), PR #549 (abaybektursun)",
+  "bytes_total": 15958541,
+  "bytes_artifact": 15932327,
+  "bytes_train_gpt_self_extracting": 22215,
+  "bytes_readme": 2618,
+  "bytes_submission_json_self": null,
+  "cap_margin_bytes": 41459
+}
