@@ -27,10 +27,10 @@ directly.
 | Step average at stop | 92.64 ms |
 | Sliding eval time | 401,147 ms |
 | Model Stack BitNet bundle bytes | 15,612,895 |
-| Model Stack int1+zlib bytes | 12,183,763 |
-| Code bytes | 81,500 |
-| Model Stack bundle + code bytes | 15,694,395 |
-| Model Stack int1+zlib + code bytes | 12,265,263 |
+| Model Stack int1+zlib bytes | 12,184,174 |
+| Code bytes | 86,535 |
+| Model Stack bundle + code bytes | 15,699,430 |
+| Model Stack int1+zlib + code bytes | 12,270,709 |
 | Raw `final_model.pt` + code bytes | 207,847,742 |
 | Int8+zlib `final_model.int8.ptz` + code bytes | 42,950,518 |
 | Model Stack int1+zlib budget | 12.27MB / 16.00MB |
@@ -52,6 +52,8 @@ The run improves over the earlier legal Model Stack BitNet MLP2 run:
 
 - Model Stack `TrainableBitNetLinear` QAT modules wired into Parameter Golf training.
 - Runtime-row packed BitNet export, with 28 packed modules and 51,380,224 packed ternary params.
+- Explicit `final_model.int1.ptz` artifact with packed BitNet runtime metadata, including activation quantization mode/bits.
+- Direct `final_model.int1.ptz` restore path that rebuilds `QuantizedLinearBitNet` runtime modules for roundtrip evaluation.
 - Fused QKV projection and FlashAttention backend.
 - Dense training backward for both grad-input and grad-weight where the full compiled step is faster than the int8 backward candidates.
 - Parallel Muon matrix updates with shape-bucket sharding.
@@ -67,6 +69,7 @@ The run improves over the earlier legal Model Stack BitNet MLP2 run:
 - MLP: `MLP_HIDDEN_DIM=2304`, `ACTIVATION=relu2`.
 - Overtone embedding: `OVERTONE_EMBED_INIT=1`, `OVERTONE_EMBED_POWER=0.5`, `OVERTONE_EMBED_SCALE=1.0`.
 - Model Stack BitNet: `MODEL_STACK_BITNET_QAT=1`, `MODEL_STACK_BITNET_SCALE_LAYOUT=runtime_row`, `MODEL_STACK_BITNET_GROUP_SIZE=64`.
+- Activation quant export defaults: `MODEL_STACK_BITNET_ACTIVATION_QUANT=none`, `MODEL_STACK_BITNET_ACTIVATION_BITS=8`. Set `MODEL_STACK_BITNET_ACTIVATION_QUANT=dynamic_int8` and `MODEL_STACK_BITNET_ACTIVATION_BITS=4` for a4.8-style W1.58A4 export/eval experiments.
 - Training: `TRAIN_BATCH_TOKENS=524288`, `MAX_WALLCLOCK_SECONDS=599`, `ITERATIONS=20000`.
 - Hardware: 8x NVIDIA H100 80GB HBM3.
 
@@ -92,8 +95,8 @@ This is not a leaderboard record against the SP8192 + legal TTT submissions. It
 is intended as the strongest current Model Stack BitNet PR artifact: the training
 stack uses Model Stack QAT modules, the exported packed BitNet `int1.ptz` plus
 code fits the track budget, and the run demonstrates a faster and better Model
-Stack BitNet result than the earlier MLP2 baseline. To make this fully
-competition-valid as a submitted artifact, the script still needs the final eval
-roundtrip to instantiate and score from `final_model.int1.ptz`; it currently
-writes and format-validates that artifact, while the existing score lines come
-from the trained model and the oversized generic int8+zlib roundtrip.
+Stack BitNet result than the earlier MLP2 baseline. The script now writes
+`final_model.int1.ptz` and includes a direct restore/eval path for that artifact;
+the logged canonical run predates that added roundtrip line, so the prior
+`final_sliding` score remains the measured score until the same config is
+rerun with the direct `int1` roundtrip enabled.

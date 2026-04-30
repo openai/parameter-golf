@@ -111,6 +111,22 @@ class Hyperparameters:
     model_stack_bitnet_scale_layout = os.environ.get("MODEL_STACK_BITNET_SCALE_LAYOUT", "runtime_row")
     model_stack_bitnet_group_size = int(os.environ.get("MODEL_STACK_BITNET_GROUP_SIZE", os.environ.get("BITNET_GROUP_SIZE", 64)))
     model_stack_bitnet_export = bool(int(os.environ.get("MODEL_STACK_BITNET_EXPORT", "1")))
+    model_stack_bitnet_activation_quant = os.environ.get(
+        "MODEL_STACK_BITNET_ACTIVATION_QUANT",
+        os.environ.get("MODEL_STACK_BITNET_ACT_QUANT", "none"),
+    )
+    model_stack_bitnet_activation_bits = int(os.environ.get(
+        "MODEL_STACK_BITNET_ACTIVATION_BITS",
+        os.environ.get("MODEL_STACK_BITNET_ACT_BITS", "8"),
+    ))
+    model_stack_bitnet_activation_method = os.environ.get(
+        "MODEL_STACK_BITNET_ACTIVATION_METHOD",
+        os.environ.get("MODEL_STACK_BITNET_ACT_METHOD", "absmax"),
+    )
+    model_stack_bitnet_activation_percentile = float(os.environ.get(
+        "MODEL_STACK_BITNET_ACTIVATION_PERCENTILE",
+        os.environ.get("MODEL_STACK_BITNET_ACT_PERCENTILE", "0.999"),
+    ))
     attention_backend = os.environ.get("MODEL_STACK_ATTENTION_BACKEND", "sdpa").strip().lower()
     model_stack_fused_qkv = bool(int(os.environ.get("MODEL_STACK_FUSED_QKV", "0")))
 
@@ -1041,6 +1057,15 @@ def load_model_stack_trainable_bitnet_linear(args: Hyperparameters):
     return TrainableBitNetLinear
 
 
+def load_model_stack_quantized_bitnet_linear(args: Hyperparameters):
+    root = str(Path(args.model_stack_root).resolve())
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from compress.quantization import QuantizedLinearBitNet
+
+    return QuantizedLinearBitNet
+
+
 def make_training_linear(
     in_features: int,
     out_features: int,
@@ -1065,17 +1090,28 @@ def is_model_stack_trainable_bitnet(module: nn.Module) -> bool:
     return cls is not None and isinstance(module, cls)
 
 
-def export_model_stack_bitnet_bundle(model: nn.Module) -> dict[str, object]:
-    packed: dict[str, dict[str, Tensor]] = {}
+def export_model_stack_bitnet_bundle(model: nn.Module, args: Hyperparameters) -> dict[str, object]:
+    packed: dict[str, dict[str, object]] = {}
     qat_state_names: set[str] = set()
     for module_name, module in model.named_modules():
         if not is_model_stack_trainable_bitnet(module):
             continue
-        quantized = module.to_quantized()
-        packed[module_name] = {
-            key: value.detach().cpu()
-            for key, value in quantized.state_dict().items()
+        quantized = module.to_quantized(
+            activation_quant=args.model_stack_bitnet_activation_quant,
+            activation_quant_bits=args.model_stack_bitnet_activation_bits,
+            activation_quant_method=args.model_stack_bitnet_activation_method,
+            activation_quant_percentile=args.model_stack_bitnet_activation_percentile,
+        )
+        state = {key: value.detach().cpu() for key, value in quantized.state_dict().items()}
+        state["runtime"] = {
+            "activation_quant": str(quantized.act_quant_mode),
+            "activation_bits": int(quantized.act_quant_bits),
+            "activation_method": str(quantized.act_quant_method),
+            "activation_percentile": float(quantized.act_quant_percentile),
+            "quant_calibration": str(quantized.quant_calibration),
+            "weight_opt": str(quantized.weight_opt),
         }
+        packed[module_name] = state
         prefix = module_name + "." if module_name else ""
         qat_state_names.add(prefix + "weight")
         if module.bias is not None:
@@ -1107,6 +1143,54 @@ def encode_model_stack_bitnet_int1_artifact(bundle: dict[str, object]) -> bytes:
 
 def decode_model_stack_bitnet_int1_artifact(blob: bytes) -> dict[str, object]:
     return torch.load(io.BytesIO(zlib.decompress(blob)), map_location="cpu", weights_only=False)
+
+
+def _set_named_submodule(root: nn.Module, name: str, module: nn.Module) -> None:
+    parts = name.split(".")
+    parent = root.get_submodule(".".join(parts[:-1])) if len(parts) > 1 else root
+    if isinstance(parent, nn.ModuleList):
+        parent[int(parts[-1])] = module
+        return
+    setattr(parent, parts[-1], module)
+
+
+def load_model_stack_bitnet_int1_model(args: Hyperparameters, path: str, device: torch.device) -> nn.Module:
+    with open(path, "rb") as f:
+        bundle = decode_model_stack_bitnet_int1_artifact(f.read())
+    if bundle.get("format") != "parameter_golf_model_stack_trainable_bitnet_bundle_v1":
+        raise ValueError(f"unsupported Model Stack BitNet artifact format: {bundle.get('format')}")
+
+    eval_model = GPT(
+        args.vocab_size,
+        args.num_layers,
+        args.model_dim,
+        args.num_heads,
+        args.num_kv_heads,
+        args.mlp_mult,
+        args.tie_embeddings,
+        args.tied_embed_init_std,
+        args.logit_softcap,
+        args.rope_base,
+        args.qk_gain_init,
+        args,
+    ).to(device)
+    eval_model.load_state_dict({k: v.to(device) for k, v in bundle["floating"].items()}, strict=False)
+
+    quantized_cls = load_model_stack_quantized_bitnet_linear(args)
+    for module_name, entry in bundle["packed"].items():
+        old = eval_model.get_submodule(module_name)
+        qmod = quantized_cls(old.in_features, old.out_features, bias=old.bias is not None).to(device)
+        tensor_state = {k: v.to(device) for k, v in entry.items() if isinstance(v, torch.Tensor)}
+        qmod.load_state_dict(tensor_state, strict=False)
+        runtime = entry.get("runtime", {})
+        qmod.act_quant_mode = str(runtime.get("activation_quant", "none"))
+        qmod.act_quant_bits = int(runtime.get("activation_bits", 8))
+        qmod.act_quant_method = str(runtime.get("activation_method", "absmax"))
+        qmod.act_quant_percentile = float(runtime.get("activation_percentile", 0.999))
+        qmod.quant_calibration = str(runtime.get("quant_calibration", "runtime_row"))
+        qmod.weight_opt = str(runtime.get("weight_opt", "none"))
+        _set_named_submodule(eval_model, module_name, qmod)
+    return eval_model
 
 
 def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
@@ -1585,6 +1669,8 @@ def main() -> None:
         f"model_stack_bitnet_qat:{args.model_stack_bitnet_qat} "
         f"scale_layout:{args.model_stack_bitnet_scale_layout} "
         f"group_size:{args.model_stack_bitnet_group_size} "
+        f"act_quant:{args.model_stack_bitnet_activation_quant} "
+        f"act_bits:{args.model_stack_bitnet_activation_bits} "
         f"fused_qkv:{args.model_stack_fused_qkv}"
     )
     log0(
@@ -1807,7 +1893,7 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
         if args.model_stack_bitnet_qat and args.model_stack_bitnet_export:
-            bundle = export_model_stack_bitnet_bundle(base_model)
+            bundle = export_model_stack_bitnet_bundle(base_model, args)
             torch.save(bundle, "final_model.model_stack_bitnet.pt")
             bundle_bytes = os.path.getsize("final_model.model_stack_bitnet.pt")
             int1_blob = encode_model_stack_bitnet_int1_artifact(bundle)
@@ -1829,6 +1915,32 @@ def main() -> None:
                 f"packed_modules:{int1_roundtrip['summary']['packed_modules']} "
                 f"floating_tensors:{int1_roundtrip['summary']['floating_tensors']}"
             )
+
+    if distributed:
+        dist.barrier()
+    if args.model_stack_bitnet_qat and args.model_stack_bitnet_export:
+        int1_model = load_model_stack_bitnet_int1_model(args, "final_model.int1.ptz", device)
+        torch.cuda.synchronize()
+        t_i1eval = time.perf_counter()
+        i1_val_loss, i1_val_bpb = eval_val(
+            args,
+            int1_model,
+            rank,
+            world_size,
+            device,
+            grad_accum_steps,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+        )
+        torch.cuda.synchronize()
+        log0(
+            f"final_int1_zlib_roundtrip val_loss:{i1_val_loss:.4f} val_bpb:{i1_val_bpb:.4f} "
+            f"eval_time:{1000.0 * (time.perf_counter() - t_i1eval):.0f}ms"
+        )
+        log0(f"final_int1_zlib_roundtrip_exact val_loss:{i1_val_loss:.8f} val_bpb:{i1_val_bpb:.8f}")
+        del int1_model
 
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf = io.BytesIO()
