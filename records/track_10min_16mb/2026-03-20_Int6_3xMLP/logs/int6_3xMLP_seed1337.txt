@@ -1,0 +1,43 @@
+logs/int6_3xMLP_seed1337.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+smear_gate:False bigram_hash:False swa:False
+fp16_embed_export:enabled (tok_emb.weight kept in fp16, ~1024KB)
+qat:False (activates at 60% of iterations = step 6000)
+model_params:21778504 (unique_layers:9 loops:1 effective_depth:9 lora_rank:0 lora_params:0)
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.07 head_lr:0.0 matrix_lr:0.06 scalar_lr:0.06
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+step:200/20000 train_loss:2.7747 train_time:11038ms step_avg:55.19ms
+step:400/20000 train_loss:2.3053 train_time:20631ms step_avg:51.58ms
+step:600/20000 train_loss:2.5173 train_time:30120ms step_avg:50.20ms
+step:800/20000 train_loss:2.2576 train_time:39662ms step_avg:49.58ms
+step:1000/20000 train_loss:2.3326 train_time:49256ms step_avg:49.26ms
+step:2000/20000 train_loss:2.2082 train_time:97479ms step_avg:48.74ms
+step:4000/20000 train_loss:2.1104 train_time:192942ms step_avg:48.24ms
+step:6000/20000 train_loss:2.1675 train_time:288541ms step_avg:48.09ms
+step:8000/20000 train_loss:2.0480 train_time:384151ms step_avg:48.02ms
+step:10000/20000 train_loss:2.0419 train_time:479774ms step_avg:47.98ms
+step:12000/20000 train_loss:1.9941 train_time:575666ms step_avg:47.97ms
+step:12507/20000 val_loss:2.0176 val_bpb:1.1949 train_time:599980ms step_avg:47.97ms
+stopping_early: wallclock_cap train_time:599980ms step:12507/20000
+peak memory allocated: 11250 MiB reserved: 11380 MiB
+Serialized model: 86099351 bytes
+Code size: 71265 bytes
+Total submission size: 86170616 bytes
+quantization: 6-bit
+Serialized model int8+zstd-22: 15103871 bytes (payload:22428960 raw_torch:22473755 payload_ratio:3.84x)
+Total submission size int8+zstd-22: 15175136 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32 doc_isolated:False
+final_int8_zlib_roundtrip val_loss:1.9768 val_bpb:1.1708 eval_time:80311ms
+final_int8_zlib_roundtrip_exact val_loss:1.97676768 val_bpb:1.17075317
+---
+Run config: QUANT_BITS=6 USE_ZSTD=1 MLP_HIDDEN=1536 FP16_EMBED_EXPORT=1
+WARMDOWN_ITERS=20000 MATRIX_LR=0.06 SCALAR_LR=0.06 TIED_EMBED_LR=0.07
+GRAD_CLIP_NORM=1.0 MUON_BACKEND_STEPS=5 MUON_MOMENTUM=0.99
+NUM_LAYERS=9 MODEL_DIM=512 EVAL_STRIDE=64 SEED=1337
+Hardware: 8xH100 SXM (RunPod Parameter Golf template), PyTorch 2.9.1+cu128
