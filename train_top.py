@@ -310,6 +310,7 @@ class Hyperparameters:
     gptq_calibration_batches = int(os.environ.get("GPTQ_CALIBRATION_BATCHES", 16))
     gptq_reserve_seconds = float(os.environ.get("GPTQ_RESERVE_SECONDS", 4.0))
     gptq_all_reduce = bool(int(os.environ.get("GPTQ_ALL_REDUCE", "1")))
+    paired_head_muon_enabled = bool(int(os.environ.get("PAIRED_HEAD_MUON_ENABLED", "0")))
     phased_ttt_prefix_docs = int(os.environ.get("PHASED_TTT_PREFIX_DOCS", 2000))
     phased_ttt_num_phases = int(os.environ.get("PHASED_TTT_NUM_PHASES", 1))
     global_ttt_lr = float(os.environ.get("GLOBAL_TTT_LR", 0.001))
@@ -1791,7 +1792,7 @@ class Muon(torch.optim.Optimizer):
                 shard_B = padded_B // ws
                 tail = p.shape[1:]
                 dev = p.device
-                self._bank_meta.append({
+                meta = {
                     "p": p,
                     "B": B,
                     "padded_grad": torch.zeros(padded_B, *tail, device=dev, dtype=torch.bfloat16),
@@ -1799,9 +1800,50 @@ class Muon(torch.optim.Optimizer):
                     "shard_mom": torch.zeros(shard_B, *tail, device=dev, dtype=torch.bfloat16),
                     "full_update": torch.zeros(padded_B, *tail, device=dev, dtype=torch.bfloat16),
                     "scale": max(1, p.shape[-2] / p.shape[-1]) ** 0.5,
-                })
+                }
+                spec = getattr(p, "_head_pair_bank_spec", None)
+                if spec is not None:
+                    rank_offset = self._rank * shard_B
+                    paired_local = []
+                    unpaired_local = []
+                    for j in range(shard_B):
+                        gi = rank_offset + j
+                        if gi >= B:
+                            continue
+                        if gi < spec["pair_count"]:
+                            paired_local.append(j)
+                        else:
+                            unpaired_local.append(j)
+                    if paired_local:
+                        meta["paired_local"] = paired_local
+                        meta["unpaired_local"] = unpaired_local
+                        meta["num_pairs"] = spec["num_pairs"]
+                        meta["pair_dim"] = spec["pair_dim"]
+                self._bank_meta.append(meta)
         self._bank_meta.sort(key=lambda m: -m["p"].numel())
         self._built = True
+
+    @staticmethod
+    def _ns_paired_dispatch(update, m, steps):
+        if "paired_local" not in m:
+            return zeropower_via_newtonschulz5(update, steps=steps)
+        out = update.clone()
+        paired_idx = m["paired_local"]
+        unpaired_idx = m["unpaired_local"]
+        num_pairs = m["num_pairs"]
+        pair_dim = m["pair_dim"]
+        if paired_idx:
+            paired_view = update[paired_idx]
+            n = paired_view.shape[0]
+            tail = paired_view.shape[2:]
+            reshaped = paired_view.reshape(n * num_pairs, pair_dim, *tail)
+            ns_out = zeropower_via_newtonschulz5(reshaped, steps=steps)
+            out[paired_idx] = ns_out.reshape_as(paired_view)
+        if unpaired_idx:
+            unpaired_view = update[unpaired_idx]
+            ns_out = zeropower_via_newtonschulz5(unpaired_view, steps=steps)
+            out[unpaired_idx] = ns_out
+        return out
 
     def launch_reduce_scatters(self):
         if not self._built:
@@ -1870,7 +1912,7 @@ class Muon(torch.optim.Optimizer):
                 if row_normalize:
                     rn = update.float().norm(dim=-1, keepdim=True).clamp_min(1e-07)
                     update = update / rn.to(update.dtype)
-                update = zeropower_via_newtonschulz5(update, steps=backend_steps)
+                update = self._ns_paired_dispatch(update, m, backend_steps)
                 if sharded:
                     prev_ag_handle = dist.all_gather_into_tensor(
                         m["full_update"], update, async_op=True
@@ -1913,6 +1955,26 @@ class Optimizers:
             base_model.mlp_up_bank,
             base_model.mlp_down_bank,
         ]
+        if getattr(h, "paired_head_muon_enabled", False):
+            head_dim = h.model_dim // h.num_heads
+            if h.num_heads >= 2:
+                base_model.qo_bank._head_pair_bank_spec = {
+                    "pair_count": h.num_layers,
+                    "num_pairs": h.num_heads // 2,
+                    "pair_dim": head_dim * 2,
+                }
+            if h.num_kv_heads >= 2:
+                base_model.kv_bank._head_pair_bank_spec = {
+                    "pair_count": h.num_layers,
+                    "num_pairs": h.num_kv_heads // 2,
+                    "pair_dim": head_dim * 2,
+                }
+            log(
+                f"muon:paired-head NS enabled qo_bank(pair_count={h.num_layers},"
+                f"num_pairs={h.num_heads // 2},pair_dim={head_dim * 2}) "
+                f"kv_bank(pair_count={h.num_layers},"
+                f"num_pairs={h.num_kv_heads // 2},pair_dim={head_dim * 2})"
+            )
         block_named_params = list(base_model.blocks.named_parameters())
         scalar_params = [
             p
