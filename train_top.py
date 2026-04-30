@@ -309,6 +309,7 @@ class Hyperparameters:
     compressor = os.environ.get("COMPRESSOR", "brotli")
     gptq_calibration_batches = int(os.environ.get("GPTQ_CALIBRATION_BATCHES", 16))
     gptq_reserve_seconds = float(os.environ.get("GPTQ_RESERVE_SECONDS", 4.0))
+    gptq_all_reduce = bool(int(os.environ.get("GPTQ_ALL_REDUCE", "1")))
     phased_ttt_prefix_docs = int(os.environ.get("PHASED_TTT_PREFIX_DOCS", 2000))
     phased_ttt_num_phases = int(os.environ.get("PHASED_TTT_NUM_PHASES", 1))
     global_ttt_lr = float(os.environ.get("GLOBAL_TTT_LR", 0.001))
@@ -2145,8 +2146,20 @@ def collect_hessians(model, train_loader, h, device, n_calibration_batches=64):
         block.attn._calib = False
         block.mlp._calib = False
         block.mlp.use_fused = True
+    distributed = dist.is_available() and dist.is_initialized()
+    world_size = dist.get_world_size() if distributed else 1
+    do_ar = bool(getattr(h, "gptq_all_reduce", True)) and distributed and world_size > 1
+    if do_ar:
+        log(f"gptq:all-rank Hessian averaging across {world_size} ranks "
+            f"(denom={n_calibration_batches * world_size})")
+        for name in sorted(hessians.keys()):
+            dist.all_reduce(hessians[name], op=dist.ReduceOp.SUM)
+        denom = n_calibration_batches * world_size
+    else:
+        log(f"gptq:per-rank Hessian (no all-reduce, denom={n_calibration_batches})")
+        denom = n_calibration_batches
     for name in hessians:
-        hessians[name] = hessians[name].cpu() / n_calibration_batches
+        hessians[name] = hessians[name].cpu() / denom
     return hessians
 
 
