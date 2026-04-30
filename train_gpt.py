@@ -646,19 +646,25 @@ class Rotary(nn.Module):
         inv_freq = 1.0 / (base ** (torch.arange(0, self.rotary_dim, 2, dtype=torch.float32) / self.rotary_dim))
         t = torch.arange(max_seq_len, dtype=torch.float32)
         freqs = torch.outer(t, inv_freq)
+        # Register as float32; shapes: (1, 1, max_seq_len, rotary_dim // 2)
         self.register_buffer("cos", freqs.cos().view(1, 1, max_seq_len, -1), persistent=False)
         self.register_buffer("sin", freqs.sin().view(1, 1, max_seq_len, -1), persistent=False)
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
-        T = x.size(2)
-        return self.cos[:, :, :T, :].to(x.dtype), self.sin[:, :, :T, :].to(x.dtype)
+    def forward(self, x: Tensor):
+        t = x.size(2)
+        return self.cos[:, :, :t, :].to(x.dtype), self.sin[:, :, :t, :].to(x.dtype)
+
+def rotate_half(x: Tensor):
+    x1, x2 = x.chunk(2, dim=-1)
+    return torch.cat((-x2, x1), dim=-1)
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
     d = cos.shape[-1] * 2
     x_rop = x[..., :d]
     x_pass = x[..., d:]
     x_rop = x_rop.view(*x_rop.shape[:-1], -1, 2)
-    x0, x1 = x_rop.unbind(-1)
+    x0 = x_rop[..., 0]
+    x1 = x_rop[..., 1]
     res = torch.stack([x0 * cos - x1 * sin, x1 * cos + x0 * sin], dim=-1)
     return torch.cat([res.flatten(-2), x_pass], dim=-1)
 
@@ -691,7 +697,7 @@ class CausalSelfAttention(nn.Module):
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         if self.use_rope:
-            cos, sin = self.rotary()
+            cos, sin = self.rotary(q)
             q = apply_rotary_emb(q, cos, sin)
             k = apply_rotary_emb(k, cos, sin)
 
@@ -849,11 +855,6 @@ class GPT(nn.Module):
             logits = self.lm_head(x)
             
         logits = self.logit_softcap * torch.tanh(logits.float() / self.logit_softcap)
-        if self.training:
-            loss = F.cross_entropy(logits, targets, reduction='none')
-            mask = torch.bernoulli(torch.full_like(loss, self.keep_prob))
-            loss = (loss * mask) / self.keep_prob
-            return loss.mean()
         return F.cross_entropy(logits, targets)
 
 
