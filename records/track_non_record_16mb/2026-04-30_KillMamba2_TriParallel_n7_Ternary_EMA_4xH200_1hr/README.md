@@ -59,7 +59,7 @@ torchrun --standalone --nproc_per_node=4 \
   records/track_non_record_16mb/2026-04-30_KillMamba2_TriParallel_n7_Ternary_EMA_4xH200_1hr/train_gpt.py
 ```
 
-`MAX_WALLCLOCK_SECONDS=3600` is the binding cap; `ITERATIONS=20000` is just an upper bound. The full env.sh in this folder lists every variable; `CONTROL_TENSOR_NAME_PATTERNS` is load-bearing for SSMs.
+`MAX_WALLCLOCK_SECONDS=3600` is the binding cap; `ITERATIONS=20000` is just an upper bound. Equivalent to sourcing `env.sh` in this folder, which sets the same variables plus `CONTROL_TENSOR_NAME_PATTERNS` (load-bearing for SSMs — keeps the dynamics buffers fp32 under ternary quantization) and a couple of inert defaults left explicit for clarity.
 
 ## Key metrics
 
@@ -84,7 +84,7 @@ torchrun --standalone --nproc_per_node=4 \
 ## Files
 
 - `train_gpt.py` — code snapshot
-- `env.sh` — full env (every variable used by the run)
+- `env.sh` — canonical environment for the run; equivalent to the inline command above
 - `train_seed1337.log` — training log (partial: pod was stopped before the full `run.log` synced from `/workspace`; lines below were captured via the monitor stream during training and cover the headline numbers — pre/post-quant val_bpb, artifact bytes, step times, peak memory, EMA shadow swap)
 - `result.json`, `submission.json` — leaderboard metadata
 - `requirements.txt` — `brotli` and `sentencepiece` are required at quant-export
