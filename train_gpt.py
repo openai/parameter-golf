@@ -66,7 +66,7 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 1.85))
+    mlp_mult = float(os.environ.get("MLP_MULT", 1.8625))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_max_base = float(os.environ.get("ROPE_MAX_BASE", 4096.0))
     rope_min_base = float(os.environ.get("ROPE_MIN_BASE", 256.0))
@@ -713,7 +713,7 @@ class CausalSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, dim: int, mlp_mult: float):
         super().__init__()
-        self.hidden_dim = int(mlp_mult * 2/3 * dim // 64) * 64
+        self.hidden_dim = int(mlp_mult * 2/3 * dim // 32) * 32
         self.c_fc = nn.Linear(dim, 2 * self.hidden_dim, bias=False)
         self.c_proj = nn.Linear(self.hidden_dim, dim, bias=False)
 
