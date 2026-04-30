@@ -355,7 +355,7 @@ def serialize(h,base_model):
 	sd_cpu={k:v.detach().cpu()for(k,v)in base_model.state_dict().items()};device=torch.device('cuda',h.local_rank);log('GPTQ:collecting Hessians from calibration data...');t0=time.perf_counter();calib_loader=ShuffledSequenceLoader(h,device);hessians=collect_hessians(base_model,calib_loader,h,device,n_calibration_batches=h.gptq_calibration_batches);log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter()-t0:.1f}s");quant_result,quant_meta=gptq_mixed_quantize(sd_cpu,hessians,h);quant_buf=io.BytesIO();torch.save({'w':quant_result,'m':quant_meta},quant_buf);quant_raw=quant_buf.getvalue();quant_blob=_compress(quant_raw,h.compressor);quant_file_bytes=len(quant_blob)
 	if h.is_main_process:
 		with open(h.quantized_model_path,'wb')as f:f.write(quant_blob)
-		log(f"Serialized model quantized+{h.compressor}: {quant_file_bytes} bytes")
+		code_bytes=os.path.getsize(__file__);total_bytes=code_bytes+quant_file_bytes;log(f"artifact_bytes: code={code_bytes} model={quant_file_bytes} total={total_bytes}");assert total_bytes<16000000,f"artifact too large: {total_bytes}"
 	return quant_file_bytes
 def deserialize(h,device):
 	eval_model=GPT(h).to(device).bfloat16();restore_fp32_params(eval_model);sd_cpu={k:v.detach().cpu()for(k,v)in eval_model.state_dict().items()}
