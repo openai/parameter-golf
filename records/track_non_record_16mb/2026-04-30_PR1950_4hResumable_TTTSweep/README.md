@@ -181,12 +181,15 @@ Training ran for full 4h wallclock but completed ~30K steps (vs ~42K expected on
 
 ### Scaling Table
 
-| Minute | Steps  | Artifact (bytes) | val_bpb (pre-quant) | Δ Artifact |
+| Minute | Steps  | Artifact (bytes) | val_bpb† | Δ Artifact |
 |--------|--------|-----------------|--------------------:|----------:|
 | 60     | 10,488 | 15,947,774      | 1.1720             | baseline  |
 | 120    | 17,480 | 15,944,413      | 1.1389             | −3,361    |
 | 180    | 23,418 | 15,944,789      | 1.1183             | −2,985    |
-| 240    | 29,888 | 15,932,638      | 1.0568             | −15,136   |
+| 240    | 29,888 | 15,932,638      | 1.0449‡            | −15,136   |
+
+† 60–180 min val_bpb = nearest in-training live-model eval at export step.  
+‡ 240 min = final INT6 GPTQ quantized diagnostic (post-EMA pre-quant: 1.0355).
 
 ### Final 240-Minute Diagnostics
 
@@ -208,13 +211,13 @@ Training ran for full 4h wallclock but completed ~30K steps (vs ~42K expected on
 | **This run (240 min, quantized, no TTT)** | **1.0449** | 1-seed, TTT interrupted |
 | This run (240 min, pre-quant EMA) | 1.0355 | Theoretical floor |
 
-**Key Finding**: The 4h quantized model (1.0449) already matches or beats the 1h post-TTT result (1.0399), suggesting TTT on the 4h artifact would push BPB well below 1.03.
+**Key Finding**: The 4h quantized model (1.0449) approaches the 1h post-TTT result (1.0399), with only 0.005 BPB gap. The pre-quant post-EMA model (1.0355) already surpasses it, suggesting TTT on the 4h artifact would push BPB well below 1.03.
 
 ### Hypothesis Evaluation
 
 | Hypothesis | Result |
 |-----------|--------|
-| H1: BPB continues improving past 1h | ✅ Confirmed (1.172 → 1.057 pre-quant) |
+| H1: BPB continues improving past 1h | ✅ Confirmed (1.172 → 1.045 quantized) |
 | H2: Quant tax stays stable | ✅ Confirmed (0.0094 at 240 min) |
 | H3: TTT gain grows with training | ⏸️ Not testable (TTT interrupted) |
 | H4: Higher rank/LR improves TTT | ⏸️ Not testable (sweep not run) |
