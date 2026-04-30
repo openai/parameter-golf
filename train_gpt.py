@@ -64,6 +64,7 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     mtp = int(os.environ.get("MTP", "1"))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    layer_freeze_per_step = int(os.environ.get("LAYER_FREEZE_PER_STEP", 0))
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
@@ -226,9 +227,10 @@ class Muon(torch.optim.Optimizer):
             curr = 0
             for p in params:
                 g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
-                if weight_decay:
-                    p.mul_(1.0 - lr * weight_decay)
-                p.add_(g, alpha=-lr)
+                if p.grad is not None:
+                    if weight_decay:
+                        p.mul_(1.0 - lr * weight_decay)
+                    p.add_(g, alpha=-lr)
                 curr += p.numel()
 
         return loss
@@ -1238,6 +1240,8 @@ def main() -> None:
     args = Hyperparameters()
     if args.mtp < 1:
         raise ValueError(f"MTP must be >= 1, got {args.mtp}")
+    if args.layer_freeze_per_step < 0:
+        raise ValueError(f"LAYER_FREEZE_PER_STEP must be >= 0, got {args.layer_freeze_per_step}")
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
@@ -1441,6 +1445,9 @@ def main() -> None:
         optimizers.insert(1, optimizer_head)
         optimizer_names.insert(1, "head")
 
+    freezeable_layer_params = [[p for p in block.parameters()] for block in base_model.blocks]
+    frozen_layer_count = 0
+
     def lr_metrics() -> dict[str, float]:
         metrics = {}
         for name, opt in zip(optimizer_names, optimizers, strict=True):
@@ -1469,6 +1476,7 @@ def main() -> None:
         f"looping:num_loops:{args.num_loops} loop_start:{args.loop_start} loop_end:{args.loop_end} "
         f"enable_at:{args.enable_looping_at:.3f} encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}"
     )
+    log0(f"layer_freeze:per_step:{args.layer_freeze_per_step} layers:{len(freezeable_layer_params)}")
     log0(
         f"export:compressor:{args.compressor} matrix_bits:{args.matrix_bits} embed_bits:{args.embed_bits} "
         f"gptq_calibration_batches:{args.gptq_calibration_batches}"
@@ -1526,6 +1534,27 @@ def main() -> None:
                 group["lr"] = group["base_lr"] * lr_scale
         return muon_momentum
 
+    def clear_frozen_layer_grads() -> None:
+        for layer_params in freezeable_layer_params[:frozen_layer_count]:
+            for p in layer_params:
+                p.grad = None
+
+    def frozen_layers_for_step(step_value: int) -> int:
+        if args.layer_freeze_per_step <= 0:
+            return 0
+        return min(step_value // args.layer_freeze_per_step, len(freezeable_layer_params))
+
+    def update_frozen_layers(step_value: int) -> None:
+        nonlocal frozen_layer_count
+        new_frozen_layer_count = frozen_layers_for_step(step_value)
+        if new_frozen_layer_count <= frozen_layer_count:
+            return
+        frozen_layer_count = new_frozen_layer_count
+        log0(
+            f"layer_freeze:step:{step_value} frozen_layers:{frozen_layer_count}/{len(freezeable_layer_params)} "
+            f"latest_layer:{frozen_layer_count - 1}"
+        )
+
     def train_step(step_value: int, lr_scale: float, collect_metrics: bool) -> tuple[float, dict[str, float], float]:
         zero_grad_all()
         objective_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
@@ -1563,6 +1592,7 @@ def main() -> None:
             train_metrics = {"loss": float(objective_loss.item())}
 
         muon_momentum = set_optimizer_state(step_value, lr_scale)
+        clear_frozen_layer_grads()
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
@@ -1664,6 +1694,7 @@ def main() -> None:
                 f"layer_loop:enabled step:{step} frac:{frac:.3f} "
                 f"encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}"
             )
+        update_frozen_layers(step)
         should_log_train = (
             args.train_log_every > 0
             and (step + 1 <= 5 or (step + 1) % args.train_log_every == 0 or stop_after_step is not None)
