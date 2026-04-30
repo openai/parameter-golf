@@ -69,6 +69,7 @@ class Hyperparameters:
     mlp_mult = float(os.environ.get("MLP_MULT", 1.6))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_base = float(os.environ.get("ROPE_BASE", 4096.0))
+    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
     embed_lr = float(os.environ.get("EMBED_LR", 0.025))
@@ -85,6 +86,7 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    keep_prob = float(os.environ.get("KEEP_PROB", 0.8))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -647,7 +649,7 @@ def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
 class Rotary(nn.Module):
     def __init__(self, dim: int, max_seq_len: int, p: float = 0.5, base: float = 10000.0):
         super().__init__()
-        self.rotary_dim = (int(dim * p) // 2) * 2
+        self.rotary_dim = (int(dim * p) // 8) * 8
         inv_freq = 1.0 / (base ** (torch.arange(0, self.rotary_dim, 2, dtype=torch.float32) / self.rotary_dim))
         t = torch.arange(max_seq_len, dtype=torch.float32)
         freqs = torch.outer(t, inv_freq)
@@ -794,15 +796,19 @@ class GPT(nn.Module):
         mlp_mult: float,
         tie_embeddings: bool,
         tied_embed_init_std: float,
+        logit_softcap: float,
         rope_base: float,
         qk_gain_init: float,
         seq_len: int=1024,
+        keep_prob: float=0.8
     ):
         super().__init__()
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_layers = num_layers
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.blocks = nn.ModuleList([
             Block(
                 model_dim,
@@ -818,8 +824,11 @@ class GPT(nn.Module):
             ) for i in range(num_layers)
         ])
         self.final_norm = RMSNorm()
+        self.logit_softcap = logit_softcap
+        self.keep_prob = keep_prob
         self.lm_head = None if tie_embeddings else nn.Linear(model_dim, vocab_size, bias=False)
-        self.skip_scales = nn.Parameter(torch.zeros(num_layers // 2))
+        self.skip_scales = nn.Parameter(torch.full((self.num_encoder_layers,), 0.02, dtype=torch.float32))
+        
         apply_zero_init(self, std=self.tied_embed_init_std)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
@@ -827,16 +836,17 @@ class GPT(nn.Module):
         x = F.rms_norm(emb, (emb.size(-1),))
 
         skips = []
-        half = len(self.blocks) // 2
-        for i, block in enumerate(self.blocks):
-            if i < half:
-                skips.append(x)
-            else:
-                scale = self.skip_scales[i - half]
-                x = x + scale * skips.pop()
+        for i in range(self.num_encoder_layers):
+            skips.append(x)
+            x = self.blocks[i](x, emb)
+        for j in range(self.num_decoder_layers):
+            block_idx = j + self.num_encoder_layers
+            skip_idx = self.num_encoder_layers - 1 - j
+            if skip_idx >= 0:
+                scale = self.skip_scales[skip_idx]
+                x = x + (scale * skips[skip_idx])
             
-            x = block(x, emb)
-
+            x = self.blocks[block_idx](x, emb)
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         
@@ -845,7 +855,12 @@ class GPT(nn.Module):
         else:
             logits = self.lm_head(x)
             
-        logits = 30.0 * torch.tanh(logits.float() / 30.0)
+        logits = self.logit_softcap * torch.tanh(logits.float() / self.logit_softcap)
+        if self.training:
+            loss = F.cross_entropy(logits, targets, reduction='none')
+            mask = torch.bernoulli(torch.full_like(loss, self.keep_prob))
+            loss = (loss * mask) / self.keep_prob
+            return loss.mean()
         return F.cross_entropy(logits, targets)
 
 
@@ -962,9 +977,11 @@ def main() -> None:
         mlp_mult=args.mlp_mult,
         tie_embeddings=args.tie_embeddings,
         tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
-        seq_len=args.train_seq_len
+        seq_len=args.train_seq_len,
+        keep_prob=args.keep_prob
     ).to(device).bfloat16()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, fullgraph=True)
@@ -986,6 +1003,8 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
+    gpt_scalars = [p for name, p in base_model.named_parameters() if "skip_scales" in name or "skip_gain" in name]
+    scalar_params.extend(gpt_scalars)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
