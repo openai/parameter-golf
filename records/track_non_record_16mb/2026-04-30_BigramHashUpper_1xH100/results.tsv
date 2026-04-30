@@ -1,0 +1,26 @@
+id	name	post_quant_val_bpb	pre_quant_val_bpb	total_bytes	steps	hardware	notes
+1	stock_baseline_1xh100	1.3448	1.3434	12800000	1129	1xH100	local reference run, stock baseline
+2	width_dim560	1.3402	1.3387	15130000	1115	1xH100	width used more of the 16MB budget but was weaker than BigramHash
+3	deeper_10l_dim528	1.3423	1.3408	14680000	1048	1xH100	depth plus modest width underperformed pure width
+4	swiglu_baseline_size	1.3450	1.3434	12640000	1068	1xH100	SwiGLU at similar size did not help
+5	bigramhash_4096	1.3376	1.3364	13860000	1217	1xH100	first clear win from additive BigramHash
+6	bigramhash_4096_gated	1.3424	1.3411	13580000	1150	1xH100	learned gate regressed
+7	bigramhash_12288	1.3197	1.3187	15327331	1365	1xH100	table-only scale-up was the first strong result
+8	bigramhash_4096_dim544	1.3313	1.3299	15310000	1227	1xH100	mixing width and smaller hash table lost to larger hash table
+9	bigramhash_8192_dim528	1.3353	1.3341	14890000	1181	1xH100	balanced width and hash capacity was weaker
+10a	bigram_logit_bias	1.3352	1.3335	14968001	1161	1xH100	fixed count-derived logit prior did not beat plain BigramHash
+11	byte_features	1.3487	1.3474	14480000	1117	1xH100	token byte features hurt
+10b	bigram_logit_bias_plus_byte_features	1.3506	1.3484	14904300	1121	1xH100	combination hurt more than either useful signal helped
+12	bigramhash_14336	1.3324	1.3312	14920000	1189	1xH100	bigger table was worse than 12288
+13	hash_enrich_space	1.3159	1.3150	15277222	1440	1xH100	leading-space hash enrichment was a major win
+14	hash_enrich_punct	1.3307	1.3295	14740000	1229	1xH100	punctuation enrichment did not help
+15	hash_enrich_upper	1.31321205	1.3122	15343280	1430	1xH100	best completed run
+16	hash_enrich_length	1.3300	1.3288	14850000	1221	1xH100	byte-length bucket did not help
+17	inject_layer0	1.3343	1.3330	14520000	1191	1xH100	earlier injection was worse
+18	trigram_hash	1.3370	1.3358	14890000	1198	1xH100	trigram key increased collision pressure
+19	hash_enrich_space_upper	1.3288	1.3277	14930000	1257	1xH100	four-state composition fragmented the table
+20	hash_enrich_new_word	1.3327	1.3316	14810000	1224	1xH100	heuristic boundary feature lost to simple uppercase flag
+21	upper_count_init	1.3375	1.3353	13510000	1045	1xH100	count-based table initialization hurt
+22	upper_multi_inject	1.3348	1.3337	14660000	1153	1xH100	reusing hash feature later in the stack did not help
+23	upper_lr15	1.3484	1.3470	15770000	1188	1xH100	higher LR was unstable or overaggressive
+24	upper_skip_bigram	1.3404	1.3391	14630000	1147	1xH100	splitting budget across immediate and skip bigrams was worse
