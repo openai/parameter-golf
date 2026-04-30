@@ -215,13 +215,16 @@ impl ExternalTrainer {
             .arg(hidden.to_string())
             .arg("--lr")
             .arg(format!("{lr:.6}"));
-        // NOTE(bisect): --ctx, --format, --attn-layers flags REMOVED.
-        // Bisect showed these flags cause BPB≈0 collapse for 8K steps.
-        // Old seed_agent.rs only passed --seed/--steps/--hidden/--lr and
-        // produced realistic BPB (2.5-3.2) from step 1.
-        // See bpb_samples for IDs 231 (realistic) vs 1387 (collapsed).
-        // These flags will be re-added one at a time after the bisect
-        // to identify which specific flag causes the collapse.
+        // Pass --ctx if present in config (default 12).
+        // Bisect showed trios-train REQUIRES --ctx to produce output.
+        // Experiment #800 (realistic BPB=1.82) had ctx=12 and worked.
+        // Without --ctx the trainer subprocess hangs silently.
+        if let Some(ctx) = self.config["ctx"].as_u64() {
+            cmd.arg("--ctx").arg(ctx.to_string());
+        }
+        // NOTE(bisect): --format and --attn-layers still REMOVED.
+        // These caused BPB≈0 collapse for 8K steps in MEGAASHA experiments.
+        // Only --ctx restored as it's required for trainer to function.
         cmd.stdout(Stdio::piped())
             .stderr(Stdio::inherit()); // R5: stream stderr to seed-agent logs
         // Set working directory only when it exists (present in Docker, absent on macOS dev).
