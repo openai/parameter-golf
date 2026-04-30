@@ -6,14 +6,12 @@ A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Bi
 
 ## TL;DR
 
-Extends [PR #1938](https://github.com/openai/parameter-golf/pull/1938) (Billy Li's *S0/PR1851 + Cap Tokenizer + LQER + Global TTT*, val_bpb=1.0713) with two algorithmically free wins:
+Extends [PR #1938](https://github.com/openai/parameter-golf/pull/1938) (Billy Li & Tim Shen's *S0/PR1851 + Cap Tokenizer + LQER + Global TTT*, val_bpb=1.0713) with two algorithmically free wins:
 
 1. **Leaky ReLU squared slope 0.5 → 0.3** — `−0.00073` BPB free win; size-neutral, wallclock-neutral. (4-point sweep confirms 0.3 is the minimum — see Key Change 1.)
 2. **GPTQ reverse-Cholesky + triangular solve** instead of the standard `chol → cholesky_inverse → chol(upper)` — mathematically equivalent within fp32 ULP, **2.07–2.24× faster on RTX 4090 cuSOLVER microbench** at the GPTQ workload range. (Key Change 2.)
 
-Both are hardcoded inside `train_gpt.py` (the v2b variant of `final_s0_pr1851_mod_gptq_v2.py` from [PR #1867](https://github.com/openai/parameter-golf/pull/1867)), which also ships **this PR's compliance-tuned defaults on top of PR #1938**: `LQER_TOP_K=1`, `GATED_ATTN_QUANT_GATE=1`, `TTT_BATCH_SIZE=16`, `PHASED_TTT_NUM_PHASES=3`, `GPTQ_RESERVE_SECONDS=16`.
-
-Δ vs current SOTA ([PR #1493](https://github.com/openai/parameter-golf/pull/1493), 2026-04-09, val_bpb=1.0810): **−0.0186 BPB**, well past the 0.005-nat threshold.
+Both are hardcoded inside `train_gpt.py` (the variant from [PR #1867](https://github.com/openai/parameter-golf/pull/1867)), which also ships **this PR's compliance-tuned defaults on top of PR #1938**: `LQER_TOP_K=1`, `GATED_ATTN_QUANT_GATE=1`, `TTT_BATCH_SIZE=16`, `PHASED_TTT_NUM_PHASES=3`, `GPTQ_RESERVE_SECONDS=16`.
 
 ## Result
 
@@ -26,7 +24,7 @@ Both are hardcoded inside `train_gpt.py` (the v2b variant of `final_s0_pr1851_mo
 
 ## Key Change 1: Leaky ReLU² slope = 0.3
 
-4-point sweep at fixed seed=42 / 1.0× batch / 600 s wallclock (authors' Stage 4 ablation):
+4-point sweep at fixed seed=42 / 1.0× batch / 600 s wallclock:
 
 | slope | TTT BPB | Δ vs 0.30 |
 |------:|--------:|----------:|
@@ -111,15 +109,14 @@ Phased TTT, 3 phases × 2000 prefix docs, score-first, Adam optimizer, cosine LR
 
 ## Dataset
 
-This submission uses the **case-op augmented FineWeb-10B** tokenization from
+This submission uses the **pre-built case-op augmented FineWeb-10B** tokenization from
 [`romeerp/parameter-golf-caseops-v1`](https://huggingface.co/datasets/romeerp/parameter-golf-caseops-v1)
 (pre-built shards), the same dataset that PR #1729 / PR #1736 / PR #1851 use.
 The bijective case-op tokenizer (`fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model`,
 shipped in `tokenizers/`) and the build script (`prepare_caseops_data.py` +
 `lossless_caps.py`) are included for byte-exact rebuild, but **using the
 pre-built shards from `romeerp/parameter-golf-caseops-v1` is the recommended
-path** since it skips ~1–2 hours of CPU-only re-tokenization on a fresh
-H100 instance.
+path**.
 
 ## Reproducing
 
@@ -129,10 +126,7 @@ huggingface-cli download romeerp/parameter-golf-caseops-v1 \
   --repo-type dataset \
   --local-dir ./data/datasets/fineweb10B_sp8192_caseops/
 
-# Option B: rebuild locally with the shipped scripts (~1–2 h CPU).
-python prepare_caseops_data.py \
-  --tokenizer tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model \
-  --output ./data/datasets/fineweb10B_sp8192_caseops/
+# Option B: rebuild locally with the shipped scripts: prepare_caseops_data.py
 
 # Either way, the script expects shards at
 # ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/
@@ -149,8 +143,8 @@ torchrun --nproc_per_node=8 --standalone train_gpt.py
 
 | Layer | Origin |
 |-------|--------|
-| **PR #1938** ([@lijuncheng16](https://github.com/lijuncheng16) — *S0/PR1851 + Cap Tokenizer + LQER + Global TTT*, val_bpb=1.0713) | base submission stack |
-| **PR #1867** (adds upstream `final_s0_pr1851_mod_gptq_v2.py` / `v2b.py` — hardcodes Leaky ReLU 0.3 + reverse-Cholesky GPTQ; v2b shipped here as `train_gpt.py`) | training script |
+| **PR #1938** ([@lijuncheng16](https://github.com/lijuncheng16) & [@TimS-ml](https://github.com/TimS-ml) — *S0/PR1851 + Cap Tokenizer + LQER + Global TTT*, val_bpb=1.0713) | base submission stack |
+| **PR #1867** ([@lijuncheng16](https://github.com/lijuncheng16) & [@TimS-ml](https://github.com/TimS-ml)) | training script |
 | **PR #1851** ([@aquariouseworkman](https://github.com/aquariouseworkman) — SmearGate BOS fix + LQER asymmetric + phased TTT) | architecture / quantization |
 | PR #1797 ([@dexhunter](https://github.com/dexhunter), audit by [@cocohearts](https://github.com/cocohearts)) | SmearGate, LQER asym |
 | PR #1787 ([@nprime06](https://github.com/nprime06)) | SparseAttnGate, FusedCE, MIN_LR |

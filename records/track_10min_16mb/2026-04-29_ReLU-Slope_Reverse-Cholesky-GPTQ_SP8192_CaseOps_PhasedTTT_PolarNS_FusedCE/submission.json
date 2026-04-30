@@ -1,7 +1,7 @@
 {
   "author": "Tim Shen (@TimS-ml) & Billy Li (@lijuncheng16)",
   "github_id": "TimS-ml",
-  "name": "S0/PR1851/PR1938 + ReLU Slope (0.5 \u2192 0.3) + Reverse-Cholesky GPTQ + Compliance-Tuned Defaults (val_bpb = 1.062)",
+  "name": "Record: Leaky ReLU Slope + GPTQ Reverse-Cholesky Speedup + PR #1938 (val_bpb = 1.06242)",
   "date": "2026-04-29",
   "track": "10min_16mb",
   "val_bpb": 1.06242,
@@ -24,9 +24,9 @@
     "smeargate_bos_fix": true
   },
   "attribution": {
-    "pr1938_base_stack": "@lijuncheng16 (PR #1938)",
-    "pr1867_v2b_script": "@DongxiTim + @lijuncheng16 (PR #1867)",
-    "pr1851_smeargate_lqer": "@aquariouseworkman (PR #1851)",
+    "pr1938": "@lijuncheng16; @TimS-ml (PR #1938)",
+    "pr1867": "@lijuncheng16; @TimS-ml (PR #1867)",
+    "pr1851": "@aquariouseworkman (PR #1851)",
     "smeargate_bos_audit": "@cocohearts (PR #1797)",
     "lqer_asym": "@dexhunter (PR #1797)",
     "caseops_tokenizer": "@romeerp (PR #1729, #1736); shards from romeerp/parameter-golf-caseops-v1",
