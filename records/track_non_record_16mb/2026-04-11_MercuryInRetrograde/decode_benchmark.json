@@ -1,0 +1,147 @@
+{
+  "metadata": {
+    "baseline_script": "/workspace/parameter-golf/records/track_10min_16mb/2026-03-17_NaiveBaseline/train_gpt.py",
+    "baseline_checkpoint": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-09_MercuryStyleCompactTextDiffusion/benchmarks/real_8x_seed2026_vs_baseline_20260410_140157/ar_baseline/final_model.pt",
+    "mercury_script": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-09_MercuryStyleCompactTextDiffusion/train_mercury_compact_diffusion.py",
+    "mercury_checkpoint": "/workspace/parameter-golf/records/track_non_record_16mb/2026-04-09_MercuryStyleCompactTextDiffusion/final_model.pt",
+    "data_path": "/tmp/parameter-golf-data/datasets/fineweb10B_sp1024",
+    "tokenizer_path": "/tmp/parameter-golf-data/tokenizers/fineweb_1024_bpe.model",
+    "device": "cuda",
+    "num_examples": 32,
+    "prefix_len": 128,
+    "continuation_len": 64,
+    "infill_span_len": 64,
+    "infill_suffix_len": 64,
+    "benchmark_steps": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "showcase_indices": [
+      192664,
+      34663,
+      165861,
+      152617
+    ]
+  },
+  "ar_continuation": {
+    "token_acc": 0.021484375,
+    "exact_seq_acc": 0.0,
+    "tok_per_sec": 1518.7874378194003,
+    "batch_latency_ms": 1348.444126546383,
+    "single_latency_ms": 510.45899260789156,
+    "tokens": 2048.0
+  },
+  "mercury_continuation": {
+    "1": {
+      "token_acc": 0.0400390625,
+      "exact_seq_acc": 0.0,
+      "tok_per_sec": 33315.36467238215,
+      "batch_latency_ms": 61.47313769906759,
+      "single_latency_ms": 7.682473957538605,
+      "tokens": 2048.0
+    },
+    "2": {
+      "token_acc": 0.0400390625,
+      "exact_seq_acc": 0.0,
+      "tok_per_sec": 52423.930452321954,
+      "batch_latency_ms": 39.0661284327507,
+      "single_latency_ms": 15.342708677053452,
+      "tokens": 2048.0
+    },
+    "4": {
+      "token_acc": 0.03955078125,
+      "exact_seq_acc": 0.0,
+      "tok_per_sec": 43382.67441657036,
+      "batch_latency_ms": 47.20778577029705,
+      "single_latency_ms": 30.572386272251606,
+      "tokens": 2048.0
+    },
+    "8": {
+      "token_acc": 0.03759765625,
+      "exact_seq_acc": 0.0,
+      "tok_per_sec": 21693.84538256514,
+      "batch_latency_ms": 94.40465550869703,
+      "single_latency_ms": 61.32346969097853,
+      "tokens": 2048.0
+    }
+  },
+  "mercury_infill": {
+    "1": {
+      "token_acc": 0.0400390625,
+      "exact_seq_acc": 0.0,
+      "tok_per_sec": 147729.23657320702,
+      "batch_latency_ms": 13.863200321793556,
+      "single_latency_ms": 7.631411962211132,
+      "tokens": 2048.0
+    },
+    "2": {
+      "token_acc": 0.0400390625,
+      "exact_seq_acc": 0.0,
+      "tok_per_sec": 86371.16188730345,
+      "batch_latency_ms": 23.711618036031723,
+      "single_latency_ms": 15.290173701941967,
+      "tokens": 2048.0
+    },
+    "4": {
+      "token_acc": 0.03955078125,
+      "exact_seq_acc": 0.0,
+      "tok_per_sec": 43263.386592025425,
+      "batch_latency_ms": 47.33794927597046,
+      "single_latency_ms": 30.280465446412563,
+      "tokens": 2048.0
+    },
+    "8": {
+      "token_acc": 0.03759765625,
+      "exact_seq_acc": 0.0,
+      "tok_per_sec": 21754.902379810777,
+      "batch_latency_ms": 94.13970075547695,
+      "single_latency_ms": 44.69598866999149,
+      "tokens": 2048.0
+    }
+  },
+  "comparisons": {
+    "continuation_speedup_vs_ar": {
+      "1": 21.935501863390904,
+      "2": 34.516963432084765,
+      "4": 28.564019780712073,
+      "8": 14.283661322424479
+    },
+    "infill_speedup_vs_ar_continuation": {
+      "1": 97.26788153140727,
+      "2": 56.868498998984926,
+      "4": 28.485478293223736,
+      "8": 14.323862469553598
+    }
+  },
+  "examples": [
+    {
+      "prefix": "customers and building brand awareness through social media initiatives *Performing website analyses utilizing Google Analytics *Participating in planning, executing and analyzing email marketing campaigns - Web Design *Designing web imagery used on Mason Companies websites, display advert",
+      "continuation_target": "ising and landing pages *Designing imagery and HTML for email marketing campaigns *Participating in various projects such as launching new mobile sit",
+      "ar_continuation": "ising, and marketing - Web Design *Producing web design ideas for websites, websites, and websites - Web Design *Producing web design ideas for we",
+      "mercury_continuation_step1": "isment,,,,,,,,,,,,,,inginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginging,inginging",
+      "infill_target": "ising and landing pages *Designing imagery and HTML for email marketing campaigns *Participating in various projects such as launching new mobile sit",
+      "infill_suffix": "es and websites *Researching and implementing emerging web design technologies and processes - IT Developer *Java J2EE development *Ecommerce Development on Mason",
+      "mercury_infill_step1": "isment,,,,,,,,,,,,,,inginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginginging,inginging"
+    },
+    {
+      "prefix": "and are responsible for compliance with all applicable laws. You may not access, download, use or export the Information on this web site in violation of U.S. export laws or regulations, or in violation of any applicable local laws or regulations. Webroot Inc. (\"Webroot\") is committed to protecting the intellectual property rights of third parties, and",
+      "continuation_target": "Webroot requests that its customers and community members do the same. Webroot has no responsibility for content on other websites that you may find or access when using Webroot's produ",
+      "ar_continuation": "to protecting the privacy of third parties. Webroot is not responsible for the privacy of third parties. Webroot is not responsible for the privacy of third part",
+      "mercury_continuation_step1": "theinging the the,,,ss,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+      "infill_target": "Webroot requests that its customers and community members do the same. Webroot has no responsibility for content on other websites that you may find or access when using Webroot's produ",
+      "infill_suffix": "cts or services, and such content may be protected by copyright and the intellectual property laws of the United States and/or other countries. Without prior notice and at any time, We",
+      "mercury_infill_step1": "theinging the the,,,ss,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+    },
+    {
+      "prefix": "os predicted will emerge without deliberate and intentional actions to support them. And the extent to which they can be shaped to further societal goals will depend on constructive dialogue between governments and citizens themselves. Ultimately, this new publication aims to contribute to this dialogue, so that both developing and developed countries",
+      "continuation_target": "are more likely to leap into better futures. Text co-authored with Tom Steinberg, originally cross-posted from the World Bank\u2019s Governance for Development",
+      "ar_continuation": "can be more effectively dialogued and delivered to the public. The publication is aimed at the public and private sectors, and is based on the publication\u2019s publication d",
+      "mercury_continuation_step1": "will the the to the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the",
+      "infill_target": "are more likely to leap into better futures. Text co-authored with Tom Steinberg, originally cross-posted from the World Bank\u2019s Governance for Development",
+      "infill_suffix": "blog. You can also read another article about this report in Apolitical here. While I\u2019m at it: if you work in public service and care about making government work better, I highly recommend",
+      "mercury_infill_step1": "will the the to the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the"
+    }
+  ]
+}
