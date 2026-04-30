@@ -1,0 +1,14 @@
+{
+  "name": "Aparna Iyer",
+  "github_id": "aparna-1407",
+  "val_bpb": null,
+  "val_loss": null,
+  "artifact_size_bytes": null,
+  "training_time_seconds": null,
+  "seeds": [42],
+  "track": "non_record",
+  "base_pr": 1493,
+  "description": "Mini-Hymba: Hybrid Attention + SSM heads on recurrent layers 3-5, with learnable meta tokens and tied cross-layer KV projections. Novel architecture contribution from Yingyan (Celine) Lin's EIC Lab (Georgia Tech) Hymba paper (arXiv:2411.13676, ICLR 2025).",
+  "hardware": "1xH100",
+  "notes": "Non-record submission. Fill in val_bpb, val_loss, artifact_size_bytes, training_time_seconds after running."
+}
