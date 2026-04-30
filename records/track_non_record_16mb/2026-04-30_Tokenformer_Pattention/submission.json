@@ -1,6 +1,5 @@
 {
-  "track": "10min_16mb",
-  "track_subtype": "non_record",
+  "track": "non_record_16mb",
   "date": "2026-04-30",
   "name": "Tokenformer (Pattention) — first-class attempt",
   "author": "Alex Wu",

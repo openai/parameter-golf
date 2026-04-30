@@ -1,6 +1,6 @@
 # Tokenformer: Pattention yields efficient compression (40% model size)  - first
 
-**Track:** Non-Record, 10-minute 16MB
+**Track:** Non-Record 16MB (10-minute wallclock)
 **Author:** Alex Wu (`@alexwu`)
 **Base:** repository root `train_gpt.py` (the simple baseline, not the SOTA stack)
 
