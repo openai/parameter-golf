@@ -1,0 +1,25 @@
+{
+  "track": "track_10min_16mb",
+  "val_bpb": null,
+  "author": {
+    "name": "Zorawar Sandhu",
+    "github": "BiggerDABOSS"
+  },
+  "hardware": "8xH100 SXM",
+  "training_time_seconds": 600,
+  "artifact_bytes": null,
+  "base_submission": "2026-03-23_LeakyReLU_LegalTTT_ParallelMuon",
+  "techniques": [
+    "MuonEq-R (row-normalize before NS)",
+    "Context-Only SLOT (causal delta optimization)",
+    "XSA all 11 layers",
+    "QK_GAIN_INIT=5.0",
+    "LeakyReLU(0.5)^2",
+    "Legal Score-First TTT",
+    "GPTQ-lite int6 + LZMA",
+    "EMA(0.997) + SWA(50)",
+    "Partial RoPE(16/64)",
+    "LN Scale",
+    "Value Embedding"
+  ]
+}
