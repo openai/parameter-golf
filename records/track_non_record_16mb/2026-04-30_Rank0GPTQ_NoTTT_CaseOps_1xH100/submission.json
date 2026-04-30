@@ -1,0 +1,22 @@
+{
+  "author": "muhtasham",
+  "github_id": "Muhtasham",
+  "name": "Rank-0 GPTQ Serialization + No-TTT CaseOps Ablation",
+  "blurb": "Non-record control run on the PR #1855 CaseOps/LQER/SparseAttnGate stack with validation-time TTT disabled and rank-0-only GPTQ serialization enabled. The run preserves full validation and full artifact accounting, stays under 16 MB, and documents the cost/quality impact of removing phased TTT while avoiding duplicated GPTQ serialization work.",
+  "date": "2026-04-30",
+  "track": "non-record-16mb",
+  "val_loss": 2.81865591,
+  "val_bpb": 1.28799323,
+  "pre_quant_val_loss": 2.80875978,
+  "pre_quant_val_bpb": 1.28347116,
+  "seed": 42,
+  "seeds": [42],
+  "step_stop": 652,
+  "wallclock_seconds": 599.949,
+  "elapsed_seconds": 1349.82,
+  "bytes_total": 15929139,
+  "bytes_model_quantized_pergroup": 15888944,
+  "bytes_code_compressed": 40195,
+  "hardware": "Modal GCP us-east4, torchrun nproc_per_node=1",
+  "technique_summary": "PR #1855 CaseOps/LQER/SparseAttnGate stack, TTT disabled, full validation, PPM disabled, per-group lrzip compression, rank-0-only GPTQ serialization option."
+}

@@ -1,0 +1,218 @@
+✓ Initialized. View run at 
+https://modal.com/apps/creed/main/ap-VNqN1aVqEVYwa5jMFGz7cj
+✓ Created objects.
+├── 🔨 Created mount 
+│   /Users/muhtasham/.codex/worktrees/3035/parameter-golf/modal_train.py
+├── 🔨 Created mount 
+│   /Users/muhtasham/.codex/worktrees/3035/parameter-golf/data/cached_challenge_
+│   fineweb.py
+├── 🔨 Created mount 
+│   /Users/muhtasham/.codex/worktrees/3035/parameter-golf-apr30/records/track_10
+│   min_16mb/2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611
+├── 🔨 Created function ensure_dataset.
+└── 🔨 Created function run_job.
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.0
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+[modal] Repo: /root/parameter-golf
+[modal] Run dir: /cache/runs/apr30-pr1855-r0gptq-nottt-1xh100-s42-a1
+[modal] Forwarded env keys: ATTN_CLIP_SIGMAS, BETA2, CASEOPS_ENABLED, COMPRESSOR, DATA_PATH, EMBED_BITS, EMBED_CLIP_SIGMAS, FUSED_CE_ENABLED, GATED_ATTN_QUANT_GATE, GATE_WINDOW, GLOBAL_TTT_MOMENTUM, GPTQ_CALIBRATION_BATCHES, GPTQ_RESERVE_SECONDS, GRAD_CLIP_NORM, ITERATIONS, LQER_ASYM_ENABLED, LQER_ASYM_GROUP, LQER_ENABLED, LQER_FACTOR_BITS, LQER_RANK, LQER_TOP_K, MATRIX_LR, MAX_WALLCLOCK_SECONDS, MIN_LR, MLP_CLIP_SIGMAS, MUON_BACKEND_STEPS, NCCL_NET, POSTTRAIN_SINGLE_RANK, PPM_ENABLED, PPM_NATIVE_ENABLED, RUN_ID, SEED, SMEAR_GATE_ENABLED, SPARSE_ATTN_GATE_ENABLED, SPARSE_ATTN_GATE_SCALE, TOKENIZER_PATH, TTT_BETA2, TTT_CHUNK_SIZE, TTT_ENABLED, TTT_LORA_RANK, TTT_WEIGHT_DECAY, VAL_DOC_FRACTION, VAL_LOSS_EVERY, VOCAB_SIZE, WARMDOWN_FRAC, WARMUP_STEPS
+[modal] Cloud env: {'MODAL_CLOUD_PROVIDER': 'CLOUD_PROVIDER_GCP', 'MODAL_REGION': 'us-east4'}
+[modal] Launching torchrun --standalone --nproc-per-node=1 /root/parameter-golf/mounted_record/train_gpt.py on H100!:8
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: 
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.99
+  caseops_enabled: True
+  compressor: pergroup
+  data_dir: ./data/
+  datasets_dir: /root/parameter-golf/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 14.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: True
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 0.5
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/apr30-pr1855-r0gptq-nottt-1xh100-s42-a1.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 11.5
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_boundaries: 
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2000
+  posttrain_single_rank: True
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: apr30-pr1855-r0gptq-nottt-1xh100-s42-a1
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 0.5
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /root/parameter-golf/data/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: /root/parameter-golf/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.99
+  ttt_chunk_size: 48
+  ttt_enabled: False
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 80
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_bytes_files: /root/parameter-golf/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /root/parameter-golf/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 0
+  vocab_size: 8192
+  warmdown_frac: 0.85
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 47851520
+model_params:35945671
+gptq:reserving 0s, effective=599500ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+1/20000 train_loss: 9.0070 train_time: 0.0m tok/s: 966071
+2/20000 train_loss: 12.9051 train_time: 0.0m tok/s: 1032642
+3/20000 train_loss: 10.2536 train_time: 0.0m tok/s: 1052097
+4/20000 train_loss: 8.6477 train_time: 0.0m tok/s: 1060922
+5/20000 train_loss: 7.8655 train_time: 0.1m tok/s: 1068953
+layer_loop:enabled step:292 frac:0.351 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+500/20000 train_loss: 2.6011 train_time: 7.2m tok/s: 904677
+652/20000 val_loss: 2.5965 val_bpb: 1.1865
+stopping_early: wallclock_cap train_time: 599949ms step: 652/20000
+peak memory allocated: 42361 MiB reserved: 47506 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.80875978 val_bpb:1.28347116 eval_time:40951ms
+Serialized model: 135417533 bytes
+Code size (uncompressed): 159674 bytes
+Code size (compressed): 40195 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 7.0s
+Quantized weights:
+  gate_int8_row: blocks.attn.attn_gate_w
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda
+Serialize: per-group lrzip compression...
+Serialize: per-group compression done in 117.1s
+Serialized model quantized+pergroup: 15888944 bytes
+Total submission size quantized+pergroup: 15929139 bytes
+Deserialize: per-group lrzip decompression...
+Deserialize: decompression done in 21.1s
+diagnostic quantized val_loss:2.81865591 val_bpb:1.28799323 eval_time:45681ms
+[modal] Exit code: 0
+[modal] Elapsed seconds: 1349.82
+[local] Run finished: {'run_id': 'apr30-pr1855-r0gptq-nottt-1xh100-s42-a1', 'run_dir': '/cache/runs/apr30-pr1855-r0gptq-nottt-1xh100-s42-a1', 'exit_code': 0, 'elapsed_seconds': 1349}
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/creed/main/ap-VNqN1aVqEVYwa5jMFGz7cj
