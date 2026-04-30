@@ -1,0 +1,16 @@
+{
+  "alpha": -0.0738733559846878,
+  "M_norm": 10.896695137023926,
+  "beta_norm": 0.18547691404819489,
+  "first_loss": 3.522620439529419,
+  "last_loss": 2.2050602436065674,
+  "extract_seqs_per_rank": 2048,
+  "epochs": 20,
+  "batch_samples": 512,
+  "lr": 0.001,
+  "base_chunked_bpb": 1.2733957177781747,
+  "identity_chunked_bpb": 2.1443075067947803,
+  "combined_chunked_bpb": 2.139663144251943,
+  "chunked_delta_bpb": 0.8662674264737682,
+  "chunked_n_samples": 30284
+}
