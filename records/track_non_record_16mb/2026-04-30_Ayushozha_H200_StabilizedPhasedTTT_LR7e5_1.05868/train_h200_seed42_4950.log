@@ -1,0 +1,135 @@
++ USER_HOME=/home/user
++ export HOME=/home/user
++ HOME=/home/user
++ export PATH=/home/user/pg-user-lrzip/root/usr/bin:/home/user/.local/bin:/bin:/var/nvidia/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
++ PATH=/home/user/pg-user-lrzip/root/usr/bin:/home/user/.local/bin:/bin:/var/nvidia/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
++ export LD_LIBRARY_PATH=/home/user/pg-user-lrzip/root/lib/x86_64-linux-gnu:/home/user/pg-user-lrzip/root/usr/lib/x86_64-linux-gnu:/var/nvidia/lib
++ LD_LIBRARY_PATH=/home/user/pg-user-lrzip/root/lib/x86_64-linux-gnu:/home/user/pg-user-lrzip/root/usr/lib/x86_64-linux-gnu:/var/nvidia/lib
++ . /home/user/pg-venv/bin/activate
+++ '[' -z '' ']'
+++ '[' -n x ']'
+++ SCRIPT_PATH=/home/user/pg-venv/bin/activate
+++ '[' /home/user/pg-venv/bin/activate = bash ']'
+++ deactivate nondestructive
+++ unset -f pydoc
+++ '[' -z '' ']'
+++ '[' -z '' ']'
+++ hash -r
+++ '[' -z '' ']'
+++ unset VIRTUAL_ENV
+++ unset VIRTUAL_ENV_PROMPT
+++ '[' '!' nondestructive = nondestructive ']'
+++ VIRTUAL_ENV=/home/user/pg-venv
+++ '[' linux-gnu = cygwin ']'
+++ '[' linux-gnu = msys ']'
+++ export VIRTUAL_ENV
+++ '[' -z '' ']'
+++ unset SCRIPT_PATH
+++ _OLD_VIRTUAL_PATH=/home/user/pg-user-lrzip/root/usr/bin:/home/user/.local/bin:/bin:/var/nvidia/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+++ PATH=/home/user/pg-venv/bin:/home/user/pg-user-lrzip/root/usr/bin:/home/user/.local/bin:/bin:/var/nvidia/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+++ export PATH
+++ '[' x '!=' x ']'
++++ basename /home/user/pg-venv
+++ VIRTUAL_ENV_PROMPT=pg-venv
+++ export VIRTUAL_ENV_PROMPT
+++ '[' -z '' ']'
+++ '[' -z '' ']'
+++ _OLD_VIRTUAL_PS1=
+++ PS1='(pg-venv) '
+++ export PS1
+++ alias pydoc
+++ true
+++ hash -r
++ TOP=/home/user/parameter-golf/records/track_10min_16mb/2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611
++ DATA_ROOT=/home/user/parameter-golf/records/track_10min_16mb/2026-04-18_PR1626_CaseOps_Taper
++ RUN_DIR=/home/user/pg-runs/top_h200_seed42_4950_pergroup_no_ttt
++ rm -rf /home/user/pg-runs/top_h200_seed42_4950_pergroup_no_ttt
++ mkdir -p /home/user/pg-runs/top_h200_seed42_4950_pergroup_no_ttt
++ cd /home/user/parameter-golf/records/track_10min_16mb/2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611
++ export DATA_DIR=./data VOCAB_SIZE=8192 CASEOPS_ENABLED=1 NCCL_NET=Socket
++ DATA_DIR=./data
++ VOCAB_SIZE=8192
++ CASEOPS_ENABLED=1
++ NCCL_NET=Socket
++ export DATA_PATH=/home/user/parameter-golf/records/track_10min_16mb/2026-04-18_PR1626_CaseOps_Taper/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
++ DATA_PATH=/home/user/parameter-golf/records/track_10min_16mb/2026-04-18_PR1626_CaseOps_Taper/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
++ export TOKENIZER_PATH=/home/user/parameter-golf/records/track_10min_16mb/2026-04-18_PR1626_CaseOps_Taper/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
++ TOKENIZER_PATH=/home/user/parameter-golf/records/track_10min_16mb/2026-04-18_PR1626_CaseOps_Taper/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
++ export ITERATIONS=4950 MAX_WALLCLOCK_SECONDS=0 TRAIN_LOG_EVERY=500 VAL_LOSS_EVERY=0
++ ITERATIONS=4950
++ MAX_WALLCLOCK_SECONDS=0
++ TRAIN_LOG_EVERY=500
++ VAL_LOSS_EVERY=0
++ export EMBED_BITS=7 MATRIX_LR=0.026 MIN_LR=0.1
++ EMBED_BITS=7
++ MATRIX_LR=0.026
++ MIN_LR=0.1
++ export MLP_CLIP_SIGMAS=11.5 ATTN_CLIP_SIGMAS=13.0 EMBED_CLIP_SIGMAS=14.0
++ MLP_CLIP_SIGMAS=11.5
++ ATTN_CLIP_SIGMAS=13.0
++ EMBED_CLIP_SIGMAS=14.0
++ export GRAD_CLIP_NORM=0.3 TTT_CHUNK_SIZE=48 WARMUP_STEPS=20 MUON_BACKEND_STEPS=5
++ GRAD_CLIP_NORM=0.3
++ TTT_CHUNK_SIZE=48
++ WARMUP_STEPS=20
++ MUON_BACKEND_STEPS=5
++ export GLOBAL_TTT_MOMENTUM=0.9 WARMDOWN_FRAC=0.85 BETA2=0.99
++ GLOBAL_TTT_MOMENTUM=0.9
++ WARMDOWN_FRAC=0.85
++ BETA2=0.99
++ export TTT_BETA2=0.99 TTT_WEIGHT_DECAY=0.5 TTT_LORA_RANK=80
++ TTT_BETA2=0.99
++ TTT_WEIGHT_DECAY=0.5
++ TTT_LORA_RANK=80
++ export SPARSE_ATTN_GATE_SCALE=0.5 GPTQ_RESERVE_SECONDS=0.5 GPTQ_CALIBRATION_BATCHES=16
++ SPARSE_ATTN_GATE_SCALE=0.5
++ GPTQ_RESERVE_SECONDS=0.5
++ GPTQ_CALIBRATION_BATCHES=16
++ export GATED_ATTN_QUANT_GATE=1 SPARSE_ATTN_GATE_ENABLED=1 GATE_WINDOW=12 SMEAR_GATE_ENABLED=1
++ GATED_ATTN_QUANT_GATE=1
++ SPARSE_ATTN_GATE_ENABLED=1
++ GATE_WINDOW=12
++ SMEAR_GATE_ENABLED=1
++ export LQER_ENABLED=1 LQER_ASYM_ENABLED=1 LQER_RANK=4 LQER_FACTOR_BITS=4 LQER_ASYM_GROUP=64 LQER_TOP_K=3
++ LQER_ENABLED=1
++ LQER_ASYM_ENABLED=1
++ LQER_RANK=4
++ LQER_FACTOR_BITS=4
++ LQER_ASYM_GROUP=64
++ LQER_TOP_K=3
++ export FUSED_CE_ENABLED=1 COMPRESSOR=pergroup TTT_ENABLED=0
++ FUSED_CE_ENABLED=1
++ COMPRESSOR=pergroup
++ TTT_ENABLED=0
++ export PHASED_TTT_PREFIX_DOCS=2500 PHASED_TTT_NUM_PHASES=3
++ PHASED_TTT_PREFIX_DOCS=2500
++ PHASED_TTT_NUM_PHASES=3
++ export SEED=42 ARTIFACT_DIR=/home/user/pg-runs/top_h200_seed42_4950_pergroup_no_ttt RUN_ID=top_h200_seed42_4950_pergroup_no_ttt
++ SEED=42
++ ARTIFACT_DIR=/home/user/pg-runs/top_h200_seed42_4950_pergroup_no_ttt
++ RUN_ID=top_h200_seed42_4950_pergroup_no_ttt
++ python train_gpt.py
++ tee /home/user/pg-runs/top_h200_seed42_4950_pergroup_no_ttt/console.log
+Error: Error receiving log data: rpc error: code = Internal desc = Internal server error (error ID: 3848545769)
+al_bpb: 1.0762
+peak memory allocated: 42423 MiB reserved: 47710 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.32645280 val_bpb:1.06307955 eval_time:30666ms
+Serialized model: 135417533 bytes
+Code size (uncompressed): 158429 bytes
+Code size (compressed): 32100 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 3.5s
+Quantized weights:
+  gate_int8_row: blocks.attn.attn_gate_w
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda
+Serialize: per-group lrzip compression...
+Serialize: per-group compression done in 108.0s
+Serialized model quantized+pergroup: 15870850 bytes
+Total submission size quantized+pergroup: 15902950 bytes
+Deserialize: per-group lrzip decompression...
+Deserialize: decompression done in 19.2s
+diagnostic quantized val_loss:2.34604928 val_bpb:1.07203421 eval_time:77657ms
