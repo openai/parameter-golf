@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "NorMuon + Deeper U-Net with INT6 Fake Quantization",
+  "author": "Seamus Rodrigues",
+  "github_id": "sea-rod",
+  "val_bpb": 1.23020803,
+  "val_loss": 2.07715473,
+  "bytes_total": 15388319
+}
