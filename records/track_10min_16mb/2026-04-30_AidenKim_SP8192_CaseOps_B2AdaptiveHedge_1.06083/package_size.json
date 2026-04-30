@@ -1,0 +1,14 @@
+{
+  "cap_bytes": 16000000,
+  "code_path": "train_gpt.py",
+  "code_sha256": "9292cf7292c76984585050459520cf9b859fae89a65ac665b56b689904abba96",
+  "code_uncompressed_bytes": 243389,
+  "code_wrapper_brotli_base85_bytes": 57102,
+  "external_ngram_files_required": false,
+  "margin_bytes": 70664,
+  "model_bytes": 15872234,
+  "model_path": "artifacts/seed_42/final_model.int6.ptz",
+  "model_sha256": "565441a723c0705e7d6d81bfe34271f6a4704fc21ceb1a50b076241c135b762c",
+  "self_contained_ngram_code": true,
+  "total_bytes": 15929336
+}

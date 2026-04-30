@@ -1,0 +1,51 @@
+{
+  "github_id": "AidenGeunGeun",
+  "track": "track_10min_16mb",
+  "status": "draft_pending_final_runtime_proof",
+  "method": "SP8192 CaseOps + per-document score-first TTT + 2560 no-QV eval TTT + normalized token n-gram Adaptive Hedge",
+  "seed": 42,
+  "val_bpb": 1.06083116,
+  "best_exploratory_same_method_bpb": 1.06083091,
+  "scored_tokens": 47851520,
+  "scored_bytes": 151074499,
+  "docs": 50000,
+  "doc_order_hash": "33236cc6bd19fa6b89e06d441d3fcd8eb37dc8540f6a4f2b627b20af10894a41",
+  "model_bytes": 15872234,
+  "code_wrapper_bytes": 57102,
+  "bytes_total": 15929336,
+  "artifact_bytes_max": 15929336,
+  "cap_bytes": 16000000,
+  "margin_bytes": 70664,
+  "model_sha256": "565441a723c0705e7d6d81bfe34271f6a4704fc21ceb1a50b076241c135b762c",
+  "code_wrapper_sha256": "aa569a2beb920aa9cb7501dffc17595522e749dfaab610679aa456d14032af9b",
+  "proof_manifest_source_sha256": "9292cf7292c76984585050459520cf9b859fae89a65ac665b56b689904abba96",
+  "runtime": {
+    "batch32_inner_eval_seconds": 588.5,
+    "batch32_wrapper_wallclock_seconds": 631,
+    "optimized_batch32_inner_eval_seconds": null,
+    "optimized_batch32_wrapper_wallclock_seconds": null
+  },
+  "eval_data_safety": {
+    "validation_only_view": true,
+    "train_shards_visible": 0,
+    "val_token_shards": 5,
+    "val_byte_shards": 5
+  },
+  "legality": {
+    "official_sp8192_distribution": true,
+    "score_before_update": true,
+    "strict_prefix_ngram_state": true,
+    "no_byte_ppm": true,
+    "no_custom_tokenizer": true,
+    "no_global_validation_sgd": true,
+    "no_cross_document_adaptive_state": true,
+    "ttt_warm_start_a": 0,
+    "phased_ttt_prefix_docs": 0
+  },
+  "notes": [
+    "Draft only until optimized proof exits.",
+    "Use record-track framing only if final runtime proof satisfies the official runtime requirement.",
+    "All n-gram helper logic is embedded into counted train_gpt.py wrapper.",
+    "PR #1915 remains the conservative frozen anchor and is not modified by this follow-up."
+  ]
+}

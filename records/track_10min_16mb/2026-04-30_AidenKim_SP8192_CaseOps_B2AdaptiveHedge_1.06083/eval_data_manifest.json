@@ -1,0 +1,8 @@
+{
+  "contains_only_eval_data": true,
+  "dataset_root": "/workspace/parameter-golf-warm/path-a-final-package-b2-hedge-20260501T000000Z/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved",
+  "tokenizer": "/workspace/parameter-golf-warm/path-a/data/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model",
+  "train_shards_visible_in_eval_view": 0,
+  "val_byte_shards": 5,
+  "val_token_shards": 5
+}
