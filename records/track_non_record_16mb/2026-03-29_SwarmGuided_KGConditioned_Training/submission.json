@@ -1,0 +1,14 @@
+{
+  "author": "michaelwinczuk",
+  "github_id": "michaelwinczuk",
+  "val_bpb": 1.1220,
+  "approach": "Swarm-Guided KG-Conditioned Training",
+  "description": "A multi-agent swarm (4 rule-based agents, <300us total overhead) makes training decisions via consensus voting while a 500K-node knowledge graph conditions embedding initialization. Novel agentic training approach.",
+  "track": "non_record",
+  "seed": 1337,
+  "hardware": "8xH100 SXM",
+  "artifact_bytes": 15955969,
+  "training_time_ms": 600070,
+  "steps": 6956,
+  "step_avg_ms": 86.27
+}
