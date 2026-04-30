@@ -1,0 +1,45 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "AWQ 2xH100 Proxy, No-Compile Quantized Eval",
+  "author": "Chandrasen Pandey",
+  "github_id": "Devchandrasen",
+  "val_loss": 2.53478079,
+  "val_bpb": 1.15828615,
+  "pre_quant_val_loss": 2.52398063,
+  "pre_quant_val_bpb": 1.15335094,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.53478079,
+      "val_bpb": 1.15828615,
+      "pre_quant_val_loss": 2.52398063,
+      "pre_quant_val_bpb": 1.15335094,
+      "artifact_bytes": 15964464,
+      "compressed_code_bytes": 33825,
+      "total_counted_bytes": 15998289,
+      "train_time_ms": 599917,
+      "step": 1241,
+      "eval_time_ms": 44528
+    }
+  },
+  "compliance": {
+    "artifact_limit_bytes": 16000000,
+    "total_counted_bytes": 15998289,
+    "under_16mb_artifact": true,
+    "train_wallclock_cap_ms": 600000,
+    "train_time_ms_observed": 599917,
+    "under_600s_train_wallclock": true,
+    "record_claim": false,
+    "reason_non_record": "Single 2xH100 proxy run; not an 8xH100 SOTA claim."
+  },
+  "hardware": {
+    "gpu": "2x NVIDIA H100 80GB",
+    "cluster": "UPES HPC gpu01",
+    "pytorch": "2.8.0+cu128"
+  },
+  "lineage": {
+    "base": "PR #1956 / PR #1908 AWQ + GPTQ stack",
+    "delta": "2xH100 proxy run with LQER_TOP_K=2 and TTT disabled; train_gpt.py adds an environment-gated no-compile quantized eval path for PyTorch 2.8.0 stability."
+  }
+}
