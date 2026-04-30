@@ -1,0 +1,42 @@
+{
+  "author": "AutoGolf Agent",
+  "github_id": "autogolf",
+  "name": "AutoGolf be731e3: Parallel Residuals + Mini Depth Recurrence",
+  "blurb": "Non-record single-run package of internal commit be731e3. Delayed mini depth recurrence on layers 4,5 with untied repeated MLPs, parallel residual routing, XSA last 11, AR self-generated GPTQ calibration, mixed int6/int5 quantization, and Brotli byte-shuffled compression.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "record_claim": false,
+  "val_loss": 1.87302528,
+  "val_bpb": 1.10931401,
+  "val_bpb_std": null,
+  "seeds": [2024],
+  "seed_results": {
+    "2024": {
+      "val_loss": 1.87302528,
+      "val_bpb": 1.10931401,
+      "post_ema_val_loss": 1.9024,
+      "post_ema_val_bpb": 1.1267,
+      "roundtrip_val_loss": 1.91426056,
+      "roundtrip_val_bpb": 1.13373293,
+      "artifact_bytes": 15849959,
+      "model_bytes_compressed": 15755929,
+      "code_bytes": 94030,
+      "steps": 5520,
+      "train_time_seconds": 600.049,
+      "step_avg_ms": 108.70,
+      "eval_time_seconds": 130.747,
+      "peak_memory_mib": 26997
+    }
+  },
+  "bytes_total": 15849959,
+  "bytes_model_compressed": 15755929,
+  "bytes_code": 94030,
+  "hardware": "8xH100 80GB SXM",
+  "dataset": "fineweb10B_sp1024",
+  "tokenizer": "fineweb_1024_bpe.model",
+  "base_record": "records/track_10min_16mb/2026-03-31_ParallelResiduals_MiniDepthRecurrence",
+  "internal_commit": "be731e3",
+  "calibration": "AR self-generated GPTQ calibration",
+  "technique_summary": "Parallel residuals + delayed mini depth recurrence + untied repeated MLP + mixed int6/int5 GPTQ + Brotli byte shuffle",
+  "notes": "Only one complete seed is available in the archive. A second retry log is included but stopped before GPTQ/final exact evaluation."
+}
