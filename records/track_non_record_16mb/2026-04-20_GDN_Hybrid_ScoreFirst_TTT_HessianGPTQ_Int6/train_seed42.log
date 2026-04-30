@@ -1,0 +1,162 @@
+[W410 21:21:08.622334114 socket.cpp:207] [c10d] The hostname of the client socket cannot be retrieved. err=-3
+[W410 21:21:16.077855414 socket.cpp:207] [c10d] The hostname of the client socket cannot be retrieved. err=-3
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  clip_mult_early: 1.0
+  clip_mult_late: 1.0
+  clip_mult_loop: 1.0
+  clip_mult_mid: 1.0
+  compressor: brotli
+  data_dir: /kaggle/input/datasets/haphmph/parameter-golf/data
+  datasets_dir: /kaggle/input/datasets/haphmph/parameter-golf/data/datasets/fineweb10B_sp1024
+  distributed: True
+  ema_decay: 0.9965
+  embed_lr: 0.6
+  embed_wd: 0.095
+  embedding_dim: 512
+  eval_seq_len: 2048
+  eval_stride: 32
+  gptq_calibration_batches: 64
+  gptq_enabled: True
+  gptq_reserve_seconds: 10.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  hessian_clip_lambda: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/4ebd90ca-76c8-45e2-8ce1-1706fbcd222c.txt
+  logit_softcap: 30.0
+  loop_layer_bits: 0
+  loop_layer_clip_sigmas: 0.0
+  matrix_lr: 0.022
+  max_wallclock_seconds: 4800.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  parallel_start_layer: 7
+  prequant_ttt_batch_seqs: 32
+  prequant_ttt_cosine_decay: True
+  prequant_ttt_enabled: False
+  prequant_ttt_epochs: 15
+  prequant_ttt_freeze_blocks: 0
+  prequant_ttt_grad_clip: 1.0
+  prequant_ttt_llrd: 0.9
+  prequant_ttt_lr: 0.0004
+  prequant_ttt_schedule: onecycle
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  recur_layers: 3,4,5
+  recur_start_step: 3000
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: 4ebd90ca-76c8-45e2-8ce1-1706fbcd222c
+  scalar_lr: 0.02
+  sdclip_k: 12.85
+  sdclip_k_embed: 20.0
+  seed: 42
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /kaggle/input/datasets/haphmph/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+  train_batch_tokens: 786432
+  train_files: /kaggle/input/datasets/haphmph/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_seqs: 32
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_entropy_adaptive: True
+  ttt_entropy_high: 3.0
+  ttt_entropy_low: 2.0
+  ttt_epochs: 3
+  ttt_freeze_blocks: 0
+  ttt_grad_clip: 1.0
+  ttt_llrd: 0.9
+  ttt_lr: 0.0004
+  ttt_momentum: 0.9
+  ttt_ns_steps: 3
+  ttt_schedule: onecycle
+  ttt_swa_decay: 0.95
+  val_batch_tokens: 524288
+  val_files: /kaggle/input/datasets/haphmph/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin
+  val_loss_every: 4000
+  ve_dim: 128
+  ve_enabled: True
+  ve_layers: 9,10
+  vocab_size: 1024
+  warmdown_frac: 0.667
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 62021632
+model_params:32435292
+gptq:reserving 10s, effective=4790000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+0/20000 val_loss: 6.9390 val_bpb: 4.1097
+1/20000 train_loss: 6.9404 train_time: 0.0m tok/s: 1124402
+2/20000 train_loss: 11.9983 train_time: 0.0m tok/s: 1118652
+3/20000 train_loss: 10.0194 train_time: 0.0m tok/s: 1114227
+4/20000 train_loss: 7.8383 train_time: 0.0m tok/s: 1112265
+5/20000 train_loss: 6.5248 train_time: 0.1m tok/s: 1111704
+500/20000 train_loss: 2.2677 train_time: 9.9m tok/s: 660013
+1000/20000 train_loss: 2.1755 train_time: 16.1m tok/s: 815932
+1500/20000 train_loss: 2.1510 train_time: 22.1m tok/s: 889653
+2000/20000 train_loss: 2.0873 train_time: 28.1m tok/s: 932490
+2500/20000 train_loss: 2.0563 train_time: 34.1m tok/s: 960075
+3000/20000 train_loss: 2.0338 train_time: 40.1m tok/s: 979483
+recurrence:activated at step 3000, virtual_layers=[0, 1, 2, 3, 4, 5, 3, 4, 5, 6, 7, 8, 9, 10]
+3500/20000 train_loss: 2.0015 train_time: 48.2m tok/s: 952485
+4000/20000 train_loss: 1.9846 train_time: 55.7m tok/s: 941471
+4000/20000 val_loss: 1.9785 val_bpb: 1.1718
+4500/20000 train_loss: 1.9323 train_time: 63.2m tok/s: 933414
+5000/20000 train_loss: 1.9215 train_time: 70.7m tok/s: 927034
+5500/20000 train_loss: 1.8827 train_time: 78.2m tok/s: 921902
+5610/20000 val_loss: 1.8771 val_bpb: 1.1117
+stopping_early: wallclock_cap train_time: 4790692ms step: 5610/20000
+peak memory allocated: 32208 MiB reserved: 32682 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:1.8753 val_bpb:1.1106 eval_time:21990ms
+pre-quantization post-ema_exact val_loss:1.87526885 val_bpb:1.11063984
+Serialized model: 128473989 bytes
+Code size: 102719 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 66 Hessians in 10.6s
+GPTQ:saved Hessian diagnostics to ./hessian_diagnostics.pt (66 matrices)
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+  hessian_clip_lambda=0.3
+selective_prune: unpruned=14.03MB target=16.0MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+brotli: 13931533 bytes
+Total submission size int6+brotli: 14034252 bytes
+final_int6_roundtrip val_loss:1.8973 val_bpb:1.1237 eval_time:40296ms
+final_int6_roundtrip_exact val_loss:1.89733423 val_bpb:1.12370820
+final_int6_sliding_window val_loss:1.8567 val_bpb:1.0996 stride:32 eval_time:1562517ms
+final_int6_sliding_window_exact val_loss:1.85666814 val_bpb:1.09962346
