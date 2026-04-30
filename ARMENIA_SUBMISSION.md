@@ -2,7 +2,13 @@
 
 Entrant: Arman Karapetyan
 
-Main files for the Armenia form:
+GitHub branch for the form:
+
+```text
+https://github.com/thearmankarapetyan/parameter-golf/tree/arman-sp8192-legal-ttt-40k
+```
+
+Required files:
 
 ```text
 train.py
@@ -22,11 +28,11 @@ TTT_LR=0.005
 
 FineWeb validation seeds requested by the Armenia form:
 
-```text
-1337
-42
-2025
-```
+| Seed | FineWeb val_bpb |
+|---:|---:|
+| 1337 | TBD after 8xH100 run |
+| 42 | TBD after 8xH100 run |
+| 2025 | TBD after 8xH100 run |
 
 The queued YSU 8xH100 jobs for those seeds are:
 
@@ -36,4 +42,10 @@ The queued YSU 8xH100 jobs for those seeds are:
 32654 pg_r40_2025
 ```
 
-Tokenizer note: this uses the default Parameter Golf SentencePiece tokenizer interface. The script loads `TOKENIZER_PATH` if provided, otherwise it uses `./data/tokenizers/fineweb_8192_bpe.model` through the standard SP8192 data layout. There are no custom tokenizer operations, no CaseOps, and no tokenizer-specific validation cache.
+Tokenizer note for the form:
+
+```text
+Uses the default Parameter Golf SentencePiece tokenizer interface. The script loads TOKENIZER_PATH if provided, otherwise ./data/tokenizers/fineweb_8192_bpe.model with VOCAB_SIZE=8192. No custom tokenizer operations, no CaseOps, and no tokenizer-specific validation cache.
+```
+
+The 1-GPU proxy runs are not part of this submission and are not valid 8xH100 challenge logs.

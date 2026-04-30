@@ -1,38 +1,18 @@
-# Arman SP8192 4ep Split-WD Legal TTT
+# Arman SP8192 4ep Split-WD Legal TTT 40K
 
-Draft status: compute-blocked, not a final leaderboard claim.
+Status: pending final Armenia 8xH100 FineWeb seed scores.
 
-This draft records a promising but strictly invalid 8xH100 seed from YSU and the exact 8xH100 rerun plan. It is intended as a transparent draft PR / compute-credit reference, not as a merge-ready OpenAI leaderboard submission.
+This record mirrors the root `train.py` entrypoint used for the Armenia final submission branch. It is not a final leaderboard claim until the required 8xH100 seed runs finish and the score placeholders are replaced.
 
-## Current Evidence
+## Required Score Placeholders
 
-Run:
+The Armenia form asks for regular FineWeb validation scores on these seeds:
 
-```text
-platform: YSU Slurm
-hardware: 8x NVIDIA H100 80GB HBM3
-run_id: primary_4ep_splitwd_seed999_20260428_085313
-seed: 999
-```
-
-Result:
-
-```text
-quantized_ttt val_bpb: 1.07862962
-artifact_bytes: 15,979,228
-train_ms: 600,016
-eval_ms: 402,183
-```
-
-Compliance status:
-
-```text
-artifact under decimal 16 MB: yes
-eval under 600s: yes
-train under 600s: no, missed by 16 ms
-```
-
-Because the training wallclock was `600,016ms`, this result is not claimed as valid. The rerun config sets `MAX_WALLCLOCK_SECONDS=590` and uses a larger TTT chunk to reduce final TTT wallclock risk.
+| Seed | FineWeb val_bpb |
+|---:|---:|
+| 1337 | TBD |
+| 42 | TBD |
+| 2025 | TBD |
 
 ## Candidate Stack
 
@@ -67,7 +47,7 @@ MAX_WALLCLOCK_SECONDS=590
 
 ## Rerun Plan
 
-The final PR should replace this draft with three valid 8xH100 logs:
+The final submission should replace the placeholders with three valid 8xH100 logs:
 
 ```text
 seeds: 1337, 42, 2025
