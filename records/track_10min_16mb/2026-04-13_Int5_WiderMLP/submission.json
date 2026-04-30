@@ -1,0 +1,51 @@
+{
+  "author": "sergeevii123",
+  "github_id": "sergeevii123",
+  "name": "Negative Result: Int5 GPTQ + Wider MLP",
+  "date": "2026-04-13",
+  "track": "10min_16mb",
+  "val_bpb": null,
+  "is_negative_result": true,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "Int5 GPTQ (instead of int6) with wider MLP (4.8x). Hypothesis: freed parameter budget from lower bitwidth offsets quantization error. Result: int5 quantization gap is 2x worse than int6 (0.024 vs 0.012 BPB), negating any capacity gains.",
+  "key_finding": "At 5-bit quantization, GPTQ reconstruction error increases non-linearly. 16 quantization levels cannot represent transformer weight distributions accurately enough, even with Hessian-weighted error correction and SDClip.",
+  "runs": {
+    "int5_mlp4.0_ablation": {
+      "seed": 42,
+      "mlp_mult": 4.0,
+      "matrix_bits": 5,
+      "pre_quant_val_bpb": 1.0870,
+      "quantized_val_bpb": 1.1109,
+      "quantized_sliding_val_bpb": 1.0942,
+      "quantized_ttt_val_bpb": 1.0909,
+      "quantization_gap": 0.0239,
+      "artifact_bytes": 13991922,
+      "steps": 4654
+    },
+    "int5_mlp4.8_wider": {
+      "seed": 42,
+      "mlp_mult": 4.8,
+      "matrix_bits": 5,
+      "pre_quant_val_bpb": 1.0887,
+      "quantized_val_bpb": null,
+      "artifact_bytes": 15462609,
+      "steps": 3509
+    }
+  },
+  "baseline_comparison": {
+    "sota_int6_mlp4.0": {
+      "pre_quant_val_bpb": 1.0873,
+      "quantized_val_bpb": 1.0997,
+      "quantization_gap": 0.0124,
+      "artifact_bytes": 15991930,
+      "steps": 4550
+    }
+  },
+  "attribution": {
+    "base_stack": "@bigbag (PR #1493)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)"
+  }
+}
