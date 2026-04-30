@@ -2,7 +2,6 @@ import argparse
 from dataclasses import dataclass
 import json
 import os
-import shutil
 from pathlib import Path
 
 from huggingface_hub import hf_hub_download
@@ -68,22 +67,21 @@ def get(relative_path: str, source: DatasetSource, *, force: bool = False) -> No
         destination.unlink()
 
     remote_path = Path(relative_path)
-    cached_path = Path(
+    downloaded_path = Path(
         hf_hub_download(
             repo_id=source.repo_id,
             filename=remote_path.name,
             subfolder=remote_path.parent.as_posix() if remote_path.parent != Path(".") else None,
             repo_type="dataset",
+            local_dir=ROOT,
+            force_download=force,
         )
     )
-    # HF cache entries may be snapshot symlinks. Resolve to the underlying blob so we
-    # always materialize a real file in data/, not a broken relative symlink.
-    cached_source = cached_path.resolve(strict=True)
+    if downloaded_path == destination:
+        return
+
     destination.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.link(cached_source, destination)
-    except OSError:
-        shutil.copy2(cached_source, destination)
+    downloaded_path.replace(destination)
 
 
 def manifest_path(source: DatasetSource) -> Path:
