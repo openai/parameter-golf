@@ -38,18 +38,19 @@ author = sys.argv[2]
 github_id = sys.argv[3]
 seed_files = sys.argv[4:]
 
-score_pattern = re.compile(r"final_int8_zlib_roundtrip_exact .*?val_loss:([0-9.]+) val_bpb:([0-9.]+)")
+score_pattern = re.compile(r"quantized_ttt_phased.*?val_loss:\s*([0-9.]+)\s+val_bpb:\s*([0-9.]+)")
 seed_results = {}
 losses = []
 bpbs = []
 
 for seed_file in seed_files:
     text = (dest_dir / seed_file).read_text()
-    match = score_pattern.search(text)
-    if not match:
+    matches = score_pattern.findall(text)
+    if not matches:
         raise SystemExit(f"could not parse final score from {seed_file}")
-    val_loss = float(match.group(1))
-    val_bpb = float(match.group(2))
+    last_match = matches[-1]
+    val_loss = float(last_match[0])
+    val_bpb = float(last_match[1])
     seed_name = seed_file.removeprefix("seed_").removesuffix(".log")
     seed_results[seed_name] = {"val_loss": val_loss, "val_bpb": val_bpb}
     losses.append(val_loss)
