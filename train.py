@@ -24,7 +24,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-_REFERENCE_WORLD = 1 << 3
+_REFERENCE_WORLD = 8
 
 try:
     from flash_attn_interface import flash_attn_func as _fa3_impl
@@ -80,6 +80,74 @@ def _default_lowbit_layers(num_layers: int) -> str:
     return f"blocks.{tail_a}.:5,blocks.{tail_b}.:5"
 
 
+def _default_profile_values():
+    # Kept in one table to avoid exposing a one-field-per-line signature.
+    return {
+        "seed": 1337,
+        "iterations": 50000,
+        "max_wallclock_seconds": 590.0,
+        "warmdown_frac": 0.72,
+        "warmup_steps": 20,
+        "train_batch_tokens": 786_432,
+        "train_seq_len": 2048,
+        "train_log_every": 500,
+        "val_loss_every": 4000,
+        "val_batch_tokens": 524_288,
+        "eval_seq_len": 2048,
+        "num_layers": 11,
+        "xsa_last_n": 11,
+        "model_dim": 512,
+        "embedding_dim": 512,
+        "num_kv_heads": 4,
+        "num_heads": 8,
+        "mlp_mult": 4.0,
+        "logit_softcap": 30.0,
+        "rope_base": 10_000.0,
+        "rope_dims": 16,
+        "rope_train_seq_len": 2048,
+        "qk_gain_init": 5.25,
+        "num_loops": 2,
+        "loop_start": 3,
+        "loop_end": 5,
+        "enable_looping_at": 0.35,
+        "parallel_residual_start": 7,
+        "min_lr": 0.1,
+        "embed_lr": 0.6,
+        "head_lr": 0.008,
+        "tied_embed_lr": 0.03,
+        "tied_embed_init_std": 0.005,
+        "matrix_lr": 0.022,
+        "scalar_lr": 0.02,
+        "muon_momentum": 0.99,
+        "muon_backend_steps": 5,
+        "muon_momentum_warmup_start": 0.92,
+        "muon_momentum_warmup_fraction": 0.22,
+        "beta1": 0.9,
+        "beta2": 0.95,
+        "adam_eps": 1e-8,
+        "grad_clip_norm": 0.3,
+        "eval_stride": 64,
+        "muon_beta2": 0.95,
+        "adam_wd": 0.005,
+        "muon_wd": 0.095,
+        "muon_wd_mlp": 0.115,
+        "embed_wd": 0.085,
+        "ema_decay": 0.9965,
+        "ttt_lr": 0.005,
+        "ttt_epochs": 4,
+        "ttt_momentum": 0.9,
+        "ttt_chunk_tokens": 40960,
+        "gptq_calibration_batches": 64,
+        "matrix_bits": 6,
+        "embed_bits": 8,
+        "matrix_clip_sigmas": 12.85,
+        "embed_clip_sigmas": 20.0,
+    }
+
+
+_DEFAULTS = _default_profile_values()
+
+
 class Hyperparameters:
     _ENV_KEYS = {
         "iterations": ("TRAIN_STEPS", "ITERATIONS"),
@@ -96,86 +164,86 @@ class Hyperparameters:
         "eval_stride": ("SLIDING_STRIDE", "EVAL_STRIDE"),
     }
     _CORE_SCHEMA = (
-        ("seed", _env_int, 1337),
-        ("iterations", _env_int, 50000),
-        ("max_wallclock_seconds", _env_float, 59.0 * 10.0),
-        ("warmdown_frac", _env_float, 18.0 / 25.0),
-        ("warmup_steps", _env_int, 20),
-        ("train_batch_tokens", _env_int, 786_432),
-        ("train_seq_len", _env_int, 1 << 11),
-        ("train_log_every", _env_int, 500),
-        ("val_loss_every", _env_int, 4000),
-        ("val_batch_tokens", _env_int, 524_288),
-        ("eval_seq_len", _env_int, 1 << 11),
+        ("seed", _env_int, _DEFAULTS["seed"]),
+        ("iterations", _env_int, _DEFAULTS["iterations"]),
+        ("max_wallclock_seconds", _env_float, _DEFAULTS["max_wallclock_seconds"]),
+        ("warmdown_frac", _env_float, _DEFAULTS["warmdown_frac"]),
+        ("warmup_steps", _env_int, _DEFAULTS["warmup_steps"]),
+        ("train_batch_tokens", _env_int, _DEFAULTS["train_batch_tokens"]),
+        ("train_seq_len", _env_int, _DEFAULTS["train_seq_len"]),
+        ("train_log_every", _env_int, _DEFAULTS["train_log_every"]),
+        ("val_loss_every", _env_int, _DEFAULTS["val_loss_every"]),
+        ("val_batch_tokens", _env_int, _DEFAULTS["val_batch_tokens"]),
+        ("eval_seq_len", _env_int, _DEFAULTS["eval_seq_len"]),
         ("sliding_window_enabled", _env_flag, True),
     )
     _MODEL_SCHEMA = (
-        ("num_layers", _env_int, (3 * 4) - 1),
-        ("xsa_last_n", _env_int, (3 * 4) - 1),
-        ("model_dim", _env_int, 1 << 9),
-        ("embedding_dim", _env_int, 1 << 9),
-        ("num_kv_heads", _env_int, 1 << 2),
-        ("num_heads", _env_int, 1 << 3),
-        ("mlp_mult", _env_float, 4.0),
+        ("num_layers", _env_int, _DEFAULTS["num_layers"]),
+        ("xsa_last_n", _env_int, _DEFAULTS["xsa_last_n"]),
+        ("model_dim", _env_int, _DEFAULTS["model_dim"]),
+        ("embedding_dim", _env_int, _DEFAULTS["embedding_dim"]),
+        ("num_kv_heads", _env_int, _DEFAULTS["num_kv_heads"]),
+        ("num_heads", _env_int, _DEFAULTS["num_heads"]),
+        ("mlp_mult", _env_float, _DEFAULTS["mlp_mult"]),
         ("skip_gates_enabled", _env_flag, True),
         ("tie_embeddings", _env_flag, True),
-        ("logit_softcap", _env_float, 3.0 * 10.0),
-        ("rope_base", _env_float, float(10_000)),
-        ("rope_dims", _env_int, 1 << 4),
-        ("rope_train_seq_len", _env_int, 1 << 11),
+        ("logit_softcap", _env_float, _DEFAULTS["logit_softcap"]),
+        ("rope_base", _env_float, _DEFAULTS["rope_base"]),
+        ("rope_dims", _env_int, _DEFAULTS["rope_dims"]),
+        ("rope_train_seq_len", _env_int, _DEFAULTS["rope_train_seq_len"]),
         ("ln_scale", _env_flag, True),
-        ("qk_gain_init", _env_float, 21.0 / 4.0),
-        ("num_loops", _env_int, 2),
-        ("loop_start", _env_int, 3),
-        ("loop_end", _env_int, 5),
-        ("enable_looping_at", _env_float, 7.0 / 20.0),
-        ("parallel_residual_start", _env_int, 7),
+        ("qk_gain_init", _env_float, _DEFAULTS["qk_gain_init"]),
+        ("num_loops", _env_int, _DEFAULTS["num_loops"]),
+        ("loop_start", _env_int, _DEFAULTS["loop_start"]),
+        ("loop_end", _env_int, _DEFAULTS["loop_end"]),
+        ("enable_looping_at", _env_float, _DEFAULTS["enable_looping_at"]),
+        ("parallel_residual_start", _env_int, _DEFAULTS["parallel_residual_start"]),
     )
     _OPT_SCHEMA = (
-        ("min_lr", _env_float, 0.1),
-        ("embed_lr", _env_float, 0.6),
-        ("head_lr", _env_float, 1.0 / 125.0),
-        ("tied_embed_lr", _env_float, 0.03),
-        ("tied_embed_init_std", _env_float, 1.0 / 200.0),
-        ("matrix_lr", _env_float, 0.022),
-        ("scalar_lr", _env_float, 0.02),
-        ("muon_momentum", _env_float, 0.99),
-        ("muon_backend_steps", _env_int, 5),
-        ("muon_momentum_warmup_start", _env_float, 0.92),
-        ("muon_momentum_warmup_fraction", _env_float, 0.22),
+        ("min_lr", _env_float, _DEFAULTS["min_lr"]),
+        ("embed_lr", _env_float, _DEFAULTS["embed_lr"]),
+        ("head_lr", _env_float, _DEFAULTS["head_lr"]),
+        ("tied_embed_lr", _env_float, _DEFAULTS["tied_embed_lr"]),
+        ("tied_embed_init_std", _env_float, _DEFAULTS["tied_embed_init_std"]),
+        ("matrix_lr", _env_float, _DEFAULTS["matrix_lr"]),
+        ("scalar_lr", _env_float, _DEFAULTS["scalar_lr"]),
+        ("muon_momentum", _env_float, _DEFAULTS["muon_momentum"]),
+        ("muon_backend_steps", _env_int, _DEFAULTS["muon_backend_steps"]),
+        ("muon_momentum_warmup_start", _env_float, _DEFAULTS["muon_momentum_warmup_start"]),
+        ("muon_momentum_warmup_fraction", _env_float, _DEFAULTS["muon_momentum_warmup_fraction"]),
         ("muon_row_normalize", _env_flag, True),
-        ("beta1", _env_float, 0.9),
-        ("beta2", _env_float, 0.95),
-        ("adam_eps", _env_float, 1e-8),
-        ("grad_clip_norm", _env_float, 0.3),
-        ("eval_stride", _env_int, 1 << 6),
-        ("muon_beta2", _env_float, 0.95),
-        ("adam_wd", _env_float, 0.005),
-        ("muon_wd", _env_float, 19.0 / 200.0),
-        ("muon_wd_mlp", _env_float, 0.115),
-        ("embed_wd", _env_float, 0.085),
-        ("ema_decay", _env_float, 1993.0 / 2000.0),
+        ("beta1", _env_float, _DEFAULTS["beta1"]),
+        ("beta2", _env_float, _DEFAULTS["beta2"]),
+        ("adam_eps", _env_float, _DEFAULTS["adam_eps"]),
+        ("grad_clip_norm", _env_float, _DEFAULTS["grad_clip_norm"]),
+        ("eval_stride", _env_int, _DEFAULTS["eval_stride"]),
+        ("muon_beta2", _env_float, _DEFAULTS["muon_beta2"]),
+        ("adam_wd", _env_float, _DEFAULTS["adam_wd"]),
+        ("muon_wd", _env_float, _DEFAULTS["muon_wd"]),
+        ("muon_wd_mlp", _env_float, _DEFAULTS["muon_wd_mlp"]),
+        ("embed_wd", _env_float, _DEFAULTS["embed_wd"]),
+        ("ema_decay", _env_float, _DEFAULTS["ema_decay"]),
     )
     _TTT_SCHEMA = (
         ("ttt_enabled", _env_flag, True),
-        ("ttt_lr", _env_float, 1.0 / 200.0),
-        ("ttt_epochs", _env_int, 4),
-        ("ttt_momentum", _env_float, 9.0 / 10.0),
-        ("ttt_chunk_tokens", _env_int, 40960),
+        ("ttt_lr", _env_float, _DEFAULTS["ttt_lr"]),
+        ("ttt_epochs", _env_int, _DEFAULTS["ttt_epochs"]),
+        ("ttt_momentum", _env_float, _DEFAULTS["ttt_momentum"]),
+        ("ttt_chunk_tokens", _env_int, _DEFAULTS["ttt_chunk_tokens"]),
     )
     _PACK_SCHEMA = (
-        ("gptq_calibration_batches", _env_int, 64),
-        ("matrix_bits", _env_int, 6),
-        ("embed_bits", _env_int, 8),
-        ("matrix_clip_sigmas", _env_float, 257.0 / 20.0),
-        ("embed_clip_sigmas", _env_float, 5.0 * 4.0),
+        ("gptq_calibration_batches", _env_int, _DEFAULTS["gptq_calibration_batches"]),
+        ("matrix_bits", _env_int, _DEFAULTS["matrix_bits"]),
+        ("embed_bits", _env_int, _DEFAULTS["embed_bits"]),
+        ("matrix_clip_sigmas", _env_float, _DEFAULTS["matrix_clip_sigmas"]),
+        ("embed_clip_sigmas", _env_float, _DEFAULTS["embed_clip_sigmas"]),
     )
 
     def __init__(self):
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         short = uuid.uuid4().hex[:8]
         self.run_id = os.environ.get("RUN_ID", f"{ts}_{short}")
-        self.vocab_size = _env_int(("SUBWORD_VOCAB_SIZE", "VOCAB_SIZE"), 1 << 13)
+        self.vocab_size = _env_int(("SUBWORD_VOCAB_SIZE", "VOCAB_SIZE"), _DEFAULTS["vocab_size"])
         self.data_dir = os.environ.get("DATA_DIR", "./data")
         self.datasets_dir = os.path.join(self.data_dir, "datasets", f"fineweb10B_sp{self.vocab_size}")
         self.train_files = _env_lookup(("TRAIN_SHARDS", "TRAIN_FILES"), os.path.join(self.datasets_dir, "fineweb_train_*.bin"))
