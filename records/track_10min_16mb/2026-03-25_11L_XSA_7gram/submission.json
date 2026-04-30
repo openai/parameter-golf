@@ -1,0 +1,9 @@
+{
+  "name": "11L XSA-all + 7-gram cache",
+  "val_loss": 1.0465,
+  "bytes_total": 13991619,
+  "blurb": "11 layers XSA-all, LeakyReLU(0.5)^2, VR, GA, 7-gram eval cache. Mean 1.0465 (std 0.0007) across 3 seeds.",
+  "author": "hypery11",
+  "github_id": "hypery11",
+  "date": "2026-03-25"
+}
