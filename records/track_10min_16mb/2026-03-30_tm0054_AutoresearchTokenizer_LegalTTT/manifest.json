@@ -1,0 +1,58 @@
+{
+  "version": "10B",
+  "num_docs": 6342940,
+  "num_val_docs": 50000,
+  "shuffle_seed": 1337,
+  "dataset_revision": "9bb295ddab0e05d785b879661af7260fed5140fc",
+  "shard_size": 100000000,
+  "append_eos": false,
+  "docs_jsonl": "docs_selected.jsonl",
+  "docs_meta": {
+    "remote_name": "external_cache",
+    "num_docs": 15368808,
+    "docs_sha256": null,
+    "dataset_fingerprint": null
+  },
+  "tokenizer_specs": [],
+  "tokenizers": [
+    {
+      "name": "tm0054_candidate",
+      "kind": "tokenmonster",
+      "vocab_size": 998,
+      "bos_id": -1,
+      "eos_id": -1,
+      "recommended_bigram_vocab_size": 5120,
+      "path": "tokenizers/candidate.vocab",
+      "meta_path": "tokenizers/candidate.meta.npz",
+      "source_spec": {
+        "kind": "tokenmonster",
+        "source_model": "/Users/simon/Code/parameter-golf/autoresearch/tokenmonster_discovery/experiments/0054/candidate.vocab"
+      }
+    }
+  ],
+  "datasets": [
+    {
+      "name": "fineweb10B_tm0054",
+      "tokenizer_name": "tm0054_candidate",
+      "tokenizer_kind": "tokenmonster",
+      "path": "datasets/fineweb10B_tm0054",
+      "train_glob": "datasets/fineweb10B_tm0054/fineweb_train_*.bin",
+      "val_glob": "datasets/fineweb10B_tm0054/fineweb_val_*.bin",
+      "vocab_size": 998,
+      "bos_id": -1,
+      "eos_id": -1,
+      "recommended_bigram_vocab_size": 5120,
+      "stats": {
+        "docs_total": 6342940,
+        "docs_val": 50000,
+        "docs_train": 6292940,
+        "files_total": 80,
+        "files_val": 1,
+        "files_train": 79,
+        "tokens_total": 7942608752,
+        "tokens_val": 61022075,
+        "tokens_train": 7881586677
+      }
+    }
+  ]
+}
