@@ -1,0 +1,11 @@
+{
+  "author": "Ander Amondarain",
+  "github_id": "anderamondarainh-stack",
+  "name": "11L DepthRec PolarNS SWA Int6+Zstd",
+  "blurb": "sp1024 11L 512 kv4 on fineweb10B with depth recurrence (layers 4 and 5 share the mlp of layer 3), polar express newton-schulz with aol preconditioning, swa blended with ema, partial rope, xsa on the last 4 layers, bigram hash 3072x112, and int6+zstd-22 with stripped-duplicate state dict so the whole artifact fits under 16MB. wallclock-capped at 600s on 8xH100 SXM, seed 1337. the reported val_bpb is pre-int6 at step 7171; the post-int6 sliding eval is pending a 3-seed re-run.",
+  "date": "2026-04-15T22:47:00Z",
+  "val_loss": 1.9323,
+  "val_bpb": 1.1444,
+  "bytes_total": 15999891,
+  "bytes_code": 31777
+}
