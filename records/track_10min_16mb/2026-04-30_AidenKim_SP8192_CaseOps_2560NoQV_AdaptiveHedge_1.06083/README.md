@@ -1,10 +1,10 @@
-# SP8192 CaseOps + B2 Adaptive Hedge Token N-Gram
+# SP8192 CaseOps + 2560 No-Q/V Adaptive Hedge Token N-Gram
 
-Status: seed42 record-track proof complete. Seed0 and seed1234 follow-up runs are in progress and will be appended if they finish in time.
+Status: seed42 record-track proof complete. Seed0 and seed1234 follow-up runs were launched in parallel and will be appended if they finish in time.
 
 ## Result
 
-Current best packaged seed42 proof:
+Current optimized seed42 proof:
 
 | Metric | Value |
 | --- | ---: |
@@ -22,23 +22,19 @@ Doc-order hash:
 33236cc6bd19fa6b89e06d441d3fcd8eb37dc8540f6a4f2b627b20af10894a41
 ```
 
-## Runtime Status
+## Runtime
 
 The optimized seed42 package proof clears the 10-minute evaluation cutoff on 8xH100 SXM.
 
-| Variant | BPB | Inner eval | Wrapper wallclock | Note |
-| --- | ---: | ---: | ---: | --- |
-| batch 16 | not kept | 633.8s | 674s | too slow |
-| batch 24 | not kept | 621.5s | 663s | too slow |
-| batch 32 before log-prob reuse | 1.06083116 | 588.5s | 631s | score/package good, wrapper over target |
-| batch 48 | 1.06083288 | 636.9s | 679s | slower from memory pressure/load imbalance |
-| optimized batch 32 with hint log-prob reuse | 1.06082922 | 544.1s | 585s | selected proof |
-
-Total eval wallclock for the selected proof was 566.3s. The full wrapper wallclock was 585s.
+| Variant | BPB | Inner eval | Total eval | Wrapper wallclock | Note |
+| --- | ---: | ---: | ---: | ---: | --- |
+| batch 32 before log-prob reuse | 1.06083116 | 588.5s | not retained | 631s | score/package good, wrapper over target |
+| batch 48 | 1.06083288 | 636.9s | not retained | 679s | slower from memory pressure/load imbalance |
+| optimized batch 32 with hint log-prob reuse | 1.06082922 | 544.1s | 566.3s | 585s | selected proof |
 
 ## Method
 
-This candidate starts from the PR #1915 Path A seed42 quantized model and uses an eval-only Path A+ stack:
+This candidate starts from the PR #1915 seed42 quantized model and uses an eval-only follow-up stack:
 
 - lower eval-time per-document TTT LR: `0.000075`
 - eval/TTT context length: `2560`
@@ -84,10 +80,10 @@ The final package path uses a validation-only data view:
 - `train_gpt.py` - counted self-contained wrapper.
 - `train_seed42.log` - optimized batch-32 seed42 proof log.
 - `submission.json` - seed42 metadata.
-- `package_size.json` - package accounting from the current proof.
+- `package_size.json` - package accounting from the selected proof.
 - `eval_data_manifest.json` - final eval data-view proof.
-- `ENGINEERING_LOG.md` - concise engineering log for reviewers.
+- `ENGINEERING_LOG.md` - engineering log for reviewers.
 
 ## Relationship To PR #1915
 
-PR #1915 remains the conservative submitted anchor at 1.06504520 BPB. This submission is a separate Path A+ follow-up and intentionally does not modify the PR #1915 record folder.
+PR #1915 remains the conservative submitted anchor at 1.06504520 BPB. This submission is a separate follow-up and intentionally does not modify the PR #1915 record folder.
