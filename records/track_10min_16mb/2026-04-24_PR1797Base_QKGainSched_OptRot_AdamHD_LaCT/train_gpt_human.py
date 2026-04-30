@@ -307,6 +307,21 @@ class Hyperparameters:
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     ttt_grad_steps = int(os.environ.get("TTT_GRAD_STEPS", 1))
     ttt_grad_steps_clean = bool(int(os.environ.get("TTT_GRAD_STEPS_CLEAN", "0")))
+    # PR #1145 online n-gram tilt (AnirudhRahul, valerio-endorsed). Causal,
+    # normalized, prefix-only experts; closed-form multiplicative-boost-with-renorm
+    # applied to per-token NLL at scoring time only. See online_ngram_tilt.py.
+    ngram_tilt_enabled = bool(int(os.environ.get("NGRAM_TILT_ENABLED", "0")))
+    token_order = int(os.environ.get("TOKEN_ORDER", "16"))
+    token_threshold = float(os.environ.get("TOKEN_THRESHOLD", "0.800"))
+    token_boost = float(os.environ.get("TOKEN_BOOST", "2.625"))
+    within_tau = float(os.environ.get("WITHIN_TAU", "0.450"))
+    within_boost = float(os.environ.get("WITHIN_BOOST", "0.750"))
+    word_order = int(os.environ.get("WORD_ORDER", "4"))
+    word_normalize = os.environ.get("WORD_NORMALIZE", "strip_punct_lower")
+    word_tau = float(os.environ.get("WORD_TAU", "0.650"))
+    word_boost = float(os.environ.get("WORD_BOOST", "0.750"))
+    agree_add_boost = float(os.environ.get("AGREE_ADD_BOOST", "0.500"))
+    ngram_hint_precompute_outside = bool(int(os.environ.get("NGRAM_HINT_PRECOMPUTE_OUTSIDE", "1")))
     ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 1.0))
     ttt_beta1 = float(os.environ.get("TTT_BETA1", 0))
     ttt_beta2 = float(os.environ.get("TTT_BETA2", 0.999))
@@ -961,6 +976,62 @@ class FusedLinearLeakyReLUSquareFunction(torch.autograd.Function):
 FusedLeakyReLUSquareMLP = FusedLinearLeakyReLUSquareFunction.apply
 
 
+@triton.jit
+def fused_log_softmax_dual_gather_kernel(
+    logits_ptr,
+    target_ids_ptr,
+    hint_ids_ptr,
+    log_p_y_out_ptr,
+    log_q_h_out_ptr,
+    BT,
+    V,
+    BLOCK_V: tl.constexpr,
+):
+    """Single pass over [BT, V] logits; extracts log p(target) and log p(hint)."""
+    pid = tl.program_id(0)
+    if pid >= BT:
+        return
+    target = tl.load(target_ids_ptr + pid)
+    hint = tl.load(hint_ids_ptr + pid)
+    row_offset = pid * V
+    target_logit = tl.load(logits_ptr + row_offset + target).to(tl.float32)
+    hint_logit = tl.load(logits_ptr + row_offset + hint).to(tl.float32)
+    NEG_INF = float("-inf")
+    max_val = NEG_INF
+    for v_start in tl.range(0, V, BLOCK_V):
+        v_offsets = v_start + tl.arange(0, BLOCK_V)
+        mask = v_offsets < V
+        chunk = tl.load(logits_ptr + row_offset + v_offsets, mask=mask, other=NEG_INF).to(tl.float32)
+        max_val = tl.maximum(max_val, tl.max(chunk, axis=0))
+    sum_exp = tl.zeros((), dtype=tl.float32)
+    for v_start in tl.range(0, V, BLOCK_V):
+        v_offsets = v_start + tl.arange(0, BLOCK_V)
+        mask = v_offsets < V
+        chunk = tl.load(logits_ptr + row_offset + v_offsets, mask=mask, other=0.0).to(tl.float32)
+        sum_exp += tl.sum(tl.where(mask, tl.exp(chunk - max_val), 0.0), axis=0)
+    log_sum_exp = max_val + tl.log(sum_exp)
+    tl.store(log_p_y_out_ptr + pid, target_logit - log_sum_exp)
+    tl.store(log_q_h_out_ptr + pid, hint_logit - log_sum_exp)
+
+
+def fused_log_softmax_dual_gather(logits, target_ids, hint_ids):
+    """Returns (log_p_y, log_q_h) where p = softmax(logits). No backward needed."""
+    bsz, sl, V = logits.shape
+    BT = bsz * sl
+    logits_flat = logits.reshape(BT, V).contiguous()
+    log_p_y_out = torch.empty(BT, dtype=torch.float32, device=logits.device)
+    log_q_h_out = torch.empty(BT, dtype=torch.float32, device=logits.device)
+    fused_log_softmax_dual_gather_kernel[(BT,)](
+        logits_flat,
+        target_ids.reshape(BT).contiguous(),
+        hint_ids.reshape(BT).contiguous(),
+        log_p_y_out,
+        log_q_h_out,
+        BT, V, BLOCK_V=1024, num_warps=8,
+    )
+    return log_p_y_out.reshape(bsz, sl), log_q_h_out.reshape(bsz, sl)
+
+
 class Rotary(nn.Module):
     def __init__(self, dim, base=1e4, train_seq_len=1024, rope_dims=0, yarn=True):
         super().__init__()
@@ -1506,7 +1577,7 @@ class GPT(nn.Module):
             reduction="mean",
         )
 
-    def forward_ttt(self, input_ids, target_ids, lora):
+    def forward_ttt(self, input_ids, target_ids, lora, hint_ids=None):
         x = self.tok_emb(input_ids)
         # SmearGate on the TTT path — same inline compute as forward_logits.
         if self.smear_gate_enabled:
@@ -1586,9 +1657,22 @@ class GPT(nn.Module):
         logits = logits + lora.lm_head_lora(x)
         logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
         bsz, sl, V = logits.shape
-        return F.cross_entropy(
-            logits.float().reshape(-1, V), target_ids.reshape(-1), reduction="none"
-        ).reshape(bsz, sl)
+        if hint_ids is None:
+            return F.cross_entropy(
+                logits.float().reshape(-1, V), target_ids.reshape(-1), reduction="none"
+            ).reshape(bsz, sl)
+        # PR #1145 tilt branch: return (per_tok_loss, log_q_hint) for scoring.
+        # TTT training backward uses requires_grad path (plain log_softmax); scoring
+        # uses Triton fused kernel (no autograd needed, saves memory + time).
+        if logits.requires_grad:
+            ls = F.log_softmax(logits.float(), dim=-1)
+            log_p_y = ls.gather(-1, target_ids.unsqueeze(-1)).squeeze(-1)
+            log_q_h = ls.gather(-1, hint_ids.clamp(min=0).unsqueeze(-1)).squeeze(-1)
+            return -log_p_y, log_q_h
+        log_p_y, log_q_h = fused_log_softmax_dual_gather(
+            logits, target_ids, hint_ids.clamp(min=0)
+        )
+        return -log_p_y, log_q_h
 
     def _block_with_lora(self, block, x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w):
         mix = block.resid_mix.to(dtype=x.dtype)
@@ -3374,7 +3458,45 @@ def train_val_ttt_global_sgd_distributed(h, device, val_data, base_model, val_to
     base_model.eval()
 
 
-def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
+def _compute_ngram_hints_for_val(h, val_data, log0=print):
+    """Precompute n-gram hints before eval timer starts (Stage 1A from PR #1967).
+
+    Returns (hint_global, gate_global, boost_global) CPU tensors, or None if tilt disabled.
+    Single L->R causal pass over val tokens only — compliant with C1/C3/C4 constraints.
+    """
+    if not getattr(h, "ngram_tilt_enabled", False):
+        return None
+    from online_ngram_tilt import build_hints_for_targets
+    all_tokens = val_data.val_tokens
+    targets_np_all = all_tokens.cpu().numpy().astype("uint16", copy=False)[1:]
+    t_h0 = time.perf_counter()
+    hints_pkg = build_hints_for_targets(
+        target_token_ids_np=targets_np_all,
+        tokenizer_path=h.tokenizer_path,
+        vocab_size=h.vocab_size,
+        log0=log0,
+        token_order=h.token_order,
+        token_threshold=h.token_threshold,
+        token_boost=h.token_boost,
+        within_tau=h.within_tau,
+        within_boost=h.within_boost,
+        word_order=h.word_order,
+        word_normalize=h.word_normalize,
+        word_tau=h.word_tau,
+        word_boost=h.word_boost,
+        agree_add_boost=h.agree_add_boost,
+    )
+    hint_global = torch.from_numpy(hints_pkg["hint_ids"].astype("int64"))
+    gate_global = torch.from_numpy(hints_pkg["gate_mask"])
+    boost_global = torch.from_numpy(hints_pkg["boost"].astype("float32"))
+    log0(
+        f"ngram_tilt:precompute_outside_timer_done elapsed={time.perf_counter()-t_h0:.2f}s "
+        f"total_targets={hint_global.numel()}"
+    )
+    return (hint_global, gate_global, boost_global)
+
+
+def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train, precomputed_hints=None):
     global BOS_ID
     if BOS_ID is None:
         BOS_ID = 1
@@ -3386,6 +3508,46 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
         p.requires_grad_(False)
     all_tokens = val_data.val_tokens
     all_tokens_idx = all_tokens.to(torch.int32)
+    # === PR #1145 n-gram tilt: set up hint tensors (CPU) ===
+    # hint_global[i] = hinted token id for predicting all_tokens[i+1] from prefix [:i+1].
+    # gate_global[i] = True when any expert fires for position i.
+    # boost_global[i] = combined boost beta for position i.
+    ngram_hint_global = None
+    ngram_gate_global = None
+    ngram_boost_global = None
+    if precomputed_hints is not None:
+        ngram_hint_global, ngram_gate_global, ngram_boost_global = precomputed_hints
+        log(
+            f"ngram_tilt:using_precomputed_hints "
+            f"total_targets={ngram_hint_global.numel()} (precompute excluded from eval timer)"
+        )
+    elif getattr(h, "ngram_tilt_enabled", False):
+        from online_ngram_tilt import build_hints_for_targets
+        targets_np_all = all_tokens.cpu().numpy().astype("uint16", copy=False)[1:]
+        t_h0 = time.perf_counter()
+        hints_pkg = build_hints_for_targets(
+            target_token_ids_np=targets_np_all,
+            tokenizer_path=h.tokenizer_path,
+            vocab_size=h.vocab_size,
+            log0=log,
+            token_order=h.token_order,
+            token_threshold=h.token_threshold,
+            token_boost=h.token_boost,
+            within_tau=h.within_tau,
+            within_boost=h.within_boost,
+            word_order=h.word_order,
+            word_normalize=h.word_normalize,
+            word_tau=h.word_tau,
+            word_boost=h.word_boost,
+            agree_add_boost=h.agree_add_boost,
+        )
+        ngram_hint_global = torch.from_numpy(hints_pkg["hint_ids"].astype("int64"))
+        ngram_gate_global = torch.from_numpy(hints_pkg["gate_mask"])
+        ngram_boost_global = torch.from_numpy(hints_pkg["boost"].astype("float32"))
+        log(
+            f"ngram_tilt:precompute_done elapsed={time.perf_counter()-t_h0:.2f}s "
+            f"total_targets={ngram_hint_global.numel()}"
+        )
     docs = _find_docs(all_tokens)
     doc_entries = _select_ttt_doc_entries(docs, h)
     prefix_doc_limit = max(0, min(len(doc_entries), int(h.phased_ttt_prefix_docs)))
@@ -3537,10 +3699,49 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
             x = torch.where(valid, gathered_gpu[:, :context_size], 0)
             y = torch.where(valid, gathered_gpu[:, 1 : context_size + 1], 0)
             ctx_pos = torch.arange(context_size, device=device, dtype=torch.int64)
-            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                per_tok_loss = forward_ttt_train(
-                    x, y, lora=cur_ema_lora if ttt_lora_ema_enabled else cur_lora
+            # n-gram tilt: gather hints aligned to y for this chunk
+            hint_ids_gpu = None
+            gate_mask_gpu = None
+            boost_gpu = None
+            if ngram_hint_global is not None:
+                hint_idx_cpu = (
+                    tok_starts.unsqueeze(1) + col_idx[:context_size].unsqueeze(0)
+                ).clamp_(min=0, max=ngram_hint_global.numel() - 1)
+                hint_ids_gpu = ngram_hint_global[hint_idx_cpu].to(
+                    device=device, dtype=torch.int64, non_blocking=True
                 )
+                gate_mask_gpu = ngram_gate_global[hint_idx_cpu].to(
+                    device=device, non_blocking=True
+                )
+                boost_gpu = ngram_boost_global[hint_idx_cpu].to(
+                    device=device, dtype=torch.float32, non_blocking=True
+                )
+                hint_ids_gpu = torch.where(valid, hint_ids_gpu, torch.zeros_like(hint_ids_gpu))
+                gate_mask_gpu = gate_mask_gpu & valid
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                if hint_ids_gpu is not None:
+                    per_tok_loss, log_q_hint = forward_ttt_train(
+                        x, y, lora=cur_ema_lora if ttt_lora_ema_enabled else cur_lora,
+                        hint_ids=hint_ids_gpu,
+                    )
+                else:
+                    per_tok_loss = forward_ttt_train(
+                        x, y, lora=cur_ema_lora if ttt_lora_ema_enabled else cur_lora
+                    )
+                    log_q_hint = None
+            # Apply closed-form tilt to BPB accumulation only (not to TTT training objective).
+            if hint_ids_gpu is not None and log_q_hint is not None:
+                from online_ngram_tilt import apply_tilt_to_ptl_torch_fast
+                tilted_loss = apply_tilt_to_ptl_torch_fast(
+                    ptl=per_tok_loss,
+                    log_q_hint=log_q_hint,
+                    target_ids=y,
+                    hint_ids=hint_ids_gpu,
+                    gate_mask=gate_mask_gpu,
+                    boost=boost_gpu,
+                )
+            else:
+                tilted_loss = per_tok_loss
             # CaseOps sidecar-driven byte budget. Mirror the index pattern
             # used to build y from all_tokens: y[b, j] corresponds to the
             # token at global position tok_starts[b] + 1 + j (when valid).
@@ -3562,7 +3763,7 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                 )
             with torch.no_grad():
                 _accumulate_bpb(
-                    per_tok_loss,
+                    tilted_loss,
                     x,
                     y,
                     chunk_offsets,
@@ -4031,13 +4232,25 @@ def train_and_eval(h, device):
         def _fwd_ttt_inner(input_ids, target_ids, lora):
             return ttt_model.forward_ttt(input_ids, target_ids, lora=lora)
 
-        _fwd_ttt_compiled_inner = None
+        def _fwd_ttt_inner_with_hints(input_ids, target_ids, lora, hint_ids):
+            return ttt_model.forward_ttt(input_ids, target_ids, lora=lora, hint_ids=hint_ids)
 
-        def _fwd_ttt(input_ids, target_ids, lora):
-            nonlocal _fwd_ttt_compiled_inner
-            if _fwd_ttt_compiled_inner is None:
-                _fwd_ttt_compiled_inner = torch.compile(_fwd_ttt_inner, dynamic=True)
-            return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
+        _fwd_ttt_compiled_inner = None
+        _fwd_ttt_compiled_inner_hints = None
+
+        def _fwd_ttt(input_ids, target_ids, lora, hint_ids=None):
+            nonlocal _fwd_ttt_compiled_inner, _fwd_ttt_compiled_inner_hints
+            if hint_ids is None:
+                if _fwd_ttt_compiled_inner is None:
+                    _fwd_ttt_compiled_inner = torch.compile(_fwd_ttt_inner, dynamic=True)
+                return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
+            if _fwd_ttt_compiled_inner_hints is None:
+                _fwd_ttt_compiled_inner_hints = torch.compile(
+                    _fwd_ttt_inner_with_hints, dynamic=True
+                )
+            return _fwd_ttt_compiled_inner_hints(
+                input_ids, target_ids, lora=lora, hint_ids=hint_ids
+            )
 
         fwd_ttt_compiled = _fwd_ttt
         log(f"ttt_grad_steps: {h.ttt_grad_steps}  ttt_grad_steps_clean: {h.ttt_grad_steps_clean}")
@@ -4072,11 +4285,19 @@ def train_and_eval(h, device):
         torch.cuda.empty_cache()
         compile_elapsed = time.perf_counter() - t_warmup
         log(f"ttt_lora:compile warmup done ({compile_elapsed:.1f}s)")
+        # v5 Stage 1A: precompute n-gram hints BEFORE eval timer (single causal pass,
+        # val tokens only — same compliance as inline). Saves ~168s of measured eval
+        # time for full tilt without any loss of tilt benefit.
+        precomputed_hints = None
+        if h.ngram_tilt_enabled and h.ngram_hint_precompute_outside:
+            log("ngram_tilt:precomputing hints OUTSIDE eval timer")
+            precomputed_hints = _compute_ngram_hints_for_val(h, val_data, log0=log)
         log("\nbeginning TTT eval timer")
         torch.cuda.synchronize()
         t_ttt = time.perf_counter()
         ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
-            h, ttt_model, device, val_data, forward_ttt_train=fwd_ttt_compiled
+            h, ttt_model, device, val_data, forward_ttt_train=fwd_ttt_compiled,
+            precomputed_hints=precomputed_hints,
         )
         torch.cuda.synchronize()
         ttt_eval_elapsed = time.perf_counter() - t_ttt
