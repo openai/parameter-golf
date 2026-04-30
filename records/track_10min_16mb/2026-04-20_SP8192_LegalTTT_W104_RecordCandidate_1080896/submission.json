@@ -1,0 +1,38 @@
+{
+  "author": "Sebastian Laskowski",
+  "github_id": "Terraforming-Planet",
+  "name": "W104 SP8192 LegalTTT Record Candidate",
+  "date": "2026-04-20",
+  "track": "10min_16mb",
+  "val_bpb": 1.08089556,
+  "val_bpb_std": 0.0003679,
+  "seeds": [
+    42,
+    314,
+    999
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.79072877,
+      "val_bpb": 1.08037808
+    },
+    "314": {
+      "val_loss": 2.79285442,
+      "val_bpb": 1.08120098
+    },
+    "999": {
+      "val_loss": 2.79261328,
+      "val_bpb": 1.08110763
+    }
+  },
+  "hardware": "8xH100",
+  "technique_summary": "Source-visible faithful replay of SP8192 + 3-layer recurrence + parallel residuals + QK-Gain 5.25 + legal score-first TTT, focused on reducing bad-seed variance.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "score_first_ttt": true,
+    "three_seeds": true,
+    "claiming_record_candidate": true
+  }
+}
