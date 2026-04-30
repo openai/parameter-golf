@@ -1,0 +1,5 @@
+brotli
+sentencepiece
+numpy
+triton
+# system binary for COMPRESSOR=pergroup: lrzip (apt-get install -y lrzip)
