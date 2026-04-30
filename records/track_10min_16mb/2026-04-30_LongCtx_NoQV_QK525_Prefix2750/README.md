@@ -1,17 +1,26 @@
-# Candidate: #1953 + longer phased-TTT prefix docs
+# SP8192 + LongCtx NoQV QK5.25 Prefix2750
 
 This is a deliberately small follow-up candidate on PR #1953:
 
 - Base: PR #1953, `PR #1945 base + 2560 long-context + no_qv TTT mask + TTT LR 0.75 + QK_GAIN 5.25`.
 - Only intended change: `PHASED_TTT_PREFIX_DOCS=2750` instead of `2500`.
 - No tokenizer change, no PPM, no n-gram, no SLOT, no logit bias, no pre-quant validation adaptation.
-- Artifact size should be effectively unchanged; the risk is eval time, not bytes.
+- Artifact size is effectively unchanged; the risk is eval time, not bytes.
 
 ## Why this change
 
 PR #1953 reports max eval time `513.1s`, leaving roughly `87s` under the 600s eval cap. Its lineage already shows that increasing phased-TTT prefix docs from earlier values to `2500` was useful. This candidate spends part of the remaining eval budget on a slightly larger TTT prefix (`2750`) while keeping every other mechanism unchanged.
 
-This is not a claimed record until a fresh run replaces the placeholder metadata and logs.
+Single-seed testing shows this change is essentially neutral versus the #1953 seed 42 reference. It is included as a narrow phased-TTT prefix schedule experiment with the full seed 42 log.
+
+## Result
+
+| Run | Seed | Prefix docs | Final BPB | Eval time | Total bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| #1953 reference | 42 | 2500 | 1.05824720 | 430.0s | 15,988,861 |
+| This experiment | 42 | 2750 | 1.05826976 | 495.0s | 15,978,173 |
+
+The longer prefix increases eval time by about 65s and lands within `0.00003 BPB` of the #1953 seed 42 reference. The full log is included as `train_seed42.log`.
 
 ## Data
 
@@ -113,6 +122,5 @@ torchrun --standalone --nproc_per_node=8 \
 Compare seed 42 against PR #1953 seed 42:
 
 - PR #1953 seed 42 post-TTT: `1.05824720`.
-- Continue to more seeds only if this candidate is below `1.05825` or very close with lower eval time/safer bytes.
-- Stop if eval approaches `590s`, exceeds 600s, or seed 42 is worse than roughly `1.05855`.
-
+- This experiment seed 42 post-TTT: `1.05826976`.
+- This is a single-seed schedule experiment; the result is effectively tied with the #1953 seed 42 reference while using a larger phased-TTT prefix.
