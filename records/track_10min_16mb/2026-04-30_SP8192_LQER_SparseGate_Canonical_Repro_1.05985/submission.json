@@ -1,0 +1,48 @@
+{
+  "author": "Trinity/Codex automation run for user",
+  "github_id": "deborahnelson8788726",
+  "name": "Canonical reproduction of SP8192 LQER + SparseGate + BOS-fixed SmearGate stack",
+  "blurb": "Single-seed canonical reproduction/support run for the public 2026-04-27 SP8192 LQER SparseGate BOS-fixed SmearGate 9-hparam stack. No new architecture claim; this run uses the source record's train_gpt.py, tokenizer, CaseOps data path, compression, and default hparams with canonical romeerp/parameter-golf-caseops-v1 shards. Seed 42 reproduced val_bpb 1.05985469, total submission size 15,898,155 bytes.",
+  "date": "2026-04-30",
+  "completed_at_local": "2026-05-01T00:34:41+02:00",
+  "completed_at_utc": "2026-04-30T22:34:41Z",
+  "track": "10min_16mb",
+  "submission_type": "reproduction_support",
+  "source_record": "records/track_10min_16mb/2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611",
+  "source_author": "Benjamin Hadad",
+  "source_github_id": "codemath3000",
+  "val_loss": 2.31935492,
+  "val_bpb": 1.05985469,
+  "seeds": [
+    42
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31935492,
+      "val_bpb": 1.05985469,
+      "pre_quant_val_loss": 2.32821482,
+      "pre_quant_val_bpb": 1.06383424,
+      "quantized_val_loss": 2.34694484,
+      "quantized_val_bpb": 1.07239257,
+      "artifact_bytes": 15898155,
+      "serialized_model_bytes": 15866055,
+      "steps": 4935,
+      "train_time_s": 599.57,
+      "eval_time_s": 539.328
+    }
+  },
+  "bytes_total": 15898155,
+  "serialized_model_bytes": 15866055,
+  "artifact_sha256": "47d7339fa803c52559a3acfbe4c682332c3871560fe55bea1cb112923d43c298",
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "canonical_dataset": "romeerp/parameter-golf-caseops-v1",
+  "dataset_layout": "39 canonical train shards, one validation token shard, one validation byte-sidecar shard",
+  "technique_summary": "Reproduction of the source record stack: 11L XSA + LQER int4-rank4 + SparseAttnGate + BOS-fixed SmearGate + Polar-Express Muon + per-group lrzip compression + phased TTT. No new ML technique is claimed in this folder.",
+  "attribution": [
+    "Source record: 2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611 by Benjamin Hadad / codemath3000",
+    "Community PR lineage credited in the source record README"
+  ]
+}
