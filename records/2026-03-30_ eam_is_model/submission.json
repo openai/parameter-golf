@@ -1,0 +1,9 @@
+{
+  "name": "EAM IS THE MODEL: Elastic Associative Memory as Native Intelligence",
+  "author": "Edwin Nguthiru",
+  "github_id": "nguthiru",
+  "val_bpb": 2.4646,
+  "summary": "Non-record: Elastic Associative Memory replaces transformer at inference. Teacher distilled into self-organizing locations via additive counter superposition (97.9% transfer). Encoder + EAM + Decoder artifact, no transformer at eval. First demonstration of LM through associative memory pattern completion.",
+  "type": "non-record",
+  "date": "2026-03-30"
+}
