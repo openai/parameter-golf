@@ -21,6 +21,18 @@ Hardware:
 8xH100
 ```
 
+Training configuration:
+
+```text
+VOCAB_SIZE=8192
+TTT_CHUNK_TOKENS=40960
+MAX_WALLCLOCK_SECONDS=590
+TTT_ENABLED=1
+TTT_EPOCHS=4
+TTT_LR=0.005
+LOWBIT_LAYERS=blocks.10.:5
+```
+
 Data interface:
 
 ```text
