@@ -1,0 +1,13 @@
+=== RUN 1: baseline PATTENTION=0 MLP_MULT=2 ===
+Thu Apr 30 20:14:28 UTC 2026
+RUN1 exit=0
+Thu Apr 30 20:25:58 UTC 2026
+=== RUN 2: matched-params PATTENTION=1 MLP_MULT=2 ===
+Thu Apr 30 20:25:58 UTC 2026
+RUN2 exit=0
+Thu Apr 30 20:37:38 UTC 2026
+=== RUN 3: scale-up PATTENTION=1 MLP_MULT=4 ===
+Thu Apr 30 20:37:38 UTC 2026
+RUN3 exit=0
+Thu Apr 30 20:50:23 UTC 2026
+=== ALL RUNS DONE ===
