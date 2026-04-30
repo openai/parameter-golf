@@ -1,0 +1,60 @@
+{
+  "author": "Simon Marcus",
+  "github_id": "simon-marcus",
+  "name": "Gated XSA + LQER top-1 + strict in-timer n-gram TTT",
+  "blurb": "PR #1967 lineage with a zero-initialized per-head Gated XSA training-time attention superset, LQER_TOP_K=1 for artifact headroom, and strict in-timer closed-form n-gram tilt plus one-phase score-first TTT over a 1000-document prefix. 3-seed mean: 1.04616683 BPB.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 2.28940081,
+  "val_bpb": 1.04616683,
+  "val_loss_std": 0.00231109,
+  "val_bpb_std": 0.00105608,
+  "seeds": [
+    42,
+    1337,
+    2026
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.28708329,
+      "val_bpb": 1.04510781,
+      "prequant_val_bpb": 1.04930686,
+      "quantized_val_bpb": 1.05773513,
+      "artifact_bytes": 15995574,
+      "steps": 4914,
+      "train_time_ms": 596127,
+      "eval_time_ms": 542399
+    },
+    "1337": {
+      "val_loss": 2.29170541,
+      "val_bpb": 1.04721994,
+      "prequant_val_bpb": 1.05124428,
+      "quantized_val_bpb": 1.05990331,
+      "artifact_bytes": 15992746,
+      "steps": 4926,
+      "train_time_ms": 596167,
+      "eval_time_ms": 548364
+    },
+    "2026": {
+      "val_loss": 2.28941372,
+      "val_bpb": 1.04617273,
+      "prequant_val_bpb": 1.0502993,
+      "quantized_val_bpb": 1.05886641,
+      "artifact_bytes": 15996490,
+      "steps": 4916,
+      "train_time_ms": 596080,
+      "eval_time_ms": 546342
+    }
+  },
+  "artifact_bytes_mean": 15994936.67,
+  "artifact_bytes_max": 15996490,
+  "bytes_total": 15996490,
+  "train_steps_mean": 4918.67,
+  "train_time_ms_mean": 596124.67,
+  "eval_time_ms_mean": 545701.67,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "technique_summary": "Gated XSA per-head tanh gate, LQER_TOP_K=1, PR #1967 closed-form n-gram tilt with NGRAM_HINT_PRECOMPUTE_OUTSIDE=0, and one-phase score-first phased TTT with PHASED_TTT_PREFIX_DOCS=1000."
+}
