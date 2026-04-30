@@ -1,0 +1,77 @@
+/home/chandrasen.pandey/parameter-golf/records/track_non_record_16mb/2026-04-13_CAGE5_TRUE_LOCK/train_gpt.py:1946: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+logs/hpc_cage5_true_seed314.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/home/chandrasen.pandey/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=/home/chandrasen.pandey/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:32768
+model_params:1492059
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_2 active_layers:[2, 3]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:6 num_kv_heads:3
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:4096 train_seq_len:256 iterations:300 warmup_steps:20 max_wallclock_seconds:420.000
+seed:314
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/300 train_loss:6.9321 train_time:237ms step_avg:236.57ms
+step:2/300 train_loss:7.0764 train_time:437ms step_avg:218.66ms
+step:3/300 train_loss:7.1277 train_time:645ms step_avg:215.07ms
+step:4/300 train_loss:7.0315 train_time:880ms step_avg:220.03ms
+step:5/300 train_loss:6.6151 train_time:1091ms step_avg:218.18ms
+step:6/300 train_loss:6.5383 train_time:1315ms step_avg:219.20ms
+step:7/300 train_loss:6.3176 train_time:1547ms step_avg:221.04ms
+step:8/300 train_loss:6.1081 train_time:1742ms step_avg:217.80ms
+step:9/300 train_loss:6.0231 train_time:1962ms step_avg:217.97ms
+step:10/300 train_loss:6.0948 train_time:2196ms step_avg:219.58ms
+step:25/300 train_loss:5.6255 train_time:5418ms step_avg:216.70ms
+step:50/300 train_loss:4.9292 train_time:10801ms step_avg:216.03ms
+step:75/300 train_loss:4.7017 train_time:16167ms step_avg:215.56ms
+step:100/300 train_loss:4.4760 train_time:21550ms step_avg:215.50ms
+step:125/300 train_loss:4.2058 train_time:26899ms step_avg:215.19ms
+step:150/300 train_loss:4.1380 train_time:32264ms step_avg:215.10ms
+step:175/300 train_loss:4.2578 train_time:37644ms step_avg:215.11ms
+step:200/300 train_loss:4.2878 train_time:43018ms step_avg:215.09ms
+step:225/300 train_loss:4.0605 train_time:48401ms step_avg:215.11ms
+step:250/300 train_loss:4.0421 train_time:53787ms step_avg:215.15ms
+step:275/300 train_loss:4.1565 train_time:59150ms step_avg:215.09ms
+step:300/300 train_loss:3.9978 train_time:64543ms step_avg:215.14ms
+step:300/300 val_loss:4.1459 val_bpb:2.4003 train_time:64563ms step_avg:215.21ms
+peak memory allocated: 151 MiB reserved: 178 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:5.0462 val_bpb:2.9216 eval_time:548ms
+Serialized model: 5387716 bytes
+Code size: 95423 bytes
+Serialized model int6+lzma: 1230320 bytes
+Total submission size int6+lzma: 1325743 bytes
+final_int6_roundtrip val_loss:5.1713 val_bpb:2.9939 eval_time:570ms
+final_int6_roundtrip_exact val_loss:5.17127293 val_bpb:2.99394949
+final_int6_sliding_window val_loss:4.4270 val_bpb:2.5603 stride:64 eval_time:234434ms
+final_int6_sliding_window_exact val_loss:4.42699046 val_bpb:2.56028065
+final_int8_zlib_roundtrip_exact val_loss:4.42699046 val_bpb:2.56028065
+ttt_sliding:start chunks=8 chunk_tokens=4096 total_windows=512 stride=64 ttt_lr=0.002 ttt_epochs=1 freeze_blocks=2
+ttt_sliding:params unfrozen=1490511 frozen=1548
+  ttt_chunk [1/8] bpb=2.770788 time=29.6s
+  ttt_chunk [8/8] bpb=2.552012 time=236.2s
+ttt_sliding:done val_loss=4.412693 val_bpb=2.552012 elapsed=236.2s
+legal_ttt val_loss:4.4127 val_bpb:2.5520 eval_time:236206ms
+legal_ttt_exact val_loss:4.41269290 val_bpb:2.55201188

@@ -1,0 +1,132 @@
+Using script: records/track_non_record_16mb/2026-03-26_CAGE5_ColabT4_Smoke/train_gpt.py
+Mon Apr 13 11:23:07 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.124.06             Driver Version: 570.124.06     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          Off |   00000000:0A:00.0 Off |                    0 |
+| N/A   55C    P0            322W /  700W |   36498MiB /  81559MiB |    100%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          Off |   00000000:18:00.0 Off |                    0 |
+| N/A   32C    P0            118W /  700W |   43212MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          Off |   00000000:3B:00.0 Off |                    0 |
+| N/A   30C    P0             71W /  700W |       6MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          Off |   00000000:44:00.0 Off |                    0 |
+| N/A   36C    P0             69W /  700W |       6MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          Off |   00000000:87:00.0 Off |                    0 |
+| N/A   34C    P0             74W /  700W |       6MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          Off |   00000000:90:00.0 Off |                    0 |
+| N/A   33C    P0            118W /  700W |   41498MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          Off |   00000000:B9:00.0 Off |                    0 |
+| N/A   30C    P0             70W /  700W |       6MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          Off |   00000000:C2:00.0 Off |                    0 |
+| N/A   36C    P0             70W /  700W |       6MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A         3024060      C   python                                25542MiB |
+|    0   N/A  N/A         3491142      C   python                                 4336MiB |
+|    0   N/A  N/A         3595586      C   python                                 1378MiB |
+|    0   N/A  N/A         3647516      C   python                                  804MiB |
+|    0   N/A  N/A         3651673      C   python                                 4388MiB |
+|    1   N/A  N/A         3651493      C   /home/llmapi/ollama/bin/ollama        43200MiB |
+|    5   N/A  N/A         3651493      C   /home/llmapi/ollama/bin/ollama        41486MiB |
++-----------------------------------------------------------------------------------------+
+/home/chandrasen.pandey/parameter-golf/records/track_non_record_16mb/2026-03-26_CAGE5_ColabT4_Smoke/train_gpt.py:1946: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+logs/hpc_cage5_seed999.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/home/chandrasen.pandey/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=/home/chandrasen.pandey/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:32768
+model_params:1492059
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_2 active_layers:[2, 3]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:6 num_kv_heads:3
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:4096 train_seq_len:256 iterations:300 warmup_steps:20 max_wallclock_seconds:420.000
+seed:999
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/300 train_loss:6.9302 train_time:213ms step_avg:212.68ms
+step:2/300 train_loss:7.0825 train_time:350ms step_avg:175.01ms
+step:3/300 train_loss:7.1427 train_time:486ms step_avg:161.97ms
+step:4/300 train_loss:7.0692 train_time:648ms step_avg:162.04ms
+step:5/300 train_loss:6.5516 train_time:856ms step_avg:171.16ms
+step:6/300 train_loss:6.4867 train_time:1070ms step_avg:178.27ms
+step:7/300 train_loss:6.3044 train_time:1260ms step_avg:180.06ms
+step:8/300 train_loss:6.0921 train_time:1434ms step_avg:179.26ms
+step:9/300 train_loss:6.0494 train_time:1625ms step_avg:180.51ms
+step:10/300 train_loss:6.1336 train_time:1805ms step_avg:180.52ms
+step:25/300 train_loss:5.5974 train_time:4453ms step_avg:178.13ms
+step:50/300 train_loss:4.8855 train_time:8863ms step_avg:177.26ms
+step:75/300 train_loss:4.6871 train_time:13322ms step_avg:177.63ms
+step:100/300 train_loss:4.4614 train_time:17824ms step_avg:178.24ms
+step:125/300 train_loss:4.1999 train_time:22207ms step_avg:177.66ms
+step:150/300 train_loss:4.0952 train_time:26653ms step_avg:177.68ms
+step:175/300 train_loss:4.2628 train_time:31096ms step_avg:177.69ms
+step:200/300 train_loss:4.2967 train_time:35557ms step_avg:177.78ms
+step:225/300 train_loss:4.0745 train_time:40008ms step_avg:177.81ms
+step:250/300 train_loss:4.0429 train_time:44272ms step_avg:177.09ms
+step:275/300 train_loss:4.1466 train_time:48685ms step_avg:177.04ms
+step:300/300 train_loss:4.0229 train_time:53157ms step_avg:177.19ms
+step:300/300 val_loss:4.1410 val_bpb:2.3975 train_time:53170ms step_avg:177.23ms
+peak memory allocated: 151 MiB reserved: 178 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:4.8870 val_bpb:2.8294 eval_time:506ms
+Serialized model: 5387716 bytes
+Code size: 95423 bytes
+Serialized model int6+lzma: 1244200 bytes
+Total submission size int6+lzma: 1339623 bytes
+final_int6_roundtrip val_loss:4.9394 val_bpb:2.8597 eval_time:420ms
+final_int6_roundtrip_exact val_loss:4.93942754 val_bpb:2.85972076
+final_int6_sliding_window val_loss:4.2983 val_bpb:2.4859 stride:64 eval_time:237664ms
+final_int6_sliding_window_exact val_loss:4.29833599 val_bpb:2.48587535
+final_int8_zlib_roundtrip_exact val_loss:4.29833599 val_bpb:2.48587535
+ttt_sliding:start chunks=8 chunk_tokens=4096 total_windows=512 stride=64 ttt_lr=0.002 ttt_epochs=1 freeze_blocks=2
+ttt_sliding:params unfrozen=1490511 frozen=1548
+  ttt_chunk [1/8] bpb=2.668497 time=36.4s
+  ttt_chunk [8/8] bpb=2.478935 time=292.8s
+ttt_sliding:done val_loss=4.286335 val_bpb=2.478935 elapsed=292.8s
+legal_ttt val_loss:4.2863 val_bpb:2.4789 eval_time:292851ms
+legal_ttt_exact val_loss:4.28633496 val_bpb:2.47893474
