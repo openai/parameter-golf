@@ -2,6 +2,8 @@
 
 **val_bpb: 1.04616683** (3-seed mean, std 0.00105608) | **max artifact: 15,996,490 bytes** | 8xH100 SXM | strict in-timer TTT eval
 
+**Improvement vs merged PR #1855 SOTA (1.06107587 BPB):** **-0.01490904 BPB / -0.01033 nats per byte**, clearing the README's 0.005-nats record threshold by about 2.07x.
+
 | Metric | Seed 42 | Seed 1337 | Seed 2026 | 3-seed |
 |---|---:|---:|---:|---:|
 | Stop step | 4,914 | 4,926 | 4,916 | 4,918.7 mean |

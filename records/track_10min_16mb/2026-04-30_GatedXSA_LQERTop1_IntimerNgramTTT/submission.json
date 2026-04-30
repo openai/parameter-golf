@@ -56,5 +56,11 @@
   "pytorch_version": "2.9.1+cu128",
   "cuda_version": "12.8",
   "flash_attn_version": "FA3 (cu128_torch291 wheel)",
-  "technique_summary": "Gated XSA per-head tanh gate, LQER_TOP_K=1, PR #1967 closed-form n-gram tilt with NGRAM_HINT_PRECOMPUTE_OUTSIDE=0, and one-phase score-first phased TTT with PHASED_TTT_PREFIX_DOCS=1000."
+  "technique_summary": "Gated XSA per-head tanh gate, LQER_TOP_K=1, PR #1967 closed-form n-gram tilt with NGRAM_HINT_PRECOMPUTE_OUTSIDE=0, and one-phase score-first phased TTT with PHASED_TTT_PREFIX_DOCS=1000.",
+  "comparison_baseline_pr": "#1855",
+  "comparison_baseline_bpb": 1.06107587,
+  "delta_vs_merged_leader_bpb": -0.01490904,
+  "delta_vs_merged_leader_nats": -0.01033416,
+  "record_threshold_nats": 0.005,
+  "record_threshold_multiple": 2.07
 }
