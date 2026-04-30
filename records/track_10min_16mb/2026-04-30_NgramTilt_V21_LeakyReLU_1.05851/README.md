@@ -40,6 +40,26 @@ The static n-gram hint table is built in a single L→R causal pass over val tok
 | PR #1956 (AayushBaniya2006) | 1.06044 | +0.00193 |
 | PR #1908 (romeerp) | 1.06081 | +0.00230 |
 
+## Statistical significance vs merged leaderboard top (PR #1902 policy)
+
+Per the chronological frontier policy adopted in [PR #1902](https://github.com/openai/parameter-golf/pull/1902) (one-sided Welch's two-sample t-test, **p < 0.25** progression cutoff), this submission is tested against the current merged top row, **PR #1855**, using its 6-sample evidence (3 submitted + 3 independent reproduction by @okezue, [#1855 comment](https://github.com/openai/parameter-golf/pull/1855#issuecomment-4336629746)):
+
+| Submission | n | mean val_bpb | std (n−1) |
+|------------|--:|-------------:|----------:|
+| **This submission (#1967)** | 3 | 1.05851479 | 0.000762 |
+| PR #1855 (merged top, 6-sample) | 6 | 1.06075500 | 0.000933 |
+
+```
+mean_diff = 0.00224 BPB                       (~0.00488 nats)
+SE        = sqrt(0.000762²/3 + 0.000933²/6)
+          = 0.000582
+t-stat    = 3.850
+Welch df  = 5.00
+one-sided p ≈ 0.0060
+```
+
+**p ≈ 0.0060**, vs the 0.25 cutoff: **passes by ~42× margin**. The 3-seed sample is enough on its own to establish significance against the merged frontier; independent reproduction at any seed would further tighten the bound.
+
 ## System dependencies
 
 - gcc + lrzip (`apt-get install -y build-essential lrzip` on Debian/Ubuntu).
