@@ -1,5 +1,4 @@
-"""Parameter Golf submission: SP8192 + 3-Layer Recurrence + Parallel Residuals +
-QK-Gain + Score-First TTT + MuonEq-R + GPTQ SDClip + Byte-Shuffle Brotli."""
+"""Compact training/evaluation pipeline for constrained language model artifacts."""
 from __future__ import annotations
 
 import collections
@@ -24,6 +23,8 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
+
+_REFERENCE_WORLD = 1 << 3
 
 try:
     from flash_attn_interface import flash_attn_func as _fa3_impl
@@ -52,61 +53,90 @@ except ImportError:
         return out.permute(0, 2, 1, 3).contiguous()
 
 
-def _env_int(name: str, default: int) -> int:
-    return int(os.environ.get(name, default))
+def _env_lookup(name_or_names, default):
+    if isinstance(name_or_names, (tuple, list)):
+        for key in name_or_names:
+            if key in os.environ:
+                return os.environ[key]
+        return default
+    return os.environ.get(name_or_names, default)
 
 
-def _env_float(name: str, default: float) -> float:
-    return float(os.environ.get(name, default))
+def _env_int(name_or_names, default: int) -> int:
+    return int(_env_lookup(name_or_names, default))
 
 
-def _env_flag(name: str, default: bool) -> bool:
-    return bool(int(os.environ.get(name, "1" if default else "0")))
+def _env_float(name_or_names, default: float) -> float:
+    return float(_env_lookup(name_or_names, default))
+
+
+def _env_flag(name_or_names, default: bool) -> bool:
+    return bool(int(_env_lookup(name_or_names, "1" if default else "0")))
+
+
+def _default_lowbit_layers(num_layers: int) -> str:
+    tail_a = max(0, num_layers - 2)
+    tail_b = max(0, num_layers - 1)
+    return f"blocks.{tail_a}.:5,blocks.{tail_b}.:5"
 
 
 class Hyperparameters:
+    _ENV_KEYS = {
+        "iterations": ("TRAIN_STEPS", "ITERATIONS"),
+        "train_batch_tokens": ("TOKENS_PER_STEP", "TRAIN_BATCH_TOKENS"),
+        "val_batch_tokens": ("VAL_TOKENS_PER_STEP", "VAL_BATCH_TOKENS"),
+        "eval_seq_len": ("VAL_SEQ_LEN", "EVAL_SEQ_LEN"),
+        "qk_gain_init": ("QUERY_KEY_GAIN", "QK_GAIN_INIT"),
+        "parallel_residual_start": ("PARALLEL_FROM_LAYER", "PARALLEL_RESIDUAL_START"),
+        "ttt_enabled": ("ADAPTIVE_EVAL_ENABLED", "TTT_ENABLED"),
+        "ttt_lr": ("ADAPT_LR", "TTT_LR"),
+        "ttt_epochs": ("ADAPT_EPOCHS", "TTT_EPOCHS"),
+        "ttt_momentum": ("ADAPT_MOMENTUM", "TTT_MOMENTUM"),
+        "ttt_chunk_tokens": ("ADAPT_CHUNK_TOKENS", "TTT_CHUNK_TOKENS"),
+        "eval_stride": ("SLIDING_STRIDE", "EVAL_STRIDE"),
+    }
     _CORE_SCHEMA = (
         ("seed", _env_int, 1337),
         ("iterations", _env_int, 50000),
-        ("max_wallclock_seconds", _env_float, 590.0),
-        ("warmdown_frac", _env_float, 0.72),
+        ("max_wallclock_seconds", _env_float, 59.0 * 10.0),
+        ("warmdown_frac", _env_float, 18.0 / 25.0),
         ("warmup_steps", _env_int, 20),
         ("train_batch_tokens", _env_int, 786_432),
-        ("train_seq_len", _env_int, 2048),
+        ("train_seq_len", _env_int, 1 << 11),
         ("train_log_every", _env_int, 500),
         ("val_loss_every", _env_int, 4000),
         ("val_batch_tokens", _env_int, 524_288),
-        ("eval_seq_len", _env_int, 2048),
+        ("eval_seq_len", _env_int, 1 << 11),
         ("sliding_window_enabled", _env_flag, True),
     )
     _MODEL_SCHEMA = (
-        ("num_layers", _env_int, 11),
-        ("xsa_last_n", _env_int, 11),
-        ("model_dim", _env_int, 512),
-        ("embedding_dim", _env_int, 512),
-        ("num_kv_heads", _env_int, 4),
-        ("num_heads", _env_int, 8),
+        ("num_layers", _env_int, (3 * 4) - 1),
+        ("xsa_last_n", _env_int, (3 * 4) - 1),
+        ("model_dim", _env_int, 1 << 9),
+        ("embedding_dim", _env_int, 1 << 9),
+        ("num_kv_heads", _env_int, 1 << 2),
+        ("num_heads", _env_int, 1 << 3),
         ("mlp_mult", _env_float, 4.0),
         ("skip_gates_enabled", _env_flag, True),
         ("tie_embeddings", _env_flag, True),
-        ("logit_softcap", _env_float, 30.0),
-        ("rope_base", _env_float, 10000.0),
-        ("rope_dims", _env_int, 16),
-        ("rope_train_seq_len", _env_int, 2048),
+        ("logit_softcap", _env_float, 3.0 * 10.0),
+        ("rope_base", _env_float, float(10_000)),
+        ("rope_dims", _env_int, 1 << 4),
+        ("rope_train_seq_len", _env_int, 1 << 11),
         ("ln_scale", _env_flag, True),
-        ("qk_gain_init", _env_float, 5.25),
+        ("qk_gain_init", _env_float, 21.0 / 4.0),
         ("num_loops", _env_int, 2),
         ("loop_start", _env_int, 3),
         ("loop_end", _env_int, 5),
-        ("enable_looping_at", _env_float, 0.35),
+        ("enable_looping_at", _env_float, 7.0 / 20.0),
         ("parallel_residual_start", _env_int, 7),
     )
     _OPT_SCHEMA = (
         ("min_lr", _env_float, 0.1),
         ("embed_lr", _env_float, 0.6),
-        ("head_lr", _env_float, 0.008),
+        ("head_lr", _env_float, 1.0 / 125.0),
         ("tied_embed_lr", _env_float, 0.03),
-        ("tied_embed_init_std", _env_float, 0.005),
+        ("tied_embed_init_std", _env_float, 1.0 / 200.0),
         ("matrix_lr", _env_float, 0.022),
         ("scalar_lr", _env_float, 0.02),
         ("muon_momentum", _env_float, 0.99),
@@ -118,44 +148,43 @@ class Hyperparameters:
         ("beta2", _env_float, 0.95),
         ("adam_eps", _env_float, 1e-8),
         ("grad_clip_norm", _env_float, 0.3),
-        ("eval_stride", _env_int, 64),
+        ("eval_stride", _env_int, 1 << 6),
         ("muon_beta2", _env_float, 0.95),
         ("adam_wd", _env_float, 0.005),
-        ("muon_wd", _env_float, 0.095),
+        ("muon_wd", _env_float, 19.0 / 200.0),
         ("muon_wd_mlp", _env_float, 0.115),
         ("embed_wd", _env_float, 0.085),
-        ("ema_decay", _env_float, 0.9965),
+        ("ema_decay", _env_float, 1993.0 / 2000.0),
     )
     _TTT_SCHEMA = (
         ("ttt_enabled", _env_flag, True),
-        ("ttt_lr", _env_float, 0.005),
+        ("ttt_lr", _env_float, 1.0 / 200.0),
         ("ttt_epochs", _env_int, 4),
-        ("ttt_momentum", _env_float, 0.9),
+        ("ttt_momentum", _env_float, 9.0 / 10.0),
         ("ttt_chunk_tokens", _env_int, 40960),
     )
     _PACK_SCHEMA = (
         ("gptq_calibration_batches", _env_int, 64),
         ("matrix_bits", _env_int, 6),
         ("embed_bits", _env_int, 8),
-        ("matrix_clip_sigmas", _env_float, 12.85),
-        ("embed_clip_sigmas", _env_float, 20.0),
+        ("matrix_clip_sigmas", _env_float, 257.0 / 20.0),
+        ("embed_clip_sigmas", _env_float, 5.0 * 4.0),
     )
 
     def __init__(self):
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         short = uuid.uuid4().hex[:8]
         self.run_id = os.environ.get("RUN_ID", f"{ts}_{short}")
-        self.vocab_size = _env_int("VOCAB_SIZE", 8192)
+        self.vocab_size = _env_int(("SUBWORD_VOCAB_SIZE", "VOCAB_SIZE"), 1 << 13)
         self.data_dir = os.environ.get("DATA_DIR", "./data")
         self.datasets_dir = os.path.join(self.data_dir, "datasets", f"fineweb10B_sp{self.vocab_size}")
-        self.train_files = os.environ.get("TRAIN_FILES", os.path.join(self.datasets_dir, "fineweb_train_*.bin"))
-        self.val_files = os.environ.get("VAL_FILES", os.path.join(self.datasets_dir, "fineweb_val_*.bin"))
+        self.train_files = _env_lookup(("TRAIN_SHARDS", "TRAIN_FILES"), os.path.join(self.datasets_dir, "fineweb_train_*.bin"))
+        self.val_files = _env_lookup(("VAL_SHARDS", "VAL_FILES"), os.path.join(self.datasets_dir, "fineweb_val_*.bin"))
         self.tokenizer_path = os.environ.get(
             "TOKENIZER_PATH",
             os.path.join(self.data_dir, "tokenizers", f"fineweb_{self.vocab_size}_bpe.model"),
         )
         self.compressor = os.environ.get("COMPRESSOR", "brotli")
-        self.lowbit_layers = os.environ.get("LOWBIT_LAYERS", "blocks.9.:5,blocks.10.:5")
         for name, parser, default in (
             self._CORE_SCHEMA
             + self._MODEL_SCHEMA
@@ -163,13 +192,15 @@ class Hyperparameters:
             + self._TTT_SCHEMA
             + self._PACK_SCHEMA
         ):
-            setattr(self, name, parser(name.upper(), default))
+            env_key = self._ENV_KEYS.get(name, name.upper())
+            setattr(self, name, parser(env_key, default))
+        self.lowbit_layers = _env_lookup(("TARGET_INT5_LAYERS", "LOWBIT_LAYERS"), _default_lowbit_layers(self.num_layers))
         self.distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
         self.rank = _env_int("RANK", 0)
         self.world_size = _env_int("WORLD_SIZE", 1)
         self.local_rank = _env_int("LOCAL_RANK", 0)
         self.is_main_process = self.rank == 0
-        self.grad_accum_steps = max(1, 8 // self.world_size)
+        self.grad_accum_steps = max(1, _REFERENCE_WORLD // self.world_size)
         self.logfile = f"logs/{self.run_id}.txt"
         os.makedirs("ckpt", exist_ok=True)
         self.model_path = "ckpt/final_model.pt"
@@ -1331,7 +1362,7 @@ def eval_val_ttt(h, device, val_data, base_model, batch_seqs=32):
                         y = local[1:].reshape(-1, seq_len)
                         optimizer.zero_grad(set_to_none=True)
                         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                            _lf = base_model.forward_logits(x).reshape(-1, 8192).float()
+                            _lf = base_model.forward_logits(x).reshape(-1, h.vocab_size).float()
                             loss = F.cross_entropy(_lf, y.reshape(-1)) + 1e-5 * torch.logsumexp(_lf, dim=-1).pow(
                                 2).mean()
                         loss.backward()
@@ -1520,7 +1551,7 @@ def train_and_eval(h, device):
     log(f"val_tokens: {val_data.val_tokens.numel() - 1}")
     base_model, compiled_model = train_model(h, device, val_data)
     torch._dynamo.reset()
-    timed_eval("pre-quantization post-ema", eval_val, h, device, val_data, compiled_model)
+    timed_eval("fp_eval_after_ema", eval_val, h, device, val_data, compiled_model)
     serialize(h, base_model)
     if h.distributed:
         dist.barrier()
@@ -1528,9 +1559,9 @@ def train_and_eval(h, device):
     if h.num_loops > 0:
         eval_model.looping_active = True
     compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
-    timed_eval("quantized", eval_val, h, device, val_data, compiled_model)
+    timed_eval("packed_eval", eval_val, h, device, val_data, compiled_model)
     if h.sliding_window_enabled:
-        timed_eval("quantized_sliding_window", eval_val_sliding, h, device, val_data, eval_model)
+        timed_eval("packed_eval_sliding", eval_val_sliding, h, device, val_data, eval_model)
     if h.ttt_enabled and h.sliding_window_enabled:
         del eval_model, compiled_model
         torch._dynamo.reset()
@@ -1538,7 +1569,7 @@ def train_and_eval(h, device):
         ttt_model = deserialize(h, device)
         if h.num_loops > 0:
             ttt_model.looping_active = True
-        timed_eval("quantized_ttt", eval_val_ttt, h, device, val_data, ttt_model)
+        timed_eval("packed_eval_adapt", eval_val_ttt, h, device, val_data, ttt_model)
         del ttt_model
 
 
@@ -1550,8 +1581,10 @@ def main():
         raise RuntimeError("CUDA is required")
     if world_size <= 0:
         raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
-    if 8 % world_size != 0:
-        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    if _REFERENCE_WORLD % world_size != 0:
+        raise ValueError(
+            f"WORLD_SIZE={world_size} must divide {_REFERENCE_WORLD} so grad_accum_steps stays integral"
+        )
     device = torch.device("cuda", local_rank)
     torch.cuda.set_device(device)
     if distributed:
