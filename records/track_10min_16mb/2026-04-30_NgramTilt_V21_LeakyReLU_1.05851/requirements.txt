@@ -1,0 +1,12 @@
+torch==2.9.1
+numpy
+tqdm
+huggingface-hub>=0.27
+datasets
+tiktoken
+sentencepiece
+kernels
+typing-extensions==4.15.0
+zstandard
+brotli
+flash_attn_3
