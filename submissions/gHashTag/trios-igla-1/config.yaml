@@ -1,0 +1,53 @@
+# Reproducible config for `fix-verify-s43` — first honest Gate-2 pass.
+# Anchor: phi^2 + phi^-2 = 3.
+#
+# This run shipped on the fully-fixed pipeline:
+#   - PR #56 trios-trainer-igla : --ctx accept
+#   - PR #58 trios-trainer-igla : smoke_train + stdout.flush()
+#   - PR #59 trios-trainer-igla : panic hook + startup diagnostic
+#   - PR #61 trios-trainer-igla : byte-disjoint train/val split
+#                                 + assert_train_val_disjoint() guard
+#   - trios-railway@69c3467     : seed-agent stops passing --ctx
+#
+# The training corpus on the post-#61 image is byte-disjoint:
+#   train = head -c $((SIZE - 100000)) tiny_shakespeare.txt
+#   val   = tail -c 100000             tiny_shakespeare.txt
+# (Original raw corpus is karpathy/char-rnn/tinyshakespeare/input.txt,
+#  ~ 1.1 MB; train ~ 1.0 MB, val = 100 KB, disjoint.)
+
+canon_name: "fix-verify-s43"
+account: acc1
+created_by: human                 # operator's local `railway up`
+seed: 43
+hidden: 1024
+ctx: 12                           # default; not passed via CLI on post-69c3467 seed-agent
+attn_layers: 2                    # trainer default
+lr: 0.003                         # trainer default
+steps: 12000
+optimizer: adamw                  # trainer default
+format: fp32
+
+# Result (verbatim from experiment_queue and bpb_samples):
+result:
+  status: done
+  final_step: 12000
+  final_bpb: 1.5492
+  finished_at: "2026-04-30T18:46:59 UTC"
+  trajectory:
+    - { step:  1000, bpb: 0.0003, comment: "warmup-artifact" }
+    - { step:  2000, bpb: 0.0001, comment: "warmup-artifact" }
+    - { step:  3000, bpb: 0.0000, comment: "warmup-artifact" }
+    - { step:  4000, bpb: 0.0000, comment: "warmup-artifact" }
+    - { step:  5000, bpb: 0.0000, comment: "warmup-artifact" }
+    - { step:  6000, bpb: 0.0000, comment: "warmup-artifact" }
+    - { step:  7000, bpb: 0.0000, comment: "warmup-artifact" }
+    - { step:  8000, bpb: 0.0000, comment: "warmup-artifact" }
+    - { step:  9000, bpb: 7.2781, comment: "post-warmup spike" }
+    - { step: 10000, bpb: 1.6935, comment: "converging" }
+    - { step: 11000, bpb: 1.7399, comment: "converging" }
+    - { step: 12000, bpb: 1.5492, comment: "Gate-2 PASS (< 1.85)" }
+
+gate2:
+  threshold: 1.85
+  margin: +0.3008
+  pass: true
