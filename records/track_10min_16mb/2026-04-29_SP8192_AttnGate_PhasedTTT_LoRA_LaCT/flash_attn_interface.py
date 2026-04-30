@@ -21,6 +21,7 @@ FLASH_ATTN_INSTALL_HINT = (
 
 _IMPORT_ERRORS: list[str] = []
 _flash_attn_func = None
+_flash_attn_module = None
 
 
 def _load_site_module(module_name: str):
@@ -37,6 +38,7 @@ def _load_site_module(module_name: str):
 for _module_name in ("flash_attn.flash_attn_interface", "flash_attn"):
     try:
         _module = __import__(_module_name, fromlist=["flash_attn_func"])
+        _flash_attn_module = _module
         _flash_attn_func = getattr(_module, "flash_attn_func")
         break
     except Exception as exc:  # pragma: no cover - startup path only
@@ -45,6 +47,7 @@ for _module_name in ("flash_attn.flash_attn_interface", "flash_attn"):
 if _flash_attn_func is None:
     try:
         _module = _load_site_module("flash_attn_interface")
+        _flash_attn_module = _module
         _flash_attn_func = getattr(_module, "flash_attn_func")
     except Exception as exc:  # pragma: no cover - startup path only
         _IMPORT_ERRORS.append(f"flash_attn_interface(site-packages): {exc!r}")
@@ -52,6 +55,15 @@ if _flash_attn_func is None:
 if _flash_attn_func is None:
     details = "\n".join(_IMPORT_ERRORS) if _IMPORT_ERRORS else "no import attempts recorded"
     raise RuntimeError(f"{FLASH_ATTN_INSTALL_HINT}\nImport errors:\n{details}")
+
+if _flash_attn_module is not None:
+    for _attr_name in (
+        "FlashAttnFunc",
+        "flash_attn_varlen_func",
+        "flash_attn_with_kvcache",
+    ):
+        if hasattr(_flash_attn_module, _attr_name):
+            globals()[_attr_name] = getattr(_flash_attn_module, _attr_name)
 
 
 def flash_attn_func(q, k, v, causal=False):
