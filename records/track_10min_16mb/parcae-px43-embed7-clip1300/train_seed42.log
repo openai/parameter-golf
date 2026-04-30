@@ -1,0 +1,166 @@
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /home/ubuntu/parameter-golf/data
+  datasets_dir: /home/ubuntu/parameter-golf/data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 15.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+tokenizer_sha256: a24fd9326f81c9456e24484aae2a05b209898738a0082f37b085ef2fe873cec7tokenizer_sha256: a24fd9326f81c9456e24484aae2a05b209898738a0082f37b085ef2fe873cec7tokenizer_sha256: a24fd9326f81c9456e24484aae2a05b209898738a0082f37b085ef2fe873cec7
+tokenizer_sha256: a24fd9326f81c9456e24484aae2a05b209898738a0082f37b085ef2fe873cec7  enable_looping_at: 0.35
+tokenizer_sha256: a24fd9326f81c9456e24484aae2a05b209898738a0082f37b085ef2fe873cec7
+
+
+
+  eval_abort_seconds: 540.0
+  eval_budget_seconds: 600.0
+  eval_seq_len: 2048
+  eval_stride: 64
+  export_wait_timeout_seconds: 1200.0
+  gptq_calibration_batches: 96
+  gptq_reserve_seconds: 18.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/px01_b00_control_s42_px43_embed7_clip1300_seed42.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 13.0
+  matrix_lr: 0.022
+  max_wallclock_seconds: 618.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  model_size_limit_bytes: 16000000
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: px01_b00_control_s42_px43_embed7_clip1300_seed42
+  scalar_lr: 0.02
+  seed: 42
+  selective_prune_enabled: True
+tokenizer_sha256: a24fd9326f81c9456e24484aae2a05b209898738a0082f37b085ef2fe873cec7  skip_gates_enabled: True
+
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /home/ubuntu/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: /home/ubuntu/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  val_batch_tokens: 524288
+  val_files: /home/ubuntu/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+tokenizer_sha256: a24fd9326f81c9456e24484aae2a05b209898738a0082f37b085ef2fe873cec7
+tokenizer_sha256: a24fd9326f81c9456e24484aae2a05b209898738a0082f37b085ef2fe873cec7
+train_shards: 122
+val_tokens: 38834176
+model_params:35944536
+gptq:reserving 18s, effective=600000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0154 val_bpb: 3.3432
+1/20000 train_loss: 9.0157 train_time: 0.0m tok/s: 8283486
+2/20000 train_loss: 12.4731 train_time: 0.0m tok/s: 8133683
+3/20000 train_loss: 11.6268 train_time: 0.0m tok/s: 8039476
+4/20000 train_loss: 10.0496 train_time: 0.0m tok/s: 8002687
+5/20000 train_loss: 8.6437 train_time: 0.0m tok/s: 7974359
+500/20000 train_loss: 3.4550 train_time: 0.8m tok/s: 7797722
+1000/20000 train_loss: 3.3856 train_time: 1.7m tok/s: 7798017
+1500/20000 train_loss: 3.3026 train_time: 2.5m tok/s: 7796702
+2000/20000 train_loss: 3.2629 train_time: 3.4m tok/s: 7793195
+layer_loop:enabled step:2081 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 3.1546 train_time: 4.5m tok/s: 7217293
+3000/20000 train_loss: 3.1773 train_time: 5.8m tok/s: 6801780
+3500/20000 train_loss: 3.1366 train_time: 7.0m tok/s: 6533469
+4000/20000 train_loss: 2.9834 train_time: 8.3m tok/s: 6346623
+4000/20000 val_loss: 3.0236 val_bpb: 1.1213
+4500/20000 train_loss: 3.0376 train_time: 9.5m tok/s: 6208737
+4702/20000 val_loss: 2.9438 val_bpb: 1.0917
+stopping_early: wallclock_cap train_time: 600024ms step: 4702/20000
+peak memory allocated: 39034 MiB reserved: 39060 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.94123826 val_bpb:1.09071600 eval_time:8120ms
+Serialized model: 135431033 bytes
+Code size: 19689 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 22.0s
+export:cpu_threads=32 (was 16)
+GPTQ:quantizing weights...
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int7): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+GPTQ:quantized in 6.5s
+export:packing compressed blob with brotli...
+export_wait rank=4 elapsed=30s remaining=1170s
+export_wait rank=5 elapsed=30s remaining=1170sexport_wait rank=1 elapsed=30s remaining=1170sexport_wait rank=6 elapsed=30s remaining=1170sexport_wait rank=3 elapsed=30s remaining=1170s
+
+
+
+export_wait rank=7 elapsed=30s remaining=1170s
+export_wait rank=2 elapsed=30s remaining=1170s
+export_wait rank=4 elapsed=60s remaining=1140s
+export_wait rank=6 elapsed=60s remaining=1140s
+export_wait rank=3 elapsed=60s remaining=1140s
+export_wait rank=5 elapsed=60s remaining=1140s
+export_wait rank=1 elapsed=60s remaining=1140s
+export_wait rank=7 elapsed=60s remaining=1140s
+export_wait rank=2 elapsed=60s remaining=1140s
+export:packed bytes=15614135 seconds=77.6
+size_check total_submission=15633824 limit=16000000
+Serialized model quantized+brotli: 15614135 bytes
+Total submission size quantized+brotli: 15633824 bytes
+quantized_sliding_window val_loss:2.93399367 val_bpb:1.08802944 eval_time:89275ms
+RUN_COMPLETE_DO_NOT_KILL submission_ready=1

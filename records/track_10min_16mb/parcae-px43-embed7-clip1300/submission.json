@@ -1,0 +1,53 @@
+{
+  "name": "Billy Endson",
+  "github": "User123331",
+  "val_bpb": 1.08782605,
+  "artifact_bytes": 15633824,
+  "training_time_seconds": 600.117,
+  "gpu": "8xH100 SXM",
+  "status": "draft_non_record_not_submitted",
+  "seeds": [42, 1337, 2024],
+  "runs": [
+    {
+      "seed": 42,
+      "val_bpb": 1.08802944,
+      "prequant_bpb": 1.09071600,
+      "artifact_bytes": 15633824,
+      "training_time_seconds": 600.024,
+      "eval_time_seconds": 89.275,
+      "train_log": "train_seed42.log"
+    },
+    {
+      "seed": 1337,
+      "val_bpb": 1.08783878,
+      "prequant_bpb": 1.09073547,
+      "artifact_bytes": 15630505,
+      "training_time_seconds": 600.117,
+      "eval_time_seconds": 89.174,
+      "train_log": "train_seed1337.log"
+    },
+    {
+      "seed": 2024,
+      "val_bpb": 1.08760994,
+      "prequant_bpb": 1.09049411,
+      "artifact_bytes": 15630862,
+      "training_time_seconds": 600.093,
+      "eval_time_seconds": 89.318,
+      "train_log": "train_seed2024.log"
+    }
+  ],
+  "techniques": [
+    "SP8192 tokenizer",
+    "Parallel residual routing",
+    "Depth recurrence over layers 3-5",
+    "QK-Gain 5.25",
+    "MuonEq-style row-normalized optimizer",
+    "EMA post-training weights",
+    "Hessian-aware mixed GPTQ",
+    "6-bit matrix quantization",
+    "7-bit embedding quantization",
+    "Brotli compression",
+    "Sliding-window evaluation"
+  ],
+  "notes": "Draft package generated from phase1 logs. This is not ready as a record PR because the parsed train logs exceed 600 seconds by 24-117 ms and the mean BPB does not beat the current leaderboard SOTA."
+}
