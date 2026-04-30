@@ -52,105 +52,128 @@ except ImportError:
         return out.permute(0, 2, 1, 3).contiguous()
 
 
-class Hyperparameters:
-    _ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    _short = uuid.uuid4().hex[:8]
-    run_id = os.environ.get("RUN_ID", f"{_ts}_{_short}")
-    seed = int(os.environ.get("SEED", 1337))
+def _env_int(name: str, default: int) -> int:
+    return int(os.environ.get(name, default))
 
-    vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
-    data_dir = os.environ.get("DATA_DIR", "./data")
-    datasets_dir = os.path.join(data_dir, "datasets", f"fineweb10B_sp{vocab_size}")
-    train_files = os.environ.get("TRAIN_FILES", os.path.join(datasets_dir, "fineweb_train_*.bin"))
-    val_files = os.environ.get("VAL_FILES", os.path.join(datasets_dir, "fineweb_val_*.bin"))
-    tokenizer_path = os.environ.get(
-        "TOKENIZER_PATH",
-        os.path.join(data_dir, "tokenizers", f"fineweb_{vocab_size}_bpe.model"),
+
+def _env_float(name: str, default: float) -> float:
+    return float(os.environ.get(name, default))
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    return bool(int(os.environ.get(name, "1" if default else "0")))
+
+
+class Hyperparameters:
+    _CORE_SCHEMA = (
+        ("seed", _env_int, 1337),
+        ("iterations", _env_int, 50000),
+        ("max_wallclock_seconds", _env_float, 590.0),
+        ("warmdown_frac", _env_float, 0.72),
+        ("warmup_steps", _env_int, 20),
+        ("train_batch_tokens", _env_int, 786_432),
+        ("train_seq_len", _env_int, 2048),
+        ("train_log_every", _env_int, 500),
+        ("val_loss_every", _env_int, 4000),
+        ("val_batch_tokens", _env_int, 524_288),
+        ("eval_seq_len", _env_int, 2048),
+        ("sliding_window_enabled", _env_flag, True),
+    )
+    _MODEL_SCHEMA = (
+        ("num_layers", _env_int, 11),
+        ("xsa_last_n", _env_int, 11),
+        ("model_dim", _env_int, 512),
+        ("embedding_dim", _env_int, 512),
+        ("num_kv_heads", _env_int, 4),
+        ("num_heads", _env_int, 8),
+        ("mlp_mult", _env_float, 4.0),
+        ("skip_gates_enabled", _env_flag, True),
+        ("tie_embeddings", _env_flag, True),
+        ("logit_softcap", _env_float, 30.0),
+        ("rope_base", _env_float, 10000.0),
+        ("rope_dims", _env_int, 16),
+        ("rope_train_seq_len", _env_int, 2048),
+        ("ln_scale", _env_flag, True),
+        ("qk_gain_init", _env_float, 5.25),
+        ("num_loops", _env_int, 2),
+        ("loop_start", _env_int, 3),
+        ("loop_end", _env_int, 5),
+        ("enable_looping_at", _env_float, 0.35),
+        ("parallel_residual_start", _env_int, 7),
+    )
+    _OPT_SCHEMA = (
+        ("min_lr", _env_float, 0.1),
+        ("embed_lr", _env_float, 0.6),
+        ("head_lr", _env_float, 0.008),
+        ("tied_embed_lr", _env_float, 0.03),
+        ("tied_embed_init_std", _env_float, 0.005),
+        ("matrix_lr", _env_float, 0.022),
+        ("scalar_lr", _env_float, 0.02),
+        ("muon_momentum", _env_float, 0.99),
+        ("muon_backend_steps", _env_int, 5),
+        ("muon_momentum_warmup_start", _env_float, 0.92),
+        ("muon_momentum_warmup_fraction", _env_float, 0.22),
+        ("muon_row_normalize", _env_flag, True),
+        ("beta1", _env_float, 0.9),
+        ("beta2", _env_float, 0.95),
+        ("adam_eps", _env_float, 1e-8),
+        ("grad_clip_norm", _env_float, 0.3),
+        ("eval_stride", _env_int, 64),
+        ("muon_beta2", _env_float, 0.95),
+        ("adam_wd", _env_float, 0.005),
+        ("muon_wd", _env_float, 0.095),
+        ("muon_wd_mlp", _env_float, 0.115),
+        ("embed_wd", _env_float, 0.085),
+        ("ema_decay", _env_float, 0.9965),
+    )
+    _TTT_SCHEMA = (
+        ("ttt_enabled", _env_flag, True),
+        ("ttt_lr", _env_float, 0.005),
+        ("ttt_epochs", _env_int, 4),
+        ("ttt_momentum", _env_float, 0.9),
+        ("ttt_chunk_tokens", _env_int, 40960),
+    )
+    _PACK_SCHEMA = (
+        ("gptq_calibration_batches", _env_int, 64),
+        ("matrix_bits", _env_int, 6),
+        ("embed_bits", _env_int, 8),
+        ("matrix_clip_sigmas", _env_float, 12.85),
+        ("embed_clip_sigmas", _env_float, 20.0),
     )
 
-    iterations = int(os.environ.get("ITERATIONS", 50000))
-    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 590.0))
-    warmdown_frac = float(os.environ.get("WARMDOWN_FRAC", 0.72))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 786_432))
-    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
-    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 500))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
-    val_batch_tokens = int(os.environ.get("VAL_BATCH_TOKENS", 524_288))
-    eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
-    sliding_window_enabled = bool(int(os.environ.get("SLIDING_WINDOW_ENABLED", "1")))
-
-    num_layers = int(os.environ.get("NUM_LAYERS", 11))
-    xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
-    embedding_dim = int(os.environ.get("EMBEDDING_DIM", 512))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 4.0))
-    skip_gates_enabled = bool(int(os.environ.get("SKIP_GATES_ENABLED", "1")))
-    tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
-    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
-    rope_dims = int(os.environ.get("ROPE_DIMS", 16))
-    rope_train_seq_len = int(os.environ.get("ROPE_TRAIN_SEQ_LEN", 2048))
-    ln_scale = bool(int(os.environ.get("LN_SCALE", "1")))
-    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 5.25))
-
-    num_loops = int(os.environ.get("NUM_LOOPS", 2))
-    loop_start = int(os.environ.get("LOOP_START", 3))
-    loop_end = int(os.environ.get("LOOP_END", 5))
-    enable_looping_at = float(os.environ.get("ENABLE_LOOPING_AT", 0.35))
-    parallel_residual_start = int(os.environ.get("PARALLEL_RESIDUAL_START", 7))
-
-    min_lr = float(os.environ.get("MIN_LR", 0.1))
-    embed_lr = float(os.environ.get("EMBED_LR", 0.6))
-    head_lr = float(os.environ.get("HEAD_LR", 0.008))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.03))
-    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.022))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
-    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.99))
-    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
-    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.92))
-    muon_momentum_warmup_fraction = float(os.environ.get("MUON_MOMENTUM_WARMUP_FRACTION", 0.22))
-    muon_row_normalize = bool(int(os.environ.get("MUON_ROW_NORMALIZE", "1")))
-    beta1 = float(os.environ.get("BETA1", 0.9))
-    beta2 = float(os.environ.get("BETA2", 0.95))
-    adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
-    eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
-    muon_beta2 = float(os.environ.get("MUON_BETA2", 0.95))
-    adam_wd = float(os.environ.get("ADAM_WD", 0.005))
-    muon_wd = float(os.environ.get("MUON_WD", 0.095))
-    muon_wd_mlp = float(os.environ.get("MUON_WD_MLP", 0.115))
-    embed_wd = float(os.environ.get("EMBED_WD", 0.085))
-    ema_decay = float(os.environ.get("EMA_DECAY", 0.9965))
-
-    ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
-    ttt_lr = float(os.environ.get("TTT_LR", 0.005))
-    ttt_epochs = int(os.environ.get("TTT_EPOCHS", 4))
-    ttt_momentum = float(os.environ.get("TTT_MOMENTUM", 0.9))
-    ttt_chunk_tokens = int(os.environ.get("TTT_CHUNK_TOKENS", 40960))
-
-    compressor = os.environ.get("COMPRESSOR", "brotli")
-    gptq_calibration_batches = int(os.environ.get("GPTQ_CALIBRATION_BATCHES", 64))
-    matrix_bits = int(os.environ.get("MATRIX_BITS", 6))
-    embed_bits = int(os.environ.get("EMBED_BITS", 8))
-    matrix_clip_sigmas = float(os.environ.get("MATRIX_CLIP_SIGMAS", 12.85))
-    embed_clip_sigmas = float(os.environ.get("EMBED_CLIP_SIGMAS", 20.0))
-    lowbit_layers = os.environ.get("LOWBIT_LAYERS", "blocks.9.:5,blocks.10.:5")
-
-    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
-    rank = int(os.environ.get("RANK", "0"))
-    world_size = int(os.environ.get("WORLD_SIZE", "1"))
-    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-    is_main_process = rank == 0
-    grad_accum_steps = max(1, 8 // world_size)
-
-    logfile = f"logs/{run_id}.txt"
-    os.makedirs("ckpt", exist_ok=True)
-    model_path = "ckpt/final_model.pt"
-    quantized_model_path = "ckpt/final_model.int6.ptz"
+    def __init__(self):
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        short = uuid.uuid4().hex[:8]
+        self.run_id = os.environ.get("RUN_ID", f"{ts}_{short}")
+        self.vocab_size = _env_int("VOCAB_SIZE", 8192)
+        self.data_dir = os.environ.get("DATA_DIR", "./data")
+        self.datasets_dir = os.path.join(self.data_dir, "datasets", f"fineweb10B_sp{self.vocab_size}")
+        self.train_files = os.environ.get("TRAIN_FILES", os.path.join(self.datasets_dir, "fineweb_train_*.bin"))
+        self.val_files = os.environ.get("VAL_FILES", os.path.join(self.datasets_dir, "fineweb_val_*.bin"))
+        self.tokenizer_path = os.environ.get(
+            "TOKENIZER_PATH",
+            os.path.join(self.data_dir, "tokenizers", f"fineweb_{self.vocab_size}_bpe.model"),
+        )
+        self.compressor = os.environ.get("COMPRESSOR", "brotli")
+        self.lowbit_layers = os.environ.get("LOWBIT_LAYERS", "blocks.9.:5,blocks.10.:5")
+        for name, parser, default in (
+            self._CORE_SCHEMA
+            + self._MODEL_SCHEMA
+            + self._OPT_SCHEMA
+            + self._TTT_SCHEMA
+            + self._PACK_SCHEMA
+        ):
+            setattr(self, name, parser(name.upper(), default))
+        self.distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+        self.rank = _env_int("RANK", 0)
+        self.world_size = _env_int("WORLD_SIZE", 1)
+        self.local_rank = _env_int("LOCAL_RANK", 0)
+        self.is_main_process = self.rank == 0
+        self.grad_accum_steps = max(1, 8 // self.world_size)
+        self.logfile = f"logs/{self.run_id}.txt"
+        os.makedirs("ckpt", exist_ok=True)
+        self.model_path = "ckpt/final_model.pt"
+        self.quantized_model_path = "ckpt/final_model.int6.ptz"
 
 
 _logger_hparams = None
@@ -173,33 +196,36 @@ def log(msg, console=True):
                 print(msg, file=f)
 
 
-_SHARD_HEADER_BYTES = 256 * np.dtype("<i4").itemsize
-_SHARD_NTOKENS_CACHE = {}
-_MMAP_CACHE = {}
+class ShardCache:
+    def __init__(self):
+        self.header_bytes = 256 * np.dtype("<i4").itemsize
+        self._num_tokens = {}
+        self._mmaps = {}
 
+    def read_num_tokens(self, file):
+        key = str(file)
+        cached = self._num_tokens.get(key)
+        if cached is not None:
+            return cached
+        header = np.fromfile(file, dtype="<i4", count=256)
+        if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
+            raise ValueError(f"Unexpected shard header for {file}")
+        n = int(header[2])
+        self._num_tokens[key] = n
+        return n
 
-def _read_num_tokens(file):
-    key = str(file)
-    cached = _SHARD_NTOKENS_CACHE.get(key)
-    if cached is not None:
-        return cached
-    header = np.fromfile(file, dtype="<i4", count=256)
-    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
-        raise ValueError(f"Unexpected shard header for {file}")
-    n = int(header[2])
-    _SHARD_NTOKENS_CACHE[key] = n
-    return n
-
-
-def _get_shard_memmap(file):
-    key = str(file)
-    mm = _MMAP_CACHE.get(key)
-    if mm is not None:
+    def shard_memmap(self, file):
+        key = str(file)
+        mm = self._mmaps.get(key)
+        if mm is not None:
+            return mm
+        n = self.read_num_tokens(file)
+        mm = np.memmap(file, mode="r", dtype="<u2", offset=self.header_bytes, shape=(n,))
+        self._mmaps[key] = mm
         return mm
-    n = _read_num_tokens(file)
-    mm = np.memmap(file, mode="r", dtype="<u2", offset=_SHARD_HEADER_BYTES, shape=(n,))
-    _MMAP_CACHE[key] = mm
-    return mm
+
+
+_SHARD_CACHE = ShardCache()
 
 
 def load_data_shard(file):
@@ -279,7 +305,7 @@ class ShuffledSequenceLoader:
             raise FileNotFoundError(f"No files found for pattern: {h.train_files}")
         self.files = all_files[h.rank:: h.world_size]
         self.rng = np.random.Generator(np.random.PCG64(h.rank))
-        self.num_tokens = [_read_num_tokens(f) for f in self.files]
+        self.num_tokens = [_SHARD_CACHE.read_num_tokens(f) for f in self.files]
         self.start_inds = [[] for _ in self.files]
         self._phase_epoch = [0] * len(self.files)
         self._phase_order = [self.rng.permutation(8).tolist() for _ in self.files]
@@ -340,7 +366,7 @@ class ShuffledSequenceLoader:
                 for si2 in range(num_shards):
                     self._reset_shard(si2)
             start_ind = self.start_inds[si].pop()
-            mm = _get_shard_memmap(self.files[si])
+            mm = _SHARD_CACHE.shard_memmap(self.files[si])
             window = torch.as_tensor(np.array(mm[start_ind: start_ind + self.seq_len + 1], dtype=np.int64))
             x[bi] = window[:-1]
             y[bi] = window[1:]
@@ -1523,7 +1549,7 @@ def main():
         os.makedirs("logs", exist_ok=True)
         log(100 * "=", console=False)
         log("Hyperparameters:", console=True)
-        for k, v in sorted(vars(type(h)).items()):
+        for k, v in sorted(vars(h).items()):
             if not k.startswith("_"):
                 log(f"  {k}: {v}", console=True)
         log("=" * 100, console=False)
