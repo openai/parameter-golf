@@ -15,7 +15,7 @@ The objective is to maximize learning efficiency and compression quality, rather
 - **Validation BPB**: ~1.599
 - **Model Size (compressed)**: ~7.3 MB
 - **Training Time**: ~10 minutes
-- **Script Used**: final_optim_h100.py
+- **Script Used**: train_gpt.py
 
 ## Key Technical Innovations
 
@@ -376,7 +376,7 @@ After hyperparameter tuning reached ~1.68, the following architectural improveme
 
 **Training Parameters:**
 - **Iterations**: 1200
-- **Batch Size**: 172,032 tokens per step (across 8 GPUs)
+- **Batch Size**: 172,032 tokens per step
 - **Sequence Length**: 128 tokens
 - **Warmup Steps**: 20
 - **Max Wallclock**: 600 seconds
@@ -444,6 +444,17 @@ NUM_LAYERS=8
 MODEL_DIM=256
 NUM_HEADS=4
 ```
+
+## Evaluation Notes
+
+Due to limited availability of H100 GPU resources during the final phase, 
+testing was conducted on a local consumer GPU setup.
+
+Validation was performed on a ~2M token subset to enable rapid iteration 
+under compute constraints. The reported BPB corresponds to this subset 
+evaluation. Full-scale validation (~62M tokens) was not consistently 
+executed due to resource availability constraints.
+
 
 ## Key Insights
 
