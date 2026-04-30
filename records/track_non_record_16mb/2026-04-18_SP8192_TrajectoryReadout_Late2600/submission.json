@@ -1,0 +1,38 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-18",
+  "name": "SP8192 Trajectory Readout + Late Loop Onset",
+  "author": "Artem Buldin",
+  "github_id": "Buld1n",
+  "val_bpb": 1.11301355,
+  "val_bpb_std": 0.0,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.11301355,
+      "artifact_bytes": 15964675
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + late loop onset at step 2600 + grouped trajectory-delta readout on the final recurrent block + full legal TTT",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": false,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false,
+    "record_claim": false
+  },
+  "notes": "Negative single-seed experiment. The run reached quantized evaluation but not a better final metric than the pass-gated baseline, and the total submission size was 16,064,921 bytes.",
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev",
+    "recurrent_sp8192_stack": "@dexhunter",
+    "legal_ttt_framework": "@abaybektursun",
+    "submission_variant": "@Buld1n"
+  }
+}
