@@ -1,0 +1,15 @@
+{
+  "track": "non_record",
+  "date": "2026-04-24",
+  "author": "aiejvn",
+  "github_id": "139830381",
+  "name": "Kitchen Sink: ACT vs Masked Recurrence, 8192-Bigram",
+  "val_bpb": 1.4011,
+  "step_stop": 20000,
+  "wallclock_seconds": 121746,
+  "bytes_total": 10943896,
+  "bytes_model_int6_zlib9": 10852792,
+  "bytes_code": 91104,
+  "gpu": "1xA10G-24GB",
+  "notes": "Reported val_bpb is pre-TTT honest score (ACT run). TTT-on-val (10 epochs on val_tokens) gives int6+zlib-9 roundtrip 1.26482870 but excluded per PR #1376 ruling. Masked-recurrence variant: val_bpb 1.4044 pre-TTT, roundtrip 1.26742860, wallclock 122590s."
+}
