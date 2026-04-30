@@ -62,31 +62,31 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
-    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
-    model_dim = int(os.environ.get("MODEL_DIM", 512))
-    num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 1.75))
+    num_layers = int(os.environ.get("NUM_LAYERS", 11))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 14))
+    model_dim = int(os.environ.get("MODEL_DIM", 448))
+    num_heads = int(os.environ.get("NUM_HEADS", 14))
+    mlp_mult = float(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     rope_max_base = float(os.environ.get("ROPE_MAX_BASE", 8192.0))
     rope_min_base = float(os.environ.get("ROPE_MIN_BASE", 512.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
-    embed_lr = float(os.environ.get("EMBED_LR", 0.025))
-    head_lr = float(os.environ.get("HEAD_LR", 0.025))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.015))
+    embed_lr = float(os.environ.get("EMBED_LR", 0.03))
+    head_lr = float(os.environ.get("HEAD_LR", 0.03))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.02))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.125))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.0275))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.0175))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.03))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.02))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
-    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
+    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 4))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
     muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 256))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 3.0))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -675,20 +675,16 @@ class CausalSelfAttention(nn.Module):
         self.num_kv_heads = num_kv_heads
         self.head_dim = dim // num_heads
         self.kv_dim = self.num_kv_heads * self.head_dim
-        self.c_qk = nn.Linear(dim, dim + self.kv_dim, bias=False)
-        self.c_v = nn.Linear(dim, self.kv_dim, bias=False)
-        self.v_mix = nn.Parameter(torch.zeros(dim))
+        self.c_qkv = nn.Linear(dim, dim + 2 * self.kv_dim, bias=False)
         self.proj = nn.Linear(dim, dim, bias=False)
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
         self.rotary = Rotary(self.head_dim, max_seq_len=seq_len, p=rope_proportion, base=rope_base)
         self.use_rope = use_rope
 
-    def forward(self, x: Tensor, emb: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         bsz, seqlen, dim = x.shape
-        qk = self.c_qk(x)
-        q, k = qk.split([dim, self.kv_dim], dim=-1)
-        v_input = torch.lerp(emb, x, self.v_mix.to(x.dtype))
-        v = self.c_v(v_input)
+        qkv = self.c_qkv(x)
+        q, k, v = qkv.split([dim, self.kv_dim, self.kv_dim], dim=-1)
 
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = k.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
@@ -747,10 +743,10 @@ class Block(nn.Module):
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.05))
 
     # Inside Block.forward
-    def forward(self, x: Tensor, emb: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         dtype = x.dtype
         normed_x = self.attn_norm(x)
-        attn_out = self.attn(normed_x, emb)
+        attn_out = self.attn(normed_x)
         y = x + self.attn_scale.to(dtype) * attn_out
         normed_y = self.mlp_norm(y)
         mlp_out = self.mlp(normed_y)
@@ -831,8 +827,7 @@ class GPT(nn.Module):
         self.final_norm = RMSNorm()
         self.logit_softcap = logit_softcap
         self.lm_head = None if tie_embeddings else nn.Linear(model_dim, vocab_size, bias=False)
-        self.skip_scales = nn.Parameter(torch.zeros(self.num_encoder_layers, model_dim, dtype=torch.float32))
-        
+        self.skip_gate = nn.Parameter(torch.ones(self.num_encoder_layers, model_dim) * 1e-4)
         apply_zero_init(self, std=self.tied_embed_init_std)
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
@@ -842,15 +837,15 @@ class GPT(nn.Module):
         skips = []
         for i in range(self.num_encoder_layers):
             skips.append(x)
-            x = self.blocks[i](x, emb)
+            x = self.blocks[i](x)
         for j in range(self.num_decoder_layers):
             block_idx = j + self.num_encoder_layers
             skip_idx = self.num_encoder_layers - 1 - j
             if skip_idx >= 0:
                 skip_x = F.rms_norm(skips[skip_idx], (skips[skip_idx].size(-1),), eps=self.final_norm.eps)
-                x = x + (self.skip_scales[skip_idx] * skip_x)
+                x = x + (self.skip_gate[skip_idx] * skip_x)
             
-            x = self.blocks[block_idx](x, emb)
+            x = self.blocks[block_idx](x)
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
         
