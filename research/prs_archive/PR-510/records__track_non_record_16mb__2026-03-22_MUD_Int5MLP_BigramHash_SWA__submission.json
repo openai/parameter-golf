@@ -1,0 +1,10 @@
+{
+  "name": "MUD + Int5 MLP + BigramHash(10240) + SWA",
+  "val_loss": 2.0243,
+  "val_bpb": 1.1989,
+  "bytes_total": null,
+  "blurb": "Non-record: Replaces Muon's Newton-Schulz with MUD's triangular Gram preconditioning (arxiv:2603.17970). Strong convergence (1.1989 BPB in only 5,087 steps) but TRSM overhead makes it 4.5x slower per step on H100s vs Muon. Single seed, no statistical significance claim.",
+  "author": "Anush",
+  "github_id": "SelfAnush",
+  "date": "2026-03-23"
+}

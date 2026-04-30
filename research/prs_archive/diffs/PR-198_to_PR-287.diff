@@ -1,0 +1,128 @@
+--- PR-198/records__track_10min_16mb__2026-03-20_11L_Int6_MLP3x_WD04_SmearBigram2k_1.1318__train_gpt.py	2026-04-11 20:10:28
++++ PR-287/records__track_10min_16mb__2026-03-20_11L_XSA4_EMA_Int6_MLP3x_WD04_1.1271__train_gpt.py	2026-04-11 20:10:31
+@@ -102,6 +102,9 @@
+     muon_wd = float(os.environ.get("MUON_WD", 0.02))
+     adam_wd = float(os.environ.get("ADAM_WD", 0.01))
+     qat_enabled = bool(int(os.environ.get("QAT_ENABLED", "0")))
++    xsa_last_n = int(os.environ.get("XSA_LAST_N", 0))
++    ema_enabled = bool(int(os.environ.get("EMA_ENABLED", "0")))
++    ema_decay = float(os.environ.get("EMA_DECAY", 0.997))
+     bigram_vocab_size = int(os.environ.get("BIGRAM_VOCAB_SIZE", 4096))
+     bigram_dim = int(os.environ.get("BIGRAM_DIM", 128))
+ 
+@@ -617,7 +620,18 @@
+         self.proj._zero_init = True
+         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
+         self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=1024)
++        self.use_xsa = False
+ 
++    def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
++        """Subtract self-value projection via GQA-aware reshape (no repeat_interleave)."""
++        B, T, H, D = y.shape
++        Hkv = v.size(-2)
++        group = H // Hkv
++        y_g = y.reshape(B, T, Hkv, group, D)
++        vn = F.normalize(v, dim=-1).unsqueeze(-2)
++        proj = (y_g * vn).sum(dim=-1, keepdim=True) * vn
++        return (y_g - proj).reshape(B, T, H, D)
++
+     def forward(self, x: Tensor) -> Tensor:
+         bsz, seqlen, dim = x.shape
+         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
+@@ -630,6 +644,8 @@
+         k = apply_rotary_emb(k, cos, sin)
+         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
+         y = flash_attn_3_func(q, k, v, causal=True)
++        if self.use_xsa:
++            y = self._xsa_efficient(y, v)
+         y = y.reshape(bsz, seqlen, dim)
+         return self.proj(y)
+ 
+@@ -730,6 +746,7 @@
+         mtp_loss_weight: float = 0.1,
+         bigram_vocab_size: int = 0,
+         bigram_dim: int = 128,
++        xsa_last_n: int = 0,
+     ):
+         super().__init__()
+         if logit_softcap <= 0.0:
+@@ -768,6 +785,9 @@
+         )
+         for head in self.mtp_heads:
+             head._zero_init = True
++        if xsa_last_n > 0:
++            for i in range(max(0, num_layers - xsa_last_n), num_layers):
++                self.blocks[i].attn.use_xsa = True
+         self._init_weights()
+ 
+     def _init_weights(self) -> None:
+@@ -1142,6 +1162,7 @@
+         mtp_loss_weight=args.mtp_loss_weight,
+         bigram_vocab_size=args.bigram_vocab_size,
+         bigram_dim=args.bigram_dim,
++        xsa_last_n=args.xsa_last_n,
+     ).to(device).bfloat16()
+     for module in base_model.modules():
+         if isinstance(module, CastedLinear):
+@@ -1289,6 +1310,10 @@
+     swa_state: dict[str, Tensor] | None = None
+     swa_count = 0
+ 
++    ema_state: dict[str, Tensor] | None = None
++    if args.ema_enabled:
++        ema_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
++
+     training_time_ms = 0.0
+     stop_after_step: int | None = None
+     torch.cuda.synchronize()
+@@ -1361,14 +1386,20 @@
+         step += 1
+         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+ 
+-        if args.swa_enabled and scale < 0.5 and step % args.swa_every == 0:
++        if ema_state is not None:
++            d = args.ema_decay
++            with torch.no_grad():
++                for name, t in base_model.state_dict().items():
++                    ema_state[name].mul_(d).add_(t.detach().float(), alpha=1.0 - d)
++
++        if args.swa_enabled and not args.ema_enabled and scale < 0.5 and step % args.swa_every == 0:
+             if swa_state is None:
+-                swa_state = {name: t.detach().cpu().clone() for name, t in base_model.state_dict().items()}
++                swa_state = {name: t.detach().float().clone() for name, t in base_model.state_dict().items()}
+                 swa_count = 1
+                 log0(f"swa:start step:{step}")
+             else:
+                 for name, t in base_model.state_dict().items():
+-                    swa_state[name] += t.detach().cpu()
++                    swa_state[name].add_(t.detach().float())
+                 swa_count += 1
+ 
+         should_log_train = (
+@@ -1395,10 +1426,17 @@
+         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+     )
+ 
+-    if args.swa_enabled and swa_state is not None and swa_count > 1:
++    if ema_state is not None:
++        log0("ema:applying EMA weights")
++        avg_state = {name: t.to(dtype=base_model.state_dict()[name].dtype)
++                     for name, t in ema_state.items()}
++        del ema_state
++        base_model.load_state_dict(avg_state, strict=True)
++    elif args.swa_enabled and swa_state is not None and swa_count > 1:
+         log0(f"swa:applying averaged {swa_count} checkpoints")
+         avg_state = {name: (t / swa_count).to(dtype=base_model.state_dict()[name].dtype)
+                      for name, t in swa_state.items()}
++        del swa_state
+         base_model.load_state_dict(avg_state, strict=True)
+ 
+     # -----------------------------
+@@ -1450,6 +1488,7 @@
+         logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
+         mtp_num_heads=0, mtp_loss_weight=0.0,
+         bigram_vocab_size=args.bigram_vocab_size, bigram_dim=args.bigram_dim,
++        xsa_last_n=args.xsa_last_n,
+     ).to(device).bfloat16()
+     for m in eval_model.modules():
+         if isinstance(m, CastedLinear):

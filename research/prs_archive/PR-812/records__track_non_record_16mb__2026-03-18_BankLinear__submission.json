@@ -1,0 +1,13 @@
+{
+  "author": "Andrew Mouldon",
+  "github_id": "andrewmouldon",
+  "name": "BankLinear: compositional weight sharing via learned + random basis mixtures",
+  "blurb": "Replaces per-layer weights with mixtures over a shared bank of learned and random matrices, enabling parameter reuse across depth under tight budgets.",
+  "date": "2026-03-25T00:00:00Z",
+  "val_loss": 2.0733,
+  "val_bpb": 1.2223,
+  "val_bpb_post_quant": 1.2280,
+  "bytes_total": 15739602,
+  "bytes_code": 50835,
+  "steps": 10000
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Ralph Lauren N. Reyes",
+  "github_id": "rlphlrnrys",
+  "architecture": "MatrixGPT (Matrix-State Recurrent LM)",
+  "track": "non_record_16mb",
+  "val_bpb_mean": 3.17277005,
+  "val_bpb_std": 0.00122,
+  "val_bpb_per_seed": {
+    "7":    3.17297810,
+    "42":   3.17337441,
+    "333":  3.17297810,
+    "777":  3.17397354,
+    "1337": 3.17054608
+  },
+  "hardware": "1x NVIDIA GeForce RTX 3060 8GB",
+  "training_time_seconds": 600,
+  "model_params": 854272,
+  "compressed_size_bytes": 1333704,
+  "artifact_mb": 1.33,
+  "artifact_budget_used_pct": 8.3,
+  "notes": "Non-record submission. Novel O(n) architecture replacing attention with sequential 2x2 matrix prefix products. Parallel prefix scan (log2T depth) replaces naive sequential loop. Baseline infrastructure (Muon, int8+zlib quant, BPB eval) unchanged. 854K params, 1.33MB artifact (8.3% of 16MB budget). Still learning at 4347 steps in a 6-hour exploratory run reaching 2.169 bpb."
+}

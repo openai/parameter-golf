@@ -1,0 +1,13 @@
+Bootstrap: docker
+From: python:3.12-slim
+
+%post
+    pip install --no-cache-dir torch==2.9.1+cu128 --index-url https://download.pytorch.org/whl/cu128
+    pip install --no-cache-dir brotli sentencepiece==0.2.1 numpy
+    pip install --no-cache-dir --no-deps flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/
+
+%environment
+    export LC_ALL=C
+
+%runscript
+    exec python3 "$@"

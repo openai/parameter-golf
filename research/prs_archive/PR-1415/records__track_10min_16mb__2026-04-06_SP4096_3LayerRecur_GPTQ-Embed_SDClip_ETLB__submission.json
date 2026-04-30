@@ -1,0 +1,11 @@
+{
+  "author": "bigbag",
+  "github_id": "bigbag",
+  "name": "SP4096 + 3-Layer Recurrence + GPTQ Embeddings + SDClip + ETLB",
+  "blurb": "SP4096 with 3-layer depth recurrence (layers 3,4,5), GPTQ on embeddings (int8), SDClip quantization, QK-Gain 5.0, WD=0.095, MLR=0.022, and eval-time logit bias (ETLB). Based on PR #1394 codebase.",
+  "date": "2026-04-06T19:00:00Z",
+  "val_loss": 2.5079,
+  "val_bpb": 1.0913,
+  "bytes_total": 14748056,
+  "bytes_code": 18165
+}

@@ -1,0 +1,16 @@
+{
+  "author": "himanshudongre",
+  "github_id": "himanshudongre",
+  "submission_type": "non-record",
+  "title": "TTT and GPTQ Are Fundamentally Incompatible",
+  "description": "Evidence from 4 independent configurations showing GPTQ's compensatory weight structure is destroyed by SGD-based test-time training, making TTT and GPTQ mutually exclusive strategies.",
+  "hardware": "1×H100 80GB (RunPod)",
+  "compute_cost_usd": 5.0,
+  "techniques": [
+    "SGD TTT (PR #461 protocol)",
+    "LoRA TTT rank-8",
+    "GPTQ int6 quantization"
+  ],
+  "key_finding": "SGD TTT gives -0.0165 BPB on simple int6 but -0.0001 to +0.030 on GPTQ",
+  "related_prs": [461, 601, 1326]
+}

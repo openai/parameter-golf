@@ -1,0 +1,11 @@
+{
+  "name": "Hugo Ochoa",
+  "github_id": "HugoOchoaLP",
+  "val_bpb": 1.1826,
+  "track": "non_record_16mb",
+  "status": "work_in_progress",
+  "summary": "Soft MoE exploration: dense gating fixes sparse MoE collapse under 16MB constraint",
+  "date": "2026-03-24",
+  "hardware": "8xH100 SXM",
+  "training_time_seconds": 600
+}

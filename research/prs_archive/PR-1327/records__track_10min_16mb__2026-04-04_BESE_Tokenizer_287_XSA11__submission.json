@@ -1,0 +1,24 @@
+{
+  "author": "mrbese",
+  "github_id": "mrbese",
+  "name": "BESE Tokenizer — Novel Structured Encoding",
+  "blurb": "Novel BESE tokenizer (38 structured base tokens + 249 BPE merges = 287 vocab) replacing SentencePiece-1024. 33% fewer tokens per byte (0.51 vs 0.76). Built on PR #1019 architecture (XSA-all-11, GPTQ int6, Muon, EMA/SWA, BigramHash 3072x112).",
+  "date": "2026-04-04",
+  "track": "10min_16mb",
+  "val_loss": 1.5378,
+  "val_bpb": 1.1276,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.5378,
+      "val_bpb": 1.1276,
+      "artifact_bytes": 15337953,
+      "steps": 6932,
+      "step_avg_ms": 86.57
+    }
+  },
+  "implementation_lineage_pr": 1019,
+  "artifact_bytes_mean": 15337953,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "BESE-287 tokenizer + XSA-all-11 + GPTQ int6 + BigramHash 3072x112 + LZMA9 + TARGET_MB 15.9"
+}

@@ -1,0 +1,204 @@
+--- PR-1394/records__track_10min_16mb__2026-04-05_SP8192_GPTQ-Embeddings_SDClip_Loop45x2__train_gpt_human.py	2026-04-11 20:10:47
++++ PR-1420/records__track_10min_16mb__2026-04-06_TripleLoop_FusedKernels_Ngram__train_gpt.py	2026-04-11 20:11:04
+@@ -23,6 +23,82 @@
+ 
+ from flash_attn_interface import flash_attn_func as flash_attn_3_func
+ 
++# --- CUTLASS EVT backward fusion ---
++import sys as _sys
++_sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cutlass_evt_fusion"))
++import cutlass_evt_fusion
++import torch.library
++@torch.library.register_fake("cutlass_evt::gemm_mul")
++def _gemm_mul_fake(go, down_w, act_grad):
++    return go.new_empty(go.size(0), down_w.size(1))
++
++# --- Triton TMA fused leaky_relu_sq forward ---
++import triton
++import triton.language as tl
++from triton.tools.tensor_descriptor import TensorDescriptor
++
++@triton.jit
++def _fused_leaky_relu_sq_kernel(a_desc, b_desc, c_desc, aux_desc,
++                                 M, N, K,
++                                 BLOCK_SIZE_M: tl.constexpr,
++                                 BLOCK_SIZE_N: tl.constexpr,
++                                 BLOCK_SIZE_K: tl.constexpr,
++                                 GROUP_SIZE_M: tl.constexpr,
++                                 NUM_SMS: tl.constexpr):
++    dtype = tl.bfloat16
++    start_pid = tl.program_id(axis=0)
++    num_pid_m = tl.cdiv(M, BLOCK_SIZE_M)
++    num_pid_n = tl.cdiv(N, BLOCK_SIZE_N)
++    k_tiles = tl.cdiv(K, BLOCK_SIZE_K)
++    num_tiles = num_pid_m * num_pid_n
++    for tile_id in tl.range(start_pid, num_tiles, NUM_SMS, flatten=True):
++        pid_m = tile_id // num_pid_n
++        pid_n = tile_id % num_pid_n
++        offs_am = pid_m * BLOCK_SIZE_M
++        offs_bn = pid_n * BLOCK_SIZE_N
++        accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
++        for ki in range(k_tiles):
++            offs_k = ki * BLOCK_SIZE_K
++            a = a_desc.load([offs_am, offs_k])
++            b = b_desc.load([offs_bn, offs_k])
++            accumulator = tl.dot(a, b.T, accumulator)
++        # Split into two halves for interleaved write
++        acc = tl.reshape(accumulator, (BLOCK_SIZE_M, 2, BLOCK_SIZE_N // 2))
++        acc = tl.permute(acc, (0, 2, 1))
++        acc0, acc1 = tl.split(acc)
++        c0 = acc0.to(dtype)
++        # Forward: compute act_grad = 2*leaky_relu(h)*leaky_relu'(h) and post = leaky_relu(h)^2
++        c0_ag = tl.where(c0 > 0, 2.0 * c0, 0.5 * c0)
++        c_desc.store([offs_am, offs_bn], c0_ag)
++        c0_post = 0.5 * c0_ag * c0
++        aux_desc.store([offs_am, offs_bn], c0_post)
++        c1 = acc1.to(dtype)
++        c1_ag = tl.where(c1 > 0, 2.0 * c1, 0.5 * c1)
++        c_desc.store([offs_am, offs_bn + BLOCK_SIZE_N // 2], c1_ag)
++        c1_post = 0.5 * c1_ag * c1
++        aux_desc.store([offs_am, offs_bn + BLOCK_SIZE_N // 2], c1_post)
++
++def _triton_fused_leaky_relu_sq(a, b):
++    M, K = a.shape
++    N, K2 = b.shape
++    assert K == K2
++    act_grad = torch.empty((M, N), device=a.device, dtype=a.dtype)
++    post = torch.empty((M, N), device=a.device, dtype=a.dtype)
++    NUM_SMS = torch.cuda.get_device_properties("cuda").multi_processor_count
++    BLOCK_SIZE_M, BLOCK_SIZE_N, BLOCK_SIZE_K = 128, 256, 64
++    a_desc = TensorDescriptor.from_tensor(a, [BLOCK_SIZE_M, BLOCK_SIZE_K])
++    b_desc = TensorDescriptor.from_tensor(b, [BLOCK_SIZE_N, BLOCK_SIZE_K])
++    c_desc = TensorDescriptor.from_tensor(act_grad, [BLOCK_SIZE_M, BLOCK_SIZE_N // 2])
++    aux_desc = TensorDescriptor.from_tensor(post, [BLOCK_SIZE_M, BLOCK_SIZE_N // 2])
++    def grid(META):
++        return (min(NUM_SMS, triton.cdiv(M, BLOCK_SIZE_M) * triton.cdiv(N, BLOCK_SIZE_N)),)
++    _fused_leaky_relu_sq_kernel[grid](
++        a_desc, b_desc, c_desc, aux_desc, M, N, K,
++        BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_N=BLOCK_SIZE_N, BLOCK_SIZE_K=BLOCK_SIZE_K,
++        GROUP_SIZE_M=1, NUM_SMS=NUM_SMS,
++        num_stages=4, num_warps=8)
++    return act_grad, post
++
+ # ----------------------------------------
+ # Hyperparameters
+ # ----------------------------------------
+@@ -66,6 +142,10 @@
+     ln_scale = bool(int(os.environ.get('LN_SCALE', '1')))
+     qk_gain_init = float(os.environ.get('QK_GAIN_INIT', 4.0))
+ 
++    # Parallel residuals (GPT-J style, layers >= this index)
++    parallel_residual_start = int(os.environ.get('PARALLEL_RESIDUAL_START', 7))
++    hessian_clip_lambda = float(os.environ.get('HESSIAN_CLIP_LAMBDA', 0.175))
++
+     # Layer looping
+     num_loops = int(os.environ.get('NUM_LOOPS', 2))
+     loop_start = int(os.environ.get('LOOP_START', 4))
+@@ -415,8 +495,30 @@
+             y = self._xsa_efficient(y, v)
+         y = y.reshape(bsz, seqlen, dim)
+         return self.proj(y)
++
++
++class _FullFusedMLP(torch.autograd.Function):
++    @staticmethod
++    def forward(ctx, x, fc_w, proj_w):
++        x_flat = x.reshape(-1, x.shape[-1])
++        # Triton TMA: fused fc(x) + leaky_relu + square
++        act_grad, post = _triton_fused_leaky_relu_sq(x_flat, fc_w)
++        out = F.linear(post, proj_w)
++        ctx.save_for_backward(x_flat, fc_w, proj_w, act_grad, post)
++        return out.reshape(*x.shape[:-1], out.shape[-1])
+ 
++    @staticmethod
++    def backward(ctx, grad_output):
++        x_flat, fc_w, proj_w, act_grad, post = ctx.saved_tensors
++        go = grad_output.reshape(-1, grad_output.shape[-1])
++        dW_proj = go.T @ post
++        # CUTLASS EVT: fused (go @ proj_w) * act_grad
++        dpre = torch.ops.cutlass_evt.gemm_mul(go, proj_w, act_grad)
++        dW_fc = dpre.T @ x_flat
++        dx = dpre @ fc_w
++        return dx.reshape(grad_output.shape), dW_fc, dW_proj
+ 
++
+ class MLP(nn.Module):
+     def __init__(self, dim: int, mlp_mult: int):
+         super().__init__()
+@@ -426,14 +528,17 @@
+         self.proj._zero_init = True
+ 
+     def forward(self, x: Tensor) -> Tensor:
++        if x.is_cuda and self.training:
++            return _FullFusedMLP.apply(x, self.fc.weight.to(x.dtype), self.proj.weight.to(x.dtype))
+         return self.proj(F.leaky_relu(self.fc(x), negative_slope=0.5).square())
+ 
+ 
+ class Block(nn.Module):
+     def __init__(self, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
+                  rope_base: float, qk_gain_init: float, train_seq_len: int,
+-                 layer_idx: int = 0, ln_scale: bool = False):
++                 layer_idx: int = 0, ln_scale: bool = False, parallel: bool = False):
+         super().__init__()
++        self.parallel = parallel
+         self.attn_norm = RMSNorm()
+         self.mlp_norm = RMSNorm()
+         self.attn = CausalSelfAttention(
+@@ -447,10 +552,16 @@
+     def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+         mix = self.resid_mix.to(dtype=x.dtype)
+         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+-        attn_out = self.attn(self.attn_norm(x_in) * self.ln_scale_factor)
+-        x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
+-        x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(
+-            self.mlp_norm(x_out) * self.ln_scale_factor)
++        normed = self.attn_norm(x_in) * self.ln_scale_factor
++        attn_out = self.attn(normed)
++        if self.parallel:
++            # GPT-J style: attn and MLP both read from same input
++            mlp_out = self.mlp(self.mlp_norm(x_in) * self.ln_scale_factor)
++            x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out + self.mlp_scale.to(dtype=x_in.dtype)[None, None, :] * mlp_out
++        else:
++            x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
++            x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * self.mlp(
++                self.mlp_norm(x_out) * self.ln_scale_factor)
+         return x_out
+ 
+ 
+@@ -473,7 +584,8 @@
+         self.num_decoder_layers = h.num_layers - self.num_encoder_layers
+         self.blocks = nn.ModuleList([
+             Block(h.model_dim, h.num_heads, h.num_kv_heads, h.mlp_mult, h.rope_base,
+-                  h.qk_gain_init, h.train_seq_len, layer_idx=i, ln_scale=h.ln_scale)
++                  h.qk_gain_init, h.train_seq_len, layer_idx=i, ln_scale=h.ln_scale,
++                  parallel=(i >= h.parallel_residual_start))
+             for i in range(h.num_layers)
+         ])
+         if h.rope_dims > 0:
+@@ -822,7 +934,16 @@
+     Hinv = torch.linalg.cholesky(Hinv, upper=True)
+ 
+     row_std = W_orig.std(dim=1)
+-    s = (clip_sigmas * row_std / clip_range).clamp_min(1e-10).to(torch.float16)
++    # Hessian-Aware SDClip: modulate clip per-row by importance
++    _hsdclip_lambda = float(os.environ.get('HESSIAN_CLIP_LAMBDA', '0.175'))
++    if _hsdclip_lambda > 0:
++        h_diag = H.diag().clamp_min(1e-10)
++        row_importance = (W_orig.float().pow(2) * h_diag[None, :]).sum(dim=1)
++        row_importance = row_importance / row_importance.mean()
++        clip_mod = 1.0 + _hsdclip_lambda * (row_importance - 1.0)
++        s = (clip_sigmas * row_std * clip_mod / clip_range).clamp_min(1e-10).to(torch.float16)
++    else:
++        s = (clip_sigmas * row_std / clip_range).clamp_min(1e-10).to(torch.float16)
+     sf = s.float()
+ 
+     Q = torch.zeros(rows, cols, dtype=torch.int8)
+@@ -1365,7 +1486,7 @@
+     device = torch.device("cuda", local_rank)
+     torch.cuda.set_device(device)
+     if distributed:
+-        dist.init_process_group(backend="nccl", device_id=device)
++        dist.init_process_group(backend="nccl")
+         dist.barrier()
+ 
+     torch.backends.cuda.matmul.allow_tf32 = True

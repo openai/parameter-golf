@@ -1,0 +1,373 @@
+digraph ParameterGolf {
+  rankdir=TB;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10];
+  edge [fontsize=8, fontname="Helvetica"];
+
+  // === STYLE DEFINITIONS ===
+  // Merged records = green
+  // Open clean frontier = blue
+  // Non-record/technique source = yellow
+  // Invalid/dead = red
+  // Independent = purple
+  // Contested = orange
+  // Negative results = pink
+  // Bandit track = peach
+  // Unexplored opportunities = white/dashed
+
+  // === ROOT ===
+  baseline [label="BASELINE\n1.2244 BPB\n9L 512d SP1024\nint8+zlib ReLU² Muon", fillcolor="#e8e8e8"];
+
+  // === EARLY EXPLORATION (Day 1-2) ===
+  subgraph cluster_day1 {
+    label="Day 1-2: Mar 18-19";
+    style=dashed; color=gray;
+
+    lower_lr [label="Lower LR\n1.2230\nnanlliu", fillcolor="#ffffcc"];
+    fp16_embed [label="FP16 Embed\n1.2197\nchonchiog", fillcolor="#ffffcc"];
+    seq2048 [label="Seq2048\n1.2058\nspokane-way", fillcolor="#ffffcc"];
+    seq4096 [label="Seq4096\n1.2014\nspokane-way", fillcolor="#ffffcc"];
+    sliding_win [label="Sliding Window\nEval stride=64\n1.1925 mattqlf\n-0.032 BPB FREE", fillcolor="#ccffcc"];
+    lora_ttt_early [label="LoRA TTT\n1.1928\nsamacqua", fillcolor="#ffffcc"];
+    warmdown_q [label="Warmdown-Quant\n1.2154\nsamuellarson", fillcolor="#ffffcc"];
+    mixed_prec [label="10L Mixed Precision\n1.2147 nanlliu", fillcolor="#ffffcc"];
+  }
+
+  baseline -> lower_lr;
+  baseline -> fp16_embed;
+  baseline -> seq2048;
+  seq2048 -> seq4096;
+  baseline -> sliding_win;
+  baseline -> lora_ttt_early;
+  baseline -> warmdown_q;
+  baseline -> mixed_prec;
+
+  // === CONVERGENCE: THE STACK (Day 2) ===
+  PR65 [label="PR#65: SmearGate\n+OrthoInit+Int6 QAT\n+MLP3x+BigramHash\n1.1556\naquariouseworkman", fillcolor="#ccffcc", penwidth=2];
+  baseline -> PR65 [label="foundational\nbundle"];
+
+  // === MAIN LINEAGE CHAIN ===
+  PR162 [label="PR#162: +SWA\n+WD=0.04 tuned\n1.1458\nraahilshah", fillcolor="#ccffcc"];
+  PR180 [label="PR#180: 10L\nInt5-MLP+BigramHash10240\n1.1428 thwu1", fillcolor="#ccffcc"];
+  PR198 [label="PR#198: 11L\n+XSA (last 3)+FA3\n1.1307 unnir", fillcolor="#ccffcc", penwidth=2];
+  PR287 [label="PR#287: +EMA\n+XSA last 4\n1.1271 jfprincz", fillcolor="#ccffcc"];
+  PR315 [label="PR#315: +Partial RoPE\n+LN Scale\n1.1248 jfprincz", fillcolor="#ccffcc"];
+  PR374 [label="PR#374: +VE128\n+Tight SWA\n1.1246 unnir", fillcolor="#ffffcc"];
+  PR414 [label="PR#414: +GPTQ-lite\n+EMA+warmdown3500\n1.1228 signalrush", fillcolor="#ccffcc"];
+  PR549 [label="PR#549: +LeakyReLU²\n+Legal TTT+Parallel Muon\n1.1194 abaybektursun", fillcolor="#ccffcc", penwidth=2];
+  PR1019 [label="PR#1019: AR Self-Gen\nGPTQ+XSA-all\nBigramHash3072\n1.1147 abaybektursun\nMERGED SOTA", fillcolor="#90ee90", penwidth=3];
+
+  PR65 -> PR162;
+  PR162 -> PR180;
+  PR162 -> PR198;
+  PR198 -> PR287;
+  PR287 -> PR315;
+  PR315 -> PR374 [style=dashed];
+  PR198 -> PR374;
+  PR374 -> PR414;
+  PR414 -> PR549;
+  PR549 -> PR1019;
+
+  // === TECHNIQUE CONTRIBUTORS (fed into main chain) ===
+  subgraph cluster_techniques {
+    label="Technique Sources (fed into main lineage)";
+    style=dashed; color="#666666";
+
+    PR461 [label="PR#461: TTT Recipe\nScore-first+SGD\n-0.0165 BPB\nChristopher-Lee-McClendon", fillcolor="#ffffcc"];
+    PR493 [label="PR#493: LeakyReLU²\n-0.003 BPB\nparinzee", fillcolor="#ffffcc"];
+    PR399 [label="PR#399: Parallel Muon\n+Parameter Banking\n15x faster NS\nabaybektursun", fillcolor="#ffffcc"];
+    PR478 [label="PR#478: XSA-all (11)\n-0.006 BPB\ngowtham0992", fillcolor="#ffffcc"];
+    PR535 [label="PR#535: Full Hessian\nGPTQ\nraahilshah", fillcolor="#ffffcc"];
+    PR609 [label="PR#609: Selective\nPruning\nsaml212", fillcolor="#ffffcc"];
+    PR160 [label="PR#160: LZMA\ncompression\nChaseWNorton", fillcolor="#ffffcc"];
+    PR530 [label="PR#530: MATRIX_LR=0.03\n-0.006 BPB", fillcolor="#ffffcc"];
+    PR108 [label="PR#108: Error\nCorrection Table\n-0.079 BPB / 2.87MB", fillcolor="#ffffcc"];
+  }
+
+  PR374 -> PR461 [style=dashed, dir=none];
+  PR461 -> PR549 [label="TTT recipe"];
+  PR493 -> PR549 [label="LeakyReLU²"];
+  PR399 -> PR549 [label="Parallel Muon"];
+  PR478 -> PR1019 [label="XSA-all"];
+  PR535 -> PR1019 [label="Full GPTQ"];
+  PR609 -> PR1019 [label="sel. pruning"];
+  PR160 -> PR1019 [label="LZMA"];
+
+  // === FRONTIER TECHNIQUE SOURCES ===
+  subgraph cluster_frontier_tech {
+    label="Frontier Technique Sources";
+    style=dashed; color="#336699";
+
+    PR1204 [label="PR#1204: Depth\nRecurrence + Parallel\nResiduals (origin)\nmsisovic", fillcolor="#cce5ff"];
+    PR1217 [label="PR#1217: MuonEq-R\n(row-normalized Muon)\nbigbag", fillcolor="#cce5ff"];
+    PR1218 [label="PR#1218: SP4096\n+MLP4x+WD=0.090\nclarkkev", fillcolor="#cce5ff"];
+    PR1125 [label="PR#1125: QK-Gain=4.0\n45-experiment ablation", fillcolor="#ffffcc"];
+    PR917 [label="PR#917: Consensus\nWindowBypass\n(replaces SmearGate)", fillcolor="#ffffcc"];
+    PR1344_tech [label="PR#1344: Polar\nExpress NS\n4 minimax steps\nOmrigotlieb", fillcolor="#cce5ff"];
+    PR1395_tech [label="PR#1395: Linear LR\nWarmdown\n-61% quant gap\ndttdrv", fillcolor="#cce5ff"];
+  }
+
+  PR1019 -> PR1204 [style=dashed];
+  PR1019 -> PR1217 [style=dashed];
+  PR1019 -> PR1218 [style=dashed];
+  PR1019 -> PR1125 [style=dashed];
+
+  // === CLEAN FRONTIER (unmerged, post-SOTA) ===
+  subgraph cluster_frontier {
+    label="CLEAN FRONTIER (1.080-1.10)";
+    style=filled; fillcolor="#f0f8ff"; color=blue;
+
+    PR1408 [label="PR#1408: dTTT\n+BigramHash+SP8192\n1.0800 abaybektursun\nFRONTIER #1\n3-seed", fillcolor="#6699ff", fontcolor=white, penwidth=3];
+    PR1420 [label="PR#1420: Triple Loop\n+N-gram Tilt\n1.08014 abaybektursun\nFRONTIER #2\n3-seed CLEAN", fillcolor="#6699ff", fontcolor=white, penwidth=3];
+    PR1413 [label="PR#1413: SP8192\n+Legal TTT\n1.08279 clarkkev\nFRONTIER #3\n3-seed CLEAN", fillcolor="#99ccff", penwidth=2];
+    PR1394 [label="PR#1394: SP8192\n+GPTQ Emb+SDClip\n+MuonEq-R\n1.08563 clarkkev\n5-seed CLEAN", fillcolor="#99ccff", penwidth=2];
+    PR1296 [label="PR#1296: SP4096\n+Depth Rec+Par Resid\n+QK-Gain5+MuonEq-R\n1.0897 aryanbhosale\n3-seed CLEAN", fillcolor="#99ccff", penwidth=2];
+    PR1331 [label="PR#1331: 3-Layer\nDepth Recurrence\n1.0900 dexhunter\n3-seed CLEAN", fillcolor="#99ccff", penwidth=2];
+    PR1285 [label="PR#1285: MuonEq-R\n+Depth Rec+Int6\n1.0912 dexhunter\n3-seed", fillcolor="#cce5ff"];
+    PR1344 [label="PR#1344: +Polar\nExpress NS\n1.0923 Omrigotlieb\n3-seed CLEAN", fillcolor="#cce5ff"];
+    PR1395 [label="PR#1395: Linear LR\nWarmdown\n1.0924 dttdrv\n3-seed CLEAN", fillcolor="#cce5ff"];
+    PR1260 [label="PR#1260: MuonEq-R\n+Depth Rec\n+Mixed int5/int6\n1.0929 dexhunter\n3-seed", fillcolor="#cce5ff"];
+  }
+
+  // Frontier edges
+  PR1218 -> PR1408;
+  PR1204 -> PR1408;
+  PR1217 -> PR1408;
+
+  PR1218 -> PR1420;
+  PR1204 -> PR1420;
+  PR1217 -> PR1420;
+
+  PR1218 -> PR1413;
+  PR1394 -> PR1413 [label="builds on"];
+
+  PR1218 -> PR1394;
+  PR1204 -> PR1394;
+  PR1217 -> PR1394;
+
+  PR1218 -> PR1296;
+  PR1204 -> PR1296;
+  PR1217 -> PR1296;
+  PR1125 -> PR1296 [label="QK-Gain"];
+
+  PR1204 -> PR1331;
+  PR1285 -> PR1331;
+
+  PR1218 -> PR1285;
+  PR1204 -> PR1285;
+  PR1217 -> PR1285;
+
+  PR1285 -> PR1344;
+  PR1218 -> PR1344;
+  PR1344_tech -> PR1344 [label="Polar Express"];
+
+  PR1019 -> PR1395;
+  PR1395_tech -> PR1395;
+
+  PR1218 -> PR1260;
+  PR1204 -> PR1260;
+  PR1217 -> PR1260;
+
+  // === INDEPENDENT: TERNARY/BINARY ===
+  subgraph cluster_ternary {
+    label="Ternary/Binary Branch (Ciprian-Florin Ifrim)";
+    style=dashed; color=purple;
+
+    PR640 [label="PR#640: 73.7M Ternary\nU-Net 10L 768d\nBitNet b1.58\n1.1570", fillcolor="#e8ccff"];
+    PR641 [label="PR#641: 106M Binary\n1.1239 (2hr)\nnon-record", fillcolor="#e8ccff"];
+  }
+  baseline -> PR640 [label="independent\nlineage"];
+  PR640 -> PR641;
+
+  // === CONTESTED FRONTIER ===
+  subgraph cluster_contested {
+    label="CONTESTED / DISPUTED";
+    style=filled; fillcolor="#fff5ee"; color=orange;
+
+    PR1291 [label="PR#1291: Vocab4096\n+MLP4x+SLOT\n1.0925 dentity007\nSLOT CONTESTED", fillcolor="#ffcc99"];
+    PR1399 [label="PR#1399: Pre-Quant\nTTT+ETLB\n1.0898\nAnubhavBharadwaaj\nETLB CONTESTED\n+artifact oversized", fillcolor="#ffcc99"];
+    PR1333 [label="PR#1333: +Causal\nSLOT-16\n1.0766 aryanbhosale\nSLOT CONTESTED", fillcolor="#ffcc99"];
+    PR1329 [label="PR#1329: Per-Sample\nSLOT+TTT\n0.6361 renqianluo\nHEAVILY CONTESTED", fillcolor="#ff9966"];
+    PR1416 [label="PR#1416: 1.07948\nWithdrawn pending\ncompliance review", fillcolor="#ffcc99"];
+    PR1423 [label="PR#1423: 1.0791\nFlagged for\nval data leakage", fillcolor="#ffcc99"];
+    PR1415 [label="PR#1415: SP4096\n+3-layer rec+ETLB\n1.0913\nETLB CONTESTED", fillcolor="#ffcc99"];
+  }
+
+  PR1218 -> PR1291;
+  PR1285 -> PR1399;
+  PR1296 -> PR1333;
+  PR1019 -> PR1329 [style=dashed];
+  PR1394 -> PR1416 [style=dashed];
+  PR1394 -> PR1423 [style=dashed];
+  PR1285 -> PR1415;
+
+  // === SLOT TRACK (DEAD) ===
+  subgraph cluster_slot {
+    label="SLOT Track (DEAD — PR#1240 proved 100% causal violation)";
+    style=filled; fillcolor="#ffeeee"; color=red;
+
+    PR1128 [label="PR#1128: SLOT\nFirst introduction", fillcolor="#ffcccc"];
+    PR1176 [label="PR#1176: SLOT\n1.0914\nContested", fillcolor="#ffcccc"];
+    PR1240 [label="PR#1240: Flip Test\nPROVES 100%\ncausal violation\nKILLS SLOT", fillcolor="#ff9999", penwidth=2];
+    PR1318 [label="PR#1318: L-BFGS SLOT\n1.00955\nContested", fillcolor="#ffcccc"];
+    PR1350 [label="PR#1350: L-BFGS v2\n1.0046\nSelf-closed\n(minibatch leak)", fillcolor="#ffcccc"];
+    PR1376 [label="PR#1376: SLOT-24\n+pre-quant TTT\n0.7094\nBoth blocked", fillcolor="#ffcccc"];
+    PR1306 [label="PR#1306: Causal SLOT\n+pre-quant TTT\nClosed", fillcolor="#ffcccc"];
+  }
+
+  PR1019 -> PR1128 [style=dashed];
+  PR1128 -> PR1176;
+  PR1128 -> PR1240 [label="disproves", color=red];
+  PR1128 -> PR1318;
+  PR1318 -> PR1350;
+  PR1128 -> PR1376;
+  PR1128 -> PR1306;
+
+  // === KEY NEGATIVE RESULTS ===
+  subgraph cluster_negative {
+    label="Key Negative Results";
+    style=dashed; color=red;
+
+    PR363 [label="PR#363: SmearGate\nHURTS depth recurrence", fillcolor="#ffdddd"];
+    PR989 [label="PR#989: SWA\nsabotages QAT", fillcolor="#ffdddd"];
+    PR1341 [label="PR#1341: TTT+GPTQ\nfundamentally\nincompatible", fillcolor="#ffdddd"];
+    PR1272 [label="PR#1272: Comprehensive\nnegative results\non strong models", fillcolor="#ffdddd"];
+    PR1222 [label="PR#1222: TTT benefits\nmassively overstated\n(missing context)", fillcolor="#ffdddd"];
+    PR1251 [label="PR#1251: Online Hessian\nGPTQ net negative\n17ms/step overhead", fillcolor="#ffdddd"];
+    PR1418 [label="PR#1418: MuonEq-R +\nParallel Muon = 40%\nregression (conflict)", fillcolor="#ffdddd"];
+    PR1147 [label="PR#1147: N-gram caches\nINVALID (math proof)\npartition fn ~1000", fillcolor="#ffdddd"];
+    PR1396 [label="PR#1396: Combined PR\nworse than either source\n1.1067 > 1.0923", fillcolor="#ffdddd"];
+    PR760 [label="PR#760: EMA + BitNet\nincompatible\n+0.52 BPB", fillcolor="#ffdddd"];
+  }
+
+  // === NOVEL ARCHITECTURES ===
+  subgraph cluster_novel {
+    label="Novel Architectures (exploratory)";
+    style=dashed; color=purple;
+
+    PR875 [label="PR#875: GDN\nINVALID (5 bugs)\nshalyhinpavel", fillcolor="#ffcccc"];
+    PR1370 [label="PR#1370: PureGDN\n1.003 BPB\nChristopher-Lee-\nMcClendon", fillcolor="#e8ccff"];
+    PR992 [label="PR#992: H-Net\n1.4129\nTimS-ml", fillcolor="#e8ccff"];
+    PR1305 [label="PR#1305: Byte H-Net\nDariusFeher", fillcolor="#e8ccff"];
+    PR1277 [label="PR#1277: JEPA\nOchakov64", fillcolor="#e8ccff"];
+    PR1312 [label="PR#1312: JEPA-LM\nadi-suresh01", fillcolor="#e8ccff"];
+    PR1268 [label="PR#1268: Mamba3\nHybrid 1.1875\nsamquiring", fillcolor="#e8ccff"];
+    PR1365 [label="PR#1365: HybridMamba\n+Parallel Assoc Scan\nPersusUS", fillcolor="#e8ccff"];
+    PR1293 [label="PR#1293: Universal\nTransformer+ACT\n1.2409 5en5e1", fillcolor="#e8ccff"];
+    PR1403 [label="PR#1403: MDLM\nMasked Diffusion\n1.3485 Rhoahndur", fillcolor="#e8ccff"];
+    PR1281 [label="PR#1281: MatrixGPT\nO(n) Recurrent\n1.33MB", fillcolor="#e8ccff"];
+    PR660 [label="PR#660: Soft MoE\n1.1826 (over budget)\nHugoOchoaLP", fillcolor="#e8ccff"];
+    PR1327 [label="PR#1327: BESE\nTokenizer 287 vocab\n1.1276 mrbese", fillcolor="#e8ccff"];
+    PR1316 [label="PR#1316: MLP\nMegakernel\nAR6420", fillcolor="#e8ccff"];
+    PR1330 [label="PR#1330: JEPA Collapse\nCausal LM = collapse\n(negative result)", fillcolor="#ffdddd"];
+  }
+
+  baseline -> PR875;
+  baseline -> PR1370;
+  baseline -> PR992;
+  PR992 -> PR1305;
+  baseline -> PR1277;
+  PR1277 -> PR1312;
+  baseline -> PR1268;
+  baseline -> PR1365;
+  baseline -> PR1293;
+  baseline -> PR1403;
+  baseline -> PR1281;
+  PR198 -> PR660;
+  baseline -> PR1327;
+  PR1019 -> PR1316;
+  PR1277 -> PR1330;
+
+  // === BANDIT TRACK ===
+  subgraph cluster_bandit {
+    label="Bandit Track (N-gram / Oracle)";
+    style=filled; fillcolor="#fff5ee"; color=brown;
+
+    PR770 [label="PR#770: N-gram\nBackoff 2-7\n0.6672\nminh-stakc", fillcolor="#ffe4cc"];
+    PR876 [label="PR#876: Order-11\nBackoff 0.5863\nBortlesboat", fillcolor="#ffe4cc"];
+    PR1083 [label="PR#1083: ClownCar\n9-gram Oracle\n0.4961 newjordan\nSelf-closed", fillcolor="#ffe4cc"];
+    PR1379 [label="PR#1379: Causal\nN-gram Mixer\n0.4162 (legitimate)\nFRONTIER", fillcolor="#ffcc99", penwidth=2];
+    PR1105 [label="PR#1105: Fused Triton\n+Causal N-gram Tilt\n1.0962 SP4608", fillcolor="#ffe4cc"];
+    PR1145 [label="PR#1145: Legal Causal\nN-gram Augment\n1.1109", fillcolor="#ffe4cc"];
+    PR1302 [label="PR#1302: Online\nN-gram Agreement\n+Split-LR\n1.1079 (clean)", fillcolor="#ffe4cc"];
+  }
+
+  PR198 -> PR770;
+  PR770 -> PR876;
+  PR770 -> PR1083 [style=dashed];
+  baseline -> PR1379;
+  PR1019 -> PR1105;
+  PR1019 -> PR1145;
+  PR1019 -> PR1302;
+
+  // === UNEXPLORED OPPORTUNITIES ===
+  subgraph cluster_unexplored {
+    label="Unexplored Opportunities";
+    style=dashed; color="#006600";
+
+    PR1426 [label="PR#1426: True Int4\nBit-Packing\nint4 MLP + int6 attn\nenables 14L\nRESULTS PENDING", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+    PR692 [label="PR#692: CROWN-Q\nQuant-variance penalty\nduring warmdown\n(valid, closed for docs)", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+    PR1385 [label="PR#1385: CAT\nCompressor-Aware\nTraining\n(diff. LZ77 proxies)", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+    PR703 [label="PR#703: 8-bit Muon\nMomentum (62% mem)\n+MiLe Loss", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+    PR422 [label="PR#422: Gradient-Guided\nPer-Tensor Bit-Width\n(int5/6/7 adaptive)", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+    PR215 [label="PR#215: Low-Rank Q\nFactorization\nrank=192, 22% speedup", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+    PR532 [label="PR#532: Codebook+\nHuffman\n21% smaller artifacts\n(closed for TTT)", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+    PR1400 [label="PR#1400: Hadamard\nRotation pre-GPTQ\n68x lower MSE\n(compliance review)", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+  }
+
+  PR1019 -> PR1426 [style=dashed, label="in progress"];
+  PR1019 -> PR692 [style=dashed];
+  PR1019 -> PR1385 [style=dashed];
+  PR1019 -> PR703 [style=dashed];
+  baseline -> PR422 [style=dashed];
+  baseline -> PR215 [style=dashed];
+  PR414 -> PR532 [style=dashed];
+  PR1019 -> PR1400 [style=dashed];
+
+  // === OTHER TECHNIQUE SOURCES ===
+  subgraph cluster_other_tech {
+    label="Other Notable Techniques";
+    style=dashed; color="#999999";
+
+    PR352 [label="PR#352: Memory Tokens\n64 learnable vectors\n-0.014 BPB\n(not adopted)", fillcolor="#ffffcc"];
+    PR450 [label="PR#450: Catalytic\nResiduals\n~11K params", fillcolor="#ffffcc"];
+    PR812 [label="PR#812: BankLinear\nShared weight bank\nfor QKV", fillcolor="#ffffcc"];
+    PR510 [label="PR#510: MUD Optimizer\nTriangular Gram\narxiv:2603.17970", fillcolor="#ffffcc"];
+    PR835 [label="PR#835: Progressive\nDepth Training\n2→3→4 repeats\n+36% more steps", fillcolor="#ffffcc"];
+    PR557 [label="PR#557: Batched LoRA\nTTT -0.0316 BPB\n64 docs parallel", fillcolor="#ffffcc"];
+    PR873 [label="PR#873: E2E TTT\nMAML-style\n1.0467 BPB", fillcolor="#ffffcc"];
+    PR1156 [label="PR#1156: EGGROLL\nPost-GPTQ int6\nbin refinement", fillcolor="#ffffcc"];
+    PR1130 [label="PR#1130: Residual\nLambdas + 12-seed\n(gold std ablation)", fillcolor="#ffffcc"];
+    PR156 [label="PR#156: NorMuon\n+Int6 STE+SWA\n(subsumed by PR#162)", fillcolor="#ffffcc"];
+    PR1162 [label="PR#1162: Step-1000 BPB\ncorrelates 0.86 w/ final\n(meta: rapid search)", fillcolor="#ffffcc"];
+  }
+
+  // === LEGALITY CRISES ===
+  subgraph cluster_legality {
+    label="Legality Crises";
+    style=filled; fillcolor="#fff0f0"; color="#cc0000";
+
+    issue402 [label="Issue #402:\nTTT Legality Crisis\n6+ PRs closed for\nmulti-epoch TTT\n4+ for GPTQ timing", fillcolor="#ffdddd", shape=octagon];
+    PR1271 [label="PR#1271: Scylla\nTokenizer INVALID\n93% measurement error\nin byte accounting", fillcolor="#ffcccc"];
+    ngram_crisis [label="N-gram Cache Crisis\nMass disqualifications\nPRs #659-#887\n(PR#1147 math proof)", fillcolor="#ffcccc", shape=octagon];
+  }
+
+  // === LEGEND ===
+  subgraph cluster_legend {
+    label="Legend";
+    style=filled; fillcolor=white;
+    rank=sink;
+
+    leg_merged [label="Merged Record", fillcolor="#ccffcc"];
+    leg_sota [label="Merged SOTA", fillcolor="#90ee90"];
+    leg_frontier_top [label="Clean Frontier Top 3", fillcolor="#6699ff", fontcolor=white];
+    leg_frontier [label="Clean Frontier", fillcolor="#99ccff"];
+    leg_frontier_low [label="Clean Frontier (lower)", fillcolor="#cce5ff"];
+    leg_contested [label="Contested", fillcolor="#ffcc99"];
+    leg_technique [label="Technique Source", fillcolor="#ffffcc"];
+    leg_novel [label="Novel Architecture", fillcolor="#e8ccff"];
+    leg_invalid [label="Invalid/Dead", fillcolor="#ffcccc"];
+    leg_negative [label="Negative Result", fillcolor="#ffdddd"];
+    leg_bandit [label="Bandit Track", fillcolor="#ffe4cc"];
+    leg_unexplored [label="Unexplored Opportunity", fillcolor="#ccffcc", style="rounded,filled,dashed"];
+  }
+}

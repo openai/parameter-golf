@@ -1,0 +1,23 @@
+{
+  "author": "Tomas Korenblit",
+  "github_id": "korentomas",
+  "val_bpb": 1.4465,
+  "pre_quant_val_bpb": 1.4461,
+  "artifact_bytes": 11480222,
+  "hardware": "1xH100 80GB HBM3",
+  "training_time_seconds": 600,
+  "steps": 590,
+  "technique": "Compressor-Aware Training (CAT): differentiable LZ77 autocorrelation + entropy proxy regularizer for zlib-friendly weights",
+  "architecture": {
+    "num_physical_layers": 4,
+    "num_loops": 3,
+    "model_dim": 896,
+    "num_heads": 14,
+    "num_kv_heads": 2,
+    "lora_rank": 16,
+    "qat_mode": 2,
+    "cat_lambda_lz": 0.01,
+    "cat_lambda_h": 0.1,
+    "cat_temperature": 50.0
+  }
+}

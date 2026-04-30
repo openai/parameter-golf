@@ -1,0 +1,94 @@
+--- PR-1394/records__track_10min_16mb__2026-04-05_SP8192_GPTQ-Embeddings_SDClip_Loop45x2__train_gpt_human.py	2026-04-11 20:10:47
++++ PR-1415/records__track_10min_16mb__2026-04-06_SP4096_3LayerRecur_GPTQ-Embed_SDClip_ETLB__train_gpt.py	2026-04-11 20:10:58
+@@ -95,6 +95,12 @@
+     muon_wd = float(os.environ.get('MUON_WD', 0.085))
+     embed_wd = float(os.environ.get('EMBED_WD', 0.085))
+     ema_decay = float(os.environ.get('EMA_DECAY', 0.997))
++
++    # ETLB (Eval-Time Logit Bias)
++    etlb_enabled = bool(int(os.environ.get('ETLB_ENABLED', '0')))
++    etlb_lr = float(os.environ.get('ETLB_LR', 0.05))
++    etlb_steps = int(os.environ.get('ETLB_STEPS', 5))
++    etlb_clip = float(os.environ.get('ETLB_CLIP', 3.0))
+ 
+     # Quantization & Compression
+     compressor = os.environ.get('COMPRESSOR', 'brotli')
+@@ -1144,6 +1150,69 @@
+     return _loss_bpb(loss_sum, token_count, byte_count)
+ 
+ 
++def eval_val_sliding_etlb(h, device, val_data, base_model, batch_seqs=32):
++    base_model.eval()
++    logits_fn = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
++    seq_len, stride = h.eval_seq_len, h.eval_stride
++    context_size = seq_len - stride
++    total_tokens = val_data.val_tokens.numel() - 1
++    window_starts = [ws for ws in range(0, total_tokens, stride) if ws + context_size < total_tokens]
++    my_s = (len(window_starts) * h.rank) // h.world_size
++    my_e = (len(window_starts) * (h.rank + 1)) // h.world_size
++    my_windows = window_starts[my_s:my_e]
++    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
++    token_count = torch.zeros((), device=device, dtype=torch.float64)
++    byte_count = torch.zeros((), device=device, dtype=torch.float64)
++    bias = torch.zeros(h.vocab_size, device=device, dtype=torch.float32)
++    for bi in range(0, len(my_windows), batch_seqs):
++        batch_ws = my_windows[bi:bi + batch_seqs]
++        bsz = len(batch_ws)
++        x_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
++        y_batch = torch.zeros(bsz, seq_len, dtype=torch.int64, device=device)
++        wlens = []
++        for i, ws in enumerate(batch_ws):
++            we = min(ws + seq_len, total_tokens)
++            wlen = we - ws
++            wlens.append(wlen)
++            chunk = val_data.val_tokens[ws:we + 1].to(dtype=torch.int64, device=device)
++            x_batch[i, :wlen] = chunk[:-1]
++            y_batch[i, :wlen] = chunk[1:]
++        with torch.inference_mode():
++            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
++                logits = logits_fn(x_batch)
++        logits_f = logits.float().detach()
++        cur_bias = bias.clone()
++        for _ in range(h.etlb_steps):
++            biased_ctx = logits_f[:, :context_size, :] + cur_bias[None, None, :]
++            probs = F.softmax(biased_ctx, dim=-1)
++            targets_ctx = y_batch[:, :context_size].reshape(-1)
++            probs_flat = probs.reshape(-1, h.vocab_size)
++            one_hot = torch.zeros_like(probs_flat)
++            one_hot.scatter_(1, targets_ctx.unsqueeze(1), 1.0)
++            grad = (probs_flat - one_hot).mean(dim=0)
++            cur_bias = (cur_bias - h.etlb_lr * grad).clamp(-h.etlb_clip, h.etlb_clip)
++        bias = cur_bias.detach()
++        biased_logits = logits_f + bias[None, None, :]
++        nll = F.cross_entropy(biased_logits.reshape(-1, biased_logits.size(-1)),
++                              y_batch.reshape(-1), reduction="none").reshape(bsz, seq_len)
++        for i, ws in enumerate(batch_ws):
++            wlen = wlens[i]
++            s = 0 if ws == 0 else context_size
++            loss_sum += nll[i, s:wlen].to(torch.float64).sum()
++            token_count += float(wlen - s)
++            tgt = y_batch[i, s:wlen]
++            prev = x_batch[i, s:wlen]
++            tb = val_data.base_bytes_lut[tgt].to(torch.float64)
++            tb += (val_data.has_leading_space_lut[tgt] & ~val_data.is_boundary_token_lut[prev]).to(torch.float64)
++            byte_count += tb.sum()
++    if dist.is_available() and dist.is_initialized():
++        dist.all_reduce(loss_sum, op=dist.ReduceOp.SUM)
++        dist.all_reduce(token_count, op=dist.ReduceOp.SUM)
++        dist.all_reduce(byte_count, op=dist.ReduceOp.SUM)
++    base_model.train()
++    return _loss_bpb(loss_sum, token_count, byte_count)
++
++
+ def timed_eval(label: str, fn, *args, **kwargs) -> tuple[float, float]:
+     torch.cuda.synchronize()
+     t0 = time.perf_counter()
+@@ -1348,6 +1417,8 @@
+     timed_eval("quantized", eval_val, h, device, val_data, compiled_model)
+     if h.sliding_window_enabled:
+         timed_eval("quantized_sliding_window", eval_val_sliding, h, device, val_data, eval_model)
++    if h.etlb_enabled and h.sliding_window_enabled:
++        timed_eval("quantized_sliding_etlb", eval_val_sliding_etlb, h, device, val_data, eval_model)
+ 
+ 
+ def main():

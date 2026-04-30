@@ -1,0 +1,16 @@
+{
+  "name": "Record: MuonEq-R + Depth Recurrence + Mixed Int5/Int6 GPTQ",
+  "val_bpb": 1.0929,
+  "bytes_total": 15981324,
+  "blurb": "Adds MuonEq-R optimizer (row-norm before NS5), depth recurrence (layers 4,5 repeated with shared MLP), and mixed int5/int6 GPTQ to PR #1218's 4096-vocab high-WD stack. 3-seed mean 1.0929 BPB, all seeds under 16MB.",
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "date": "2026-04-02",
+  "pre_quant_val_bpb": 1.0992,
+  "bytes_model_compressed": 15960240,
+  "bytes_code": 21084,
+  "base_pr": 1218,
+  "seeds": [1337, 42, 0],
+  "seed_scores": [1.09386, 1.09217, 1.09267],
+  "eval_time_seconds": [83, 83, 83]
+}

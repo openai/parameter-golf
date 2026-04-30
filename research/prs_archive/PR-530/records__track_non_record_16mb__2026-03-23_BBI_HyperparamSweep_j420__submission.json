@@ -1,0 +1,11 @@
+{
+    "name": "j420",
+    "github_id": "j420",
+    "val_bpb": 1.4963,
+    "val_bpb_note": "1xH100 SXM, MATRIX_LR=0.03, standard eval (not sliding window). Equivalent ~1.10-1.14 on 8xH100.",
+    "track": "non_record_16mb",
+    "approach": "Novel Basis Block Interpolation architecture (negative result) + systematic hyperparameter optimization finding MATRIX_LR=0.03 as significant improvement",
+    "date": "2026-03-23",
+    "hardware": "1xH100 SXM",
+    "seed": 42
+}
