@@ -1,0 +1,24 @@
+{
+  "author": "Dipkumar Patel",
+  "github_id": "dippatel1994",
+  "name": "SP8192 + 11L MLP4x + Depth Recurrence + SDClip GPTQ + MuonEq-R + Pre-Quant TTT + Brotli",
+  "blurb": "SP8192 tokenizer (from kevclark/parameter-golf), 11-layer model with MLP mult 4.0, depth recurrence (layers 3-5 looped 2x starting step 3000, 14 virtual layers), parallel residuals (layer 7+), SDClip GPTQ (k=12.85 for weights, k=20.0 for embeddings), MuonEq-R optimizer (row-normalized), QK-Gain 5.25, EMA 0.9965, pre-quant TTT (10 epochs AdamW with cosine decay on rank 0, weights broadcast), brotli compression with byte shuffle. Full frontier technique stack.",
+  "date": "2026-04-09T20:00:00Z",
+  "val_bpb": 1.4794,
+  "val_loss": 3.8215,
+  "note": "Tested on 1xH100 SXM (1/8 competition compute) with batch=65536 and standard eval (EVAL_STRIDE=0). On 8xH100 with batch=786432 + sliding eval + pre-quant TTT, BPB expected significantly lower.",
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_loss": 3.82151133, "val_bpb": 1.47942612}
+  },
+  "pre_quant_val_loss": 3.2562,
+  "pre_quant_val_bpb": 1.2606,
+  "step_stop": 2896,
+  "wallclock_seconds": 600.030,
+  "eval_time_seconds": 24.956,
+  "bytes_total": 14088870,
+  "bytes_model_int6_brotli": 14014157,
+  "bytes_code": 74713,
+  "gpu_config": "1xH100 SXM 80GB (competition: 8xH100)",
+  "tokenizer_source": "MATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf python3 data/cached_challenge_fineweb.py --variant sp8192"
+}
