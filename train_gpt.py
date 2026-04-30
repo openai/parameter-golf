@@ -62,6 +62,7 @@ class Hyperparameters:
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    mtp = int(os.environ.get("MTP", "1"))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -482,21 +483,37 @@ class TokenStream:
 
 class DistributedTokenLoader:
     # Each call consumes a contiguous chunk from the shared token stream, then slices out
-    # one disjoint span per rank. The extra "+1" token lets us build (x, y) by shifting.
+    # one disjoint span per rank. MTP=1 uses the original "+1" next-token shift;
+    # larger MTP values read more lookahead tokens for future-offset labels.
     def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
         self.rank = rank
         self.world_size = world_size
         self.device = device
         self.stream = TokenStream(pattern)
 
-    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
+    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int, mtp: int = 1) -> tuple[Tensor, Tensor]:
         local_tokens = global_tokens // (self.world_size * grad_accum_steps)
-        per_rank_span = local_tokens + 1
+        if mtp == 1:
+            per_rank_span = local_tokens + 1
+            chunk = self.stream.take(per_rank_span * self.world_size)
+            start = self.rank * per_rank_span
+            local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
+            x = local[:-1].reshape(-1, seq_len)
+            y = local[1:].reshape(-1, seq_len)
+            return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
+
+        # Multi-token prediction keeps the same inputs as NTP, but attaches one
+        # label plane per future offset: y[..., 0] is +1, y[..., mtp - 1] is +mtp.
+        per_rank_span = local_tokens + mtp
         chunk = self.stream.take(per_rank_span * self.world_size)
         start = self.rank * per_rank_span
         local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
-        x = local[:-1].reshape(-1, seq_len)
-        y = local[1:].reshape(-1, seq_len)
+        x = local[:local_tokens].reshape(-1, seq_len)
+        targets = [
+            local[offset : offset + local_tokens].reshape(-1, seq_len)
+            for offset in range(1, mtp + 1)
+        ]
+        y = torch.stack(targets, dim=-1)
         return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
 
 # -----------------------------
@@ -719,7 +736,6 @@ class GPT(nn.Module):
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         x = self.final_norm(x).reshape(-1, x.size(-1))
-        targets = target_ids.reshape(-1)
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
@@ -727,6 +743,14 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        if target_ids.ndim == 2:
+            targets = target_ids.reshape(-1)
+            return F.cross_entropy(logits.float(), targets, reduction="mean")
+        if target_ids.ndim != 3:
+            raise ValueError(f"target_ids must be 2D for NTP or 3D for MTP, got shape {tuple(target_ids.shape)}")
+        mtp = target_ids.size(-1)
+        logits = logits.repeat_interleave(mtp, dim=0)
+        targets = target_ids.reshape(-1)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
 
@@ -739,6 +763,8 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
+    if args.mtp < 1:
+        raise ValueError(f"MTP must be >= 1, got {args.mtp}")
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
@@ -812,6 +838,8 @@ def main() -> None:
             "tie_embeddings": args.tie_embeddings,
             "train_batch_tokens": args.train_batch_tokens,
             "train_seq_len": args.train_seq_len,
+            "objective": "ntp" if args.mtp == 1 else "mtp",
+            "mtp": args.mtp,
             "iterations": args.iterations,
             "warmup_steps": args.warmup_steps,
             "warmdown_iters": args.warmdown_iters,
@@ -983,6 +1011,7 @@ def main() -> None:
     )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
+        f"objective:{'ntp' if args.mtp == 1 else 'mtp'} mtp:{args.mtp} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
@@ -1032,7 +1061,7 @@ def main() -> None:
             for micro_step in range(grad_accum_steps):
                 if distributed:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps, args.mtp)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                     warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
@@ -1109,7 +1138,7 @@ def main() -> None:
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
-            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps, args.mtp)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 loss = model(x, y)
             train_loss += loss.detach()
