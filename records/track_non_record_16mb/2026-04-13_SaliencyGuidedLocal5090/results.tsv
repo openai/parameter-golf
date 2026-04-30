@@ -1,0 +1,4 @@
+label	run_id	wandb_run_dir	started_at_utc	eval_split	train_shards	lr_schedule	step_stop	train_time_s	pre_quant_val_bpb	post_quant_val_bpb	bytes_total	notes
+5b_full_eval	saliency_5b_30gb_seed2025	wandb/run-20260326_180143-wzspgrg0	2026-03-26T09:01:43.917794Z	full	50	flat_warmdown	19073	39633.45	1.23881099	1.24582822	15858012	original 5B saliency winner
+24h_full_eval	saliency_24h_30gb_legacy_seed2025	wandb/run-20260408_202109-vajvzlaj	2026-04-08T11:21:09.972987Z	full	125	flat_warmdown	44628	86401.05	1.21953852	1.22864374	15850915	best full-eval continuation
+1h_proxy_eval	saliency_1h_30gb_legacy_seed2025	wandb/run-20260409_232646-hgygstyg	2026-04-09T14:26:46.332733Z	proxy_4194304_tokens	8	cosine	1844	3601.39	1.34998024	1.35156821	15303442	1-hour scheduler probe
