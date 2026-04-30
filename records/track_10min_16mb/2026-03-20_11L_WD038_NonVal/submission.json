@@ -1,0 +1,19 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "11L WD0.038 Non-Val + Int6 + Sliding Window",
+  "author": "Silas Alberti",
+  "github_id": "silasalberti",
+  "blurb": "11-layer GPT with GQA (NUM_KV_HEADS=4), decoupled weight decay (0.038) on Muon optimizer, int6 per-row quantization on MLP+attention weights, fp16 embeddings, zstd-22 compression, and sliding window evaluation (stride=64). Trained on standard training shards only (no val-only). Key innovations: weight decay reduces quantization gap and enables fitting 11 layers under 16MB; higher LR (0.025) improves non-val convergence.",
+  "seed_results": {
+    "1337": {"val_loss": 1.93869482, "val_bpb": 1.14820731, "steps": 6986, "ms_per_step": 85.85},
+    "42":   {"val_loss": 1.93202108, "val_bpb": 1.14425474, "steps": 8202, "ms_per_step": 73.16},
+    "7":    {"val_loss": 1.94044336, "val_bpb": 1.14924290, "steps": 6961, "ms_per_step": 86.15}
+  },
+  "mean_val_loss": 1.93705309,
+  "mean_val_bpb": 1.14723498,
+  "p_value": 0.0008,
+  "bytes_total": 15696856,
+  "bytes_code": 58486,
+  "notes": "Standard training (trains on fineweb_train_*.bin). Sliding window BPB with stride=64. bytes_total shown is from seed 1337; all seeds under 16MB (max: 15,905,331)."
+}
