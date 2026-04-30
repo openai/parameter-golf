@@ -1,0 +1,30 @@
+{
+  "author": "kunwar-vikrant",
+  "github_id": "kunwar-vikrant",
+  "name": "Adaptive TTT: Difficulty-Aware Epoch Allocation for Test-Time Training",
+  "date": "2026-04-15",
+  "track": "10min_16mb",
+  "val_bpb": 1.0832,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_bpb": 1.0832, "artifact_bytes": 16022779, "eval_time_ms": 1274666}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Adaptive TTT on SOTA stack: dynamically allocates more SGD epochs to harder validation chunks and fewer to easy ones based on running mean NLL. Novel eval-only improvement requiring zero additional model parameters or artifact size.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": null,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false
+  },
+  "attribution": {
+    "base_stack": "@bigbag SP8192 + 3-Layer Recurrence + Parallel Residuals + QK525 + Legal TTT (PR #1493)",
+    "adaptive_ttt": "@kunwar-vikrant (novel technique)"
+  }
+}
