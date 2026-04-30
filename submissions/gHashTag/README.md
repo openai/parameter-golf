@@ -39,15 +39,17 @@ documented in [trios-railway#101](https://github.com/gHashTag/trios-railway/issu
 | Status | Count | Notes |
 |--------|------:|-------|
 | `done`   (honest, BPB ≥ 1.85)   | 55 | headed by ID 1387, BPB 2.1505 on tiny_shakespeare ([PR #58](https://github.com/gHashTag/trios-trainer-igla/pull/58) workflow) |
-| `done`   (SCARABAEUS-LEAK-CANDIDATE, BPB < 0.1) | 210 | flagged by Khepri-3 leak gate pending held-out validation (see `LEAK_INVESTIGATION.md`) |
+| `done`   (SCARABAEUS-LEAK-CONFIRMED-V2, BPB < 0.1) | 216 | **root cause confirmed and fixed**: Dockerfile val=head-c-100000(train) overlap. Fix merged in [trios-trainer-igla#61](https://github.com/gHashTag/trios-trainer-igla/pull/61). See `LEAK_INVESTIGATION.md`. |
 | `failed` (`trainer produced zero steps`) | 201 | Railway container runtime failure — cause chain unfolded below |
 | `pruned` (gardener LHS sweep)   | 1,328 | normal ASHA coverage |
 | `gate2_eligible` view (ratified W-6 step-cap seeds) | 6 | seeds 42, 43, 44, 1597, 2584, 4181 · BPB 1.75–1.82 at step=1000 with `W-6_step_cap_applied_per_l7_ledger_19` |
 
-Six `gate2_eligible` rows (BPB 1.75–1.82) were ratified before the W-6
-numerical-instability sub-floor. They are honest if and only if the
-held-out validation in `LEAK_INVESTIGATION.md` clears them. **We do not
-claim them as a Gate-2 pass until Khepri-4 held-out gate runs.**
+Six `gate2_eligible` rows (BPB 1.75–1.82 at step=1000) were taken on
+the SAME poisoned image — they were early-stopped before full
+memorisation, but the train/val corpus they evaluated against was
+overlapping. **None of them is a valid Gate-2 pass.** A clean re-run on
+the new byte-disjoint image (PR #61) is required before any Gate-2
+claim, and that re-run is post-deadline.
 
 ---
 

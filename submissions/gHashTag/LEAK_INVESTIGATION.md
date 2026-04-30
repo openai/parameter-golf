@@ -1,4 +1,23 @@
-# Leak Investigation: 210 experiments with BPB < 0.1
+# Leak Investigation: 216 experiments with BPB < 0.1 — **ROOT CAUSE CONFIRMED**
+
+> **UPDATE 2026-04-30 18:40 UTC:** Root cause definitively confirmed after the
+> `--ctx` regression was fixed in [gHashTag/trios-railway@69c3467](https://github.com/gHashTag/trios-railway/commit/69c3467f)
+> and 6 fresh FIX-VERIFY runs completed with BPB ∈ [0.0006, 0.0015] despite
+> the pipeline now working correctly. The only remaining explanation is
+> the train/val corpus split — and inspection of
+> [`Dockerfile:35-36`](https://github.com/gHashTag/trios-trainer-igla/blob/main/Dockerfile#L35-L36)
+> showed `head -c 100000 tiny_shakespeare.txt > tiny_shakespeare_val.txt`,
+> i.e. **val is a strict prefix of train**. See `gHashTag/trios-trainer-igla#60`
+> and the fix PR `#61` (merged 2026-04-30 18:42 UTC).
+>
+> Fix: Dockerfile now uses `train = head -c $((SIZE-100000))`,
+> `val = tail -c 100000` (byte-disjoint), plus a runtime
+> `assert_train_val_disjoint()` in `src/train_loop.rs` that panics at
+> startup if the first 1024 val tokens appear as a substring of train.
+
+---
+
+## Original investigation (pre-confirmation) — now updated for V2 evidence
 
 **Date:** 2026-04-30 · **Auditor:** perplexity-computer-grandmaster (R5-honest lane)
 **Anchor:** `phi^2 + phi^-2 = 3`
@@ -7,17 +26,41 @@
 
 ## Executive summary
 
-**210 of 307 `done` experiments** (≈ 68 %) returned BPB ∈ [0.0002, 0.0147]
+**216 of 313 `done` experiments** returned BPB ∈ [0.0002, 0.0147]
 at step = 4000. The per-byte cross-entropy of a character-level LM on
 English Shakespeare cannot physically be below ≈ 1.0 even for perfect
 overfitting of the training stream, because the bytes themselves carry
 ≥ 1 bit/byte of irreducible structure.
 
-Therefore **every row with BPB < 0.1 is either (a) a measurement on the
-training set masquerading as validation, (b) a W-6-style numerical
-underflow that coerces `log(softmax)` to 0 before the reduction, or (c)
-both**. We flag all 210 rows and decline to include any of them in the
-submitted ratification pool until a held-out evaluator clears them.
+**CONFIRMED:** hypothesis H1 (train/val path identity) is correct.
+The Dockerfile built the val file as the first 100 000 bytes of train.
+After ∼ 4 000 steps the model memorises that 100 KB prefix and reports
+BPB ≈ 0 on val. Fixed in
+[trios-trainer-igla#61](https://github.com/gHashTag/trios-trainer-igla/pull/61)
+(merged 18:42 UTC). All 216 rows are tainted and flagged in Neon with
+`last_error = 'SCARABAEUS-LEAK-CONFIRMED-V2: dockerfile-100k-prefix-overlap'`.
+An audit row
+(`gardener_runs.action='leak_confirmed_v2'`) documents the close.
+
+## V2 evidence — 6 fresh FIX-VERIFY runs confirm the leak
+
+After the unrelated `--ctx` fix landed in
+[trios-railway@69c3467](https://github.com/gHashTag/trios-railway/commit/69c3467f)
+and all 6 Railway workers were redeployed with the current image, 6
+fresh experiments ran to completion with the following verbatim results:
+
+| canon_name | account | dur (s) | final_step | final_bpb |
+|---|---|---:|---:|---:|
+| `IGLA-FIX-VERIFY-h512-LR002-rng42-step4000-acc0`   | acc0 | 171 | 4000 | 0.0009 |
+| `IGLA-FIX-VERIFY-h512-LR002-rng43-step4000-acc1`   | acc1 |  86 | 4000 | 0.0007 |
+| `IGLA-FIX-VERIFY-h512-LR002-rng44-step4000-acc2`   | acc2 | 160 | 4000 | 0.0010 |
+| `IGLA-FIX-VERIFY-h512-LR002-rng1597-step4000-acc3` | acc3 | 103 | 4000 | 0.0010 |
+| `IGLA-FIX-VERIFY-h512-LR002-rng2584-step4000-acc4` | acc4 | 103 | 4000 | 0.0006 |
+| `IGLA-FIX-VERIFY-h512-LR002-rng4181-step4000-acc5` | acc5 | 104 | 4000 | 0.0015 |
+
+These 6 rows, plus the 210 historical `BLITZ-T10H` rows, total 216
+tainted observations. All carry the same
+`SCARABAEUS-LEAK-CONFIRMED-V2` marker.
 
 ## Distribution of suspect rows
 
