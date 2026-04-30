@@ -285,10 +285,6 @@ class Hyperparameters:
     muon_wd = float(os.environ.get("MUON_WD", 0.095))
     embed_wd = float(os.environ.get("EMBED_WD", 0.085))
     ema_decay = float(os.environ.get("EMA_DECAY", 0.9965))
-    swa_enabled = bool(int(os.environ.get("SWA_ENABLED", "0")))
-    swa_window_frac = float(os.environ.get("SWA_WINDOW_FRAC", 0.05))
-    swa_interval = int(os.environ.get("SWA_INTERVAL", 50))
-    swa_blend = float(os.environ.get("SWA_BLEND", 0.5))
     ttt_enabled = bool(int(os.environ.get("TTT_ENABLED", "1")))
     ttt_lora_rank = int(os.environ.get("TTT_LORA_RANK", 96))
     ttt_lora_lr = float(os.environ.get("TTT_LORA_LR", 0.0001))
@@ -3476,11 +3472,6 @@ def train_model(h, device, val_data):
     }
     _ema_pairs = [(ema_state[name], t) for (name, t) in _live_state.items()]
     ema_decay = h.ema_decay
-    swa_sum = (
-        {name: torch.zeros_like(t, dtype=torch.float32) for (name, t) in _live_state.items()}
-        if h.swa_enabled else None
-    )
-    swa_count = 0
     training_time_ms = 0.0
     stop_after_step = None
     torch.cuda.synchronize()
@@ -3528,14 +3519,6 @@ def train_model(h, device, val_data):
         with torch.no_grad():
             for ema_t, t in _ema_pairs:
                 ema_t.mul_(ema_decay).add_(t.detach(), alpha=1.0 - ema_decay)
-            if (
-                h.swa_enabled
-                and step >= int(h.iterations * (1.0 - h.swa_window_frac))
-                and step % h.swa_interval == 0
-            ):
-                for name, t in _live_state.items():
-                    swa_sum[name].add_(t.detach().float())
-                swa_count += 1
         step += 1
         approx_training_time_ms = training_time_ms + 1e3 * (time.perf_counter() - t0)
         should_log_train = h.train_log_every > 0 and (
@@ -3558,12 +3541,6 @@ def train_model(h, device, val_data):
     log(
         f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB"
     )
-    if h.swa_enabled and swa_count > 0:
-        log(f"swa: blending {swa_count} snapshots into ema shadow at weight {h.swa_blend}")
-        with torch.no_grad():
-            for name in ema_state:
-                swa_avg = swa_sum[name] / swa_count
-                ema_state[name].mul_(1.0 - h.swa_blend).add_(swa_avg, alpha=h.swa_blend)
     log("ema:applying EMA weights")
     current_state = base_model.state_dict()
     avg_state = {
