@@ -1,0 +1,60 @@
+[ablation runner] patched script written to /tmp/train_cdm_patched_11L_w1.0.py
+[ablation runner] config: 11L d=512 vocab=4096 xsa=4 bigram=128 cdm_weight=1.0
+WARNING: effective_batch=65,536 != official 524,288
+   grad_accum=1 x microbatch=65536 x 1 GPUs
+======================================================================
+Shared AR+CDM PyTorch | 11L d=512 MLP=3x | steps=9999
+NUM_HEADS=8 head_dim=64 NUM_KV_HEADS=4 BIGRAM_DIM=128
+Encoder=5 Decoder=6 (U-net skip connections)
+Retro alpha=0.3 | XSA last 4 layers | LeakyReLU^2 | BigramHash(2048) | EMA(0.997)
+Device: cuda | World size: 1 | Grad accum: 1
+Effective batch: 65,536 tok/step
+======================================================================
+Val tokens: 45,121,536 (eval on 999,424)
+Model params: 28,402,777 (28.4M)
+Estimated size BF16: 56.8MB | int6: 21.3MB
+Compiling model with torch.compile()...
+  Compilation requested (will happen on first forward pass)
+  Muon params: 68 tensors
+  Scalar params: 47 tensors
+  Embed param: tok_emb.weight
+EMA starts step 7999
+Time budget: 540s (warmdown in last 80s)
+Starting training...
+step:0/9999 val_bpb:3.6123 *BEST* tokens:0M elapsed:2s
+W0409 03:46:01.625000 135878654083712 torch/fx/experimental/symbolic_shapes.py:4449] [0/0] q2 is not in var_ranges, defaulting to unknown range.
+W0409 03:46:01.684000 135878654083712 torch/fx/experimental/symbolic_shapes.py:4449] [0/0] z2 is not in var_ranges, defaulting to unknown range.
+W0409 03:46:03.402000 135878654083712 torch/fx/experimental/symbolic_shapes.py:4449] [0/0] x0 is not in var_ranges, defaulting to unknown range.
+  step:100 train_loss:10.5451 lr_mul:1.0000 tok/s:111758
+  step:200 train_loss:9.3241 lr_mul:1.0000 tok/s:144826
+  step:300 train_loss:7.8810 lr_mul:1.0000 tok/s:160669
+  step:400 train_loss:7.2725 lr_mul:1.0000 tok/s:169968
+step:500/9999 val_bpb:1.7042 *BEST* tokens:33M elapsed:187s
+  step:500 train_loss:8.4032 lr_mul:1.0000 tok/s:174973
+  Checkpoint saved: /workspace/ckpt/11L_w1/step_500.pt
+  step:600 train_loss:7.1105 lr_mul:1.0000 tok/s:179386
+  step:700 train_loss:8.5153 lr_mul:1.0000 tok/s:182727
+  step:800 train_loss:8.2336 lr_mul:1.0000 tok/s:185377
+  step:900 train_loss:6.7922 lr_mul:1.0000 tok/s:187507
+step:1000/9999 val_bpb:1.6091 *BEST* tokens:66M elapsed:347s
+  step:1000 train_loss:8.2942 lr_mul:1.0000 tok/s:188605
+  Checkpoint saved: /workspace/ckpt/11L_w1/step_1000.pt
+  step:1100 train_loss:7.4806 lr_mul:1.0000 tok/s:190057
+  step:1200 train_loss:7.7989 lr_mul:1.0000 tok/s:191237
+  step:1300 train_loss:7.1062 lr_mul:1.0000 tok/s:192310
+  step:1400 train_loss:6.0641 lr_mul:0.8194 tok/s:193255
+step:1500/9999 val_bpb:1.5361 *BEST* tokens:98M elapsed:507s
+  step:1500 train_loss:6.1946 lr_mul:0.4080 tok/s:193635
+  Checkpoint saved: /workspace/ckpt/11L_w1/step_1500.pt
+  step:1600 train_loss:7.4521 lr_mul:0.0102 tok/s:194361
+  Budget 540s reached at step 1603 (540s elapsed) — triggering final eval+save
+step:1603/9999 val_bpb:1.5086 *BEST* tokens:105M elapsed:541s
+
+Saved NPZ to /workspace/out/11L_w1.npz
+Saved int6+lzma to /workspace/out/11L_w1_int6.lzma (18.7MB)
+======================================================================
+FINAL val_bpb: 1.5086
+Total tokens: 0.655B in 555s
+Model: 11L d=512 MLP=3x | 28,402,777 params
+Throughput: 1180567 tok/s
+======================================================================

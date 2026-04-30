@@ -1,0 +1,111 @@
+[ablation runner] patched script written to /tmp/train_cdm_patched_5L_w1.0.py
+[ablation runner] config: 5L d=256 vocab=4096 xsa=2 bigram=128 cdm_weight=1.0
+WARNING: effective_batch=65,536 != official 524,288
+   grad_accum=1 x microbatch=65536 x 1 GPUs
+======================================================================
+Shared AR+CDM PyTorch | 5L d=256 MLP=3x | steps=9999
+NUM_HEADS=8 head_dim=32 NUM_KV_HEADS=4 BIGRAM_DIM=128
+Encoder=2 Decoder=3 (U-net skip connections)
+Retro alpha=0.3 | XSA last 2 layers | LeakyReLU^2 | BigramHash(2048) | EMA(0.997)
+Device: cuda | World size: 1 | Grad accum: 1
+Effective batch: 65,536 tok/step
+======================================================================
+Val tokens: 45,121,536 (eval on 999,424)
+Model params: 4,298,537 (4.3M)
+Estimated size BF16: 8.6MB | int6: 3.2MB
+Compiling model with torch.compile()...
+  Compilation requested (will happen on first forward pass)
+  Muon params: 32 tensors
+  Scalar params: 23 tensors
+  Embed param: tok_emb.weight
+EMA starts step 7999
+Time budget: 540s (warmdown in last 80s)
+Starting training...
+step:0/9999 val_bpb:3.6114 *BEST* tokens:0M elapsed:1s
+W0409 03:18:10.713000 123410662843008 torch/fx/experimental/symbolic_shapes.py:4449] [0/0] q2 is not in var_ranges, defaulting to unknown range.
+W0409 03:18:10.772000 123410662843008 torch/fx/experimental/symbolic_shapes.py:4449] [0/0] z2 is not in var_ranges, defaulting to unknown range.
+W0409 03:18:11.690000 123410662843008 torch/fx/experimental/symbolic_shapes.py:4449] [0/0] x0 is not in var_ranges, defaulting to unknown range.
+  step:100 train_loss:10.4744 lr_mul:1.0000 tok/s:259719
+  step:200 train_loss:10.0276 lr_mul:1.0000 tok/s:376243
+  step:300 train_loss:9.1702 lr_mul:1.0000 tok/s:442454
+  step:400 train_loss:8.0525 lr_mul:1.0000 tok/s:485201
+step:500/9999 val_bpb:1.8232 *BEST* tokens:33M elapsed:64s
+  step:500 train_loss:8.4776 lr_mul:1.0000 tok/s:507888
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_500.pt
+  step:600 train_loss:8.2609 lr_mul:1.0000 tok/s:530359
+  step:700 train_loss:8.8714 lr_mul:1.0000 tok/s:547539
+  step:800 train_loss:7.3681 lr_mul:1.0000 tok/s:561123
+  step:900 train_loss:7.9888 lr_mul:1.0000 tok/s:572086
+step:1000/9999 val_bpb:1.7297 *BEST* tokens:66M elapsed:113s
+  step:1000 train_loss:8.1901 lr_mul:1.0000 tok/s:576803
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_1000.pt
+  step:1100 train_loss:8.2153 lr_mul:1.0000 tok/s:584829
+  step:1200 train_loss:8.1841 lr_mul:1.0000 tok/s:591262
+  step:1300 train_loss:8.8357 lr_mul:1.0000 tok/s:597471
+  step:1400 train_loss:8.1065 lr_mul:1.0000 tok/s:602916
+step:1500/9999 val_bpb:1.6972 *BEST* tokens:98M elapsed:162s
+  step:1500 train_loss:7.5149 lr_mul:1.0000 tok/s:604507
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_1500.pt
+  step:1600 train_loss:7.1155 lr_mul:1.0000 tok/s:608929
+  step:1700 train_loss:7.7209 lr_mul:1.0000 tok/s:612914
+  step:1800 train_loss:8.2857 lr_mul:1.0000 tok/s:616554
+  step:1900 train_loss:7.6713 lr_mul:1.0000 tok/s:619745
+step:2000/9999 val_bpb:1.6705 *BEST* tokens:131M elapsed:211s
+  step:2000 train_loss:8.4872 lr_mul:1.0000 tok/s:620255
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_2000.pt
+  step:2100 train_loss:7.6873 lr_mul:1.0000 tok/s:623033
+  step:2200 train_loss:7.9321 lr_mul:1.0000 tok/s:625603
+  step:2300 train_loss:7.8769 lr_mul:1.0000 tok/s:627626
+  step:2400 train_loss:7.4892 lr_mul:1.0000 tok/s:629826
+step:2500/9999 val_bpb:1.6588 *BEST* tokens:164M elapsed:260s
+  step:2500 train_loss:6.9694 lr_mul:1.0000 tok/s:629808
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_2500.pt
+  step:2600 train_loss:8.4293 lr_mul:1.0000 tok/s:631591
+  step:2700 train_loss:7.0345 lr_mul:1.0000 tok/s:633053
+  step:2800 train_loss:6.7055 lr_mul:1.0000 tok/s:634691
+  step:2900 train_loss:7.9959 lr_mul:1.0000 tok/s:636293
+step:3000/9999 val_bpb:1.6460 *BEST* tokens:197M elapsed:309s
+  step:3000 train_loss:7.2242 lr_mul:1.0000 tok/s:636028
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_3000.pt
+  step:3100 train_loss:7.3618 lr_mul:1.0000 tok/s:637480
+  step:3200 train_loss:7.7660 lr_mul:1.0000 tok/s:638911
+  step:3300 train_loss:8.2330 lr_mul:1.0000 tok/s:640228
+  step:3400 train_loss:7.0444 lr_mul:1.0000 tok/s:641207
+step:3500/9999 val_bpb:1.6368 *BEST* tokens:229M elapsed:358s
+  step:3500 train_loss:7.9337 lr_mul:1.0000 tok/s:640861
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_3500.pt
+  step:3600 train_loss:8.0702 lr_mul:1.0000 tok/s:642013
+  step:3700 train_loss:6.6918 lr_mul:1.0000 tok/s:643132
+  step:3800 train_loss:7.4814 lr_mul:1.0000 tok/s:644141
+  step:3900 train_loss:6.8128 lr_mul:1.0000 tok/s:645120
+step:4000/9999 val_bpb:1.6309 *BEST* tokens:262M elapsed:406s
+  step:4000 train_loss:8.5158 lr_mul:1.0000 tok/s:644693
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_4000.pt
+  step:4100 train_loss:6.8397 lr_mul:1.0000 tok/s:645583
+  step:4200 train_loss:8.3491 lr_mul:1.0000 tok/s:646488
+  step:4300 train_loss:7.5772 lr_mul:1.0000 tok/s:647349
+  step:4400 train_loss:7.9396 lr_mul:1.0000 tok/s:648129
+step:4500/9999 val_bpb:1.6218 *BEST* tokens:295M elapsed:455s
+  step:4500 train_loss:8.7106 lr_mul:1.0000 tok/s:647640
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_4500.pt
+  step:4600 train_loss:7.4152 lr_mul:0.9396 tok/s:648416
+  step:4700 train_loss:7.9952 lr_mul:0.8200 tok/s:649152
+  step:4800 train_loss:7.9543 lr_mul:0.7005 tok/s:649869
+  step:4900 train_loss:6.8295 lr_mul:0.5810 tok/s:650556
+step:5000/9999 val_bpb:1.5800 *BEST* tokens:328M elapsed:504s
+  step:5000 train_loss:6.9087 lr_mul:0.4516 tok/s:650135
+  Checkpoint saved: /workspace/ckpt/5L_w1/step_5000.pt
+  step:5100 train_loss:7.9890 lr_mul:0.3312 tok/s:650763
+  step:5200 train_loss:7.2282 lr_mul:0.2115 tok/s:651380
+  step:5300 train_loss:7.6120 lr_mul:0.0919 tok/s:651983
+  Budget 540s reached at step 5377 (540s elapsed) — triggering final eval+save
+step:5377/9999 val_bpb:1.5476 *BEST* tokens:352M elapsed:541s
+
+Saved NPZ to /workspace/out/5L_w1.npz
+Saved int6+lzma to /workspace/out/5L_w1_int6.lzma (3.0MB)
+======================================================================
+FINAL val_bpb: 1.5476
+Total tokens: 0.655B in 542s
+Model: 5L d=256 MLP=3x | 4,298,537 params
+Throughput: 1209261 tok/s
+======================================================================

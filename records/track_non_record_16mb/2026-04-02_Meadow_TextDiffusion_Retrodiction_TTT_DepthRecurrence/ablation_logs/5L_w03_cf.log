@@ -1,0 +1,53 @@
+======================================================================
+CF ablation eval
+  ckpt: /workspace/ckpt/5L_w03/step_5000.pt
+  model: L=5 d=256 vocab=4096
+  eval: N=500 seq=1024 stride=2 rounds=2
+======================================================================
+Loading model class from /tmp/train_cdm_patched_5L_w0.0.py
+  module constants verified: 5L d=256 vocab=4096
+  loading state dict from /workspace/ckpt/5L_w03/step_5000.pt
+  loaded 56 keys, missing=0, unexpected=0
+  params: 4,298,537
+  val tokens: 45,122,403
+
+[1] Pure AR baseline (is_causal=True)
+    AR 100/500 | BPB:1.5312 | 1s
+    AR 200/500 | BPB:1.5325 | 2s
+    AR 300/500 | BPB:1.5287 | 3s
+    AR 400/500 | BPB:1.5234 | 3s
+    AR 500/500 | BPB:1.5231 | 4s
+  Pure AR BPB: 1.5231
+
+[2] CF eval (stride=2, rounds=2)
+    CF 100/500 | AR:0.7573 CDM:0.6501 Total:1.4074 | 6s
+    CF 200/500 | AR:0.7589 CDM:0.6544 Total:1.4133 | 11s
+    CF 300/500 | AR:0.7570 CDM:0.6514 Total:1.4085 | 17s
+    CF 400/500 | AR:0.7560 CDM:0.6509 Total:1.4069 | 23s
+    CF 500/500 | AR:0.7527 CDM:0.6482 Total:1.4009 | 28s
+
+======================================================================
+  Pure AR:       1.5231
+  CF AR part:    0.7527
+  CF CDM part:   0.6482
+  CF Total:      1.4009
+  CF vs Pure AR: -8.03%  (−0.1223 BPB)
+======================================================================
+
+JSON:
+{
+  "ckpt": "/workspace/ckpt/5L_w03/step_5000.pt",
+  "num_layers": 5,
+  "model_dim": 256,
+  "vocab_size": 4096,
+  "n_params": 4298537,
+  "n_seqs": 500,
+  "seq_len": 1024,
+  "stride": 2,
+  "rounds": 2,
+  "pure_ar_bpb": 1.5231493756157157,
+  "cf_ar_part": 0.7526675152508981,
+  "cf_cdm_part": 0.6482111594486734,
+  "cf_total": 1.4008786746995714,
+  "cf_vs_ar_pct": -8.027492435974493
+}
