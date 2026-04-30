@@ -370,7 +370,7 @@ class Hyperparameters:
     # A single deterministic version tag lets us regenerate R at dequant time without
     # storing per-matrix data; changing the tag invalidates older serialized models.
     hadamard_rotation_enabled = bool(int(os.environ.get("HADAMARD_ROTATION_ENABLED", "0")))
-    hadamard_rotation_seed = int(os.environ.get("HADAMARD_ROTATION_SEED", "0xc0ffee", 0))
+    hadamard_rotation_seed = int(os.environ.get("HADAMARD_ROTATION_SEED", "0xc0ffee"), 0)
     # Value Residual Learning / ResFormer (Zhou et al. ACL 2025, arXiv:2410.17897).
     # Mix layer-0's value tensor V1 into every subsequent layer's V via a learnable
     # per-layer sigmoid lambda: v_i <- sigmoid(lam_i) * v_i + (1 - sigmoid(lam_i)) * V1.
@@ -379,7 +379,7 @@ class Hyperparameters:
     # transparent at init (~1.8% of v_1 mixed in). Layer-0 attention skips mixing
     # (v_1 IS its own v) and no lambda is used -- captured but not modified.
     value_resid_enabled = bool(int(os.environ.get("VALUE_RESID_ENABLED", "0")))
-    value_resid_lambda_init = float(os.environ.get("VALUE_RESID_LAMBDA_INIT", 4.0))
+    value_resid_lambda_init = float(os.environ.get("VALUE_RESID_LAMBDA_INIT", "4.0"))
     # LQER asymmetric rank-k correction on top-K quant-error tensors (PR #1530 v2 port).
     # Computes SVD of E = W_fp - W_quant, packs top-r A,B as INT2/INT4 (asym) or INTk (sym).
     lqer_enabled = bool(int(os.environ.get("LQER_ENABLED", "1")))
@@ -1051,10 +1051,14 @@ class CausalSelfAttention(nn.Module):
         # ResFormer: mix layer-0's V into this layer's V. v1 is None for layer 0 (nothing
         # to mix), in which case the post-projection `v` here IS v1 and is returned as-is.
         # For layers > 0, blend toward v1 by (1 - sigmoid(vres_lambda)).
-        if self.value_resid and v1 is not None:
-            mix = torch.sigmoid(self.vres_lambda.to(dtype=v.dtype))
-            v = mix * v + (1.0 - mix) * v1
-        v_out = v  # captured for downstream layers (only layer 0's value is ever consumed)
+        # v_out is only captured when value_resid is enabled -- when disabled the forward
+        # path is identical to PR1797 (single tensor return, no extra tensor kept alive,
+        # no tuple unpacking overhead, same torch.compile graph).
+        if self.value_resid:
+            if v1 is not None:
+                mix = torch.sigmoid(self.vres_lambda.to(dtype=v.dtype))
+                v = mix * v + (1.0 - mix) * v1
+            v_out = v
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -1104,7 +1108,10 @@ class CausalSelfAttention(nn.Module):
             y = y * g[..., None]
         y = y.reshape(bsz, seqlen, dim)
         self._last_proj_input = y.detach() if getattr(self, "_calib", False) else None
-        return F.linear(y, out_w.to(x.dtype)), v_out
+        out = F.linear(y, out_w.to(x.dtype))
+        if self.value_resid:
+            return out, v_out
+        return out
 
 
 class MLP(nn.Module):
@@ -1168,13 +1175,18 @@ class Block(nn.Module):
     def forward(self, x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=None, max_seqlen=0, v1=None):
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out, v_out = self.attn(
+        attn_result = self.attn(
             self.attn_norm(x_in) * self.ln_scale_factor,
             q_w, k_w, v_w, out_w,
             cu_seqlens=cu_seqlens,
             max_seqlen=max_seqlen,
             v1=v1,
         )
+        if self.attn.value_resid:
+            attn_out, v_out = attn_result
+        else:
+            attn_out = attn_result
+            v_out = None
         x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[
             None, None, :
@@ -1341,12 +1353,13 @@ class GPT(nn.Module):
         block = self.blocks[block_idx]
         mix = block.resid_mix.to(dtype=lane0.dtype)
         attn_read = mix[0][None, None, :] * lane0 + mix[1][None, None, :] * x0
-        attn_out, _v_out_unused = block.attn(
+        attn_result = block.attn(
             block.attn_norm(attn_read) * block.ln_scale_factor,
             q_w, k_w, v_w, out_w,
             cu_seqlens=cu_seqlens, max_seqlen=max_seqlen,
             v1=v1,
         )
+        attn_out = attn_result[0] if block.attn.value_resid else attn_result
         attn_out = block.attn_scale.to(dtype=attn_out.dtype)[None, None, :] * attn_out
         mlp_read = lane1
         mlp_out = block.mlp_scale.to(dtype=lane1.dtype)[None, None, :] * block.mlp(
@@ -1386,7 +1399,19 @@ class GPT(nn.Module):
         # layer (encoder_indices[0], always block 0 in this stack) and pass it to all
         # subsequent layers. When value_resid is disabled, v1 stays None and every
         # block.forward call takes the v1=None fast path.
-        v1 = None
+        # When value_resid IS enabled, initialise v1 as a zero tensor with the correct
+        # shape so torch.compile sees the same input type (tensor, not None) on every
+        # step -- prevents a graph recompilation between step 1 (v1=None) and step 2
+        # (v1=tensor) which would otherwise cost 3-4 minutes of compile inside the
+        # training budget. Layer 0's block.forward skips the blend when v1 is all-zeros
+        # because mix*v + (1-mix)*0 = mix*v, which is close enough at init
+        # (vres_lambda=4.0 -> mix=0.982 -> only 1.8% of zero leaks in).
+        # The captured v_out from layer 0 overwrites v1 before layer 1 sees it.
+        if self.blocks[0].attn.value_resid:
+            bsz, seqlen, _ = x.shape
+            v1 = x.new_zeros(bsz, seqlen, self.blocks[0].attn.num_kv_heads, self.blocks[0].attn.head_dim)
+        else:
+            v1 = None
         skips = []
         enc_iter = (
             self.encoder_indices
@@ -1401,11 +1426,13 @@ class GPT(nn.Module):
                 self.num_encoder_layers + self.num_decoder_layers,
             )
         )
+        v1_set = (v1 is None)  # True when value_resid disabled (v1 stays None throughout)
         for i in enc_iter:
             q_w, k_w, v_w, out_w, up_w, down_w = self._bank_weights(i)
             x, v_out = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, v1=v1)
-            if v1 is None:
-                v1 = v_out
+            if not v1_set and v_out is not None:
+                v1 = v_out  # overwrite zero sentinel with real layer-0 V
+                v1_set = True
             skips.append(x)
         psl = self.parallel_start_layer
         lane0 = None
@@ -1439,7 +1466,8 @@ class GPT(nn.Module):
                         x = torch.lerp(scaled_skip, x, g)
                     else:
                         x = x + scaled_skip
-                x, _v_out_unused = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, v1=v1)
+                block_result = self.blocks[i](x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen, v1=v1)
+                x, _ = block_result
         if lane0 is not None:
             x = self._final_parallel_hidden(lane0, lane1)
         x = self.final_norm(x)
@@ -1487,7 +1515,12 @@ class GPT(nn.Module):
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
         # ResFormer v-residual capture (TTT path) -- mirrors _forward_hidden semantics.
-        v1 = None
+        # Same zero-tensor init as _forward_hidden to prevent torch.compile recompile.
+        if self.blocks[0].attn.value_resid:
+            bsz, seqlen, _ = x.shape
+            v1 = x.new_zeros(bsz, seqlen, self.blocks[0].attn.num_kv_heads, self.blocks[0].attn.head_dim)
+        else:
+            v1 = None
         skips = []
         enc_iter = (
             self.encoder_indices
@@ -1505,11 +1538,18 @@ class GPT(nn.Module):
             )
         )
         slot = 0
+        v1_set = (v1 is None)
         for i in enc_iter:
             q_w, k_w, v_w, out_w, up_w, down_w = self._bank_weights(i)
-            x, v_out = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w, v1=v1)
-            if v1 is None:
+            lora_result = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w, v1=v1)
+            if self.blocks[i].attn.value_resid:
+                x, v_out = lora_result
+            else:
+                x = lora_result
+                v_out = None
+            if not v1_set and v_out is not None:
                 v1 = v_out
+                v1_set = True
             slot += 1
             skips.append(x)
         psl = self.parallel_start_layer
@@ -1544,7 +1584,8 @@ class GPT(nn.Module):
                         x = torch.lerp(scaled_skip, x, g)
                     else:
                         x = x + scaled_skip
-                x, _v_out_unused = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w, v1=v1)
+                lora_result = self._block_with_lora(self.blocks[i], x, x0, lora, slot, q_w, k_w, v_w, out_w, up_w, down_w, v1=v1)
+                x = lora_result[0] if self.blocks[i].attn.value_resid else lora_result
             slot += 1
         if lane0 is not None:
             x = self._final_parallel_hidden(lane0, lane1)
@@ -1580,10 +1621,13 @@ class GPT(nn.Module):
         # Mix layer-0's V into this layer's V via sigmoid(vres_lambda). v1=None on the
         # first layer (this layer IS v1); subsequent layers blend. v_out captures this
         # layer's (post-mix for non-first) V for the decoder to consume.
-        if attn.value_resid and v1 is not None:
-            mix_v = torch.sigmoid(attn.vres_lambda.to(dtype=v.dtype))
-            v = mix_v * v + (1.0 - mix_v) * v1
-        v_out = v
+        # Only capture v_out when value_resid is enabled -- keeps graph identical to
+        # PR1797 baseline when disabled, avoiding tuple overhead and compile divergence.
+        if attn.value_resid:
+            if v1 is not None:
+                mix_v = torch.sigmoid(attn.vres_lambda.to(dtype=v.dtype))
+                v = mix_v * v + (1.0 - mix_v) * v1
+            v_out = v
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = attn.rotary(seqlen, n.device, q.dtype)
@@ -1625,7 +1669,9 @@ class GPT(nn.Module):
         if lora.mlp_loras is not None:
             mlp_out = mlp_out + lora.mlp_loras[slot](mlp_n)
         x_out = x_out + block.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * mlp_out
-        return x_out, v_out
+        if attn.value_resid:
+            return x_out, v_out
+        return x_out
 
     def _parallel_block_with_lora(
         self, block_idx, lane0, lane1, x0, lora, slot,
