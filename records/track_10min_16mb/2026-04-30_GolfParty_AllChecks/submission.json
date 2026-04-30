@@ -9,7 +9,7 @@
   "val_bpb_3seed_mean": 1.07776,
   "val_bpb_3seed_std": 0.00126,
   "per_seed": [
-    {"seed": 42,   "post_ttt_val_bpb": 1.07631, "pre_quant_val_bpb": 1.07594, "quantized_val_bpb": 1.08396, "eval_seconds": 359.6, "artifact_bytes": 16008464, "stop_step": 4538},
+    {"seed": 42,   "post_ttt_val_bpb": 1.07631, "pre_quant_val_bpb": 1.07506599, "quantized_val_bpb": 1.08306273, "eval_seconds": 359.6, "artifact_bytes": 16007899, "stop_step": 4539},
     {"seed": 1234, "post_ttt_val_bpb": 1.07860, "pre_quant_val_bpb": 1.07726, "quantized_val_bpb": 1.08531, "eval_seconds": 353.2, "artifact_bytes": 16003972, "stop_step": 4534},
     {"seed": 0,    "post_ttt_val_bpb": 1.07838, "pre_quant_val_bpb": 1.07717, "quantized_val_bpb": 1.08508, "eval_seconds": 359.7, "artifact_bytes": 16000415, "stop_step": 4533}
   ],
