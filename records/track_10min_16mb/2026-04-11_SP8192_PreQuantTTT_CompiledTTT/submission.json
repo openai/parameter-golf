@@ -1,0 +1,28 @@
+{
+  "score": 1.05869,
+  "score_metric": "val_bpb",
+  "seeds": {
+    "42": {
+      "sliding_bpb": 1.0584,
+      "roundtrip_bpb": 1.06847,
+      "artifact_bytes": 15477275
+    },
+    "1337": {
+      "sliding_bpb": 1.05856,
+      "roundtrip_bpb": 1.06904,
+      "artifact_bytes": 15439370
+    },
+    "2024": {
+      "sliding_bpb": 1.05912,
+      "roundtrip_bpb": 1.06921,
+      "artifact_bytes": 15480770
+    }
+  },
+  "mean_sliding_bpb": 1.05869,
+  "std_sliding_bpb": 0.00038,
+  "mean_roundtrip_bpb": 1.06891,
+  "max_artifact_bytes": 15480770,
+  "hardware": "8xH100 SXM",
+  "train_wallclock_seconds": 600,
+  "track": "10min_16mb"
+}
