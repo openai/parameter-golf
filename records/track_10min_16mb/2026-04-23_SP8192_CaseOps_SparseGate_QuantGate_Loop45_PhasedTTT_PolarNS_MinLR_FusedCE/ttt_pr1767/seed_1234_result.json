@@ -1,8 +1,0 @@
-{
-  "seed": 1234,
-  "status": "completed",
-  "duration_s": 576,
-  "post_ttt_val_loss": 2.3261648,
-  "post_ttt_val_bpb": 1.06296654,
-  "post_ttt_eval_time_ms": 448507
-}
