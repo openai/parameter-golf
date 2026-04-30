@@ -1,0 +1,9 @@
+{
+  "name": "PartialRoPE 16of64 4xRTX3090",
+  "val_loss": 1.35722,
+  "bytes_total": 15470414,
+  "blurb": "Partial RoPE (16/64 dims) on 4xRTX3090. Key changes from baseline: halved batch tokens (393K), doubled seq_len (1024), warmdown tuning, 10% magnitude pruning, and partial RoPE (rope_dims=16).",
+  "author": "jerry",
+  "github_id": "infaaa",
+  "date": "2026-03-28"
+}
