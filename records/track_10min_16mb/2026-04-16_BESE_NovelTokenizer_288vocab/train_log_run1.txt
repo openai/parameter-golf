@@ -1,0 +1,364 @@
+
+========================================================================
+  BESE v5 Pipeline
+========================================================================
+  Start time: 2026-04-14 18:55:43
+  Working directory: /workspace/bese
+  Log file: /workspace/run_v5.log
+  Detected 8 GPUs
+
+========================================================================
+  PHASE 0: DATA PREPARATION (untimed)
+========================================================================
+  Pre-spawning 224 encode workers (process is still small)...
+
+========================================================================
+  Step 0.1: Decode SP shards → in-memory text
+========================================================================
+  Found 80 train + 1 val SP shards
+  Using 80 workers for parallel decode
+    fineweb_train_000006.bin: 100,000,000 tokens → 77,613 docs (total: 546,879)
+    fineweb_train_000012.bin: 100,000,000 tokens → 78,433 docs (total: 1,013,363)
+    fineweb_train_000019.bin: 100,000,000 tokens → 79,109 docs (total: 1,561,735)
+    fineweb_train_000025.bin: 100,000,000 tokens → 76,893 docs (total: 2,029,510)
+    fineweb_train_000032.bin: 100,000,000 tokens → 78,170 docs (total: 2,575,303)
+    fineweb_train_000038.bin: 100,000,000 tokens → 78,413 docs (total: 3,044,732)
+    fineweb_train_000044.bin: 100,000,000 tokens → 78,183 docs (total: 3,517,094)
+    fineweb_train_000051.bin: 100,000,000 tokens → 76,874 docs (total: 4,063,332)
+    fineweb_train_000057.bin: 100,000,000 tokens → 78,407 docs (total: 4,533,270)
+    fineweb_train_000063.bin: 100,000,000 tokens → 77,496 docs (total: 5,002,785)
+    fineweb_train_000070.bin: 100,000,000 tokens → 77,407 docs (total: 5,544,962)
+    fineweb_train_000076.bin: 100,000,000 tokens → 77,615 docs (total: 6,011,566)
+  Decoded + filtered + scored: 6,243,747 train docs, 49,621 val docs
+  Decode+filter+score time: 188.6s (3.1 min)
+
+========================================================================
+  Step 0.3: Train BESE BPE (248 merges)
+========================================================================
+Encoding 50000 texts with base BESE tokenizer...
+Base tokens: 176,445,060
+Unique pairs: 975
+Learning 248 BPE merges (fast mode)...
+  Merge    1: (  4, 23) ->   40  count=4118716
+  Merge    2: ( 16, 19) ->   41  count=3874061
+  Merge    3: ( 15, 19) ->   42  count=3450718
+  Merge    4: ( 23,  5) ->   43  count=3024440
+  Merge    5: ( 17, 19) ->   44  count=3011917
+  Merge    6: ( 18, 20) ->   45  count=2624277
+  Merge    7: ( 15, 20) ->   46  count=2542861
+  Merge    8: ( 18, 19) ->   47  count=2483564
+  Merge    9: ( 23,  6) ->   48  count=2441543
+  Merge   10: (  8,  9) ->   49  count=2314045
+  Merge   11: ( 17, 20) ->   50  count=2277255
+  Merge   12: ( 16, 20) ->   51  count=2097617
+  Merge   13: ( 43, 12) ->   52  count=1941107
+  Merge   14: ( 10, 23) ->   53  count=1880741
+  Merge   15: ( 15, 21) ->   54  count=1810278
+  Merge   16: (  4, 11) ->   55  count=1789181
+  Merge   17: (  5, 23) ->   56  count=1525600
+  Merge   18: (  7,  9) ->   57  count=1489707
+  Merge   19: ( 13, 23) ->   58  count=1445710
+  Merge   20: ( 16, 21) ->   59  count=1308695
+  Merge   50: (  8, 14) ->   89  count=480628
+  Merge  100: (  7, 45) ->  139  count=192767
+  Merge  150: ( 10, 12) ->  189  count=117696
+  Merge  200: ( 48, 53) ->  239  count= 79248
+  Merge  248: (  4,123) ->  287  count= 63405
+
+Done. Learned 248 merges.
+Vocabulary: 40 base + 248 merges = 288 total
+  Vocab size: 288
+  Saved tokenizer to /workspace/bese/tokenizers/bese_bpe_248_v5.json (853.0s)
+
+========================================================================
+  Step 0.4: Curriculum sort (easy → hard)
+========================================================================
+  Sorted 6,243,747 docs by difficulty (27.5s)
+  NOTE: Tokenizer exists but no shards found — will re-encode with existing tokenizer
+
+========================================================================
+  Step 0.5: Export BESE shards
+========================================================================
+  Encoding 49,621 validation docs (parallel, 224 workers)...
+    Val shard: 74,583,182 tokens
+  Capping train docs: 6,243,747 → 1,562,500
+  Encoding 1,562,500 training docs (parallel, 224 workers)...
+    Train shard 0: 100,000,000 tokens
+    Train shard 1: 100,000,000 tokens
+    Train shard 2: 100,000,000 tokens
+    Train shard 3: 100,000,000 tokens
+    Train shard 4: 100,000,000 tokens
+    Train shard 5: 100,000,000 tokens
+    Encoded 100,000/1,562,500 docs, 120,778,188 tokens buffered
+    Train shard 6: 100,000,000 tokens
+    Train shard 7: 100,000,000 tokens
+    Train shard 8: 100,000,000 tokens
+    Train shard 9: 100,000,000 tokens
+    Train shard 10: 100,000,000 tokens
+    Encoded 200,000/1,562,500 docs, 60,906,566 tokens buffered
+    Train shard 11: 100,000,000 tokens
+    Train shard 12: 100,000,000 tokens
+    Train shard 13: 100,000,000 tokens
+    Train shard 14: 100,000,000 tokens
+    Encoded 300,000/1,562,500 docs, 18,809,422 tokens buffered
+    Train shard 15: 100,000,000 tokens
+    Train shard 16: 100,000,000 tokens
+    Train shard 17: 100,000,000 tokens
+    Encoded 400,000/1,562,500 docs, 33,884,257 tokens buffered
+    Train shard 18: 100,000,000 tokens
+    Train shard 19: 100,000,000 tokens
+    Train shard 20: 100,000,000 tokens
+    Encoded 500,000/1,562,500 docs, 23,281,676 tokens buffered
+    Train shard 21: 100,000,000 tokens
+    Train shard 22: 100,000,000 tokens
+    Encoded 600,000/1,562,500 docs, 89,264,759 tokens buffered
+    Train shard 23: 100,000,000 tokens
+    Train shard 24: 100,000,000 tokens
+    Train shard 25: 100,000,000 tokens
+    Encoded 700,000/1,562,500 docs, 38,841,861 tokens buffered
+    Train shard 26: 100,000,000 tokens
+    Train shard 27: 100,000,000 tokens
+    Encoded 800,000/1,562,500 docs, 75,215,370 tokens buffered
+    Train shard 28: 100,000,000 tokens
+    Train shard 29: 100,000,000 tokens
+    Encoded 900,000/1,562,500 docs, 99,662,067 tokens buffered
+    Train shard 30: 100,000,000 tokens
+    Train shard 31: 100,000,000 tokens
+    Train shard 32: 100,000,000 tokens
+    Encoded 1,000,000/1,562,500 docs, 15,383,624 tokens buffered
+    Train shard 33: 100,000,000 tokens
+    Train shard 34: 100,000,000 tokens
+    Encoded 1,100,000/1,562,500 docs, 22,414,301 tokens buffered
+    Train shard 35: 100,000,000 tokens
+    Train shard 36: 100,000,000 tokens
+    Encoded 1,200,000/1,562,500 docs, 21,841,055 tokens buffered
+    Train shard 37: 100,000,000 tokens
+    Train shard 38: 100,000,000 tokens
+    Encoded 1,300,000/1,562,500 docs, 14,564,388 tokens buffered
+    Train shard 39: 100,000,000 tokens
+    Encoded 1,400,000/1,562,500 docs, 101,310,416 tokens buffered
+    Train shard 40: 100,000,000 tokens
+    Train shard 41: 100,000,000 tokens
+    Encoded 1,500,000/1,562,500 docs, 81,355,744 tokens buffered
+    Train shard 42: 100,000,000 tokens
+    Train shard 43: 90,860,300 tokens
+  Exported 44 train shards + 1 val shard (401.6s)
+
+========================================================================
+  Build n-gram frequency table (max-n=3)
+========================================================================
+  [ngram table] Running: /usr/local/bin/python /workspace/bese/scripts/build_ngram_table.py --shard /workspace/bese_shards_v5/fineweb_train_000000.bin --output /workspace/bese/artifacts/ngram_table_v5.bin --max-n 3 --top-k 1
+Loaded 100,000,000 tokens from /workspace/bese_shards_v5/fineweb_train_000000.bin
+Using 224 workers
+Merging 224 partial tables...
+  n=2: 273 prefixes
+  n=3: 51,169 prefixes
+Wrote 298,802 bytes (0.28 MB) to /workspace/bese/artifacts/ngram_table_v5.bin
+  Completed in 20.5s (0.3 min)
+  N-gram table size: 298,802 bytes (0.28 MB)
+
+  Phase 0 total: 1492.4s (24.9 min)
+
+========================================================================
+  PHASE 1: TRAINING (600s wallclock, 8 GPUs)
+========================================================================
+  Shards: 44 train, 1 val
+  Training env:
+    ADAM_WD=0.095
+    BESE_TOKENIZER_ROOT=/workspace/bese/tokenizer
+    DATA_PATH=/workspace/bese_shards_v5
+    DEPTH_RECURRENCE_ACTIVATION_FRAC=0.35
+    DEPTH_RECURRENCE_END=5
+    DEPTH_RECURRENCE_LOOPS=3
+    DEPTH_RECURRENCE_START=3
+    EMA_DECAY=0.9965
+    EVAL_STRIDE=64
+    MATRIX_LR=0.022
+    MAX_WALLCLOCK_SECONDS=600
+    MLP_MULT=3
+    MODEL_DIM=512
+    MUON_WD=0.095
+    NGRAM_PRIOR_PATH=/workspace/bese/artifacts/ngram_table_v5.bin
+    NGRAM_TILT_ENABLED=1
+    NGRAM_TILT_MAX_N=3
+    NUM_HEADS=8
+    NUM_KV_HEADS=4
+    NUM_LAYERS=11
+    PARALLEL_RESIDUAL_START=7
+    QK_GAIN_INIT=5.0
+    RUN_ID=bese_v5
+    TOKENIZER_PATH=/workspace/bese/tokenizers/bese_bpe_248_v5.json
+    TRAIN_LOG_EVERY=100
+    VAL_LOSS_EVERY=500
+    VOCAB_SIZE=288
+    WARMDOWN_ITERS=5000
+  [torchrun] Running: torchrun --standalone --nproc_per_node=8 /workspace/bese/integration/train_gpt_bese.py
+W0414 19:20:40.663000 6661 torch/distributed/run.py:803] 
+W0414 19:20:40.663000 6661 torch/distributed/run.py:803] *****************************************
+W0414 19:20:40.663000 6661 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0414 19:20:40.663000 6661 torch/distributed/run.py:803] *****************************************
+logs/bese_v5.txt
+val_bpb:enabled tokenizer_kind=bese_bpe tokenizer_path=/workspace/bese/tokenizers/bese_bpe_248_v5.json vocab_size=288
+train_loader:dataset:bese_shards_v5 train_shards:44
+val_loader:shards pattern=/workspace/bese_shards_v5/fineweb_val_*.bin tokens:74582016
+model_params:26522716
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.022 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:5.6818 val_bpb:4.1599 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:5.6099 train_time:159ms step_avg:158.61ms
+step:2/20000 train_loss:9.1861 train_time:184ms step_avg:91.97ms
+step:3/20000 train_loss:7.5416 train_time:258ms step_avg:85.89ms
+step:4/20000 train_loss:6.6665 train_time:338ms step_avg:84.45ms
+step:5/20000 train_loss:6.5845 train_time:418ms step_avg:83.60ms
+step:6/20000 train_loss:6.4024 train_time:500ms step_avg:83.35ms
+step:7/20000 train_loss:6.0465 train_time:582ms step_avg:83.15ms
+step:8/20000 train_loss:5.8774 train_time:671ms step_avg:83.94ms
+step:9/20000 train_loss:5.7040 train_time:755ms step_avg:83.91ms
+step:10/20000 train_loss:5.5421 train_time:835ms step_avg:83.45ms
+step:100/20000 train_loss:2.9075 train_time:8130ms step_avg:81.30ms
+step:200/20000 train_loss:2.2079 train_time:16323ms step_avg:81.62ms
+step:300/20000 train_loss:2.0364 train_time:24511ms step_avg:81.70ms
+step:400/20000 train_loss:1.9112 train_time:32719ms step_avg:81.80ms
+step:500/20000 train_loss:1.8997 train_time:40871ms step_avg:81.74ms
+step:500/20000 val_loss:2.0221 val_bpb:1.4805 train_time:40919ms step_avg:81.84ms
+step:600/20000 train_loss:1.9023 train_time:49089ms step_avg:81.81ms
+step:700/20000 train_loss:1.8563 train_time:57315ms step_avg:81.88ms
+step:800/20000 train_loss:1.8424 train_time:65537ms step_avg:81.92ms
+step:900/20000 train_loss:1.8391 train_time:73750ms step_avg:81.94ms
+step:1000/20000 train_loss:1.8878 train_time:81908ms step_avg:81.91ms
+step:1000/20000 val_loss:1.8929 val_bpb:1.3859 train_time:81955ms step_avg:81.95ms
+step:1100/20000 train_loss:1.8143 train_time:90126ms step_avg:81.93ms
+step:1200/20000 train_loss:1.8295 train_time:98341ms step_avg:81.95ms
+step:1300/20000 train_loss:1.8556 train_time:106561ms step_avg:81.97ms
+step:1400/20000 train_loss:1.7355 train_time:114782ms step_avg:81.99ms
+step:1500/20000 train_loss:1.6924 train_time:122934ms step_avg:81.96ms
+step:1500/20000 val_loss:1.8336 val_bpb:1.3424 train_time:122983ms step_avg:81.99ms
+step:1600/20000 train_loss:1.8000 train_time:131144ms step_avg:81.96ms
+step:1700/20000 train_loss:1.7952 train_time:139360ms step_avg:81.98ms
+step:1800/20000 train_loss:1.7042 train_time:147581ms step_avg:81.99ms
+step:1900/20000 train_loss:1.7166 train_time:155738ms step_avg:81.97ms
+step:2000/20000 train_loss:1.8717 train_time:163962ms step_avg:81.98ms
+step:2000/20000 val_loss:1.7858 val_bpb:1.3074 train_time:164007ms step_avg:82.00ms
+step:2100/20000 train_loss:1.7584 train_time:172179ms step_avg:81.99ms
+step:2200/20000 train_loss:1.7949 train_time:180407ms step_avg:82.00ms
+step:2300/20000 train_loss:1.6671 train_time:188616ms step_avg:82.01ms
+step:2400/20000 train_loss:1.6735 train_time:196775ms step_avg:81.99ms
+step:2500/20000 train_loss:1.6868 train_time:204992ms step_avg:82.00ms
+step:2500/20000 val_loss:1.7602 val_bpb:1.2887 train_time:205038ms step_avg:82.02ms
+depth_recurrence:activated step:2561 progress:0.350 loops:3
+step:2600/20000 train_loss:1.6602 train_time:255143ms step_avg:98.13ms
+step:2700/20000 train_loss:1.7809 train_time:267314ms step_avg:99.01ms
+step:2800/20000 train_loss:1.7011 train_time:279493ms step_avg:99.82ms
+step:2900/20000 train_loss:1.6627 train_time:291640ms step_avg:100.57ms
+step:3000/20000 train_loss:1.6896 train_time:303859ms step_avg:101.29ms
+step:3000/20000 val_loss:1.7041 val_bpb:1.2476 train_time:303933ms step_avg:101.31ms
+step:3100/20000 train_loss:1.7224 train_time:316017ms step_avg:101.94ms
+step:3200/20000 train_loss:1.5838 train_time:328209ms step_avg:102.57ms
+step:3300/20000 train_loss:1.5789 train_time:340383ms step_avg:103.15ms
+step:3400/20000 train_loss:1.6243 train_time:352635ms step_avg:103.72ms
+step:3500/20000 train_loss:1.6110 train_time:364895ms step_avg:104.26ms
+step:3500/20000 val_loss:1.6741 val_bpb:1.2257 train_time:364969ms step_avg:104.28ms
+step:3600/20000 train_loss:1.6675 train_time:377174ms step_avg:104.77ms
+step:3700/20000 train_loss:1.6041 train_time:389517ms step_avg:105.27ms
+step:3800/20000 train_loss:1.6395 train_time:401700ms step_avg:105.71ms
+step:3900/20000 train_loss:1.5598 train_time:413937ms step_avg:106.14ms
+step:4000/20000 train_loss:1.5748 train_time:426158ms step_avg:106.54ms
+step:4000/20000 val_loss:1.6484 val_bpb:1.2068 train_time:426232ms step_avg:106.56ms
+step:4100/20000 train_loss:1.5564 train_time:438396ms step_avg:106.93ms
+step:4200/20000 train_loss:1.5235 train_time:450608ms step_avg:107.29ms
+step:4300/20000 train_loss:1.5900 train_time:462751ms step_avg:107.62ms
+step:4400/20000 train_loss:1.5877 train_time:474967ms step_avg:107.95ms
+step:4500/20000 train_loss:1.6016 train_time:487166ms step_avg:108.26ms
+step:4500/20000 val_loss:1.6219 val_bpb:1.1875 train_time:487239ms step_avg:108.28ms
+swa:start step:4550
+step:4600/20000 train_loss:1.6963 train_time:499477ms step_avg:108.58ms
+step:4700/20000 train_loss:1.5944 train_time:511750ms step_avg:108.88ms
+late_qat:enabled step:4751 scale:0.1500
+step:4800/20000 train_loss:1.5533 train_time:524075ms step_avg:109.18ms
+step:4900/20000 train_loss:1.5246 train_time:536419ms step_avg:109.47ms
+step:5000/20000 train_loss:1.5439 train_time:548741ms step_avg:109.75ms
+step:5000/20000 val_loss:1.5921 val_bpb:1.1656 train_time:548881ms step_avg:109.78ms
+step:5100/20000 train_loss:1.5768 train_time:561051ms step_avg:110.01ms
+step:5200/20000 train_loss:1.5511 train_time:573295ms step_avg:110.25ms
+step:5300/20000 train_loss:1.5030 train_time:585625ms step_avg:110.50ms
+step:5400/20000 train_loss:1.5278 train_time:597938ms step_avg:110.73ms
+step:5417/20000 val_loss:1.5710 val_bpb:1.1502 train_time:600142ms step_avg:110.79ms
+stopping_early: wallclock_cap train_time:600142ms step:5417/20000
+peak memory allocated: 32255 MiB reserved: 33362 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.5703 val_bpb:1.1497 eval_time:3552ms
+Serialized model: 105216438 bytes
+Code size: 88802 bytes
+Bundled n-gram prior: 298,802 bytes from /workspace/bese/artifacts/ngram_table_v5.bin
+Serialized model int6+lzma: 12635100 bytes
+Total submission size int6+lzma: 12723902 bytes
+Extracted bundled n-gram prior: 298,802 bytes → /tmp/tmptlbep31h.bin
+final_int6_roundtrip val_loss:1.6140 val_bpb:1.1817 eval_time:9494ms
+final_int6_roundtrip_exact val_loss:1.61403749 val_bpb:1.18169806
+ngram_tilt: loaded prior for sliding window eval from /tmp/tmptlbep31h.bin
+final_int6_sliding_window val_loss:1.5781 val_bpb:1.1554 stride:64 eval_time:164895ms
+final_int6_sliding_window_exact val_loss:1.57807021 val_bpb:1.15536509
+final_int6_lzma_roundtrip_exact val_loss:1.57807021 val_bpb:1.15536509
+  Completed in 1004.6s (16.7 min)
+
+========================================================================
+  PHASE 2: EVALUATION (n-gram tilt)
+========================================================================
+  Extracted metrics from training output:
+    best_bpb: 1.15536509
+    int6_bpb: 1.18169806
+    model_bytes: 12635100
+    size_bytes: 12723902
+    sliding_bpb: 1.15536509
+    sliding_loss: 1.57807021
+
+========================================================================
+  PHASE 3: ARTIFACT ASSEMBLY
+========================================================================
+  Artifact size: 12,723,902 bytes (12.72 MB)
+  Size check: PASS (limit: 16 MB)
+  N-gram table: 298,802 bytes (291.8 KB)
+
+========================================================================
+  RUN SUMMARY
+========================================================================
+  best_bpb:    1.15536509
+  sliding_bpb: 1.15536509
+  int6_bpb:    1.18169806
+  model_size:  12.64 MB
+  total_size:  12.72 MB
+  under 16 MB: YES
+
+  Total wall time: 2500.2s (41.7 min)
+  Log file: /workspace/run_v5.log
+
+  v5 config:
+    vocab_size=288  layers=11  dim=512  mlp_mult=3
+    depth_recurrence: layers 3-5 x3 loops (active after 35% of training)
+    parallel_residual: start=7
