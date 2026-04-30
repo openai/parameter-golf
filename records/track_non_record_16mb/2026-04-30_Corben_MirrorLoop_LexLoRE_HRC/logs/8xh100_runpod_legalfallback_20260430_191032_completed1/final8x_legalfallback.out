@@ -1,0 +1,53 @@
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1/1000000 train_loss:9.0096 train_time:896ms step_avg:895.53ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2/1000000 train_loss:8.6816 train_time:998ms step_avg:499.08ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3/1000000 train_loss:8.6129 train_time:1073ms step_avg:357.75ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4/1000000 train_loss:8.3579 train_time:1163ms step_avg:290.77ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5/1000000 train_loss:7.9764 train_time:1254ms step_avg:250.84ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6/1000000 train_loss:7.4367 train_time:1344ms step_avg:224.01ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:7/1000000 train_loss:6.9349 train_time:1434ms step_avg:204.84ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:8/1000000 train_loss:6.5263 train_time:1524ms step_avg:190.54ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:9/1000000 train_loss:6.2590 train_time:1617ms step_avg:179.69ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:10/1000000 train_loss:5.9940 train_time:1709ms step_avg:170.85ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:250/1000000 train_loss:3.8093 train_time:23341ms step_avg:93.36ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:500/1000000 train_loss:2.8693 train_time:45863ms step_avg:91.73ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:750/1000000 train_loss:3.5457 train_time:68420ms step_avg:91.23ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1000/1000000 train_loss:3.0827 train_time:90896ms step_avg:90.90ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1250/1000000 train_loss:2.7821 train_time:113450ms step_avg:90.76ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1500/1000000 train_loss:2.9330 train_time:135930ms step_avg:90.62ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1750/1000000 train_loss:2.9244 train_time:158470ms step_avg:90.55ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2000/1000000 train_loss:2.9568 train_time:180930ms step_avg:90.46ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2250/1000000 train_loss:3.0175 train_time:203467ms step_avg:90.43ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2500/1000000 train_loss:3.0186 train_time:225972ms step_avg:90.39ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2750/1000000 train_loss:2.9843 train_time:248500ms step_avg:90.36ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3000/1000000 train_loss:2.9805 train_time:270986ms step_avg:90.33ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3250/1000000 train_loss:2.7762 train_time:293521ms step_avg:90.31ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3500/1000000 train_loss:2.5245 train_time:315984ms step_avg:90.28ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3750/1000000 train_loss:2.8291 train_time:338515ms step_avg:90.27ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4000/1000000 train_loss:2.7105 train_time:360967ms step_avg:90.24ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4250/1000000 train_loss:2.6918 train_time:383502ms step_avg:90.24ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4500/1000000 train_loss:2.8623 train_time:405966ms step_avg:90.21ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4750/1000000 train_loss:2.6329 train_time:428497ms step_avg:90.21ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5000/1000000 train_loss:2.5634 train_time:450955ms step_avg:90.19ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5250/1000000 train_loss:2.7972 train_time:473478ms step_avg:90.19ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5500/1000000 train_loss:2.5862 train_time:495940ms step_avg:90.17ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5750/1000000 train_loss:2.5877 train_time:518477ms step_avg:90.17ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6000/1000000 train_loss:2.5776 train_time:540936ms step_avg:90.16ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6250/1000000 train_loss:2.7389 train_time:563563ms step_avg:90.17ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6500/1000000 train_loss:2.4234 train_time:586059ms step_avg:90.16ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6655/1000000 val_loss:2.8648 val_bpb:1.3158 train_time:600065ms step_avg:90.17ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: final_export_roundtrip val_loss:2.9510 val_bpb:1.3554 eval_time:42ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: final_export_roundtrip_exact val_loss:2.95103103 val_bpb:1.35536174
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: final_int8_zlib_roundtrip val_loss:2.9510 val_bpb:1.3554 legacy_alias:final_export_roundtrip codec:lzma
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55: final_int8_zlib_roundtrip_exact val_loss:2.95103103 val_bpb:1.35536174 legacy_alias:final_export_roundtrip_exact
+train final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55 rc=0
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:1/1000000 train_loss:9.0096 train_time:889ms step_avg:888.84ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:2/1000000 train_loss:8.6816 train_time:990ms step_avg:495.24ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:3/1000000 train_loss:8.6120 train_time:1070ms step_avg:356.58ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:4/1000000 train_loss:8.3559 train_time:1160ms step_avg:290.00ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:5/1000000 train_loss:7.9730 train_time:1250ms step_avg:250.00ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:6/1000000 train_loss:7.4325 train_time:1340ms step_avg:223.32ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:7/1000000 train_loss:6.9314 train_time:1430ms step_avg:204.33ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:8/1000000 train_loss:6.5243 train_time:1521ms step_avg:190.10ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:9/1000000 train_loss:6.2572 train_time:1611ms step_avg:179.00ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:10/1000000 train_loss:5.9929 train_time:1702ms step_avg:170.21ms
+final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55: step:250/1000000 train_loss:3.8096 train_time:23331ms step_avg:93.33ms
