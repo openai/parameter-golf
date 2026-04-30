@@ -1,0 +1,160 @@
+============================================
+  Nightcrawler Cubed (7F+3C) — full run
+  seed=4 GPUs=8 wallclock=600s
+  NUM_FLAT_LAYERS=7 NUM_CRAWLER_LAYERS=3 CRAWLER_LOOPS=3
+  CRAWLER_QUANT_INT8=0  (0=smaller artifacts, 1=higher risk for >16MB)
+  SKIP_GPTQ=0 LOOP_AWARE_GPTQ=1 GPTQ_CAL_SAMPLES=256
+  RUNTIME_PYMINIFY=1 PYMINIFY_MODE=aggressive
+  SIZE_TARGET_BYTES=16000000 SELECTIVE_PRUNE_ENABLE=1 SELECTIVE_PRUNE_FACTOR=8
+  PRESERVE_SEED_ALIAS=1
+  train_py=/workspace/parameter-golf/crawler/2026-04-09_Trapper_Keeper_1/logs/train_gpt_seed4_20260410_213324.min.py
+  log: /workspace/parameter-golf/crawler/2026-04-09_Trapper_Keeper_1/logs/train_seed4_20260410_213324.log
+============================================
+
+W0410 21:33:28.358000 51716 torch/distributed/run.py:803]
+W0410 21:33:28.358000 51716 torch/distributed/run.py:803] *****************************************
+W0410 21:33:28.358000 51716 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0410 21:33:28.358000 51716 torch/distributed/run.py:803] *****************************************
+logs/a1832ca9-f598-4378-bfee-51a99d1f10c1.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:29415508
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:relu_sq mlp_leaky_slope:0.5 crawler_mlp_leaky_slope:0.5 crawler_mlp_choke_dim:0 choke_shape:flat choke_groups:8 crawler_loop_smear:False crawler_tap_dim:0 crawler_tap_loop_specific:True crawler_tap_layers:all crawler_loop_rope_scales:(9, 1, 1)
+XSA:last_11 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.03
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+ablate:skip_train=0 init_model_path:- gptq_cal_samples:256 gptq_cal_seq_len:2048
+compile:enabled=1 fullgraph=1 optimize_ddp=0
+ddp:find_unused_parameters=1
+seed:4
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9294 val_bpb:4.1040 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9303 train_time:187ms step_avg:187.40ms
+step:2/20000 train_loss:8.5931 train_time:328ms step_avg:163.79ms
+step:3/20000 train_loss:7.6833 train_time:467ms step_avg:155.76ms
+step:4/20000 train_loss:7.3724 train_time:606ms step_avg:151.59ms
+step:5/20000 train_loss:7.1145 train_time:749ms step_avg:149.73ms
+step:6/20000 train_loss:6.9681 train_time:890ms step_avg:148.38ms
+step:7/20000 train_loss:6.8646 train_time:1035ms step_avg:147.85ms
+step:8/20000 train_loss:6.7943 train_time:1182ms step_avg:147.71ms
+step:9/20000 train_loss:6.4402 train_time:1329ms step_avg:147.64ms
+step:10/20000 train_loss:6.0692 train_time:1475ms step_avg:147.48ms
+step:500/20000 train_loss:2.4165 train_time:74774ms step_avg:149.55ms
+step:1000/20000 train_loss:2.2735 train_time:149745ms step_avg:149.75ms
+step:1500/20000 train_loss:2.2106 train_time:225445ms step_avg:150.30ms
+step:2000/20000 train_loss:2.0442 train_time:300020ms step_avg:150.01ms
+step:2500/20000 train_loss:2.1305 train_time:374595ms step_avg:149.84ms
+step:3000/20000 train_loss:2.1000 train_time:449052ms step_avg:149.68ms
+step:3500/20000 train_loss:2.0888 train_time:523639ms step_avg:149.61ms
+swa:start step:3650
+step:4000/20000 train_loss:1.8542 train_time:598300ms step_avg:149.58ms
+step:4000/20000 val_loss:1.9466 val_bpb:1.1529 train_time:598368ms step_avg:149.59ms
+step:4012/20000 val_loss:1.9465 val_bpb:1.1528 train_time:600093ms step_avg:149.57ms
+stopping_early: wallclock_cap train_time:600093ms step:4012/20000
+gptq_loop_aware:phase1 collecting all-layer Hessians...gptq_loop_aware:phase1 collecting all-layer Hessians...
+
+gptq_loop_aware:phase1 collecting all-layer Hessians...gptq_loop_aware:phase1 collecting all-layer Hessians...
+gptq_loop_aware:phase1 collecting all-layer Hessians...
+
+peak memory allocated: 37039 MiB reserved: 37694 MiB
+gptq:loop-aware 2-phase calibration samples=256 seq_len=2048...
+gptq_loop_aware:phase1 collecting all-layer Hessians...
+gptq_loop_aware:phase1 collecting all-layer Hessians...
+gptq_loop_aware:phase1 collecting all-layer Hessians...
+gptq_loop_aware:patched 42 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:patched 42 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:patched 42 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:patched 42 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:patched 42 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:patched 42 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:patched 42 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:patched 42 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collecting crawler Hessians with quantized-flat activations...
+gptq_loop_aware:phase2 collected 22 crawler Hessians
+gptq_loop_aware:restored 42 flat layer weights
+gptq_loop_aware:merged 65 Hessians (22 crawler from phase2)
+gptq_loop_aware:phase2 collected 22 crawler Hessians
+gptq_loop_aware:restored 42 flat layer weights
+gptq_loop_aware:merged 65 Hessians (22 crawler from phase2)
+gptq_loop_aware:phase2 collected 22 crawler Hessians
+gptq_loop_aware:restored 42 flat layer weights
+gptq_loop_aware:merged 65 Hessians (22 crawler from phase2)
+gptq_loop_aware:phase2 collected 22 crawler Hessians
+gptq_loop_aware:restored 42 flat layer weights
+gptq_loop_aware:merged 65 Hessians (22 crawler from phase2)
+gptq:loop-aware calibrated 65 layers in 15.8s
+ema:SKIPPED (SKIP_EMA=1) — using live model weights
+gptq_loop_aware:phase2 collected 22 crawler Hessians
+gptq_loop_aware:restored 42 flat layer weights
+gptq_loop_aware:merged 65 Hessians (22 crawler from phase2)
+gptq_loop_aware:phase2 collected 22 crawler Hessians
+gptq_loop_aware:restored 42 flat layer weights
+gptq_loop_aware:merged 65 Hessians (22 crawler from phase2)
+gptq_loop_aware:phase2 collected 22 crawler Hessians
+gptq_loop_aware:restored 42 flat layer weights
+gptq_loop_aware:merged 65 Hessians (22 crawler from phase2)
+gptq_loop_aware:phase2 collected 22 crawler Hessians
+gptq_loop_aware:restored 42 flat layer weights
+gptq_loop_aware:merged 65 Hessians (22 crawler from phase2)
+DIAGNOSTIC post_ema val_loss:1.9465 val_bpb:1.1528 eval_time:3673ms
+Serialized model: 115733181 bytes
+Code size: 67089 bytes
+gptq_quantize: 60 GPTQ layers, 0 naive layers
+gptq_quantize: 60 GPTQ layers, 0 naive layers
+gptq_quantize: 60 GPTQ layers, 0 naive layers
+gptq_quantize: 60 GPTQ layers, 0 naive layers
+gptq_quantize: 60 GPTQ layers, 0 naive layers
+gptq_quantize: 60 GPTQ layers, 0 naive layers
+gptq_quantize: 60 GPTQ layers, 0 naive layers
+gptq_quantize: 60 GPTQ layers, 0 naive layers
+selective_prune_int6 enabled target:16000000 pre_total:16054947 post_total:15844157 excess_pre:54947 values_pruned:701720
+Serialized model int6+brotli: 15777068 bytes
+Total submission size int6+brotli: 15844157 bytes
+Total submission size int8+zlib: 15844157 bytes
+final_int6_roundtrip val_loss:1.9593 val_bpb:1.1604 eval_time:9360ms
+final_int6_roundtrip_exact val_loss:1.95926246 val_bpb:1.16038559
+final_int6_sliding_window val_loss:1.9170 val_bpb:1.1354 stride:64 eval_time:115133ms
+final_int6_sliding_window_exact val_loss:1.91700379 val_bpb:1.13536063
+final_int8_zlib_roundtrip_exact val_loss:1.91700379 val_bpb:1.13536063
+
+============================================
+  RESULT — Nightcrawler Cubed (7F+3C) seed=4
+  model_params:  29415508
+  raw_bpb:       1.1528
+  int6_sw_bpb:   1.13536063
+  step_avg_ms:   149.57
+  steps:         4012
+  train_time_s:  600
+  bytes_total:   15844157  (limit 16000000)
+  bytes_code:    67089
+  artifact_legal:yes
+  log:           /workspace/parameter-golf/crawler/2026-04-09_Trapper_Keeper_1/results/train_seed4_20260410_213324.log
+============================================
