@@ -1,0 +1,37 @@
+{
+  "val_bpb": 1.0925,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42": {"val_bpb": 1.0947, "steps": 5165, "artifact_bytes": 15954746},
+    "1337": {"val_bpb": 1.0913, "steps": 5890, "artifact_bytes": 15932192},
+    "2025": {"val_bpb": 1.0915, "steps": 5900, "artifact_bytes": 15948156}
+  },
+  "mean_bpb": 1.0925,
+  "std_bpb": 0.0018,
+  "gpu": "8xH100 80GB SXM",
+  "gpu_location": "Reykjavik, Iceland",
+  "gemm_tflops": 802.3,
+  "training_time_seconds": 590,
+  "eval_method": "sliding_window + SLOT",
+  "compression": "int6+brotli",
+  "author": "Nathan Maine",
+  "github_user": "dentity007",
+  "track": "10min_16mb",
+  "techniques": [
+    "Vocab 4096 (sp4096 tokenizer from kevclark/parameter-golf)",
+    "MLP 4.0x expansion",
+    "11L transformer, d=512, 8H/4KV GQA, 34.4M params",
+    "XSA all 11 layers",
+    "QK_GAIN_INIT=4.0",
+    "EMA 0.997",
+    "Dynamic warmdown 66.7%",
+    "Muon WD=0.085, Embeddings WD=0.085, Adam WD=0.02, LR=0.02",
+    "Full Hessian GPTQ (AR self-gen calibration)",
+    "Byte shuffle + brotli-11 compression",
+    "SLOT: per-batch delta optimization (lr=0.005, 8 AdamW steps)",
+    "No TTT, no n-gram cache, no QAT"
+  ],
+  "base_pr": 1218,
+  "previous_sota_bpb": 1.1147,
+  "delta_vs_sota_bpb": -0.0222
+}
