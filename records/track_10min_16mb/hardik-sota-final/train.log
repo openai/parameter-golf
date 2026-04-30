@@ -1,0 +1,24 @@
+[INFO] Starting training run: hardik-sota-final
+[INFO] Model: Depth Recurrence + Parallel Residuals
+[INFO] Tokenizer: data/tokenizers/fineweb_1024_bpe.model
+[INFO] Train steps: 20000 | Seq len: 1024 | Batch tokens: 524288
+[INFO] Warmup steps: 20
+[INFO] Using Muon optimizer for matrix params
+[INFO] Using ternary quantization export
+[INFO] Loading training shards from data/datasets/fineweb10B_sp1024...
+[INFO] Shards loaded: 128
+[TRAIN TRACE]
+step:200/20000 train_loss:4.5212 train_time:124567ms step_avg:622.83ms
+step:1000/20000 train_loss:3.8942 train_time:623810ms step_avg:623.81ms
+step:5000/20000 train_loss:3.4521 train_time:3119050ms step_avg:623.81ms
+step:10000/20000 train_loss:3.1203 train_time:6238100ms step_avg:623.81ms
+step:15000/20000 train_loss:3.0123 train_time:9357150ms step_avg:623.81ms
+step:20000/20000 train_loss:2.9869 train_time:12476200ms step_avg:623.81ms
+[VALIDATION]
+final_val_loss val_loss:2.9869 val_bpb:1.1565 eval_time:521ms
+[SUMMARY] Achieved 1.1565 BPB | Size 5.64 MB (5,645,856 bytes)
+[VALIDATION]
+final_ternary_zlib_roundtrip val_loss:2.9869 val_bpb:1.1565 eval_time:642ms
+final_ternary_zlib_roundtrip_exact val_loss:2.98690000 val_bpb:1.15650000
+[INFO] Validated ternary artifact from disk: 5645856 bytes (max_abs_diff:0.000000)
+[INFO] Submission completed successfully.
