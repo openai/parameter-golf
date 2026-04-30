@@ -1,0 +1,54 @@
+{
+  "author": "Ayush Ozha",
+  "github_id": "ayushozha",
+  "name": "Non-record H200 screening: stabilized phased TTT LR retune",
+  "date": "2026-04-30",
+  "track": "non_record_16mb",
+  "submission_type": "unlimited_compute_screening",
+  "record_eligible": false,
+  "reason_not_record": "Available evidence was produced on 1xH200; training and full TTT evaluation do not satisfy the official 10-minute 8xH100 record requirement, and 3-seed official validation is still pending.",
+  "base_submission": "records/track_10min_16mb/2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611",
+  "change_summary": "Retune phased test-time-training LoRA learning rate from 1e-4 to 7e-5 while keeping the accepted top-stack architecture, tokenizer, dataset transform, compression path, and TTT schedule unchanged.",
+  "seed": 42,
+  "seeds": [42],
+  "val_loss": 2.31678467,
+  "val_bpb": 1.05868018,
+  "artifact_bytes": 15902950,
+  "bytes_total": 15902950,
+  "hardware": "1xNVIDIA H200 for screening; official 8xH100 validation queued",
+  "eval_time_s": 1892.8,
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 Hopper wheel",
+  "candidate_hparams": {
+    "TTT_LORA_LR": 0.00007,
+    "PHASED_TTT_PREFIX_DOCS": 2500,
+    "PHASED_TTT_NUM_PHASES": 3,
+    "TTT_WEIGHT_DECAY": 0.5,
+    "TTT_LORA_RANK": 80,
+    "COMPRESSOR": "pergroup"
+  },
+  "screening_results": {
+    "h200_quantized_no_ttt": {
+      "val_loss": 2.34604928,
+      "val_bpb": 1.07203421,
+      "eval_time_s": 77.657
+    },
+    "h200_full_ttt_lr7e5": {
+      "val_loss": 2.31678467,
+      "val_bpb": 1.05868018,
+      "eval_time_s": 1892.8,
+      "velda_task": "pg_ttt_lr7e5_full",
+      "velda_status": "TASK_STATUS_FAILURE due to log-stream/RPC issue despite completed score line in log"
+    }
+  },
+  "official_validation_tasks": {
+    "pg_h100x8_seed42_lr7e5_full": "TASK_STATUS_QUEUEING",
+    "pg_h100x8_seed0_lr7e5_full": "TASK_STATUS_PENDING",
+    "pg_h100x8_seed1234_lr7e5_full": "TASK_STATUS_PENDING"
+  },
+  "logs": [
+    "train_h200_seed42_4950.log",
+    "eval_h200_seed42_ttt_lr7e5_full.log"
+  ]
+}
