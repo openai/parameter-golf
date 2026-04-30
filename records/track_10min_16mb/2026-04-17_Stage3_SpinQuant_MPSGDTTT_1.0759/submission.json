@@ -1,0 +1,46 @@
+{
+  "author": "Abhishek Leji",
+  "github_id": "X-Abhishek-X",
+  "track": "10min_16mb",
+  "name": "Stage 3 + SpinQuant V1 + MP-SGD-TTT",
+  "blurb": "First port of SpinQuant V1 (Hadamard pre-rotation of Q/K/V weights before INT6 GPTQ) onto the Stage 3 depth-recurrence architecture, composed with Multi-Phase Global SGD TTT from PR #1626. SpinQuant spreads weight outliers uniformly via a random Hadamard matrix R stored as a non-serialized buffer (zero artifact overhead). TTT config: prefix_docs=2000, num_phases=3, lr=0.001, momentum=0.9.",
+  "date": "2026-04-17",
+  "val_loss": 2.77916130,
+  "val_bpb": 1.07590,
+  "val_bpb_std": 0.00019,
+  "n_seeds": 3,
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "42":   {"val_loss": 2.77918734, "val_bpb": 1.07591003, "artifact_bytes": 15728308},
+    "1337": {"val_loss": 2.77964689, "val_bpb": 1.07608793, "artifact_bytes": 15726192},
+    "2024": {"val_loss": 2.77864967, "val_bpb": 1.07570188, "artifact_bytes": 15727886}
+  },
+  "pre_quant_val_bpb": 1.07289,
+  "bytes_total": 15727462,
+  "bytes_model_brotli": 15695732,
+  "bytes_code": 31730,
+  "model_params": 35944602,
+  "vocab_size": 8192,
+  "hardware": "8xH100 80GB SXM",
+  "train_time_seconds": 587,
+  "eval_time_seconds": 478,
+  "step_avg_ms": 98,
+  "train_steps_mean": 4860,
+  "matrix_lr": 0.026,
+  "compliance": {
+    "no_eval_time_gradient_updates": true,
+    "score_first_ttt": true,
+    "artifact_under_16mb": true,
+    "artifact_bytes_decimal_check": true,
+    "benchmark_script_unmodified": true,
+    "no_test_data_access": true,
+    "deterministic_predictor": true,
+    "spinquant_zero_serialized_bytes": true
+  },
+  "attribution": [
+    {"technique": "Stage 3 depth-recurrence architecture", "source": "PR #1445 (X-Abhishek-X)"},
+    {"technique": "MP-SGD Multi-Phase Global SGD TTT", "source": "PR #1626 (dexhunter)"},
+    {"technique": "SP8192 tokenizer", "source": "PR #78 (mtybadger)"},
+    {"technique": "SpinQuant V1 Hadamard rotation", "source": "Liu et al., Meta AI 2024 (arxiv 2405.16406)"}
+  ]
+}
