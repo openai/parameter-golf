@@ -70,3 +70,9 @@ def flash_attn_func(q, k, v, causal=False):
     if not causal:
         raise ValueError("This record path only supports causal FlashAttention")
     return _flash_attn_func(q, k, v, causal=causal)
+
+
+def __getattr__(name: str):
+    if _flash_attn_module is not None and hasattr(_flash_attn_module, name):
+        return getattr(_flash_attn_module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
