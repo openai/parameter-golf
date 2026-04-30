@@ -1,0 +1,23 @@
+{
+  "author": "Ander Amondarain",
+  "github_id": "anderamondarainh-stack",
+  "name": "sp8192 caseops + gated xsa + reverse-chol GPTQ + leaky 0.3 (untested, prediction submission)",
+  "blurb": "Stacks four small additive deltas on top of merged PR #2014 (val_bpb 1.05759): gated XSA per-head tanh-alpha factor (zero-init), GPTQ all-rank Hessian averaging, reverse-cholesky Hinv (~2x faster), and tighter leaky-relu^2 slope 0.3 (python + triton kernel). Code is complete and ready to run. Could not afford a full 8xH100 run to confirm the number (pod TCP died mid-run, no remaining budget for a retry). Submitted as a prediction with the request that maintainers please reproduce on a single seed if possible.",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "record_eligible": false,
+  "val_bpb": null,
+  "val_loss": null,
+  "predicted_val_bpb": 1.054,
+  "predicted_val_bpb_optimistic": 1.052,
+  "predicted_val_bpb_conservative": 1.056,
+  "prediction_basis": "PR #2014 base = 1.05759 (3-seed). Sum of expected deltas: gated XSA ~-0.002 +/- 0.001, leaky 0.3 ~-0.0007 (sweep #1948), GPTQ all-reduce ~-0.0003, reverse-chol +3-5s training budget ~-0.0005.",
+  "seeds": [],
+  "seed_results": {},
+  "hardware": "8xH100 80GB SXM (intended; no completed run)",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3",
+  "base_pr": 2014,
+  "untested_request": "If any maintainer can spare a single 8xH100 run, I would be very grateful. The code is self-contained and the deltas are surgical."
+}
