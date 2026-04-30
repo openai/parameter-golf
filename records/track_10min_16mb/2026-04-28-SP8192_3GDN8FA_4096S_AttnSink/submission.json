@@ -1,0 +1,78 @@
+{
+  "track": "track_10min_16mb",
+  "name": "3GDN_8FA_4096S_AttnSink",
+  "date": "2026-04-28",
+  "tokenizer": "sp8192",
+  "hardware": "8xH100 80GB SXM",
+  "framework": "PyTorch 2.9.1+cu129",
+  "seeds": [42, 777, 1337],
+  "val_bpb_mean": 1.07849,
+  "val_bpb_std": 0.00058,
+  "per_seed": {
+    "42": {
+      "pre_quantization_bpb": 1.08126298,
+      "quantized_bpb": 1.09077229,
+      "quantized_ttt_bpb": 1.07910058,
+      "submission_bytes": 15935382,
+      "code_bytes": 22112,
+      "weights_bytes": 15913270,
+      "train_ms": 591020,
+      "train_steps": 4350,
+      "eval_ms_prequant": 8929,
+      "eval_ms_quantized": 8093,
+      "eval_ms_ttt": 295283,
+      "eval_ms_total": 312305
+    },
+    "777": {
+      "pre_quantization_bpb": 1.07994029,
+      "quantized_bpb": 1.08944854,
+      "quantized_ttt_bpb": 1.07794541,
+      "submission_bytes": 15932823,
+      "code_bytes": 22112,
+      "weights_bytes": 15910711,
+      "train_ms": 591025,
+      "train_steps": 4351,
+      "eval_ms_prequant": 9009,
+      "eval_ms_quantized": 8046,
+      "eval_ms_ttt": 294942,
+      "eval_ms_total": 311997
+    },
+    "1337": {
+      "pre_quantization_bpb": 1.08058062,
+      "quantized_bpb": 1.09006955,
+      "quantized_ttt_bpb": 1.07841558,
+      "submission_bytes": 15934105,
+      "code_bytes": 22112,
+      "weights_bytes": 15911993,
+      "train_ms": 591074,
+      "train_steps": 4348,
+      "eval_ms_prequant": 8979,
+      "eval_ms_quantized": 8051,
+      "eval_ms_ttt": 295615,
+      "eval_ms_total": 312645
+    }
+  },
+  "artifact_bytes_mean": 15934103,
+  "train_ms_mean": 591040,
+  "eval_ms_mean": 312316,
+  "entry_point": "train_gpt.py",
+  "source_reference": "train_gpt_source.py",
+  "logs": ["train_seed42.log", "train_seed777.log", "train_seed1337.log"],
+  "baseline_reference": {
+    "pr": 1445,
+    "record": "records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT",
+    "val_bpb": 1.0810
+  },
+  "delta_vs_baseline_bpb": -0.00251,
+  "delta_vs_baseline_nats_per_token": -0.00652,
+  "compliance": {
+    "causal": true,
+    "normalized_distribution": true,
+    "score_before_update": true,
+    "single_pass": true,
+    "artifact_under_16mb_all_seeds": true,
+    "train_under_600s_all_seeds": true,
+    "eval_under_600s_all_seeds": true,
+    "distinct_seeds": 3
+  }
+}
