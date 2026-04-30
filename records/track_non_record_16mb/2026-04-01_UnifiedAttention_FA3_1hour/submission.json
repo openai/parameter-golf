@@ -1,0 +1,12 @@
+{
+    "name": "Viraj Deshwal",
+    "github_id": "VirajDeshwal",
+    "val_bpb": 1.1088,
+    "training_time_seconds": 3600,
+    "eval_time_seconds": 501,
+    "gpu": "8xH100 80GB SXM",
+    "pytorch_version": "2.8.0+cu128",
+    "track": "non_record_16mb",
+    "summary": "Unified Attention + FA3 + Legal TTT, 1-hour training. Same architecture as record submission PR #1202 (1.1412, 10-min). Longer training reveals unified attention's scaling behavior."
+}
+
