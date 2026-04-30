@@ -1,0 +1,60 @@
+logs/mlx_ebt_smoke_1k_K2train_K0eval.txt
+run_id:mlx_ebt_smoke_1k_K2train_K0eval
+mlx_version:0.29.3
+train_loader:shards pattern=/Users/alexwu/work/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin
+val_loader:shards pattern=/Users/alexwu/work/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+WARNING: train_loader:subset dataset:fineweb10B_sp1024 train_shards:1/195 new epochs will arrive sooner than the full dataset
+tokenizer_path:/Users/alexwu/work/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+model_params:365834 vocab_size:1024 layers:2 dim:128 heads:4 kv_heads:2 seq_len:512 tie_embeddings:True
+iterations:1000 train_batch_tokens:4096 grad_accum_steps:1 microbatch_tokens:4096 microbatch_batch_size:8 val_batch_size:4096 warmup_steps:20 max_wallclock_seconds:0.000
+mlx_max_microbatch_tokens:4096
+optimizer:muon+adam muon_matrix_params:13 scalar_params:11 embed_lr:0.05 matrix_lr:0.04 scalar_lr:0.04 muon_momentum:0.95 muon_steps:5
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/Users/alexwu/work/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+compute_dtype:mlx.core.bfloat16 compile:True
+dtypes tok_emb:mlx.core.bfloat16 linear_weight:mlx.core.float32 skip_weights:mlx.core.float32
+ebt:energy_rank=32 refine_steps_train=2 refine_steps_eval=0 refine_eta_init=0.05 aux_loss_weight=0.1 h0_noise_std=0.0
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/1000 train_loss:7.6249 train_time:19ms step_avg:19.23ms tok_s:213085
+step:2/1000 train_loss:8.3623 train_time:35ms step_avg:17.52ms tok_s:262544
+step:3/1000 train_loss:8.4723 train_time:49ms step_avg:16.44ms tok_s:290052
+step:4/1000 train_loss:7.8591 train_time:63ms step_avg:15.86ms tok_s:292797
+step:5/1000 train_loss:7.2090 train_time:77ms step_avg:15.48ms tok_s:295985
+step:6/1000 train_loss:7.1362 train_time:91ms step_avg:15.16ms tok_s:303835
+step:7/1000 train_loss:6.8817 train_time:105ms step_avg:14.94ms tok_s:303482
+step:8/1000 train_loss:6.7254 train_time:118ms step_avg:14.81ms tok_s:296652
+step:9/1000 train_loss:6.6285 train_time:132ms step_avg:14.67ms tok_s:304352
+step:10/1000 train_loss:6.7629 train_time:146ms step_avg:14.60ms tok_s:295797
+step:100/1000 train_loss:5.1086 train_time:1396ms step_avg:13.96ms tok_s:301408
+step:200/1000 train_loss:4.9974 train_time:2780ms step_avg:13.90ms tok_s:275838
+step:300/1000 train_loss:4.7680 train_time:4164ms step_avg:13.88ms tok_s:294086
+step:400/1000 train_loss:4.3340 train_time:5557ms step_avg:13.89ms tok_s:291702
+step:500/1000 train_loss:4.6880 train_time:6950ms step_avg:13.90ms tok_s:297123
+step:600/1000 train_loss:4.6673 train_time:8393ms step_avg:13.99ms tok_s:295671
+step:700/1000 train_loss:4.8829 train_time:9762ms step_avg:13.95ms tok_s:296331
+step:800/1000 train_loss:4.4666 train_time:11143ms step_avg:13.93ms tok_s:299243
+step:900/1000 train_loss:4.5249 train_time:12509ms step_avg:13.90ms tok_s:297875
+step:1000/1000 train_loss:4.2286 train_time:13888ms step_avg:13.89ms tok_s:303588
+step:1000/1000 val_loss:3.8258 val_bpb:2.2659 train_time:13888ms step_avg:13.89ms
+saved_model:logs/mlx_ebt_smoke_1k_K2train_K0eval_mlx_model.npz bytes:1206844
+serialized_model_int8_zlib:558786 bytes (payload:604964 raw_pickle:606843 payload_ratio:1.99x)
+final_int8_zlib_roundtrip val_loss:3.8280 val_bpb:2.2672 eval_time:41120ms
+final_int8_zlib_roundtrip_exact val_loss:3.82802461 val_bpb:2.26717179
