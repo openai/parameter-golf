@@ -1,0 +1,32 @@
+{
+  "name": "Ammer Ayach",
+  "github_id": "amrayach",
+  "track": "non_record_16mb",
+  "val_bpb": 1.07218477,
+  "reference_comparison": {
+    "note": "Single-seed reproduction; comparison is against PR #1610's published seed-0 number, not the 3-seed mean.",
+    "published_pr": "#1610",
+    "published_commit_sha": "ca1919539dc6e328ea890cb03ad3ca1c5a84da55",
+    "published_seed0_bpb": 1.07216564,
+    "our_seed0_bpb": 1.07218477,
+    "delta_vs_published_seed0": 0.00001913
+  },
+  "this_branch_commit_sha": "1765afc7d62ce03a1219ca81cc92eea4fabdf343",
+  "seeds_run": [0],
+  "hardware": "8x NVIDIA H100 80GB HBM3 (SXM5), CUDA 12.8, driver 570.211.01",
+  "wallclock": {
+    "train_seconds": "truncated at MAX_WALLCLOCK_SECONDS=600; stopped at step 4879 (by design in #1610)",
+    "eval_seconds": 455.9
+  },
+  "artifact_bytes": 15999394,
+  "contributions": [
+    "Faithful reproduction of PR #1610 to within 2e-5 BPB on independent infrastructure.",
+    "Bounded negative result for a score-first posterior-corrector layered on phased LoRA TTT; all three tested (alpha, orders) configurations degrade BPB monotonically with blend weight.",
+    "Bug fix in the quantized-eval-only path of train_gpt.py enabling eval-only ablations against a preserved checkpoint."
+  ],
+  "external_supplementary": {
+    "url": "https://huggingface.co/amay01/parameter-golf-pr1610-reproduction-artifacts",
+    "description": "Optional external archive with preserved checkpoints (final_model.int6.ptz, final_model.pt), raw ablation intermediate artifacts, and environment manifest. Not required to read this PR.",
+    "primary_tarball_md5": "caf8adf63d8c80965f6671beba95d7aa"
+  }
+}

@@ -1,0 +1,4 @@
+1765afc7d62ce03a1219ca81cc92eea4fabdf343
+1765afc7d62ce03a1219ca81cc92eea4fabdf343 pipeline(#1610): auto-capture provenance, repo-type=model, exact-SHA pin, align README + run_all
+  author: amay <amrayach@gmail.com>
+  date:   2026-04-18 16:36:25 +0200

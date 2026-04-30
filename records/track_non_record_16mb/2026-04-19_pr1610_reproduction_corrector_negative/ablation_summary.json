@@ -1,0 +1,45 @@
+{
+  "baseline_bpb": 1.07218477,
+  "runs": {
+    "1a": {
+      "config": {
+        "CORRECTOR_ALPHA": "0.3",
+        "CORRECTOR_ORDERS": "8"
+      },
+      "bpb": 1.08876294,
+      "delta": -0.01657817000000006,
+      "eval_ms": 462840,
+      "artifact_bytes": 0,
+      "log": "/workspace/parameter-golf/runs/ablation_1a_log.txt"
+    },
+    "1b": {
+      "config": {
+        "CORRECTOR_ALPHA": "0.3",
+        "CORRECTOR_ORDERS": "5,8,12"
+      },
+      "bpb": 1.08891256,
+      "delta": -0.01672779000000002,
+      "eval_ms": 472412,
+      "artifact_bytes": 0,
+      "log": "/workspace/parameter-golf/runs/ablation_1b_log.txt"
+    },
+    "1c": {
+      "config": {
+        "CORRECTOR_ALPHA": "0.1",
+        "CORRECTOR_ORDERS": "5,8,12"
+      },
+      "bpb": 1.0743036,
+      "delta": -0.002118829999999905,
+      "eval_ms": 465764,
+      "artifact_bytes": 0,
+      "log": "/workspace/parameter-golf/runs/ablation_1c_log.txt"
+    }
+  },
+  "best_config": "1c",
+  "best_config_details": {
+    "CORRECTOR_ALPHA": "0.1",
+    "CORRECTOR_ORDERS": "5,8,12"
+  },
+  "best_delta": -0.002118829999999905,
+  "recommended_path": "fallback"
+}

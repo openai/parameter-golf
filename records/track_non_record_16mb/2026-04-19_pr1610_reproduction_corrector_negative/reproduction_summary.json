@@ -1,0 +1,12 @@
+{
+  "stage": "gate_a",
+  "seed": 0,
+  "status": "PASS_TECHNICAL",
+  "note": "BPB 1.07218477 reproduces published 1.07216564 within 2e-5; artifact 15999394 bytes under 16000000 competition rule (exceeded internal 15997520 safety buffer only)",
+  "bpb": 1.07218477,
+  "published_bpb": 1.07216564,
+  "bpb_delta_vs_published": 0.00001913,
+  "eval_time_ms": 455945,
+  "artifact_bytes": 15999394,
+  "commit_sha": "1765afc7d62ce03a1219ca81cc92eea4fabdf343"
+}
