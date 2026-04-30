@@ -1,0 +1,14 @@
+{
+  "name": "Lowercase SP10240 QK Gain 5.125 Ablation",
+  "author": "suryavanshi",
+  "github_id": "suryavanshi",
+  "date": "2026-04-25",
+  "track": "10min_16mb",
+  "val_bpb": 1.07419003,
+  "val_bpb_seeds": [1.07419003],
+  "seeds": [42],
+  "artifact_size_bytes": [15985150],
+  "train_time_seconds": 588.029,
+  "hardware": "8x NVIDIA H100 80GB HBM3 on Modal",
+  "description": "Controlled one-seed ablation with QK_GAIN_INIT=5.125, TTT disabled, lowercase SP10240 tokenization, INT6 matrices, INT7 embeddings, and Brotli compression."
+}
