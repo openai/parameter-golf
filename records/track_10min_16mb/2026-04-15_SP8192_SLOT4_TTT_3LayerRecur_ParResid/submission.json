@@ -1,0 +1,33 @@
+{
+  "author": "ppoud001",
+  "github_id": "ppoud001",
+  "name": "SP8192 + SLOT-4 + TTT + 3-Layer Recurrence + Parallel Residuals",
+  "date": "2026-04-15",
+  "track": "10min_16mb",
+  "val_bpb": 1.0616,
+  "val_bpb_std": 0.0005,
+  "seeds": [314, 42, 999],
+  "seed_results": {
+    "314": {"val_bpb": 1.06106038, "artifact_bytes": 16001154},
+    "42": {"val_bpb": 1.06168688, "artifact_bytes": 16001154},
+    "999": {"val_bpb": 1.06215167, "artifact_bytes": 16001154}
+  },
+  "hardware": "8xH100 80GB HBM3",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SLOT-4 (per-window logit bias, AdamW 4 steps lr=0.01) on the PR #1493 stack: SP8192 + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.0 + EMA 0.9965 + Score-First TTT (SGD 3ep) + GPTQ SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "slot_enabled": true,
+    "ttt_enabled": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_stack": "PR #1493 (@bigbag)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "slot_implementation": "ppoud001 (this submission)"
+  }
+}
