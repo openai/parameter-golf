@@ -4,11 +4,11 @@
 > set of insights from our parameter-golf run — every PR iteration we tried,
 > the hyperparameter-tuning experiments behind each design choice, and the
 > ablation results that drove our decisions — is being compiled into a
-> detailed write-up. We'll link the blog post here once it's published.
+> detailed write-up. A more detailed write-up is at: https://www.junchengbillyli.com/llm-notes.html
 
 **val_bpb (3-seed mean) = 1.06184** | σ ≈ 0.000379 | **~15.84 MB max (~15.84 MB mean)** | 8×H100 SXM | 600 s training + 600 s eval
 
-A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Billy Li ([@lijuncheng16](https://github.com/lijuncheng16))**, with thanks to **Prof. Lin Hao (Fordham University)** for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used in this submission, **Liju Yu ([@Lijun-Yu](https://github.com/Lijun-Yu))** for his invaluable insights, and **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** for project discussions.
+A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Billy Li ([@lijuncheng16](https://github.com/lijuncheng16))**, with thanks to **Prof. Lin Hao (Fordham University)** for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used in this submission, Xingyuan Ding for additional experiments, Bill (Yiyuan) Li for meaningful discussions on tokenizers, **Liju Yu ([@Lijun-Yu](https://github.com/Lijun-Yu))** for his invaluable insights, and **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** for project discussions.
 
 ## TL;DR
 
@@ -212,7 +212,9 @@ A joint effort by **Tim Shen ([@TimS-ml](https://github.com/TimS-ml))** and **Bi
 
 With thanks to:
 
-- **Prof. Lin Hao (Fordham University)** — for sponsoring the **8×H100 SXM** and **4×RTX 4090** compute used to produce all sweep, training, and microbench results in this record.
+- **Prof. Lin Hao (Fordham University)** — for sponsoring the 8×H100 SXM and 4×RTX 4090 compute used to produce all sweep, training, and microbench results in this record.
+- **Xingyuan Ding** — for experiments and A100 support.
+- **Bill (Yiyuan) Li** — for meaningful discussions on tokenizers.
 - **Liju Yu ([@Lijun-Yu](https://github.com/Lijun-Yu))** - for his invaluable insights.
 - **Hang Zhou ([@greyjoeyzhou](https://github.com/greyjoeyzhou))** — for project discussions and for the concurrent auto-research agent infrastructure.
 
