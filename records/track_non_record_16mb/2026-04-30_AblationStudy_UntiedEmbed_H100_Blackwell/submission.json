@@ -1,0 +1,24 @@
+{
+  "author": "Edidiong Umoh",
+  "github_id": "edidiongumoh",
+  "name": "Sprint 002: Ablation Study — Untied Embeddings + Cross-Hardware Validation",
+  "blurb": "27-run ablation matrix (9 configs × 3 seeds) on RTX PRO 6000 Blackwell isolating six architectural components, with headline A6 (untied embeddings) result reproduced on 1×H100 SXM. Best config: TIE_EMBEDDINGS=0, val_bpb=1.3302 (H100), 1.3275 (Blackwell 3-seed mean). Artifact: 12.97 MB int8+zlib under 16 MB cap.",
+  "date": "2026-04-30T15:01:05Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.2448,
+  "val_bpb": 1.3302,
+  "pre_quant_val_loss": 2.2423,
+  "pre_quant_val_bpb": 1.3287,
+  "step_stop": 1105,
+  "wallclock_seconds": 600.016,
+  "bytes_total": 13017328,
+  "bytes_model_int8_zlib": 12966238,
+  "bytes_code": 51090,
+  "gpu": "1xH100_SXM_80GB",
+  "cross_hardware_validation": {
+    "blackwell_gpu": "1xRTX_PRO_6000_Blackwell_96GB",
+    "blackwell_a6_3seed_mean_bpb": 1.3275,
+    "blackwell_b0_3seed_mean_bpb": 1.3462,
+    "blackwell_a6_delta_vs_b0": -0.0187
+  }
+}
