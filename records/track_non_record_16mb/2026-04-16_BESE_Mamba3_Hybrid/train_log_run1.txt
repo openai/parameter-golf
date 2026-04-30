@@ -1,0 +1,191 @@
+
+========================================================================
+  BESE v7-mamba: Mamba-3 + Attention Hybrid
+========================================================================
+  Start time: 2026-04-16 06:41:11
+  Architecture: 6 Mamba-3 + 2 Attention (pos 2,5), dim=512, d_state=128, ngroups=1, BESE 288 vocab
+  Thesis: BESE's 2x token density is an advantage with O(n) SSMs
+
+========================================================================
+  Installing dependencies
+========================================================================
+
+  [pip-mamba-ssm] Running: /usr/local/bin/python -m pip install mamba-ssm causal-conv1d einops --quiet --no-build-isolation --break-system-packages
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+  [pip-mamba-ssm] Completed in 0.8s (0.0 min)
+  Found 44 training shards
+  Detected 8 GPUs
+
+========================================================================
+  PHASE 1: MAMBA HYBRID TRAINING (600s wallclock, 8 GPUs)
+========================================================================
+  Shards: 44 train, 1 val
+  Training env:
+    ADAM_WD=0.095
+    ATTN_LAYER_POS=2,5
+    BESE_TOKENIZER_ROOT=/workspace/bese/tokenizer
+    BIGRAM_PRIOR_ENABLED=0
+    DATA_PATH=/runpod-volume/bese_shards_v5
+    DEPTH_RECURRENCE_ACTIVATION_FRAC=1.0
+    DEPTH_RECURRENCE_END=0
+    DEPTH_RECURRENCE_LOOPS=1
+    DEPTH_RECURRENCE_START=0
+    D_STATE=128
+    EMA_DECAY=0.9965
+    EVAL_SEQ_LEN=2048
+    EVAL_STRIDE=64
+    LATE_QAT_THRESHOLD=0
+    MAMBA_CHUNK_SIZE=64
+    MAMBA_EXPAND=2
+    MAMBA_HEADDIM=64
+    MAMBA_NGROUPS=1
+    MATRIX_LR=0.026
+    MAX_WALLCLOCK_SECONDS=600
+    MLP_MULT=3.0
+    MODEL_DIM=512
+    MODEL_TYPE=mamba_hybrid
+    MUON_WD=0.095
+    NGRAM_PRIOR_PATH=/runpod-volume/artifacts/ngram_table_v6.bin
+    NGRAM_TILT_ENABLED=1
+    NGRAM_TILT_MAX_N=3
+    NOISY_QAT_ENABLED=0
+    NUM_HEADS=8
+    NUM_KV_HEADS=4
+    NUM_LAYERS=8
+    PYTHONPATH=/workspace/bese
+    QAT_ENABLED=0
+    QK_GAIN_INIT=5.25
+    RUN_ID=bese_v7_mamba
+    TOKENIZER_PATH=/runpod-volume/tokenizers/bese_bpe_248_v5.json
+    TRAIN_LOG_EVERY=100
+    TRAIN_SEQ_LEN=2048
+    TTT_CHUNK_SIZE=32768
+    TTT_ENABLED=0
+    TTT_EPOCHS=1
+    TTT_GRAD_CLIP=1.0
+    TTT_LR=0.005
+    TTT_MOMENTUM=0.9
+    VAL_LOSS_EVERY=500
+    VOCAB_SIZE=288
+    WARMDOWN_ITERS=5000
+
+  [torchrun] Running: torchrun --standalone --nproc_per_node=8 /workspace/bese/integration/train_gpt_bese.py
+W0416 06:41:14.972000 3190 torch/distributed/run.py:803] 
+W0416 06:41:14.972000 3190 torch/distributed/run.py:803] *****************************************
+W0416 06:41:14.972000 3190 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0416 06:41:14.972000 3190 torch/distributed/run.py:803] *****************************************
+logs/bese_v7_mamba.txt
+val_bpb:enabled tokenizer_kind=bese_bpe tokenizer_path=/runpod-volume/tokenizers/bese_bpe_248_v5.json vocab_size=288
+train_loader:dataset:bese_shards_v5 train_shards:44
+val_loader:shards pattern=/runpod-volume/bese_shards_v5/fineweb_val_*.bin tokens:76632064
+/usr/local/lib/python3.12/dist-packages/torch/nn/functional.py:2920: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+torch.compile:skipped (mamba_hybrid, Triton kernel is the fast path)
+model_params:15152432
+model_type:mamba_hybrid d_state:128 expand:2 ngroups:1 attn_pos:[2, 5]
+world_size:8 grad_accum_steps:1
+/usr/local/lib/python3.12/dist-packages/torch/nn/functional.py:2920: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.026 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+/usr/local/lib/python3.12/dist-packages/torch/nn/functional.py:2920: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/usr/local/lib/python3.12/dist-packages/torch/nn/functional.py:2920: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/usr/local/lib/python3.12/dist-packages/torch/nn/functional.py:2920: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/usr/local/lib/python3.12/dist-packages/torch/nn/functional.py:2920: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/usr/local/lib/python3.12/dist-packages/torch/nn/functional.py:2920: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/usr/local/lib/python3.12/dist-packages/torch/nn/functional.py:2920: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:5.6808 val_bpb:4.1571 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:5.6067 train_time:343ms step_avg:343.47ms
+step:2/20000 train_loss:9.2367 train_time:647ms step_avg:323.62ms
+step:3/20000 train_loss:7.3239 train_time:927ms step_avg:309.13ms
+step:4/20000 train_loss:5.9848 train_time:1206ms step_avg:301.58ms
+step:5/20000 train_loss:6.0772 train_time:1511ms step_avg:302.26ms
+step:6/20000 train_loss:5.7907 train_time:1823ms step_avg:303.76ms
+step:7/20000 train_loss:5.9782 train_time:2134ms step_avg:304.81ms
+step:8/20000 train_loss:5.7510 train_time:2444ms step_avg:305.46ms
+step:9/20000 train_loss:5.5104 train_time:2725ms step_avg:302.81ms
+step:10/20000 train_loss:6.0598 train_time:3005ms step_avg:300.50ms
+step:100/20000 train_loss:2.8180 train_time:27511ms step_avg:275.11ms
+step:200/20000 train_loss:2.3938 train_time:54885ms step_avg:274.42ms
+step:300/20000 train_loss:2.2195 train_time:82293ms step_avg:274.31ms
+step:400/20000 train_loss:2.0719 train_time:109671ms step_avg:274.18ms
+step:500/20000 train_loss:1.9991 train_time:136924ms step_avg:273.85ms
+step:500/20000 val_loss:2.1127 val_bpb:1.5460 train_time:136962ms step_avg:273.92ms
+step:600/20000 train_loss:1.9919 train_time:164358ms step_avg:273.93ms
+step:700/20000 train_loss:1.9344 train_time:191760ms step_avg:273.94ms
+step:800/20000 train_loss:1.9071 train_time:219112ms step_avg:273.89ms
+step:900/20000 train_loss:1.9019 train_time:246474ms step_avg:273.86ms
+step:1000/20000 train_loss:1.9488 train_time:273699ms step_avg:273.70ms
+step:1000/20000 val_loss:1.9497 val_bpb:1.4268 train_time:273713ms step_avg:273.71ms
+step:1100/20000 train_loss:1.8819 train_time:301030ms step_avg:273.66ms
+swa:start step:1200
+step:1200/20000 train_loss:1.8882 train_time:328375ms step_avg:273.65ms
+step:1300/20000 train_loss:1.9037 train_time:355888ms step_avg:273.76ms
+step:1400/20000 train_loss:1.7942 train_time:383255ms step_avg:273.75ms
+step:1500/20000 train_loss:1.7417 train_time:410513ms step_avg:273.68ms
+step:1500/20000 val_loss:1.8866 val_bpb:1.3806 train_time:410542ms step_avg:273.69ms
+step:1600/20000 train_loss:1.8532 train_time:437902ms step_avg:273.69ms
+step:1700/20000 train_loss:1.8551 train_time:465397ms step_avg:273.76ms
+step:1800/20000 train_loss:1.7673 train_time:492787ms step_avg:273.77ms
+step:1900/20000 train_loss:1.7762 train_time:520052ms step_avg:273.71ms
+step:2000/20000 train_loss:1.9196 train_time:547511ms step_avg:273.76ms
+step:2000/20000 val_loss:1.8433 val_bpb:1.3489 train_time:547568ms step_avg:273.78ms
+step:2100/20000 train_loss:1.8175 train_time:574913ms step_avg:273.77ms
+step:2191/20000 val_loss:1.8391 val_bpb:1.3458 train_time:600028ms step_avg:273.86ms
+stopping_early: wallclock_cap train_time:600028ms step:2191/20000
+peak memory allocated: 41596 MiB reserved: 42438 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.8414 val_bpb:1.3475 eval_time:9444ms
+Serialized model: 30357515 bytes
+Code size: 108633 bytes
+Bundled n-gram prior: 298,802 bytes from /runpod-volume/artifacts/ngram_table_v6.bin
+Serialized model int6+lzma: 7452680 bytes
+Total submission size int6+lzma: 7561313 bytes
+Extracted bundled n-gram prior: 298,802 bytes → /tmp/tmpwuww5dk4.bin
+final_int6_roundtrip val_loss:1.8870 val_bpb:1.3809 eval_time:9447ms
+final_int6_roundtrip_exact val_loss:1.88698964 val_bpb:1.38086544
+ngram_tilt: loaded prior for sliding window eval from /tmp/tmpwuww5dk4.bin
+final_int6_sliding_window val_loss:1.8545 val_bpb:1.3571 stride:64 eval_time:401929ms
+final_int6_sliding_window_exact val_loss:1.85446154 val_bpb:1.35706229
+final_int6_lzma_roundtrip_exact val_loss:1.85446154 val_bpb:1.35706229
+  [torchrun] Completed in 1129.5s (18.8 min)
+
+========================================================================
+  RUN SUMMARY
+========================================================================
+  int6_bpb: 1.3809
+  model_bytes: 30357515
+  size_bytes: 7561313
+  sliding_bpb: 1.3571
+
+  Total wall time: 1130.5s (18.8 min)
+  Saved artifact to /runpod-volume/checkpoints/v7_mamba/final_model.int6.ptz
