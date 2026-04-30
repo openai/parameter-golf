@@ -1,0 +1,37 @@
+{
+  "author": "James Vo",
+  "github_id": "jamesEmerson112",
+  "name": "SP8192 + Full Stack + Headwise Gated Attention + Legal TTT",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.0805,
+  "val_bpb_std": 0.0012,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42":   {"val_bpb": 1.0818, "artifact_bytes": 15697552},
+    "1337": {"val_bpb": 1.0794, "artifact_bytes": 15694065},
+    "2025": {"val_bpb": 1.0804, "artifact_bytes": 15693855}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "SP8192 + Headwise Gated Attention (novel) + full rank 1 stack (FA3, 11Lx512d, depth recurrence, parallel residuals, XSA, MuonEq-R, EMA 0.9965, GPTQ int6+brotli, score-first TTT, emb7+eclip15)",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_stack": "@bigbag (PR #1493)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "headwise_gated_attention": "James Vo (novel contribution)"
+  }
+}

@@ -1,0 +1,242 @@
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 15.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gated_attn: headwise
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/v2_c6_seed1337.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: v2_c6_seed1337
+  scalar_lr: 0.02
+  seed: 1337
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 100
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 3
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 500
+  value_residual_alpha: 0.0
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.11.10 (main, Sep  7 2024, 18:35:41) [GCC 11.4.0]
+Running PyTorch 2.11.0+cu130
+Wed Apr 29 12:31:14 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:19:00.0 Off |                    0 |
+| N/A   48C    P0            128W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:3B:00.0 Off |                    0 |
+| N/A   38C    P0            116W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   37C    P0            116W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   46C    P0            126W /  700W |    1505MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9B:00.0 Off |                    0 |
+| N/A   49C    P0            130W /  700W |    1505MiB /  81559MiB |      3%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:BB:00.0 Off |                    0 |
+| N/A   39C    P0            120W /  700W |    1505MiB /  81559MiB |      2%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   48C    P0            128W /  700W |    1505MiB /  81559MiB |      2%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   38C    P0            119W /  700W |    1505MiB /  81559MiB |      2%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+train_shards: 80
+val_tokens: 40540160
+model_params:35989592
+gptq:reserving 12s, effective=588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0068 val_bpb: 3.4868
+1/20000 train_loss: 9.0088 train_time: 0.0m tok/s: 8152392
+2/20000 train_loss: 12.2787 train_time: 0.0m tok/s: 7983132
+3/20000 train_loss: 10.9339 train_time: 0.0m tok/s: 7881069
+4/20000 train_loss: 9.4166 train_time: 0.0m tok/s: 7816024
+5/20000 train_loss: 8.3102 train_time: 0.0m tok/s: 7783888
+100/20000 train_loss: 4.5645 train_time: 0.2m tok/s: 7590748
+200/20000 train_loss: 3.7342 train_time: 0.3m tok/s: 7582352
+300/20000 train_loss: 3.4871 train_time: 0.5m tok/s: 7576320
+400/20000 train_loss: 3.3571 train_time: 0.7m tok/s: 7572042
+500/20000 train_loss: 3.3662 train_time: 0.9m tok/s: 7568371
+500/20000 val_loss: 3.3133 val_bpb: 1.2827
+600/20000 train_loss: 3.2899 train_time: 1.0m tok/s: 7565238
+700/20000 train_loss: 3.3220 train_time: 1.2m tok/s: 7562824
+800/20000 train_loss: 3.2130 train_time: 1.4m tok/s: 7561290
+900/20000 train_loss: 3.1658 train_time: 1.6m tok/s: 7561203
+1000/20000 train_loss: 3.2657 train_time: 1.7m tok/s: 7560948
+1000/20000 val_loss: 3.1960 val_bpb: 1.2373
+1100/20000 train_loss: 3.0734 train_time: 1.9m tok/s: 7561322
+1200/20000 train_loss: 3.1693 train_time: 2.1m tok/s: 7562658
+1300/20000 train_loss: 3.1835 train_time: 2.3m tok/s: 7563490
+1400/20000 train_loss: 3.1695 train_time: 2.4m tok/s: 7564196
+1500/20000 train_loss: 3.1733 train_time: 2.6m tok/s: 7564921
+1500/20000 val_loss: 3.1484 val_bpb: 1.2188
+1600/20000 train_loss: 3.1777 train_time: 2.8m tok/s: 7565726
+1700/20000 train_loss: 3.1173 train_time: 2.9m tok/s: 7566589
+1800/20000 train_loss: 3.1076 train_time: 3.1m tok/s: 7567120
+1900/20000 train_loss: 3.1316 train_time: 3.3m tok/s: 7567926
+layer_loop:enabled step:1981 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2000/20000 train_loss: 3.1238 train_time: 3.5m tok/s: 7534164
+2000/20000 val_loss: 3.1405 val_bpb: 1.2158
+2100/20000 train_loss: 3.1535 train_time: 3.7m tok/s: 7369858
+2200/20000 train_loss: 3.0303 train_time: 4.0m tok/s: 7226284
+2300/20000 train_loss: 3.1113 train_time: 4.2m tok/s: 7100077
+2400/20000 train_loss: 2.9770 train_time: 4.5m tok/s: 6979056
+2500/20000 train_loss: 3.1097 train_time: 4.8m tok/s: 6870929
+2500/20000 val_loss: 3.0071 val_bpb: 1.1641
+2600/20000 train_loss: 3.0104 train_time: 5.0m tok/s: 6782235
+2700/20000 train_loss: 2.9826 train_time: 5.3m tok/s: 6702212
+2800/20000 train_loss: 2.9001 train_time: 5.5m tok/s: 6629643
+2900/20000 train_loss: 2.9302 train_time: 5.8m tok/s: 6549147
+3000/20000 train_loss: 2.8857 train_time: 6.1m tok/s: 6489373
+3000/20000 val_loss: 2.9609 val_bpb: 1.1463
+3100/20000 train_loss: 2.9701 train_time: 6.3m tok/s: 6434348
+3200/20000 train_loss: 2.8887 train_time: 6.6m tok/s: 6383803
+3300/20000 train_loss: 3.0209 train_time: 6.8m tok/s: 6336969
+3400/20000 train_loss: 2.9710 train_time: 7.1m tok/s: 6293534
+3500/20000 train_loss: 2.9246 train_time: 7.3m tok/s: 6253073
+3500/20000 val_loss: 2.9136 val_bpb: 1.1280
+3600/20000 train_loss: 2.9852 train_time: 7.6m tok/s: 6215470
+3700/20000 train_loss: 2.8358 train_time: 7.8m tok/s: 6179379
+3800/20000 train_loss: 2.9140 train_time: 8.1m tok/s: 6146353
+3900/20000 train_loss: 2.9994 train_time: 8.4m tok/s: 6115495
+4000/20000 train_loss: 2.8022 train_time: 8.6m tok/s: 6086484
+4000/20000 val_loss: 2.8571 val_bpb: 1.1061
+4100/20000 train_loss: 2.8320 train_time: 8.9m tok/s: 6059161
+4200/20000 train_loss: 2.8535 train_time: 9.1m tok/s: 6033335
+4300/20000 train_loss: 2.9284 train_time: 9.4m tok/s: 6008920
+4400/20000 train_loss: 2.7724 train_time: 9.6m tok/s: 5985838
+4465/20000 val_loss: 2.8064 val_bpb: 1.0864
+stopping_early: wallclock_cap train_time: 588034ms step: 4465/20000
+peak memory allocated: 39116 MiB reserved: 39228 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.80337728 val_bpb:1.08527471 eval_time:6806ms
+Serialized model: 135611257 bytes
+Code size: 50027 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 13.1s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int7): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 15694065 bytes
+Total submission size quantized+brotli: 15744092 bytes
+quantized val_loss:2.83547250 val_bpb:1.09769977 eval_time:9179ms
+quantized_sliding_window val_loss:2.79222167 val_bpb:1.08095602 eval_time:93255ms
+ttt:start chunks=1238 ttt_lr=0.005 ttt_epochs=3
+quantized_ttt val_loss:2.78825707 val_bpb:1.07942120 eval_time:335110ms
