@@ -1,0 +1,9 @@
+{
+  "name": "GPT baseline + QAT int8",
+  "github_id": "CarlosItp",
+  "val_bpb": 1.25996347,
+  "artifact_size": 15857763,
+  "training_time_seconds": 3600,
+  "gpus": "1x RTX 4090",
+  "notes": "GPT baseline with quantization-aware training (QAT int8 straight-through estimator). Non-record submission."
+}
