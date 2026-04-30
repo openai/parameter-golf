@@ -1,0 +1,29 @@
+{
+  "name": "AnAI",
+  "author": "VeerGosai",
+  "github_id": "VeerGosai",
+  "val_bpb": null,
+  "description": "10L int5/int6 quantization, BigramHash(12288), TrigramHash(4096), SmearGate, OrthoInit, Muon WD=0.04, SWA(0.35), 5% pruning, sliding eval stride=64",
+  "date": "2026-03-22",
+  "training_time_seconds": null,
+  "artifact_size_bytes": null,
+  "num_runs": 3,
+  "techniques": [
+    "10 transformer layers, 512 dim, 8 heads, 4 KV heads (GQA)",
+    "3x MLP expansion (hidden=1536), relu^2 activation",
+    "Mixed quantization: int5 for MLP weights, int6 for attention (optional int4 for MLP fc via USE_INT4_MLP_FC=1)",
+    "BigramHash embedding (12288 buckets, dim=128) — increased from SOTA 10240",
+    "TrigramHash embedding (4096 buckets, dim=64) — NOVEL: captures 3-gram context",
+    "SmearGate for adjacent token blending",
+    "Orthogonal initialization with muP-scaled output projections",
+    "U-Net skip connections with learned skip weights",
+    "Tied embeddings (FP16)",
+    "Muon optimizer with WD=0.04, momentum warmup 0.92->0.99",
+    "AdamW for embeddings/scalars with WD=0.04",
+    "SWA start_frac=0.35, every=40 steps (more aggressive than SOTA)",
+    "5% magnitude pruning (vs SOTA 3%) for better compression",
+    "Sliding window evaluation at stride=64",
+    "Zstd-22 compression",
+    "Gradient clipping at 0.3"
+  ]
+}
