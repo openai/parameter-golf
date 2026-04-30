@@ -61,4 +61,13 @@ Before next race:
 
 This report documents the data integrity issue affecting 42 experiments, which prevented competitive Parameter Golf submission and Gate-2 ratification.
 
+### Gardener code location
+```bash
+# Primary config generator
+crates/trios-railway-audit/src/lib.rs
+
+# Config schema
+crates/trios-railway-core/src/config.rs
+```
+
 **Date:** 2026-05-01 (ICT, UTC+7)
