@@ -1,0 +1,11 @@
+# c22 submission — runtime deps.
+# torch 2.9.1+cu128 is installed by setup.sh to match the FA3 wheel ABI.
+torch==2.9.1
+torchvision
+torchaudio
+sentencepiece>=0.2.0
+zstandard>=0.22.0
+huggingface_hub>=0.20.0
+numpy
+# flash-attn-3 is optional — pre-installed in runpod/pytorch image.
+# If absent, c22_train.py falls back to torch SDPA (math-identical, ~15-25% slower).

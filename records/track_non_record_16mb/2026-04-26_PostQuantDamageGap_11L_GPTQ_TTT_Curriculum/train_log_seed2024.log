@@ -1,0 +1,1431 @@
+[run] 128 train shards, 1 val shard(s), tokenizer ok
+[run] config:
+  SEED=2024
+  MAX_WALLCLOCK_SECONDS=600
+  TTT_ENABLED=1
+  DATA_DIR=/root/c22_submission/final/data
+[run] launcher: torchrun × 8
+[run] launching c22_train.py at 07:15:19Z
+[run] log: logs/run_seed2024_20260424T071519Z.log
+W0424 07:15:20.974000 3501937 torch/distributed/run.py:803] 
+W0424 07:15:20.974000 3501937 torch/distributed/run.py:803] *****************************************
+W0424 07:15:20.974000 3501937 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0424 07:15:20.974000 3501937 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.095
+  beta1: 0.9
+  beta2: 0.95
+  compressor: zstd
+  data_dir: /root/c22_submission/final/data
+  datasets_dir: /root/c22_submission/final/data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 5
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/e2156326-92a6-4afd-831f-48be07e5b128.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 4
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 3
+  muon_beta2: 0.95
+  muon_momentum: 0.98
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.12
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  prequant_ttt_batch_seqs: 16
+  prequant_ttt_cosine_decay: True
+  prequant_ttt_enabled: False
+  prequant_ttt_epochs: 8
+  prequant_ttt_freeze_blocks: 1
+  prequant_ttt_grad_clip: 1.0
+  prequant_ttt_lr: 0.00045
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: e2156326-92a6-4afd-831f-48be07e5b128
+  scalar_lr: 0.02
+  seed: 2024
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /root/c22_submission/final/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 524288
+  train_files: /root/c22_submission/final/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 10
+  train_seq_len: 2048
+  ttt_batch_seqs: 16
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 3
+  ttt_freeze_blocks: 0
+  ttt_grad_clip: 1.0
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 262144
+  val_files: /root/c22_submission/final/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 128
+val_tokens: 40540160
+model_params:35988657
+[curriculum] rank=4/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=7/8 buckets=10 total_seqs=736249 floor=0.02
+[curriculum] rank=0/8 buckets=10 total_seqs=781248 floor=0.02
+gptq:reserving 12s, effective=588000ms
+[IDEA-051 freeze_dry] enabled — linear-combo pruning active
+[curriculum] rank=3/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=6/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=5/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=2/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=1/8 buckets=10 total_seqs=781248 floor=0.02
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 4] decoder:[5, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+[curriculum] rank=4/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=7/8 buckets=10 total_seqs=736249 floor=0.02
+[curriculum] rank=5/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=2/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=1/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=3/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=6/8 buckets=10 total_seqs=781248 floor=0.02
+[curriculum] rank=0/8 buckets=10 total_seqs=781248 floor=0.02
+0/20000 val_loss: 9.0088 val_bpb: 3.4876
+1/20000 train_loss: 9.0003 train_time: 0.0m tok/s: 179005
+2/20000 train_loss: 12.3492 train_time: 0.1m tok/s: 309299
+3/20000 train_loss: 11.2962 train_time: 0.1m tok/s: 429372
+4/20000 train_loss: 9.6188 train_time: 0.1m tok/s: 559036
+5/20000 train_loss: 8.5578 train_time: 0.1m tok/s: 682597
+10/20000 train_loss: 6.8068 train_time: 0.1m tok/s: 1219560
+20/20000 train_loss: 5.8403 train_time: 0.1m tok/s: 1987877
+30/20000 train_loss: 5.4990 train_time: 0.1m tok/s: 2513679
+40/20000 train_loss: 5.2299 train_time: 0.1m tok/s: 2897218
+50/20000 train_loss: 5.1759 train_time: 0.1m tok/s: 3189538
+60/20000 train_loss: 5.0532 train_time: 0.2m tok/s: 3419461
+70/20000 train_loss: 4.8524 train_time: 0.2m tok/s: 3603556
+80/20000 train_loss: 4.8046 train_time: 0.2m tok/s: 3755959
+90/20000 train_loss: 4.6890 train_time: 0.2m tok/s: 3884679
+100/20000 train_loss: 4.4670 train_time: 0.2m tok/s: 3992997
+110/20000 train_loss: 4.4494 train_time: 0.2m tok/s: 4087738
+120/20000 train_loss: 4.3053 train_time: 0.3m tok/s: 4167720
+130/20000 train_loss: 4.1652 train_time: 0.3m tok/s: 4240348
+140/20000 train_loss: 4.0802 train_time: 0.3m tok/s: 4302680
+150/20000 train_loss: 4.0015 train_time: 0.3m tok/s: 4359465
+160/20000 train_loss: 3.8765 train_time: 0.3m tok/s: 4410988
+170/20000 train_loss: 3.8325 train_time: 0.3m tok/s: 4457818
+180/20000 train_loss: 3.8128 train_time: 0.3m tok/s: 4500204
+190/20000 train_loss: 3.7272 train_time: 0.4m tok/s: 4538740
+200/20000 train_loss: 3.7637 train_time: 0.4m tok/s: 4574473
+210/20000 train_loss: 3.5852 train_time: 0.4m tok/s: 4606449
+220/20000 train_loss: 3.6564 train_time: 0.4m tok/s: 4635303
+230/20000 train_loss: 3.5442 train_time: 0.4m tok/s: 4662846
+240/20000 train_loss: 3.6444 train_time: 0.4m tok/s: 4688553
+250/20000 train_loss: 3.5884 train_time: 0.5m tok/s: 4712686
+260/20000 train_loss: 3.5843 train_time: 0.5m tok/s: 4734922
+270/20000 train_loss: 3.5178 train_time: 0.5m tok/s: 4754533
+280/20000 train_loss: 3.3968 train_time: 0.5m tok/s: 4773581
+290/20000 train_loss: 3.5387 train_time: 0.5m tok/s: 4791821
+300/20000 train_loss: 3.5240 train_time: 0.5m tok/s: 4808669
+310/20000 train_loss: 3.4982 train_time: 0.6m tok/s: 4824792
+320/20000 train_loss: 3.4269 train_time: 0.6m tok/s: 4839470
+330/20000 train_loss: 3.3841 train_time: 0.6m tok/s: 4853502
+340/20000 train_loss: 3.4009 train_time: 0.6m tok/s: 4866908
+350/20000 train_loss: 3.4648 train_time: 0.6m tok/s: 4878953
+360/20000 train_loss: 3.4400 train_time: 0.6m tok/s: 4891191
+370/20000 train_loss: 3.4035 train_time: 0.7m tok/s: 4902552
+380/20000 train_loss: 3.3657 train_time: 0.7m tok/s: 4913898
+390/20000 train_loss: 3.3979 train_time: 0.7m tok/s: 4923976
+400/20000 train_loss: 3.4366 train_time: 0.7m tok/s: 4933807
+410/20000 train_loss: 3.3907 train_time: 0.7m tok/s: 4943235
+420/20000 train_loss: 3.3005 train_time: 0.7m tok/s: 4951745
+430/20000 train_loss: 3.4117 train_time: 0.8m tok/s: 4960618
+440/20000 train_loss: 3.4008 train_time: 0.8m tok/s: 4968674
+450/20000 train_loss: 3.3284 train_time: 0.8m tok/s: 4976583
+460/20000 train_loss: 3.3913 train_time: 0.8m tok/s: 4984374
+470/20000 train_loss: 3.3444 train_time: 0.8m tok/s: 4991679
+480/20000 train_loss: 3.3354 train_time: 0.8m tok/s: 4998712
+490/20000 train_loss: 3.2410 train_time: 0.9m tok/s: 5005123
+500/20000 train_loss: 3.2618 train_time: 0.9m tok/s: 5011661
+510/20000 train_loss: 3.4598 train_time: 0.9m tok/s: 5018136
+520/20000 train_loss: 3.3676 train_time: 0.9m tok/s: 5023819
+530/20000 train_loss: 3.3943 train_time: 0.9m tok/s: 5028939
+540/20000 train_loss: 3.2905 train_time: 0.9m tok/s: 5034165
+550/20000 train_loss: 3.3014 train_time: 1.0m tok/s: 5039554
+560/20000 train_loss: 3.3260 train_time: 1.0m tok/s: 5044658
+570/20000 train_loss: 3.3011 train_time: 1.0m tok/s: 5049950
+580/20000 train_loss: 3.2999 train_time: 1.0m tok/s: 5054975
+590/20000 train_loss: 3.3530 train_time: 1.0m tok/s: 5059853
+600/20000 train_loss: 3.3345 train_time: 1.0m tok/s: 5064678
+610/20000 train_loss: 3.3840 train_time: 1.1m tok/s: 5069053
+620/20000 train_loss: 3.2941 train_time: 1.1m tok/s: 5073314
+630/20000 train_loss: 3.3236 train_time: 1.1m tok/s: 5077217
+640/20000 train_loss: 3.3136 train_time: 1.1m tok/s: 5081217
+650/20000 train_loss: 3.2965 train_time: 1.1m tok/s: 5084996
+660/20000 train_loss: 3.2067 train_time: 1.1m tok/s: 5088778
+670/20000 train_loss: 3.1880 train_time: 1.1m tok/s: 5092386
+680/20000 train_loss: 3.3295 train_time: 1.2m tok/s: 5096276
+690/20000 train_loss: 3.2924 train_time: 1.2m tok/s: 5099898
+700/20000 train_loss: 3.2250 train_time: 1.2m tok/s: 5103196
+710/20000 train_loss: 3.2357 train_time: 1.2m tok/s: 5106454
+720/20000 train_loss: 3.2661 train_time: 1.2m tok/s: 5109690
+730/20000 train_loss: 3.1635 train_time: 1.2m tok/s: 5112610
+740/20000 train_loss: 3.3324 train_time: 1.3m tok/s: 5115776
+750/20000 train_loss: 3.2649 train_time: 1.3m tok/s: 5118803
+760/20000 train_loss: 3.1790 train_time: 1.3m tok/s: 5121686
+770/20000 train_loss: 3.2511 train_time: 1.3m tok/s: 5124512
+780/20000 train_loss: 3.2990 train_time: 1.3m tok/s: 5127240
+790/20000 train_loss: 3.3104 train_time: 1.3m tok/s: 5130031
+800/20000 train_loss: 3.2679 train_time: 1.4m tok/s: 5132623
+810/20000 train_loss: 3.3507 train_time: 1.4m tok/s: 5135002
+820/20000 train_loss: 3.2524 train_time: 1.4m tok/s: 5137485
+830/20000 train_loss: 3.2762 train_time: 1.4m tok/s: 5139423
+840/20000 train_loss: 3.3196 train_time: 1.4m tok/s: 5141826
+850/20000 train_loss: 3.3000 train_time: 1.4m tok/s: 5144242
+860/20000 train_loss: 3.1857 train_time: 1.5m tok/s: 5146585
+870/20000 train_loss: 3.2781 train_time: 1.5m tok/s: 5148971
+880/20000 train_loss: 3.2076 train_time: 1.5m tok/s: 5151187
+890/20000 train_loss: 3.3216 train_time: 1.5m tok/s: 5153329
+900/20000 train_loss: 3.3858 train_time: 1.5m tok/s: 5155453
+910/20000 train_loss: 3.2010 train_time: 1.5m tok/s: 5157250
+920/20000 train_loss: 3.1570 train_time: 1.6m tok/s: 5159176
+930/20000 train_loss: 3.2283 train_time: 1.6m tok/s: 5160978
+940/20000 train_loss: 3.3009 train_time: 1.6m tok/s: 5162844
+950/20000 train_loss: 3.2503 train_time: 1.6m tok/s: 5164813
+960/20000 train_loss: 3.2321 train_time: 1.6m tok/s: 5166700
+970/20000 train_loss: 3.2610 train_time: 1.6m tok/s: 5168678
+980/20000 train_loss: 3.2442 train_time: 1.7m tok/s: 5170672
+990/20000 train_loss: 3.3050 train_time: 1.7m tok/s: 5172634
+1000/20000 train_loss: 3.2891 train_time: 1.7m tok/s: 5174445
+1010/20000 train_loss: 3.3279 train_time: 1.7m tok/s: 5176274
+1020/20000 train_loss: 3.2115 train_time: 1.7m tok/s: 5177977
+1030/20000 train_loss: 3.1750 train_time: 1.7m tok/s: 5179858
+1040/20000 train_loss: 3.3007 train_time: 1.8m tok/s: 5181328
+1050/20000 train_loss: 3.1879 train_time: 1.8m tok/s: 5182843
+1060/20000 train_loss: 3.2223 train_time: 1.8m tok/s: 5184551
+1070/20000 train_loss: 3.1965 train_time: 1.8m tok/s: 5186165
+1080/20000 train_loss: 3.1973 train_time: 1.8m tok/s: 5187901
+1090/20000 train_loss: 3.1746 train_time: 1.8m tok/s: 5189407
+1100/20000 train_loss: 3.2243 train_time: 1.9m tok/s: 5190881
+1110/20000 train_loss: 3.2501 train_time: 1.9m tok/s: 5192457
+1120/20000 train_loss: 3.1339 train_time: 1.9m tok/s: 5193998
+1130/20000 train_loss: 3.2061 train_time: 1.9m tok/s: 5195487
+1140/20000 train_loss: 3.2119 train_time: 1.9m tok/s: 5197061
+1150/20000 train_loss: 3.2503 train_time: 1.9m tok/s: 5198402
+1160/20000 train_loss: 3.1418 train_time: 1.9m tok/s: 5199911
+1170/20000 train_loss: 3.2149 train_time: 2.0m tok/s: 5201404
+1180/20000 train_loss: 3.2682 train_time: 2.0m tok/s: 5202660
+1190/20000 train_loss: 3.2151 train_time: 2.0m tok/s: 5203900
+1200/20000 train_loss: 3.1639 train_time: 2.0m tok/s: 5205236
+1210/20000 train_loss: 3.1475 train_time: 2.0m tok/s: 5206640
+1220/20000 train_loss: 3.1907 train_time: 2.0m tok/s: 5207878
+1230/20000 train_loss: 3.1719 train_time: 2.1m tok/s: 5209006
+1240/20000 train_loss: 3.2569 train_time: 2.1m tok/s: 5209960
+1250/20000 train_loss: 3.2835 train_time: 2.1m tok/s: 5211202
+1260/20000 train_loss: 3.2251 train_time: 2.1m tok/s: 5212491
+1270/20000 train_loss: 3.2233 train_time: 2.1m tok/s: 5213219
+1280/20000 train_loss: 3.1878 train_time: 2.1m tok/s: 5214627
+1290/20000 train_loss: 3.2599 train_time: 2.2m tok/s: 5215752
+1300/20000 train_loss: 3.1480 train_time: 2.2m tok/s: 5216996
+1310/20000 train_loss: 3.2008 train_time: 2.2m tok/s: 5218132
+1320/20000 train_loss: 3.2629 train_time: 2.2m tok/s: 5219047
+1330/20000 train_loss: 3.2111 train_time: 2.2m tok/s: 5220109
+1340/20000 train_loss: 3.2161 train_time: 2.2m tok/s: 5221080
+1350/20000 train_loss: 3.1793 train_time: 2.3m tok/s: 5222177
+1360/20000 train_loss: 3.2940 train_time: 2.3m tok/s: 5222961
+1370/20000 train_loss: 3.2959 train_time: 2.3m tok/s: 5224087
+1380/20000 train_loss: 3.1618 train_time: 2.3m tok/s: 5225105
+1390/20000 train_loss: 3.1612 train_time: 2.3m tok/s: 5226224
+1400/20000 train_loss: 3.2993 train_time: 2.3m tok/s: 5226997
+1410/20000 train_loss: 3.1916 train_time: 2.4m tok/s: 5227864
+1420/20000 train_loss: 3.2577 train_time: 2.4m tok/s: 5228822
+1430/20000 train_loss: 3.1210 train_time: 2.4m tok/s: 5229817
+1440/20000 train_loss: 3.2823 train_time: 2.4m tok/s: 5230670
+1450/20000 train_loss: 3.2876 train_time: 2.4m tok/s: 5231586
+1460/20000 train_loss: 3.3291 train_time: 2.4m tok/s: 5232498
+1470/20000 train_loss: 3.2192 train_time: 2.5m tok/s: 5233332
+1480/20000 train_loss: 3.2338 train_time: 2.5m tok/s: 5234211
+1490/20000 train_loss: 3.2384 train_time: 2.5m tok/s: 5235075
+1500/20000 train_loss: 3.1861 train_time: 2.5m tok/s: 5235814
+1510/20000 train_loss: 3.2193 train_time: 2.5m tok/s: 5236667
+1520/20000 train_loss: 3.1983 train_time: 2.5m tok/s: 5237524
+1530/20000 train_loss: 3.2004 train_time: 2.6m tok/s: 5238244
+1540/20000 train_loss: 3.2219 train_time: 2.6m tok/s: 5239047
+1550/20000 train_loss: 3.1849 train_time: 2.6m tok/s: 5239757
+1560/20000 train_loss: 3.2218 train_time: 2.6m tok/s: 5240519
+1570/20000 train_loss: 3.1568 train_time: 2.6m tok/s: 5241346
+1580/20000 train_loss: 3.2734 train_time: 2.6m tok/s: 5242212
+1590/20000 train_loss: 3.2238 train_time: 2.6m tok/s: 5243039
+1600/20000 train_loss: 3.1039 train_time: 2.7m tok/s: 5243571
+1610/20000 train_loss: 3.0813 train_time: 2.7m tok/s: 5244118
+1620/20000 train_loss: 3.2193 train_time: 2.7m tok/s: 5244918
+1630/20000 train_loss: 3.2419 train_time: 2.7m tok/s: 5245562
+1640/20000 train_loss: 3.2102 train_time: 2.7m tok/s: 5246297
+1650/20000 train_loss: 3.1865 train_time: 2.7m tok/s: 5246865
+1660/20000 train_loss: 3.1772 train_time: 2.8m tok/s: 5247367
+1670/20000 train_loss: 2.9799 train_time: 2.8m tok/s: 5248103
+1680/20000 train_loss: 3.1356 train_time: 2.8m tok/s: 5248811
+1690/20000 train_loss: 3.3216 train_time: 2.8m tok/s: 5249461
+1700/20000 train_loss: 3.1809 train_time: 2.8m tok/s: 5249961
+1710/20000 train_loss: 3.2476 train_time: 2.8m tok/s: 5250800
+1720/20000 train_loss: 3.1639 train_time: 2.9m tok/s: 5251339
+1730/20000 train_loss: 3.1709 train_time: 2.9m tok/s: 5251782
+1740/20000 train_loss: 3.0684 train_time: 2.9m tok/s: 5252202
+1750/20000 train_loss: 3.1142 train_time: 2.9m tok/s: 5252853
+1760/20000 train_loss: 3.2508 train_time: 2.9m tok/s: 5253507
+1770/20000 train_loss: 3.2880 train_time: 2.9m tok/s: 5254064
+1780/20000 train_loss: 3.1785 train_time: 3.0m tok/s: 5254739
+1790/20000 train_loss: 3.2320 train_time: 3.0m tok/s: 5255220
+1800/20000 train_loss: 3.1894 train_time: 3.0m tok/s: 5255882
+1810/20000 train_loss: 3.2427 train_time: 3.0m tok/s: 5256452
+1820/20000 train_loss: 3.1398 train_time: 3.0m tok/s: 5257020
+1830/20000 train_loss: 3.1566 train_time: 3.0m tok/s: 5257525
+1840/20000 train_loss: 3.2055 train_time: 3.1m tok/s: 5258015
+1850/20000 train_loss: 3.1936 train_time: 3.1m tok/s: 5258472
+1860/20000 train_loss: 3.1594 train_time: 3.1m tok/s: 5258903
+1870/20000 train_loss: 3.2495 train_time: 3.1m tok/s: 5259531
+1880/20000 train_loss: 3.1295 train_time: 3.1m tok/s: 5260084
+1890/20000 train_loss: 3.1184 train_time: 3.1m tok/s: 5260608
+1900/20000 train_loss: 3.1628 train_time: 3.2m tok/s: 5261317
+1910/20000 train_loss: 3.1186 train_time: 3.2m tok/s: 5261897
+1920/20000 train_loss: 3.0844 train_time: 3.2m tok/s: 5262478
+1930/20000 train_loss: 3.1957 train_time: 3.2m tok/s: 5263079
+1940/20000 train_loss: 3.1070 train_time: 3.2m tok/s: 5263619
+1950/20000 train_loss: 3.1173 train_time: 3.2m tok/s: 5264106
+1960/20000 train_loss: 3.0895 train_time: 3.3m tok/s: 5264508
+1970/20000 train_loss: 3.2105 train_time: 3.3m tok/s: 5264795
+1980/20000 train_loss: 3.1380 train_time: 3.3m tok/s: 5265258
+1990/20000 train_loss: 3.1849 train_time: 3.3m tok/s: 5265836
+2000/20000 train_loss: 3.1127 train_time: 3.3m tok/s: 5266354
+2010/20000 train_loss: 3.1493 train_time: 3.3m tok/s: 5266678
+2020/20000 train_loss: 3.1837 train_time: 3.4m tok/s: 5267034
+2030/20000 train_loss: 3.0927 train_time: 3.4m tok/s: 5267408
+2040/20000 train_loss: 3.2048 train_time: 3.4m tok/s: 5267895
+2050/20000 train_loss: 3.1466 train_time: 3.4m tok/s: 5268341
+2060/20000 train_loss: 3.1039 train_time: 3.4m tok/s: 5268680
+2070/20000 train_loss: 3.0717 train_time: 3.4m tok/s: 5269147
+2080/20000 train_loss: 3.1303 train_time: 3.4m tok/s: 5269647
+2090/20000 train_loss: 3.1374 train_time: 3.5m tok/s: 5270131
+2100/20000 train_loss: 3.1215 train_time: 3.5m tok/s: 5270534
+2110/20000 train_loss: 3.1661 train_time: 3.5m tok/s: 5270813
+2120/20000 train_loss: 3.0893 train_time: 3.5m tok/s: 5271250
+2130/20000 train_loss: 3.0042 train_time: 3.5m tok/s: 5271692
+2140/20000 train_loss: 3.2270 train_time: 3.5m tok/s: 5272142
+2150/20000 train_loss: 3.1392 train_time: 3.6m tok/s: 5272582
+2160/20000 train_loss: 3.1420 train_time: 3.6m tok/s: 5272858
+2170/20000 train_loss: 3.1948 train_time: 3.6m tok/s: 5273090
+2180/20000 train_loss: 3.1181 train_time: 3.6m tok/s: 5273519
+2190/20000 train_loss: 3.1309 train_time: 3.6m tok/s: 5273953
+2200/20000 train_loss: 3.2247 train_time: 3.6m tok/s: 5274278
+2210/20000 train_loss: 3.1295 train_time: 3.7m tok/s: 5274661
+2220/20000 train_loss: 3.1150 train_time: 3.7m tok/s: 5275099
+2230/20000 train_loss: 3.0894 train_time: 3.7m tok/s: 5275569
+2240/20000 train_loss: 3.1740 train_time: 3.7m tok/s: 5275994
+2250/20000 train_loss: 3.0543 train_time: 3.7m tok/s: 5276425
+2260/20000 train_loss: 3.1424 train_time: 3.7m tok/s: 5276647
+2270/20000 train_loss: 3.1905 train_time: 3.8m tok/s: 5276967
+2280/20000 train_loss: 3.1617 train_time: 3.8m tok/s: 5277368
+2290/20000 train_loss: 3.1484 train_time: 3.8m tok/s: 5277792
+2300/20000 train_loss: 3.2099 train_time: 3.8m tok/s: 5278236
+2310/20000 train_loss: 2.9860 train_time: 3.8m tok/s: 5278729
+2320/20000 train_loss: 3.1315 train_time: 3.8m tok/s: 5279000
+2330/20000 train_loss: 3.1794 train_time: 3.9m tok/s: 5279329
+2340/20000 train_loss: 3.0587 train_time: 3.9m tok/s: 5279644
+2350/20000 train_loss: 3.1369 train_time: 3.9m tok/s: 5279951
+2360/20000 train_loss: 3.1868 train_time: 3.9m tok/s: 5280248
+2370/20000 train_loss: 3.1287 train_time: 3.9m tok/s: 5280684
+2380/20000 train_loss: 3.0773 train_time: 3.9m tok/s: 5281013
+2390/20000 train_loss: 3.0551 train_time: 4.0m tok/s: 5281444
+2400/20000 train_loss: 3.1876 train_time: 4.0m tok/s: 5281792
+2410/20000 train_loss: 3.1529 train_time: 4.0m tok/s: 5282013
+2420/20000 train_loss: 3.0697 train_time: 4.0m tok/s: 5282424
+2430/20000 train_loss: 3.1524 train_time: 4.0m tok/s: 5282800
+2440/20000 train_loss: 3.1917 train_time: 4.0m tok/s: 5283206
+2450/20000 train_loss: 3.2525 train_time: 4.1m tok/s: 5283571
+2460/20000 train_loss: 3.1508 train_time: 4.1m tok/s: 5283701
+2470/20000 train_loss: 3.1592 train_time: 4.1m tok/s: 5283956
+2480/20000 train_loss: 3.3244 train_time: 4.1m tok/s: 5284385
+2490/20000 train_loss: 3.2249 train_time: 4.1m tok/s: 5284613
+2500/20000 train_loss: 3.1043 train_time: 4.1m tok/s: 5284073
+2510/20000 train_loss: 3.2375 train_time: 4.2m tok/s: 5283774
+2520/20000 train_loss: 3.2404 train_time: 4.2m tok/s: 5284135
+2530/20000 train_loss: 3.1918 train_time: 4.2m tok/s: 5284497
+2540/20000 train_loss: 3.0219 train_time: 4.2m tok/s: 5284763
+2550/20000 train_loss: 3.1461 train_time: 4.2m tok/s: 5285034
+2560/20000 train_loss: 3.0215 train_time: 4.2m tok/s: 5285355
+2570/20000 train_loss: 3.1380 train_time: 4.2m tok/s: 5285693
+2580/20000 train_loss: 3.2189 train_time: 4.3m tok/s: 5285946
+2590/20000 train_loss: 3.1274 train_time: 4.3m tok/s: 5286201
+2600/20000 train_loss: 3.1186 train_time: 4.3m tok/s: 5286549
+2610/20000 train_loss: 3.1328 train_time: 4.3m tok/s: 5286845
+2620/20000 train_loss: 3.1408 train_time: 4.3m tok/s: 5287214
+2630/20000 train_loss: 3.0626 train_time: 4.3m tok/s: 5287560
+2640/20000 train_loss: 3.1991 train_time: 4.4m tok/s: 5287870
+2650/20000 train_loss: 3.0392 train_time: 4.4m tok/s: 5288154
+2660/20000 train_loss: 3.1626 train_time: 4.4m tok/s: 5288479
+2670/20000 train_loss: 3.1311 train_time: 4.4m tok/s: 5288680
+2680/20000 train_loss: 3.0859 train_time: 4.4m tok/s: 5288974
+2690/20000 train_loss: 3.0847 train_time: 4.4m tok/s: 5289299
+2700/20000 train_loss: 3.1041 train_time: 4.5m tok/s: 5289625
+2710/20000 train_loss: 3.2275 train_time: 4.5m tok/s: 5289800
+2720/20000 train_loss: 3.0883 train_time: 4.5m tok/s: 5290018
+2730/20000 train_loss: 3.1541 train_time: 4.5m tok/s: 5290193
+2740/20000 train_loss: 3.0881 train_time: 4.5m tok/s: 5290409
+2750/20000 train_loss: 3.0717 train_time: 4.5m tok/s: 5290622
+2760/20000 train_loss: 3.1832 train_time: 4.6m tok/s: 5290868
+2770/20000 train_loss: 3.1303 train_time: 4.6m tok/s: 5291049
+2780/20000 train_loss: 3.1281 train_time: 4.6m tok/s: 5291247
+2790/20000 train_loss: 3.2004 train_time: 4.6m tok/s: 5291603
+2800/20000 train_loss: 3.1976 train_time: 4.6m tok/s: 5291793
+2810/20000 train_loss: 3.1852 train_time: 4.6m tok/s: 5292116
+2820/20000 train_loss: 3.0885 train_time: 4.7m tok/s: 5292293
+2830/20000 train_loss: 3.1651 train_time: 4.7m tok/s: 5292626
+2840/20000 train_loss: 3.1770 train_time: 4.7m tok/s: 5292876
+2850/20000 train_loss: 3.1956 train_time: 4.7m tok/s: 5293182
+2860/20000 train_loss: 3.0931 train_time: 4.7m tok/s: 5293499
+2870/20000 train_loss: 3.1296 train_time: 4.7m tok/s: 5293822
+2880/20000 train_loss: 3.1059 train_time: 4.8m tok/s: 5294126
+2890/20000 train_loss: 3.1758 train_time: 4.8m tok/s: 5294427
+2900/20000 train_loss: 3.1224 train_time: 4.8m tok/s: 5294667
+2910/20000 train_loss: 3.1495 train_time: 4.8m tok/s: 5294878
+2920/20000 train_loss: 3.1569 train_time: 4.8m tok/s: 5295214
+2930/20000 train_loss: 3.1107 train_time: 4.8m tok/s: 5295406
+2940/20000 train_loss: 3.0096 train_time: 4.9m tok/s: 5295498
+2950/20000 train_loss: 3.1422 train_time: 4.9m tok/s: 5295791
+2960/20000 train_loss: 3.1529 train_time: 4.9m tok/s: 5296016
+2970/20000 train_loss: 3.0521 train_time: 4.9m tok/s: 5296257
+layer_loop:enabled step:2970 frac:0.500 encoder:[0, 1, 2, 3, 4, 5, 4] decoder:[5, 4, 5, 6, 7, 8, 9, 10]
+2980/20000 train_loss: 3.2356 train_time: 4.9m tok/s: 5291851
+2990/20000 train_loss: 3.1268 train_time: 4.9m tok/s: 5287687
+3000/20000 train_loss: 3.2042 train_time: 5.0m tok/s: 5283592
+3010/20000 train_loss: 3.2201 train_time: 5.0m tok/s: 5279472
+3020/20000 train_loss: 3.1562 train_time: 5.0m tok/s: 5275465
+3030/20000 train_loss: 3.1408 train_time: 5.0m tok/s: 5271461
+3040/20000 train_loss: 3.1080 train_time: 5.0m tok/s: 5267505
+3050/20000 train_loss: 3.1210 train_time: 5.1m tok/s: 5263481
+3060/20000 train_loss: 3.0439 train_time: 5.1m tok/s: 5259577
+3070/20000 train_loss: 3.1593 train_time: 5.1m tok/s: 5255726
+3080/20000 train_loss: 3.1371 train_time: 5.1m tok/s: 5251903
+3090/20000 train_loss: 3.1223 train_time: 5.1m tok/s: 5248089
+3100/20000 train_loss: 3.1703 train_time: 5.2m tok/s: 5244268
+3110/20000 train_loss: 3.1433 train_time: 5.2m tok/s: 5240541
+3120/20000 train_loss: 3.2185 train_time: 5.2m tok/s: 5236828
+3130/20000 train_loss: 3.1583 train_time: 5.2m tok/s: 5233167
+3140/20000 train_loss: 3.0766 train_time: 5.2m tok/s: 5229449
+3150/20000 train_loss: 2.9879 train_time: 5.3m tok/s: 5225854
+3160/20000 train_loss: 3.0987 train_time: 5.3m tok/s: 5222246
+3170/20000 train_loss: 3.0493 train_time: 5.3m tok/s: 5218615
+3180/20000 train_loss: 3.1918 train_time: 5.3m tok/s: 5215070
+3190/20000 train_loss: 3.0316 train_time: 5.3m tok/s: 5211576
+3200/20000 train_loss: 3.1283 train_time: 5.4m tok/s: 5208075
+3210/20000 train_loss: 3.1449 train_time: 5.4m tok/s: 5204592
+3220/20000 train_loss: 3.1494 train_time: 5.4m tok/s: 5201069
+3230/20000 train_loss: 3.1386 train_time: 5.4m tok/s: 5197571
+3240/20000 train_loss: 3.2401 train_time: 5.5m tok/s: 5194199
+3250/20000 train_loss: 3.1678 train_time: 5.5m tok/s: 5190781
+3260/20000 train_loss: 3.0370 train_time: 5.5m tok/s: 5187401
+3270/20000 train_loss: 3.1035 train_time: 5.5m tok/s: 5184097
+3280/20000 train_loss: 3.1017 train_time: 5.5m tok/s: 5180759
+3290/20000 train_loss: 3.2700 train_time: 5.6m tok/s: 5177491
+3300/20000 train_loss: 3.0585 train_time: 5.6m tok/s: 5174246
+3310/20000 train_loss: 3.0236 train_time: 5.6m tok/s: 5170947
+3320/20000 train_loss: 3.0842 train_time: 5.6m tok/s: 5167719
+3330/20000 train_loss: 3.0681 train_time: 5.6m tok/s: 5164530
+3340/20000 train_loss: 3.0712 train_time: 5.7m tok/s: 5161357
+3350/20000 train_loss: 3.1023 train_time: 5.7m tok/s: 5158235
+3360/20000 train_loss: 3.0669 train_time: 5.7m tok/s: 5155163
+3370/20000 train_loss: 3.0037 train_time: 5.7m tok/s: 5152127
+3380/20000 train_loss: 3.1467 train_time: 5.7m tok/s: 5149037
+3390/20000 train_loss: 3.1392 train_time: 5.8m tok/s: 5145832
+3400/20000 train_loss: 3.0623 train_time: 5.8m tok/s: 5142737
+3410/20000 train_loss: 3.0925 train_time: 5.8m tok/s: 5139717
+3420/20000 train_loss: 3.2173 train_time: 5.8m tok/s: 5136759
+3430/20000 train_loss: 3.0266 train_time: 5.8m tok/s: 5133792
+3440/20000 train_loss: 3.0740 train_time: 5.9m tok/s: 5130886
+3450/20000 train_loss: 3.0516 train_time: 5.9m tok/s: 5128019
+3460/20000 train_loss: 3.2037 train_time: 5.9m tok/s: 5125102
+3470/20000 train_loss: 3.1386 train_time: 5.9m tok/s: 5122266
+3480/20000 train_loss: 3.0941 train_time: 5.9m tok/s: 5119428
+3490/20000 train_loss: 3.0841 train_time: 6.0m tok/s: 5116593
+3500/20000 train_loss: 3.0896 train_time: 6.0m tok/s: 5113815
+3510/20000 train_loss: 3.0954 train_time: 6.0m tok/s: 5111051
+3520/20000 train_loss: 3.0795 train_time: 6.0m tok/s: 5108270
+3530/20000 train_loss: 3.1287 train_time: 6.0m tok/s: 5105495
+3540/20000 train_loss: 3.1567 train_time: 6.1m tok/s: 5102774
+3550/20000 train_loss: 3.0516 train_time: 6.1m tok/s: 5100030
+3560/20000 train_loss: 3.0593 train_time: 6.1m tok/s: 5097355
+3570/20000 train_loss: 3.0751 train_time: 6.1m tok/s: 5094668
+3580/20000 train_loss: 3.0452 train_time: 6.1m tok/s: 5091989
+3590/20000 train_loss: 3.0216 train_time: 6.2m tok/s: 5089339
+3600/20000 train_loss: 3.0917 train_time: 6.2m tok/s: 5086638
+3610/20000 train_loss: 3.0304 train_time: 6.2m tok/s: 5084017
+3620/20000 train_loss: 3.1567 train_time: 6.2m tok/s: 5081435
+3630/20000 train_loss: 2.9943 train_time: 6.2m tok/s: 5078747
+3640/20000 train_loss: 3.0352 train_time: 6.3m tok/s: 5076215
+3650/20000 train_loss: 3.1965 train_time: 6.3m tok/s: 5073676
+3660/20000 train_loss: 3.0195 train_time: 6.3m tok/s: 5071145
+3670/20000 train_loss: 3.1046 train_time: 6.3m tok/s: 5068634
+3680/20000 train_loss: 3.0656 train_time: 6.3m tok/s: 5066145
+3690/20000 train_loss: 3.1075 train_time: 6.4m tok/s: 5063606
+3700/20000 train_loss: 3.0974 train_time: 6.4m tok/s: 5061081
+3710/20000 train_loss: 3.1139 train_time: 6.4m tok/s: 5058538
+3720/20000 train_loss: 3.0954 train_time: 6.4m tok/s: 5055993
+3730/20000 train_loss: 3.0337 train_time: 6.4m tok/s: 5053533
+3740/20000 train_loss: 2.9816 train_time: 6.5m tok/s: 5051116
+3750/20000 train_loss: 3.0255 train_time: 6.5m tok/s: 5048728
+3760/20000 train_loss: 2.9685 train_time: 6.5m tok/s: 5046367
+3770/20000 train_loss: 3.0797 train_time: 6.5m tok/s: 5044001
+3780/20000 train_loss: 3.0783 train_time: 6.6m tok/s: 5041675
+3790/20000 train_loss: 3.1633 train_time: 6.6m tok/s: 5039331
+3800/20000 train_loss: 3.0589 train_time: 6.6m tok/s: 5036917
+3810/20000 train_loss: 3.1454 train_time: 6.6m tok/s: 5034619
+3820/20000 train_loss: 3.0333 train_time: 6.6m tok/s: 5032272
+3830/20000 train_loss: 2.9862 train_time: 6.7m tok/s: 5030034
+3840/20000 train_loss: 3.0431 train_time: 6.7m tok/s: 5027671
+3850/20000 train_loss: 3.0948 train_time: 6.7m tok/s: 5025435
+3860/20000 train_loss: 3.0806 train_time: 6.7m tok/s: 5023188
+3870/20000 train_loss: 3.0390 train_time: 6.7m tok/s: 5020972
+3880/20000 train_loss: 3.0930 train_time: 6.8m tok/s: 5018702
+3890/20000 train_loss: 3.1046 train_time: 6.8m tok/s: 5016500
+3900/20000 train_loss: 2.9905 train_time: 6.8m tok/s: 5014337
+3910/20000 train_loss: 3.0817 train_time: 6.8m tok/s: 5012157
+3920/20000 train_loss: 3.1994 train_time: 6.8m tok/s: 5009996
+3930/20000 train_loss: 3.1468 train_time: 6.9m tok/s: 5007862
+3940/20000 train_loss: 3.1063 train_time: 6.9m tok/s: 5005724
+3950/20000 train_loss: 2.9952 train_time: 6.9m tok/s: 5003585
+3960/20000 train_loss: 3.0622 train_time: 6.9m tok/s: 5001488
+3970/20000 train_loss: 3.0622 train_time: 6.9m tok/s: 4999411
+3980/20000 train_loss: 3.1570 train_time: 7.0m tok/s: 4997355
+3990/20000 train_loss: 3.0982 train_time: 7.0m tok/s: 4995306
+4000/20000 train_loss: 2.9855 train_time: 7.0m tok/s: 4993255
+4000/20000 val_loss: 3.0119 val_bpb: 1.1660
+4010/20000 train_loss: 2.9810 train_time: 7.0m tok/s: 4992142
+4020/20000 train_loss: 3.0715 train_time: 7.0m tok/s: 4990243
+4030/20000 train_loss: 3.0336 train_time: 7.1m tok/s: 4988199
+4040/20000 train_loss: 3.0240 train_time: 7.1m tok/s: 4986178
+4050/20000 train_loss: 3.1013 train_time: 7.1m tok/s: 4984181
+4060/20000 train_loss: 3.0526 train_time: 7.1m tok/s: 4982198
+4070/20000 train_loss: 3.0797 train_time: 7.1m tok/s: 4980162
+4080/20000 train_loss: 3.0470 train_time: 7.2m tok/s: 4978157
+4090/20000 train_loss: 3.0607 train_time: 7.2m tok/s: 4976162
+4100/20000 train_loss: 3.0983 train_time: 7.2m tok/s: 4974201
+4110/20000 train_loss: 3.0983 train_time: 7.2m tok/s: 4972234
+4120/20000 train_loss: 3.0184 train_time: 7.2m tok/s: 4970285
+4130/20000 train_loss: 3.0695 train_time: 7.3m tok/s: 4968311
+4140/20000 train_loss: 3.0594 train_time: 7.3m tok/s: 4966426
+4150/20000 train_loss: 3.0202 train_time: 7.3m tok/s: 4964469
+4160/20000 train_loss: 3.0838 train_time: 7.3m tok/s: 4962552
+4170/20000 train_loss: 3.1925 train_time: 7.3m tok/s: 4960608
+4180/20000 train_loss: 2.9772 train_time: 7.4m tok/s: 4958772
+4190/20000 train_loss: 2.9989 train_time: 7.4m tok/s: 4956959
+4200/20000 train_loss: 2.9457 train_time: 7.4m tok/s: 4955125
+4210/20000 train_loss: 3.1374 train_time: 7.4m tok/s: 4953320
+4220/20000 train_loss: 3.0929 train_time: 7.4m tok/s: 4951506
+4230/20000 train_loss: 3.0763 train_time: 7.5m tok/s: 4949707
+4240/20000 train_loss: 3.0424 train_time: 7.5m tok/s: 4947921
+4250/20000 train_loss: 3.1849 train_time: 7.5m tok/s: 4946165
+4260/20000 train_loss: 3.0372 train_time: 7.5m tok/s: 4944381
+4270/20000 train_loss: 3.0244 train_time: 7.5m tok/s: 4942577
+4280/20000 train_loss: 3.0548 train_time: 7.6m tok/s: 4940808
+4290/20000 train_loss: 2.9494 train_time: 7.6m tok/s: 4939063
+4300/20000 train_loss: 3.0017 train_time: 7.6m tok/s: 4937331
+4310/20000 train_loss: 3.0608 train_time: 7.6m tok/s: 4935604
+4320/20000 train_loss: 3.0958 train_time: 7.7m tok/s: 4933817
+4330/20000 train_loss: 3.0624 train_time: 7.7m tok/s: 4932060
+4340/20000 train_loss: 3.1354 train_time: 7.7m tok/s: 4930295
+4350/20000 train_loss: 3.0480 train_time: 7.7m tok/s: 4928546
+4360/20000 train_loss: 3.0442 train_time: 7.7m tok/s: 4926863
+4370/20000 train_loss: 3.0251 train_time: 7.8m tok/s: 4925212
+4380/20000 train_loss: 3.0306 train_time: 7.8m tok/s: 4923562
+4390/20000 train_loss: 2.9091 train_time: 7.8m tok/s: 4921915
+4400/20000 train_loss: 3.0847 train_time: 7.8m tok/s: 4917378
+4410/20000 train_loss: 3.0572 train_time: 7.8m tok/s: 4915700
+4420/20000 train_loss: 2.9235 train_time: 7.9m tok/s: 4914031
+4430/20000 train_loss: 3.0137 train_time: 7.9m tok/s: 4912364
+4440/20000 train_loss: 3.2080 train_time: 7.9m tok/s: 4907761
+4450/20000 train_loss: 2.9779 train_time: 7.9m tok/s: 4906108
+4460/20000 train_loss: 3.1039 train_time: 7.9m tok/s: 4904496
+4470/20000 train_loss: 3.0021 train_time: 8.0m tok/s: 4902923
+4480/20000 train_loss: 3.1050 train_time: 8.0m tok/s: 4901288
+4490/20000 train_loss: 3.0061 train_time: 8.0m tok/s: 4899682
+4500/20000 train_loss: 3.1458 train_time: 8.0m tok/s: 4898080
+4510/20000 train_loss: 2.9990 train_time: 8.0m tok/s: 4896498
+4520/20000 train_loss: 2.9461 train_time: 8.1m tok/s: 4894919
+4530/20000 train_loss: 3.0019 train_time: 8.1m tok/s: 4893400
+4540/20000 train_loss: 3.1009 train_time: 8.1m tok/s: 4891873
+4550/20000 train_loss: 3.0419 train_time: 8.1m tok/s: 4890360
+4560/20000 train_loss: 3.0463 train_time: 8.2m tok/s: 4888813
+4570/20000 train_loss: 3.0301 train_time: 8.2m tok/s: 4887291
+4580/20000 train_loss: 3.0816 train_time: 8.2m tok/s: 4885801
+4590/20000 train_loss: 2.9584 train_time: 8.2m tok/s: 4884310
+4600/20000 train_loss: 3.0286 train_time: 8.2m tok/s: 4882837
+4610/20000 train_loss: 3.0775 train_time: 8.3m tok/s: 4881348
+4620/20000 train_loss: 3.0499 train_time: 8.3m tok/s: 4879900
+4630/20000 train_loss: 2.9811 train_time: 8.3m tok/s: 4878410
+4640/20000 train_loss: 3.0426 train_time: 8.3m tok/s: 4876971
+4650/20000 train_loss: 2.9688 train_time: 8.3m tok/s: 4875503
+4660/20000 train_loss: 3.0092 train_time: 8.4m tok/s: 4874034
+4670/20000 train_loss: 3.0042 train_time: 8.4m tok/s: 4872585
+4680/20000 train_loss: 3.0816 train_time: 8.4m tok/s: 4871115
+4690/20000 train_loss: 3.0043 train_time: 8.4m tok/s: 4869621
+4700/20000 train_loss: 3.0082 train_time: 8.4m tok/s: 4868189
+4710/20000 train_loss: 2.9304 train_time: 8.5m tok/s: 4866751
+4720/20000 train_loss: 3.0408 train_time: 8.5m tok/s: 4865341
+4730/20000 train_loss: 2.9646 train_time: 8.5m tok/s: 4863965
+4740/20000 train_loss: 3.0597 train_time: 8.5m tok/s: 4862607
+4750/20000 train_loss: 2.9173 train_time: 8.5m tok/s: 4861253
+4760/20000 train_loss: 3.0445 train_time: 8.6m tok/s: 4859910
+4770/20000 train_loss: 2.9418 train_time: 8.6m tok/s: 4858540
+4780/20000 train_loss: 3.0784 train_time: 8.6m tok/s: 4857173
+4790/20000 train_loss: 3.0316 train_time: 8.6m tok/s: 4855797
+4800/20000 train_loss: 3.0322 train_time: 8.6m tok/s: 4854418
+4810/20000 train_loss: 3.0058 train_time: 8.7m tok/s: 4853067
+4820/20000 train_loss: 2.9956 train_time: 8.7m tok/s: 4851745
+4830/20000 train_loss: 2.9787 train_time: 8.7m tok/s: 4850408
+4840/20000 train_loss: 2.9460 train_time: 8.7m tok/s: 4849071
+4850/20000 train_loss: 3.0221 train_time: 8.7m tok/s: 4847723
+4860/20000 train_loss: 3.0449 train_time: 8.8m tok/s: 4846381
+4870/20000 train_loss: 2.9311 train_time: 8.8m tok/s: 4845088
+4880/20000 train_loss: 2.9947 train_time: 8.8m tok/s: 4843756
+4890/20000 train_loss: 3.0366 train_time: 8.8m tok/s: 4842455
+4900/20000 train_loss: 3.0262 train_time: 8.8m tok/s: 4841144
+4910/20000 train_loss: 3.0206 train_time: 8.9m tok/s: 4839841
+4920/20000 train_loss: 3.0822 train_time: 8.9m tok/s: 4838534
+4930/20000 train_loss: 3.0308 train_time: 8.9m tok/s: 4837235
+4940/20000 train_loss: 2.9778 train_time: 8.9m tok/s: 4835935
+4950/20000 train_loss: 2.9646 train_time: 8.9m tok/s: 4834661
+4960/20000 train_loss: 2.9600 train_time: 9.0m tok/s: 4833348
+4970/20000 train_loss: 3.0933 train_time: 9.0m tok/s: 4832087
+4980/20000 train_loss: 3.0780 train_time: 9.0m tok/s: 4830821
+4990/20000 train_loss: 2.9876 train_time: 9.0m tok/s: 4829529
+5000/20000 train_loss: 3.0441 train_time: 9.0m tok/s: 4828274
+5010/20000 train_loss: 3.0603 train_time: 9.1m tok/s: 4827000
+5020/20000 train_loss: 2.9678 train_time: 9.1m tok/s: 4825743
+5030/20000 train_loss: 3.0192 train_time: 9.1m tok/s: 4824527
+5040/20000 train_loss: 3.0270 train_time: 9.1m tok/s: 4823291
+5050/20000 train_loss: 2.9380 train_time: 9.2m tok/s: 4822082
+5060/20000 train_loss: 3.1187 train_time: 9.2m tok/s: 4820891
+5070/20000 train_loss: 2.9669 train_time: 9.2m tok/s: 4819715
+5080/20000 train_loss: 2.9235 train_time: 9.2m tok/s: 4818540
+5090/20000 train_loss: 2.9879 train_time: 9.2m tok/s: 4817360
+5100/20000 train_loss: 2.9503 train_time: 9.3m tok/s: 4816179
+5110/20000 train_loss: 2.9496 train_time: 9.3m tok/s: 4814978
+5120/20000 train_loss: 2.9246 train_time: 9.3m tok/s: 4813809
+5130/20000 train_loss: 2.9222 train_time: 9.3m tok/s: 4812638
+5140/20000 train_loss: 2.9910 train_time: 9.3m tok/s: 4811481
+5150/20000 train_loss: 3.0433 train_time: 9.4m tok/s: 4810331
+5160/20000 train_loss: 2.8909 train_time: 9.4m tok/s: 4809186
+5170/20000 train_loss: 2.9251 train_time: 9.4m tok/s: 4808033
+5180/20000 train_loss: 3.0002 train_time: 9.4m tok/s: 4806874
+5190/20000 train_loss: 2.9247 train_time: 9.4m tok/s: 4805769
+5200/20000 train_loss: 2.9608 train_time: 9.5m tok/s: 4804640
+5210/20000 train_loss: 2.8966 train_time: 9.5m tok/s: 4803551
+5220/20000 train_loss: 2.9395 train_time: 9.5m tok/s: 4802419
+5230/20000 train_loss: 2.9692 train_time: 9.5m tok/s: 4801257
+5240/20000 train_loss: 3.0076 train_time: 9.5m tok/s: 4800114
+5250/20000 train_loss: 2.9626 train_time: 9.6m tok/s: 4798999
+5260/20000 train_loss: 2.9927 train_time: 9.6m tok/s: 4797887
+5270/20000 train_loss: 2.9450 train_time: 9.6m tok/s: 4796757
+5280/20000 train_loss: 3.0061 train_time: 9.6m tok/s: 4795634
+5290/20000 train_loss: 3.0203 train_time: 9.6m tok/s: 4794510
+5300/20000 train_loss: 3.0537 train_time: 9.7m tok/s: 4793412
+5310/20000 train_loss: 2.9140 train_time: 9.7m tok/s: 4792312
+5320/20000 train_loss: 2.9093 train_time: 9.7m tok/s: 4791223
+5330/20000 train_loss: 2.9873 train_time: 9.7m tok/s: 4790144
+5340/20000 train_loss: 2.8635 train_time: 9.7m tok/s: 4789036
+5350/20000 train_loss: 2.9072 train_time: 9.8m tok/s: 4787951
+5360/20000 train_loss: 2.9958 train_time: 9.8m tok/s: 4786848
+5368/20000 val_loss: 2.8447 val_bpb: 1.1013
+stopping_early: wallclock_cap train_time: 588041ms step: 5368/20000
+peak memory allocated: 25640 MiB reserved: 25652 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.84224331 val_bpb:1.10033379 eval_time:6560ms
+[prefetch] daemon started: depth=4 pinned=True
+[prefetch] daemon started: depth=4 pinned=True
+[prefetch] daemon started: depth=4 pinned=True
+[prefetch] daemon started: depth=4 pinned=True
+[prefetch] daemon started: depth=4 pinned=True
+[prefetch] daemon started: depth=4 pinned=True
+[prefetch] daemon started: depth=4 pinned=True
+Serialized model: 135615079 bytes
+Code size: 151202 bytes
+GPTQ:collecting Hessians from calibration data...
+[prefetch] daemon started: depth=4 pinned=True
+GPTQ:collected 67 Hessians in 8.2s
+[IDEA-064 parallel_gptq] enabled — multi-clip search active
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.247808
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.269812
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.258261
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.269052
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.261907
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.270251
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.268961
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.283977
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.151974
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.193686
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.170907
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.199360
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.196602
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.181248
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.208336
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.224559
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.273053
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.300749
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.280521
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.293932
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.291560
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.284720
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.296231
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.312604
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=3.078287
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=3.078359
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=3.076178
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=3.076320
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=3.076118
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=3.079911
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=3.080441
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=3.074444
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=119.126941
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=119.194287
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=118.639005
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=118.969895
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=118.953076
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=119.184331
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=119.101136
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=118.902862
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.842355
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.834611
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.845353
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.852147
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.846437
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.847843
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.841017
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.845102
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.925267
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.922398
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.932725
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.943073
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.938194
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.940518
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.931870
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.934711
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.097234
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.092381
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.109631
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.123551
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.106187
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.120200
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.101704
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.113640
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.260179
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.254625
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.257115
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.255435
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.262305
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.250251
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.258443
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.260048
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=35.898565
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=35.848871
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=35.934805
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=35.876144
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=35.827384
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=35.888917
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=35.918911
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=35.870492
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=4.045116
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=4.040930
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=4.030281
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=4.038786
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=4.042486
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=4.037868
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=4.039348
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=4.045624
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.991375
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.992549
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.985289
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.982840
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.993244
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.991243
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.993339
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.991113
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.154182
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.145652
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.119671
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.143257
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.140572
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.133215
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.134309
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=7.127619
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.852577
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.853529
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.852119
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.853033
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.854123
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.853126
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.851568
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.852166
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.693018
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.656774
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.685225
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.636255
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.661620
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.668162
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.657119
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.635530
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.935637
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.937118
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.937498
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.929354
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.938037
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.935079
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.936752
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.934452
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=4.647383
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=4.651374
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=4.650219
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=4.649084
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=4.647089
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=4.653097
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=4.652050
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=4.653890
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.525504
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.536445
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.534560
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.531229
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.533362
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.530215
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.528626
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=5.532829
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.898970
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.898405
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.900714
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.897405
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.896071
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.896390
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.896836
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.900160
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=12.429086
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=12.406748
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=12.418869
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=12.425478
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=12.426085
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=12.422342
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=12.414026
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=12.397806
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=7.504506
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=7.505584
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=7.503405
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=7.506353
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=7.489011
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=7.502630
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=7.501092
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=7.503104
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.653620
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.653761
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.649956
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.652863
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.645083
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.645915
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.096101
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.656570
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=10.648169
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.099374
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.090150
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.098137
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.087410
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.093989
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.095337
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=11.102412
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.571931
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.577973
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.572013
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.564946
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.569211
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.569160
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.575610
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.565856
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.393153
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.393994
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.365876
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.404667
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.380751
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.400821
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.366182
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=14.380028
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=6.793212
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=6.794366
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=6.790989
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=6.790256
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=6.786484
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=14.740173
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=14.726229
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=6.790692
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=6.788764
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=6.795063
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=14.706655
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=14.724419
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=14.675990
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.799713
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=14.724856
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.796187
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=14.717855
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=14.728600
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.806436
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.795437
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.795132
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.805844
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.793315
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=8.805387
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.219715
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.223772
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.222256
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.217262
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.221718
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.218065
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.219731
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.224861
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=17.473714
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=17.458910
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=17.443151
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=17.469136
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=17.458273
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=17.469112
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=17.418647
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=17.445781
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.979997
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.982077
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.978546
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.981750
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.976723
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.208519
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.979858
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.207447
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.977259
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.980145
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.204986
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.208926
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.204289
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.173822
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.207257
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.166631
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.207558
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.205542
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.184423
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.173475
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.173101
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.161316
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.179385
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.171620
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.167686
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.168544
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.169231
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.167062
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.168200
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.168042
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.166918
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.168693
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.102625
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.100493
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.095669
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.099609
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.102167
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.103276
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.093609
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=2.097060
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.568875
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.569831
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.568903
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.568798
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.311031
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.569075
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.309272
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.311104
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.567253
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.567664
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.313677
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.569858
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.845760
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.309144
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.844293
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.841228
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.307190
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.306798
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.844286
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.312121
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.844902
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.840530
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.293717
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.842241
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=3.846498
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.291989
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.284717
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.278806
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.279594
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.285206
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.990996
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.266105
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=5.283152
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.987880
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.983191
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.989048
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.993275
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.052108
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.990107
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.050352
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.986571
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.987957
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.049259
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.514135
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.512896
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.048595
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.052107
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.513542
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.511137
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.508741
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.049981
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.508563
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.508645
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.046741
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.513390
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.048065
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.512573
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.499405
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.509880
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.508662
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.509123
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.735599
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.737554
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.507800
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.736525
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.501700
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.504159
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.730725
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.729771
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.814629
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.811289
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.735125
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.807020
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.726650
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.734504
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.812234
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.816661
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.745489
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.745756
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.744760
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.813274
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.810323
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.055659
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.812044
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.055570
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.056461
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.743959
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.826244
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.744553
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.826285
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.827896
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.052290
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.744755
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.742803
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.053252
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.744300
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.363843
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.824096
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.054735
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.362429
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.050798
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.821347
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=2.051833
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.362732
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.821722
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.821843
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.822469
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.363040
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.686196
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.682072
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.362560
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.678133
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.362530
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.362680
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.362950
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.683245
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.602501
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.601701
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.688594
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.601239
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.281333
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.684336
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.278854
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.682091
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.683487
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.277572
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.960716
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.962657
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.601970
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.603999
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.962399
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.276301
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.601603
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.601847
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.282864
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.602613
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.965720
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.966681
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.955986
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.281026
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.279732
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.964957
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.966983
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.279815
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.958457
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.960261
+[IDEA-064 parallel_gptq] searched 50 clips × 256 rows using 64 workers, avg_best_err=1.961910
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.136754
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.131243
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.965583
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.965709
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.124860
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.965090
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.965197
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=0.965788
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.132988
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.140532
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.134645
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.130098
+Quantized weights:
+  gptq (int5): tok_emb.weight
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  passthrough (float16): blocks.attn.gate_proj.bias, blocks.attn.gate_proj.weight, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, lane_merge, skip_gates, skip_weights
+[IDEA-064 parallel_gptq] searched 50 clips × 512 rows using 64 workers, avg_best_err=1.132523
+Serialized model quantized+zstd: 15715938 bytes
+Total submission size quantized+zstd: 15867140 bytes
+quantized val_loss:8.96211912 val_bpb:3.46955606 eval_time:2466ms
+quantized_sliding_window val_loss:8.96209632 val_bpb:3.46954724 eval_time:92138ms
+ttt_sliding:start chunks=1238 chunk_tokens=32768 total_windows=633409 stride=64 ttt_lr=0.005 ttt_epochs=3 freeze_blocks=0
+ttt_sliding:params unfrozen=35988657 frozen=0
+  ttt_chunk [1/1238] bpb=3.387464 time=4.5s
+  ttt_chunk [11/1238] bpb=3.441996 time=6.8s
+  ttt_chunk [21/1238] bpb=3.460080 time=9.1s
+  ttt_chunk [31/1238] bpb=3.373085 time=11.4s
+  ttt_chunk [41/1238] bpb=3.289774 time=14.0s
+  ttt_chunk [51/1238] bpb=3.235499 time=16.3s
+  ttt_chunk [61/1238] bpb=3.199705 time=18.7s
+  ttt_chunk [71/1238] bpb=3.180278 time=21.0s
+  ttt_chunk [81/1238] bpb=3.151466 time=23.3s
+  ttt_chunk [91/1238] bpb=3.143620 time=25.8s
+  ttt_chunk [101/1238] bpb=3.120756 time=28.1s
+  ttt_chunk [111/1238] bpb=3.107512 time=30.4s
+  ttt_chunk [121/1238] bpb=3.092263 time=32.7s
+  ttt_chunk [131/1238] bpb=3.083574 time=35.0s
+  ttt_chunk [141/1238] bpb=3.075836 time=37.3s
+  ttt_chunk [151/1238] bpb=3.069587 time=39.7s
+  ttt_chunk [161/1238] bpb=3.060902 time=41.9s
+  ttt_chunk [171/1238] bpb=3.054438 time=44.3s
+  ttt_chunk [181/1238] bpb=3.043861 time=46.5s
+  ttt_chunk [191/1238] bpb=3.032582 time=48.9s
+  ttt_chunk [201/1238] bpb=3.026620 time=51.2s
+  ttt_chunk [211/1238] bpb=3.025076 time=53.5s
+  ttt_chunk [221/1238] bpb=3.015265 time=56.0s
+  ttt_chunk [231/1238] bpb=3.013563 time=58.3s
+  ttt_chunk [241/1238] bpb=3.013353 time=60.6s
+  ttt_chunk [251/1238] bpb=3.008726 time=63.0s
+  ttt_chunk [261/1238] bpb=3.000034 time=65.3s
+  ttt_chunk [271/1238] bpb=2.996259 time=67.8s
+  ttt_chunk [281/1238] bpb=2.989826 time=70.1s
+  ttt_chunk [291/1238] bpb=2.985456 time=72.4s
+  ttt_chunk [301/1238] bpb=2.977742 time=74.7s
+  ttt_chunk [311/1238] bpb=2.969030 time=77.0s
+  ttt_chunk [321/1238] bpb=2.964547 time=79.3s
+  ttt_chunk [331/1238] bpb=2.961460 time=81.6s
+  ttt_chunk [341/1238] bpb=2.960657 time=83.9s
+  ttt_chunk [351/1238] bpb=2.957033 time=86.2s
+  ttt_chunk [361/1238] bpb=2.950513 time=88.5s
+  ttt_chunk [371/1238] bpb=2.943785 time=90.8s
+  ttt_chunk [381/1238] bpb=2.940352 time=93.2s
+  ttt_chunk [391/1238] bpb=2.936461 time=95.5s
+  ttt_chunk [401/1238] bpb=2.929574 time=97.8s
+  ttt_chunk [411/1238] bpb=2.924515 time=100.0s
+  ttt_chunk [421/1238] bpb=2.919932 time=102.4s
+  ttt_chunk [431/1238] bpb=2.915216 time=104.7s
+  ttt_chunk [441/1238] bpb=2.911798 time=107.0s
+  ttt_chunk [451/1238] bpb=2.911721 time=109.5s
+  ttt_chunk [461/1238] bpb=2.907788 time=111.8s
+  ttt_chunk [471/1238] bpb=2.911517 time=114.1s
+  ttt_chunk [481/1238] bpb=2.910687 time=116.4s
+  ttt_chunk [491/1238] bpb=2.908153 time=118.7s
+  ttt_chunk [501/1238] bpb=2.903815 time=121.0s
+  ttt_chunk [511/1238] bpb=2.900895 time=123.3s
+  ttt_chunk [521/1238] bpb=2.898742 time=125.6s
+  ttt_chunk [531/1238] bpb=2.897327 time=127.9s
+  ttt_chunk [541/1238] bpb=2.896096 time=130.2s
+  ttt_chunk [551/1238] bpb=2.896039 time=132.5s
+  ttt_chunk [561/1238] bpb=2.894870 time=135.1s
+  ttt_chunk [571/1238] bpb=2.892276 time=137.4s
+  ttt_chunk [581/1238] bpb=2.892074 time=139.7s
+  ttt_chunk [591/1238] bpb=2.890571 time=142.0s
+  ttt_chunk [601/1238] bpb=2.888485 time=144.3s
+  ttt_chunk [611/1238] bpb=2.886638 time=146.6s
+  ttt_chunk [621/1238] bpb=2.883955 time=148.9s
+  ttt_chunk [631/1238] bpb=2.880872 time=151.2s
+  ttt_chunk [641/1238] bpb=2.878972 time=153.5s
+  ttt_chunk [651/1238] bpb=2.876302 time=155.8s
+  ttt_chunk [661/1238] bpb=2.872808 time=158.1s
+  ttt_chunk [671/1238] bpb=2.867963 time=160.4s
+  ttt_chunk [681/1238] bpb=2.864797 time=162.7s
+  ttt_chunk [691/1238] bpb=2.862989 time=165.0s
+  ttt_chunk [701/1238] bpb=2.859294 time=167.3s
+  ttt_chunk [711/1238] bpb=2.856345 time=169.6s
+  ttt_chunk [721/1238] bpb=2.853860 time=171.9s
+  ttt_chunk [731/1238] bpb=2.851472 time=174.2s
+  ttt_chunk [741/1238] bpb=2.850505 time=176.5s
+  ttt_chunk [751/1238] bpb=2.847386 time=178.8s
+  ttt_chunk [761/1238] bpb=2.842909 time=181.3s
+  ttt_chunk [771/1238] bpb=2.839043 time=183.6s
+  ttt_chunk [781/1238] bpb=2.835629 time=185.9s
+  ttt_chunk [791/1238] bpb=2.834719 time=188.2s
+  ttt_chunk [801/1238] bpb=2.834446 time=190.5s
+  ttt_chunk [811/1238] bpb=2.831545 time=192.8s
+  ttt_chunk [821/1238] bpb=2.829813 time=195.2s
+  ttt_chunk [831/1238] bpb=2.827759 time=197.5s
+  ttt_chunk [841/1238] bpb=2.826480 time=200.0s
+  ttt_chunk [851/1238] bpb=2.823690 time=202.3s
+  ttt_chunk [861/1238] bpb=2.821212 time=204.8s
+  ttt_chunk [871/1238] bpb=2.818448 time=207.1s
+  ttt_chunk [881/1238] bpb=2.816360 time=209.5s
+  ttt_chunk [891/1238] bpb=2.814453 time=211.8s
+  ttt_chunk [901/1238] bpb=2.815625 time=214.3s
+  ttt_chunk [911/1238] bpb=2.814021 time=216.6s
+  ttt_chunk [921/1238] bpb=2.813470 time=218.9s
+  ttt_chunk [931/1238] bpb=2.812511 time=221.2s
+  ttt_chunk [941/1238] bpb=2.811251 time=223.5s
+  ttt_chunk [951/1238] bpb=2.810956 time=225.8s
+  ttt_chunk [961/1238] bpb=2.810214 time=228.1s
+  ttt_chunk [971/1238] bpb=2.811062 time=230.4s
+  ttt_chunk [981/1238] bpb=2.810148 time=232.7s
+  ttt_chunk [991/1238] bpb=2.808792 time=235.0s
+  ttt_chunk [1001/1238] bpb=2.808915 time=237.3s
+  ttt_chunk [1011/1238] bpb=2.808044 time=239.7s
+  ttt_chunk [1021/1238] bpb=2.806989 time=242.1s
+  ttt_chunk [1031/1238] bpb=2.806164 time=244.5s
+  ttt_chunk [1041/1238] bpb=2.804937 time=246.8s
+  ttt_chunk [1051/1238] bpb=2.803088 time=249.1s
+  ttt_chunk [1061/1238] bpb=2.801720 time=251.4s
+  ttt_chunk [1071/1238] bpb=2.800136 time=253.9s
+  ttt_chunk [1081/1238] bpb=2.798055 time=256.2s
+  ttt_chunk [1091/1238] bpb=2.795827 time=258.6s
+  ttt_chunk [1101/1238] bpb=2.794505 time=260.9s
+  ttt_chunk [1111/1238] bpb=2.793236 time=263.2s
+  ttt_chunk [1121/1238] bpb=2.792045 time=265.5s
+  ttt_chunk [1131/1238] bpb=2.790124 time=267.8s
+  ttt_chunk [1141/1238] bpb=2.788292 time=270.1s
+  ttt_chunk [1151/1238] bpb=2.786798 time=272.5s
+  ttt_chunk [1161/1238] bpb=2.785454 time=274.7s
+  ttt_chunk [1171/1238] bpb=2.783614 time=277.1s
+  ttt_chunk [1181/1238] bpb=2.782051 time=279.4s
+  ttt_chunk [1191/1238] bpb=2.780355 time=281.7s
+  ttt_chunk [1201/1238] bpb=2.779807 time=284.0s
+  ttt_chunk [1211/1238] bpb=2.779195 time=286.4s
+  ttt_chunk [1221/1238] bpb=2.777178 time=288.7s
+  ttt_chunk [1231/1238] bpb=2.776320 time=291.0s
+  ttt_chunk [1238/1238] bpb=2.775802 time=292.4s
+ttt_sliding:done val_loss=7.165791 val_bpb=2.774133 elapsed=294.5s
+quantized_ttt val_loss:7.16579127 val_bpb:2.77413346 eval_time:294713ms
+[W424 07:41:21.254627579 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W424 07:41:21.291205984 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W424 07:41:21.310602054 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W424 07:41:21.316238722 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W424 07:41:21.317423232 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W424 07:41:21.329736163 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W424 07:41:21.349337333 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W424 07:41:21.420666260 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W424 07:41:23.952959392 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+
+[run] DONE 07:41:23Z
+[run] === val_bpb lines ===
+0/20000 val_loss: 9.0088 val_bpb: 3.4876
+4000/20000 val_loss: 3.0119 val_bpb: 1.1660
+5368/20000 val_loss: 2.8447 val_bpb: 1.1013
+pre-quantization post-ema val_loss:2.84224331 val_bpb:1.10033379 eval_time:6560ms
+quantized val_loss:8.96211912 val_bpb:3.46955606 eval_time:2466ms
+quantized_sliding_window val_loss:8.96209632 val_bpb:3.46954724 eval_time:92138ms
+  ttt_chunk [1/1238] bpb=3.387464 time=4.5s
+  ttt_chunk [11/1238] bpb=3.441996 time=6.8s
+  ttt_chunk [21/1238] bpb=3.460080 time=9.1s
+  ttt_chunk [31/1238] bpb=3.373085 time=11.4s
+  ttt_chunk [41/1238] bpb=3.289774 time=14.0s
+  ttt_chunk [51/1238] bpb=3.235499 time=16.3s
+  ttt_chunk [61/1238] bpb=3.199705 time=18.7s
+  ttt_chunk [71/1238] bpb=3.180278 time=21.0s
+  ttt_chunk [81/1238] bpb=3.151466 time=23.3s
+  ttt_chunk [91/1238] bpb=3.143620 time=25.8s
+  ttt_chunk [101/1238] bpb=3.120756 time=28.1s
+  ttt_chunk [111/1238] bpb=3.107512 time=30.4s
+  ttt_chunk [121/1238] bpb=3.092263 time=32.7s
+  ttt_chunk [131/1238] bpb=3.083574 time=35.0s
+  ttt_chunk [141/1238] bpb=3.075836 time=37.3s
+  ttt_chunk [151/1238] bpb=3.069587 time=39.7s
+  ttt_chunk [161/1238] bpb=3.060902 time=41.9s
+  ttt_chunk [171/1238] bpb=3.054438 time=44.3s
+  ttt_chunk [181/1238] bpb=3.043861 time=46.5s
+  ttt_chunk [191/1238] bpb=3.032582 time=48.9s
+  ttt_chunk [201/1238] bpb=3.026620 time=51.2s
+  ttt_chunk [211/1238] bpb=3.025076 time=53.5s
+  ttt_chunk [221/1238] bpb=3.015265 time=56.0s
+  ttt_chunk [231/1238] bpb=3.013563 time=58.3s
+  ttt_chunk [241/1238] bpb=3.013353 time=60.6s
+  ttt_chunk [251/1238] bpb=3.008726 time=63.0s
+  ttt_chunk [261/1238] bpb=3.000034 time=65.3s
+  ttt_chunk [271/1238] bpb=2.996259 time=67.8s
+  ttt_chunk [281/1238] bpb=2.989826 time=70.1s
+  ttt_chunk [291/1238] bpb=2.985456 time=72.4s
+  ttt_chunk [301/1238] bpb=2.977742 time=74.7s
+  ttt_chunk [311/1238] bpb=2.969030 time=77.0s
+  ttt_chunk [321/1238] bpb=2.964547 time=79.3s
+  ttt_chunk [331/1238] bpb=2.961460 time=81.6s
+  ttt_chunk [341/1238] bpb=2.960657 time=83.9s
+  ttt_chunk [351/1238] bpb=2.957033 time=86.2s
+  ttt_chunk [361/1238] bpb=2.950513 time=88.5s
+  ttt_chunk [371/1238] bpb=2.943785 time=90.8s
+  ttt_chunk [381/1238] bpb=2.940352 time=93.2s
+  ttt_chunk [391/1238] bpb=2.936461 time=95.5s
+  ttt_chunk [401/1238] bpb=2.929574 time=97.8s
+  ttt_chunk [411/1238] bpb=2.924515 time=100.0s
+  ttt_chunk [421/1238] bpb=2.919932 time=102.4s
+  ttt_chunk [431/1238] bpb=2.915216 time=104.7s
+  ttt_chunk [441/1238] bpb=2.911798 time=107.0s
+  ttt_chunk [451/1238] bpb=2.911721 time=109.5s
+  ttt_chunk [461/1238] bpb=2.907788 time=111.8s
+  ttt_chunk [471/1238] bpb=2.911517 time=114.1s
+  ttt_chunk [481/1238] bpb=2.910687 time=116.4s
+  ttt_chunk [491/1238] bpb=2.908153 time=118.7s
+  ttt_chunk [501/1238] bpb=2.903815 time=121.0s
+  ttt_chunk [511/1238] bpb=2.900895 time=123.3s
+  ttt_chunk [521/1238] bpb=2.898742 time=125.6s
+  ttt_chunk [531/1238] bpb=2.897327 time=127.9s
+  ttt_chunk [541/1238] bpb=2.896096 time=130.2s
+  ttt_chunk [551/1238] bpb=2.896039 time=132.5s
+  ttt_chunk [561/1238] bpb=2.894870 time=135.1s
+  ttt_chunk [571/1238] bpb=2.892276 time=137.4s
+  ttt_chunk [581/1238] bpb=2.892074 time=139.7s
+  ttt_chunk [591/1238] bpb=2.890571 time=142.0s
+  ttt_chunk [601/1238] bpb=2.888485 time=144.3s
+  ttt_chunk [611/1238] bpb=2.886638 time=146.6s
+  ttt_chunk [621/1238] bpb=2.883955 time=148.9s
+  ttt_chunk [631/1238] bpb=2.880872 time=151.2s
+  ttt_chunk [641/1238] bpb=2.878972 time=153.5s
+  ttt_chunk [651/1238] bpb=2.876302 time=155.8s
+  ttt_chunk [661/1238] bpb=2.872808 time=158.1s
+  ttt_chunk [671/1238] bpb=2.867963 time=160.4s
+  ttt_chunk [681/1238] bpb=2.864797 time=162.7s
+  ttt_chunk [691/1238] bpb=2.862989 time=165.0s
+  ttt_chunk [701/1238] bpb=2.859294 time=167.3s
+  ttt_chunk [711/1238] bpb=2.856345 time=169.6s
+  ttt_chunk [721/1238] bpb=2.853860 time=171.9s
+  ttt_chunk [731/1238] bpb=2.851472 time=174.2s
+  ttt_chunk [741/1238] bpb=2.850505 time=176.5s
+  ttt_chunk [751/1238] bpb=2.847386 time=178.8s
+  ttt_chunk [761/1238] bpb=2.842909 time=181.3s
+  ttt_chunk [771/1238] bpb=2.839043 time=183.6s
+  ttt_chunk [781/1238] bpb=2.835629 time=185.9s
+  ttt_chunk [791/1238] bpb=2.834719 time=188.2s
+  ttt_chunk [801/1238] bpb=2.834446 time=190.5s
+  ttt_chunk [811/1238] bpb=2.831545 time=192.8s
+  ttt_chunk [821/1238] bpb=2.829813 time=195.2s
+  ttt_chunk [831/1238] bpb=2.827759 time=197.5s
+  ttt_chunk [841/1238] bpb=2.826480 time=200.0s
+  ttt_chunk [851/1238] bpb=2.823690 time=202.3s
+  ttt_chunk [861/1238] bpb=2.821212 time=204.8s
+  ttt_chunk [871/1238] bpb=2.818448 time=207.1s
+  ttt_chunk [881/1238] bpb=2.816360 time=209.5s
+  ttt_chunk [891/1238] bpb=2.814453 time=211.8s
+  ttt_chunk [901/1238] bpb=2.815625 time=214.3s
+  ttt_chunk [911/1238] bpb=2.814021 time=216.6s
+  ttt_chunk [921/1238] bpb=2.813470 time=218.9s
+  ttt_chunk [931/1238] bpb=2.812511 time=221.2s
+  ttt_chunk [941/1238] bpb=2.811251 time=223.5s
+  ttt_chunk [951/1238] bpb=2.810956 time=225.8s
+  ttt_chunk [961/1238] bpb=2.810214 time=228.1s
+  ttt_chunk [971/1238] bpb=2.811062 time=230.4s
+  ttt_chunk [981/1238] bpb=2.810148 time=232.7s
+  ttt_chunk [991/1238] bpb=2.808792 time=235.0s
+  ttt_chunk [1001/1238] bpb=2.808915 time=237.3s
+  ttt_chunk [1011/1238] bpb=2.808044 time=239.7s
+  ttt_chunk [1021/1238] bpb=2.806989 time=242.1s
+  ttt_chunk [1031/1238] bpb=2.806164 time=244.5s
+  ttt_chunk [1041/1238] bpb=2.804937 time=246.8s
+  ttt_chunk [1051/1238] bpb=2.803088 time=249.1s
+  ttt_chunk [1061/1238] bpb=2.801720 time=251.4s
+  ttt_chunk [1071/1238] bpb=2.800136 time=253.9s
+  ttt_chunk [1081/1238] bpb=2.798055 time=256.2s
+  ttt_chunk [1091/1238] bpb=2.795827 time=258.6s
+  ttt_chunk [1101/1238] bpb=2.794505 time=260.9s
+  ttt_chunk [1111/1238] bpb=2.793236 time=263.2s
+  ttt_chunk [1121/1238] bpb=2.792045 time=265.5s
+  ttt_chunk [1131/1238] bpb=2.790124 time=267.8s
+  ttt_chunk [1141/1238] bpb=2.788292 time=270.1s
+  ttt_chunk [1151/1238] bpb=2.786798 time=272.5s
+  ttt_chunk [1161/1238] bpb=2.785454 time=274.7s
+  ttt_chunk [1171/1238] bpb=2.783614 time=277.1s
+  ttt_chunk [1181/1238] bpb=2.782051 time=279.4s
+  ttt_chunk [1191/1238] bpb=2.780355 time=281.7s
+  ttt_chunk [1201/1238] bpb=2.779807 time=284.0s
+  ttt_chunk [1211/1238] bpb=2.779195 time=286.4s
+  ttt_chunk [1221/1238] bpb=2.777178 time=288.7s
+  ttt_chunk [1231/1238] bpb=2.776320 time=291.0s
+  ttt_chunk [1238/1238] bpb=2.775802 time=292.4s
+ttt_sliding:done val_loss=7.165791 val_bpb=2.774133 elapsed=294.5s
+quantized_ttt val_loss:7.16579127 val_bpb:2.77413346 eval_time:294713ms
+
+[run] === artifact ===
+  final_model.int6.ptz: 15715938 bytes
