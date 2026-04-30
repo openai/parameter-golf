@@ -1,0 +1,30 @@
+{
+  "author": "yijieyuan",
+  "github_id": "yijieyuan",
+  "name": "SP8192 + LoRA on tied embedding",
+  "date": "2026-04-21",
+  "track": "non_record_16mb",
+  "val_bpb": 1.07994,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_bpb": 1.07994, "artifact_bytes": 15993732}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "bigbag SP8192 stack + rank-1 int8 LoRA residual on the tied tok_emb + Hessian-weighted shrinkage in GPTQ rounding",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false
+  },
+  "attribution": {
+    "sp8192_stack": "@bigbag (PR #1493)",
+    "lora_embedding": "@yijieyuan (this PR)"
+  }
+}
