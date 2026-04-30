@@ -1,0 +1,35 @@
+{
+  "author": "Lucas Bryant",
+  "github_id": "PapaFranku4647",
+  "name": "MuonPower: GradPower Below 1 for Muon",
+  "blurb": "Non-record optimizer ablation showing that GradPower transfers differently to the Parameter Golf Muon stack. The paper default p=1.2 hurts in exploratory local runs, while p=0.9 improves over vanilla Muon. On a matched 1xH100 1200s seed-1337 run, p=0.9 reaches 1.28338224 final int8+zlib BPB versus 1.28691190 for p=1.0. A 3-seed local 4080 sweep also finds p=0.9 best, improving over p=1.0 by 0.00190881 BPB on mean final BPB.",
+  "date": "2026-04-16",
+  "track": "non_record_16mb",
+  "val_bpb": 1.28338224,
+  "val_bpb_std": null,
+  "val_loss": 2.16693715,
+  "wallclock_seconds": 1200,
+  "gpu": "1xNVIDIA H100 80GB HBM3 best run; 1xRTX4080 WSL local sweep",
+  "seeds": [1337],
+  "primary_result": {
+    "muon_grad_power": 0.9,
+    "h100_final_int8_zlib_val_loss": 2.16693715,
+    "h100_final_int8_zlib_val_bpb": 1.28338224,
+    "h100_delta_vs_p1_bpb": -0.00352966,
+    "local_4080_mean_final_int8_zlib_val_bpb": 1.36672930,
+    "local_4080_std_final_int8_zlib_val_bpb": 0.00298812,
+    "local_4080_delta_vs_p1_mean_bpb": -0.00190881
+  },
+  "h100_matched_seed1337": {
+    "p0_9_final_bpb": 1.28338224,
+    "p1_0_final_bpb": 1.28691190,
+    "delta_bpb": -0.00352966,
+    "logs": [
+      "logs/h100_1200s/h100_1200s_p0.900_seed1337.txt",
+      "logs/h100_1200s/h100_1200s_p1.000_seed1337.txt"
+    ]
+  },
+  "bytes_total": 15460600,
+  "bytes_model_int8_zlib": 15412529,
+  "bytes_code": 48071
+}
