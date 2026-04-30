@@ -55,6 +55,7 @@ _HYMBA_LAYERS  = [int(x) for x in os.environ.get("HYMBA_LAYERS", "3,4,5").split(
 _HYMBA_META    = int(os.environ.get("HYMBA_META_TOK",   "4"))
 _HYMBA_SHARE   = bool(int(os.environ.get("HYMBA_KV_SHARE",  "1")))
 _HYMBA_STATE   = int(os.environ.get("HYMBA_SSM_STATE", "16"))
+_HYMBA_SCAN_CHUNK = int(os.environ.get("HYMBA_SCAN_CHUNK", "64"))
 
 
 # ── Mamba-lite SSM head ───────────────────────────────────────────────────────
@@ -62,9 +63,10 @@ class MambaLiteHead(nn.Module):
     """
     Selective SSM head (simplified Mamba) operating on (B, T, head_dim).
     Diagonal A, input-dependent B/C/dt (the "selective" part of Mamba).
-    Uses a stable fp32 recurrent scan. This is slower than a fused/parallel SSM
-    scan, but avoids the inf*0 numerical cancellation that showed up in Inductor
-    and short smoke runs.
+    Uses a signed chunk-parallel fp32 scan. Each chunk computes the exact
+    diagonal recurrence with torch.cumsum, then carries the final state into the
+    next chunk. This keeps the signed Bx term intact and avoids a 1024-step
+    Python loop.
     """
     def __init__(self, head_dim: int, state_dim: int):
         super().__init__()
@@ -75,22 +77,37 @@ class MambaLiteHead(nn.Module):
         self.out_proj = nn.Linear(state_dim, head_dim, bias=False)
         nn.init.constant_(self.dt_proj.bias, -4.0)
 
+    @staticmethod
+    def _scan_chunks(log_a: Tensor, u: Tensor, chunk_size: int) -> Tensor:
+        # Recurrence: h_t = exp(log_a_t) * h_{t-1} + u_t.
+        # For one chunk with zero initial state:
+        # h_t = p_t * cumsum_i(u_i / p_i), where p_t = prod_j<=t exp(log_a_j).
+        # For nonzero initial state h0, add p_t * h0.
+        B, T, S = u.shape
+        h0 = torch.zeros(B, S, device=u.device, dtype=torch.float32)
+        chunks = []
+        for start in range(0, T, chunk_size):
+            end = min(start + chunk_size, T)
+            la = log_a[:, start:end]
+            uu = u[:, start:end]
+            log_p = torch.cumsum(la, dim=1).clamp(min=-30.0, max=0.0)
+            p = torch.exp(log_p)
+            h_local = p * torch.cumsum(uu * torch.exp(-log_p), dim=1)
+            h_chunk = h_local + p * h0.unsqueeze(1)
+            chunks.append(h_chunk)
+            h0 = h_chunk[:, -1]
+        return torch.cat(chunks, dim=1)
+
     def forward(self, x: Tensor) -> Tensor:
         # x: (B, T, head_dim)
         out_dtype = x.dtype
-        x32 = x.float()
         dt = F.softplus(self.dt_proj(x).float()).clamp(max=1.0)   # (B, T, S)
         A = -torch.exp(self.log_A.float()).clamp(max=10.0)        # (S,)
-        Abar = torch.exp(dt * A.view(1, 1, -1))                   # (B, T, S), in (0, 1]
+        log_a = (dt * A.view(1, 1, -1)).clamp(min=-0.5, max=0.0)  # log decay
         Bx = self.B_proj(x).float() * dt                          # (B, T, S)
         C = self.C_proj(x).float()                                # (B, T, S)
 
-        h = torch.zeros(x.size(0), A.numel(), device=x.device, dtype=torch.float32)
-        hs = []
-        for t in range(x.size(1)):
-            h = Abar[:, t] * h + Bx[:, t]
-            hs.append(h)
-        h_seq = torch.stack(hs, dim=1)                            # (B, T, S)
+        h_seq = self._scan_chunks(log_a, Bx, max(1, _HYMBA_SCAN_CHUNK))
         y = (C * h_seq).sum(-1, keepdim=True)                     # (B, T, 1)
         return (self.out_proj(h_seq.to(out_dtype)) + y.to(out_dtype) * x[..., :1])
 

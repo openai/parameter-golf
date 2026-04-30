@@ -1,14 +1,48 @@
 {
-  "name": "Aparna Sivanandam",
+  "author": "Aparna Sivanandam",
   "github_id": "aparna-1407",
-  "val_bpb": 3.0721,
-  "val_loss": 5.1871,
-  "artifact_size_bytes": 6909879,
-  "training_time_seconds": 901,
+  "name": "Mini-Hymba Single Hybrid Attention/SSM Layer",
+  "date": "2026-04-29",
+  "track": "non_record_16mb",
+  "val_bpb": 1.47529166,
+  "val_loss": 2.49096816,
+  "artifact_size_bytes": 9234838,
+  "training_time_seconds": 877.433,
   "seeds": [1337],
-  "track": "non_record",
-  "base_pr": 1493,
-  "description": "Mini-Hymba: Hybrid Attention + SSM heads on recurrent layers 3-5, with learnable meta tokens and tied cross-layer KV projections. Novel architecture contribution from Yingyan (Celine) Lin's EIC Lab (Georgia Tech) Hymba paper (arXiv:2411.13676, ICLR 2025).",
-  "hardware": "1x NVIDIA RTX PRO 6000 Blackwell (96GB)",
-  "notes": "134 steps, sequential SSM scan (torch.compile disabled). Full 4550-step run on 8xH100 with parallel SSM scan pending compute grant."
+  "hardware": "1x NVIDIA RTX PRO 6000 Blackwell",
+  "pytorch_version": "2.10.0+cu128",
+  "technique_summary": "Single Mini-Hymba hybrid attention/SSM layer at layer 4, 4 attention heads + 4 Mamba-lite SSM heads, 4 meta tokens, signed chunk-parallel fp32 SSM scan, standard tokenizer-aware BPB and int8+zlib export path.",
+  "config": {
+    "tokenizer": "sp1024",
+    "hymba_layers": [4],
+    "hymba_scan_chunk": 64,
+    "warmup_steps": 100,
+    "iterations": 800,
+    "matrix_lr": 0.004,
+    "scalar_lr": 0.004,
+    "embed_lr": 0.005,
+    "tied_embed_lr": 0.005
+  },
+  "results": {
+    "unquantized_val_bpb": 1.4511,
+    "unquantized_val_loss": 2.4501,
+    "roundtrip_val_bpb": 1.47529166,
+    "roundtrip_val_loss": 2.49096816,
+    "peak_memory_mib": 14145,
+    "step_time_seconds": 1.09679,
+    "serialized_model_bytes": 67797127,
+    "code_bytes": 48699,
+    "int8_zlib_model_bytes": 9186139,
+    "total_submission_bytes": 9234838
+  },
+  "compliance": {
+    "artifact_under_16mb": true,
+    "train_under_600s": false,
+    "three_seeds": false,
+    "non_record": true,
+    "standard_bpb_scorer": true,
+    "standard_int8_zlib_export": true,
+    "no_ngram_cache": true
+  },
+  "notes": "Non-record architecture experiment. The one-layer chunk-parallel Mini-Hymba variant reached 1.4753 BPB after int8+zlib roundtrip in 800 single-GPU steps. A future 8xH100 sp8192 run is the natural record-track test."
 }
