@@ -1,0 +1,89 @@
+{
+  "author": "Himanshu Dongre",
+  "github_id": "himanshudongre",
+  "name": "Long-context no-QV phased TTT with rank-56 / prefix-3000 compute reallocation",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.05874877,
+  "val_bpb_std": 0.00091680,
+  "seeds": [
+    42,
+    0,
+    1234
+  ],
+  "seed_results": {
+    "42": {
+      "stop_step": 4900,
+      "train_ms": 596051,
+      "prequant_bpb": 1.06108950,
+      "quant_bpb": 1.06949683,
+      "val_bpb": 1.05780842,
+      "eval_ms": 519467,
+      "artifact_bytes": 15975989
+    },
+    "0": {
+      "stop_step": 4879,
+      "train_ms": 596086,
+      "prequant_bpb": 1.06200352,
+      "quant_bpb": 1.07034149,
+      "val_bpb": 1.05844590,
+      "eval_ms": 425873,
+      "artifact_bytes": 15976674
+    },
+    "1234": {
+      "stop_step": 4880,
+      "train_ms": 596146,
+      "prequant_bpb": 1.06319088,
+      "quant_bpb": 1.07176584,
+      "val_bpb": 1.05999198,
+      "eval_ms": 400555,
+      "artifact_bytes": 15980110
+    }
+  },
+  "hardware": "8x H100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1953 long-context no-QV CaseOps/LQER/AWQ-lite stack with TTT_LORA_RANK=56 and PHASED_TTT_PREFIX_DOCS=3000",
+  "comparison": {
+    "merged_pr_1855_bpb": 1.06108,
+    "delta_vs_merged_pr_1855_bpb": -0.00233123,
+    "delta_vs_merged_pr_1855_nats_approx": -0.00510,
+    "open_pr_1953_bpb": 1.05855370,
+    "delta_vs_open_pr_1953_bpb": 0.00019507
+  },
+  "run_overrides": {
+    "CASEOPS_ENABLED": 1,
+    "EVAL_SEQ_LEN": 2560,
+    "TTT_EVAL_SEQ_LEN": 2560,
+    "TTT_MASK": "no_qv",
+    "TTT_Q_LORA": 0,
+    "TTT_V_LORA": 0,
+    "TTT_LOCAL_LR_MULT": 0.75,
+    "TTT_LORA_RANK": 56,
+    "PHASED_TTT_PREFIX_DOCS": 3000,
+    "PHASED_TTT_NUM_PHASES": 3,
+    "QK_GAIN_INIT": 5.25,
+    "COMPRESSOR": "pergroup"
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "three_seeds": true,
+    "full_validation_set": true,
+    "caseops_byte_sidecar_accounting": true,
+    "score_first_ttt": true,
+    "no_slot": true,
+    "no_byte_ppm": true,
+    "no_token_ppm": true,
+    "no_ngram_cache": true,
+    "no_eval_time_logit_bias": true,
+    "no_pre_quant_ttt_on_val": true,
+    "single_pass_eval": true
+  },
+  "attribution": {
+    "base_stack": "PR #1953 / #1945 / #1908 / #1855 lineage",
+    "caseops": "@romeerp and @dexhunter",
+    "phased_ttt": "@samacqua, @dexhunter, and VarLen/phased-TTT contributors",
+    "rank56_prefix3000_ablation": "@himanshudongre"
+  }
+}
