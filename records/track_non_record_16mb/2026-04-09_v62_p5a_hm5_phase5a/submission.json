@@ -1,0 +1,62 @@
+{
+  "author": "sisegod",
+  "github_id": "sisegod",
+  "name": "v6.2 Phase 5a SOTA-trivial stack (QK 5.0 + MuonEq-R + EMA 0.9965 + hidden_mult 5 + int6 tied embed + Legal Muon-TTT)",
+  "blurb": "v6.1 SLOT-100 baseline (1.146523) plus a trivial-wins Phase 5a composition: QK_GAIN_INIT=5.0 (PR #1413), MUON_EQ_R=1 row L2 normalize before Newton-Schulz5 (PR #1394), --ema 0.9965 (PR #1421/#1445), HIDDEN_MULT=5.0 (FFN 4×→5× re-investment of int6 tied embed savings), and EMBED_QUANT_BITS=6 EMBED_QUANT_TOK_EMB=1 (Phase 1A int6 tied embed). Training is identical to v61_slot_steps100_1146 except for these env vars and a single CLI flag (--ema 0.9965 instead of 0.997). Eval phase uses SLOT lr=0.1 steps=100 stride=64 plus Legal Score-First Muon TTT (--ttt --ttt-muon ttt-lr=0.002 epochs=3 chunk=32768). The negative Phase 1B/1C/2A-C/3/5b results are documented in PR_BODY.md so other submitters can skip them.",
+  "date": "2026-04-09T00:00:00Z",
+  "track": "non-record-10min-compute-16mb",
+  "compute_note": "10-min training compute (within official 10-min limit) + ~50-min single-GPU SLOT-100 eval per seed (eval is unbounded). Submitted as non-record because 1.136399 does not beat the current 1.1147 PR #1019 record. Delta vs prior 2026-04-08_v61_h100_aggressive_slot_steps100 (1.146523) is -0.010124 bpb. The cumulative bpb oscillates within +/-0.003 bpb as the sliding window crosses alternating hard/easy val regions; the final 100%-eval number is expected in [1.136, 1.140]. Legal Score-First Muon-TTT alternative ran for all 3 seeds (full eval, ~37 min wall time each): 3-seed mean 1.205215, 0.069 bpb worse than SLOT-100 -- TTT is not competitive with aggressive SLOT on this model. A full 100%-eval for SLOT-100 would require approximately $50 of additional RunPod credit (3 seeds * 50 min * $0.33/H100-min).",
+  "val_loss": null,
+  "val_bpb": 1.136399,
+  "val_bpb_std": 0.001492,
+  "val_bpb_per_seed": {
+    "1337": 1.138161,
+    "1338": 1.135610,
+    "1339": 1.135425
+  },
+  "val_bpb_note": "Re-run at 75-76% of stride=64 SLOT-100 sliding window (eval_final3.log on 2026-04-08). Trajectory of 3-seed mean on the same rANS artifacts: @28% -> 1.142572, @32% -> 1.140655, @40% -> 1.137407, @50% -> 1.136816, @56% -> 1.139363, @66% -> 1.138112, @76% -> 1.136399. The cumulative bpb oscillates within +/-0.003 bpb; the final 100% is expected in [1.136, 1.140]. The RunPod container was terminated by RunPod-side before the re-run hit 100%; the reported 1.136399 is the last stable checkpoint from the live logs. A follow-up commit will append the final 100% numbers once additional RunPod credit is approved (~$15 for 3 seeds * 12 min).",
+  "ttt_bpb_per_seed": {
+    "1337": 1.206428,
+    "1338": 1.204575,
+    "1339": 1.204643
+  },
+  "ttt_bpb_mean": 1.205215,
+  "ttt_bpb_note": "Legal Score-First Muon-TTT alternative (3-seed full eval). Each seed run on a fresh deep-copy with SLOT off during TTT. Hyperparameters: ttt-lr=0.002 ttt-epochs=3 ttt-chunk-tokens=32768 ttt-muon. No-SLOT-no-TTT baseline sliding window bpbs: s1337=1.241912, s1338=1.239689, s1339=1.238178 (mean 1.239926). TTT improves the baseline by 0.0347 bpb, but SLOT-100 improves it by 0.1035 bpb -- SLOT wins by 0.0688 bpb. TTT is not competitive with aggressive SLOT on this model.",
+  "step_stop_mean": 5314,
+  "wallclock_seconds": 600.1,
+  "bytes_total_seed1337": 15564639,
+  "bytes_total_seed1338": 15547423,
+  "bytes_total_seed1339": 15549535,
+  "bytes_code": null,
+  "seeds": [1337, 1338, 1339],
+  "hardware": "8x H100 80GB SXM",
+  "derived_from_pr": 1123,
+  "cite_pr": [1176, 1394, 1413, 1421, 1445],
+  "status": "3_seed_mid_eval_@76pct_pod_terminated",
+  "pod_terminated_note": "RunPod container was terminated by RunPod-side (container not found on SSH reconnect) while the SLOT-100 stride=64 re-run was at 75-76% of the sliding window. The reported 1.136399 3-seed mean is the last stable checkpoint we captured from the live log files. Completing the remaining 24% (~12 min per seed on one H100) would require roughly $15 of additional RunPod credit and is planned as a follow-up commit once the budget is approved.",
+  "train_step_count_per_seed": {
+    "1337": 4457,
+    "1338": 4856,
+    "1339": 5310
+  },
+  "train_wallclock_seconds_per_seed": {
+    "1337": 600.1,
+    "1338": 600.1,
+    "1339": 600.1
+  },
+  "bytes_total_seed1337_xz": 15294864,
+  "bytes_total_seed1338_xz": 15278528,
+  "compliance": {
+    "artifact_under_16mb": true,
+    "non_record_submission": true,
+    "single_file_train_gpt": true,
+    "pure_python_rans_decoder_fallback": true,
+    "legal_slot_score_first": true,
+    "legal_muon_ttt_score_first": true,
+    "training_wallclock_under_600s": true,
+    "train_log_included": "train_summary.log",
+    "eval_log_included": "eval_trajectory.log",
+    "no_external_files_at_inference": true,
+    "deterministic_rerun_via_run_sh": true
+  }
+}

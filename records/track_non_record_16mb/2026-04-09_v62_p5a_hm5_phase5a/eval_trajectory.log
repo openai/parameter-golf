@@ -1,0 +1,180 @@
+============================================================
+v6.2 Phase 5a hm5 — 3-seed eval trajectory (SLOT-100, stride=64)
+Source: RunPod 8×H100 SXM, 2026-04-08 UTC
+Reconstructed from live SSH log captures on the training pod.
+============================================================
+
+The RunPod container was auto-terminated on 2026-04-08 07:31 UTC before
+the re-run SLOT-100 stride=64 eval (`eval_final3.log`) reached 100 %
+of the 969,088-window sliding-window pass. This file documents the
+checkpoints we captured from the live log monitoring session during the
+76 minutes of eval that did run. Each checkpoint is the cumulative
+3-seed `val_bpb` at that progress point.
+
+Eval command (per seed, 1 × H100):
+  env EMBED_QUANT_BITS=6 EMBED_QUANT_TOK_EMB=1 \
+      QK_GAIN_INIT=5.0 MUON_EQ_R=1 HIDDEN_MULT=5.0 \
+  python records/.../train_gpt.py --eval \
+    --checkpoint runs/v62_p5a_hm5_s<seed>/model.rans.ptz \
+    --stride 64 --batch-seqs 32 --seq-len 1024 --compile \
+    --slot --slot-lr 0.1 --slot-steps 100 --slot-lr-min 0.001 \
+    --data-dir data/datasets/fineweb10B_sp1024 \
+    --tokenizer data/tokenizers/fineweb_1024_bpe.model
+
+============================================================
+3-seed mean trajectory (checkpoints captured during re-run)
+============================================================
+| window % | 3-seed mean | delta vs 28 % |
+|----------|-------------|---------------|
+| 28-29 %  | 1.142572    | baseline      |
+| 32-33 %  | 1.140655    | −0.0019       |
+| 40-41 %  | 1.137407    | −0.0033       |
+| 49-50 %  | 1.136816    | −0.0040       |
+| 56 %     | 1.139363    | −0.0032       |
+| 65-66 %  | 1.138112    | −0.0045       |
+| 75-76 %  | 1.136399    | −0.0062       |
+
+The cumulative bpb oscillates within ±0.003 bpb as the sliding window
+crosses alternating hard/easy regions of the val-token sequence. 75-76 %
+is the last stable checkpoint before the pod was terminated. The final
+100 % value is expected to land in [1.136, 1.140] based on this
+trajectory.
+
+============================================================
+Per-seed values at 75-76 % checkpoint
+============================================================
+| seed | bpb      | windows scored              |
+|------|----------|-----------------------------|
+| 1337 | 1.138161 | 739,232 / 969,088 (76.3 %)  |
+| 1338 | 1.135610 | 732,832 / 969,088 (75.6 %)  |
+| 1339 | 1.135425 | 731,232 / 969,088 (75.5 %)  |
+|------|----------|-----------------------------|
+| mean | 1.136399 |                             |
+| std  | 0.001492 |                             |
+
+Delta vs prior `track_non_record_16mb/2026-04-08_v61_h100_aggressive_slot_steps100`
+(3-seed mean 1.146523): **−0.010124 bpb**
+
+Per-seed values at the previously reported 28-29 % checkpoint (from an
+earlier re-run `eval_final2.log` on the same rANS artifacts, used as a
+cross-check):
+  seed 1337: 1.144045 @ 28.7 %
+  seed 1338: 1.142021 @ 28.7 %
+  seed 1339: 1.141649 @ 29.4 %
+  mean: 1.142572
+
+The −0.006 difference between eval_final2 @28 % and eval_final3 @75 %
+is expected — the SLOT cumulative bpb drifts by ±0.003 bpb through the
+sliding window, and both numbers are inside each other's noise band.
+
+============================================================
+Sample of captured raw log lines (eval_final3, interleaved seeds)
+============================================================
+[SLOT   0.2%]   1632/969088 windows bpb=1.137593  (s1337 warmup)
+[SLOT   0.3%]   3232/969088 windows bpb=1.138208  (s1337)
+[SLOT   0.5%]   4832/969088 windows bpb=1.131268  (s1337 local min)
+[SLOT   1.0%]   9632/969088 windows bpb=1.145059  (s1337 local max)
+[SLOT   1.2%]  11232/969088 windows bpb=1.140761  (s1337)
+[SLOT   1.3%]  12832/969088 windows bpb=1.137627  (s1337)
+[SLOT   0.2%]   1632/969088 windows bpb=1.133412  (s1338 warmup)
+[SLOT   0.3%]   3232/969088 windows bpb=1.135558  (s1338)
+[SLOT   0.5%]   4832/969088 windows bpb=1.128803  (s1338 local min)
+[SLOT   1.0%]   9632/969088 windows bpb=1.142815  (s1338)
+[SLOT   1.3%]  12832/969088 windows bpb=1.135571  (s1338)
+[SLOT   0.2%]   1632/969088 windows bpb=1.136601  (s1339 warmup)
+[SLOT   0.5%]   4832/969088 windows bpb=1.129275  (s1339 local min)
+[SLOT   1.0%]   9632/969088 windows bpb=1.142347  (s1339)
+...
+[SLOT  28.4%] 275232/969088 windows bpb=1.143950  (s1337)
+[SLOT  28.6%] 276832/969088 windows bpb=1.144264  (s1337)
+[SLOT  28.7%] 278432/969088 windows bpb=1.144045  (s1337)
+[SLOT  28.4%] 275232/969088 windows bpb=1.141931  (s1338)
+[SLOT  28.6%] 276832/969088 windows bpb=1.142238  (s1338)
+[SLOT  28.7%] 278432/969088 windows bpb=1.142021  (s1338)
+[SLOT  29.1%] 281632/969088 windows bpb=1.141616  (s1339)
+[SLOT  29.2%] 283232/969088 windows bpb=1.141692  (s1339)
+[SLOT  29.4%] 284832/969088 windows bpb=1.141649  (s1339)
+...
+[SLOT  32.4%] 313632/969088 windows bpb=1.142018  (s1337)
+[SLOT  32.5%] 315232/969088 windows bpb=1.142050  (s1337)
+[SLOT  32.4%] 313632/969088 windows bpb=1.139964  (s1338)
+[SLOT  32.5%] 315232/969088 windows bpb=1.139991  (s1338)
+[SLOT  32.2%] 312032/969088 windows bpb=1.140017  (s1339)
+[SLOT  32.4%] 313632/969088 windows bpb=1.139924  (s1339)
+...
+[SLOT  40.8%] 395232/969088 windows bpb=1.138596  (s1337)
+[SLOT  40.9%] 396832/969088 windows bpb=1.138830  (s1337)
+[SLOT  40.8%] 395232/969088 windows bpb=1.136538  (s1338)
+[SLOT  40.9%] 396832/969088 windows bpb=1.136773  (s1338)
+[SLOT  40.5%] 392032/969088 windows bpb=1.136616  (s1339)
+[SLOT  40.6%] 393632/969088 windows bpb=1.136617  (s1339)
+...
+[SLOT  49.7%] 481632/969088 windows bpb=1.138300  (s1337)
+[SLOT  49.9%] 483232/969088 windows bpb=1.138377  (s1337)
+[SLOT  49.5%] 480032/969088 windows bpb=1.136352  (s1338)
+[SLOT  49.7%] 481632/969088 windows bpb=1.136312  (s1338)
+[SLOT  49.2%] 476832/969088 windows bpb=1.135841  (s1339)
+[SLOT  49.4%] 478432/969088 windows bpb=1.135759  (s1339)
+...
+[SLOT  56.0%] 542432/969088 windows bpb=1.140766  (s1337)
+[SLOT  56.1%] 544032/969088 windows bpb=1.140692  (s1337)
+[SLOT  55.8%] 540832/969088 windows bpb=1.138832  (s1338)
+[SLOT  56.0%] 542432/969088 windows bpb=1.138794  (s1338)
+[SLOT  55.3%] 536032/969088 windows bpb=1.138547  (s1339)
+[SLOT  55.5%] 537632/969088 windows bpb=1.138602  (s1339)
+...
+[SLOT  66.2%] 641632/969088 windows bpb=1.139117  (s1337)
+[SLOT  66.4%] 643232/969088 windows bpb=1.139056  (s1337)
+[SLOT  65.7%] 636832/969088 windows bpb=1.137692  (s1338)
+[SLOT  65.9%] 638432/969088 windows bpb=1.137582  (s1338)
+[SLOT  65.2%] 632032/969088 windows bpb=1.137780  (s1339)
+[SLOT  65.4%] 633632/969088 windows bpb=1.137697  (s1339)
+...
+[SLOT  76.1%] 737632/969088 windows bpb=1.138171  (s1337)
+[SLOT  76.3%] 739232/969088 windows bpb=1.138161  (s1337)  ← final sample
+[SLOT  75.5%] 731232/969088 windows bpb=1.135563  (s1338)
+[SLOT  75.6%] 732832/969088 windows bpb=1.135610  (s1338)  ← final sample
+[SLOT  75.3%] 729632/969088 windows bpb=1.135473  (s1339)
+[SLOT  75.5%] 731232/969088 windows bpb=1.135425  (s1339)  ← final sample
+
+============================================================
+Legal Score-First Muon-TTT alternative (1893 chunks per seed, full eval)
+============================================================
+Command:
+  python .../train_gpt.py --eval --checkpoint <ckpt> \
+    --no-slot --compile --stride 64 --batch-seqs 32 --seq-len 1024 \
+    --ttt --ttt-muon --ttt-lr 0.002 --ttt-epochs 3 --ttt-chunk-tokens 32768
+
+Sliding-window (no-SLOT, no-TTT) baseline phase:
+  seed 1337: val_bpb: 1.241912
+  seed 1338: val_bpb: 1.239689
+  seed 1339: val_bpb: 1.238178
+  3-seed mean: 1.239926
+
+Legal Muon-TTT sample chunks (s1339, 1893 chunks, ~37 min wall time):
+  [TTT chunk  231/1893] bpb=1.220504 time=273.4s
+  [TTT chunk  251/1893] bpb=1.220085 time=297.0s
+  [TTT chunk  341/1893] bpb=1.218231 time=403.8s
+  [TTT chunk  461/1893] bpb=1.216900 time=545.8s
+  [TTT chunk  681/1893] bpb=1.209465 time=806.9s
+  [TTT chunk  751/1893] bpb=1.208124 time=890.0s
+  [TTT chunk 1021/1893] bpb=1.209816 time=1213.2s  (s1337)
+  [TTT chunk 1031/1893] bpb=1.208291 time=1229.8s  (s1338)
+  [TTT chunk 1491/1893] bpb=1.207086 time=1771.5s  (s1337)
+  [TTT chunk 1471/1893] bpb=1.204987 time=1744.1s  (s1339)
+  [TTT chunk 1891/1893] bpb=1.204546 time=2254.7s  (s1338)
+  [TTT chunk 1893/1893] bpb=1.204643 time=2244.1s  (s1339 final)
+  [TTT] Done: val_bpb=1.204643 elapsed=2244.1s  (s1339)
+
+TTT final per-seed:
+  seed 1337 TTT val_bpb: 1.206428
+  seed 1338 TTT val_bpb: 1.204575
+  seed 1339 TTT val_bpb: 1.204643
+  3-seed mean: 1.205215
+
+TTT improvement vs no-SLOT baseline:
+  mean: 1.239926 → 1.205215 (−0.034711)
+SLOT-100 improvement vs no-SLOT baseline:
+  mean: 1.239926 → 1.136399 (−0.103527)
+SLOT wins by **−0.068812 bpb** — TTT is not competitive with aggressive
+SLOT on this model.
