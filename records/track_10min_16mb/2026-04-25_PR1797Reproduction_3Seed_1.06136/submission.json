@@ -1,0 +1,24 @@
+{
+  "author": "Aayush Baniya",
+  "github_id": "AayushBaniya2006",
+  "name": "Independent reproduction of PR #1797 (SmearGate + LQER Asym) — val_bpb 1.06136 (3-seed mean)",
+  "blurb": "Independent 3-seed reproduction of PR #1797's stack (PR #1787 + Smear Gate + LQER Asymmetric rank-4 INT2+INT4 factors) with seeds {42, 0, 1234} on 8xH100 80GB SXM (RunPod IN, PyTorch 2.9.1+cu128, FA3, Triton). Achieves val_bpb 1.06136 mean (std 0.00059), beating PR #1797's reported 1.06335 mean by 0.00199 BPB at >5sigma significance. All three seeds individually beat PR #1797's best seed (1.06297). All seeds clear 600s train budget, 600s TTT eval budget, and 16,000,000-byte artifact cap with >47KB headroom.",
+  "date": "2026-04-25",
+  "track": "10min_16mb",
+  "val_loss": 2.32265,
+  "val_bpb": 1.06136,
+  "val_bpb_std": 0.00059,
+  "val_loss_std": 0.00129,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42":   {"val_loss": 2.32117, "val_bpb": 1.06068, "artifact_bytes": 15951346, "steps": 4948, "train_time_s": 599.561, "ttt_eval_time_s": 533.520},
+    "0":    {"val_loss": 2.32323, "val_bpb": 1.06163, "artifact_bytes": 15947797, "steps": 4920, "train_time_s": 599.541, "ttt_eval_time_s": 435.107},
+    "1234": {"val_loss": 2.32354, "val_bpb": 1.06177, "artifact_bytes": 15952843, "steps": 4916, "train_time_s": 599.557, "ttt_eval_time_s": 468.924}
+  },
+  "artifact_bytes_mean": 15950662,
+  "artifact_bytes_max": 15952843,
+  "train_time_s_mean": 599.553,
+  "eval_time_s_mean": 479.184,
+  "hardware": "8xH100 80GB SXM (RunPod secure cloud, IN region)",
+  "reproducibility_notes": "Stock train_gpt.py from PR #1797 (dexhunter/parameter-golf @ 04d35edaad74fc88b5ef08a814c94596b616ec1b) with run flags from PR #1787 README plus SMEAR_GATE_ENABLED=1 and LQER_ENABLED=1 LQER_ASYM_ENABLED=1. No code modifications. We tested Gram Newton-Schulz (Dao AI Lab arxiv 2505.16932) as a Phase 3 ablation — showed slight regression at our scale (+0.00087 BPB at seed 42) and was dropped. Logs in seed_logs/."
+}
