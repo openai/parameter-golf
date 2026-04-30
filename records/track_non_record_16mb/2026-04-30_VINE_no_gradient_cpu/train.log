@@ -1,0 +1,58 @@
+============================================================
+VINE Parameter Golf -- Geometric Prediction (non-record)
+============================================================
+  DATA_PATH      = D:/0000_Parameter_golf/parameter-golf-main/parameter-golf-main/data/datasets/fineweb10B_sp1024/
+  TOKENIZER_PATH = D:/0000_Parameter_golf/parameter-golf-main/parameter-golf-main/data/tokenizers/fineweb_1024_bpe.model
+  PPM order      = 5
+  Eval slice     = 500,000 bytes (offset 0)
+  Max shards     = 20, max tokens/shard = 2,000,000
+  Scoring path integrity confirmed (no elif in scoring functions)
+  Found 20 train shard(s), 1 val shard(s)
+  Decoded val shard: 4,815,265 bytes (2.0s)
+  Dictionary loaded: 359039 words (inline)
+  Story loaded: 139671 chars (inline)
+  Decoded train shard 1/20: cumulative 4,891,601 bytes
+  Decoded train shard 2/20: cumulative 9,777,084 bytes
+  Decoded train shard 3/20: cumulative 14,655,472 bytes
+  Decoded train shard 4/20: cumulative 19,474,939 bytes
+  Decoded train shard 5/20: cumulative 24,341,142 bytes
+  Decoded train shard 6/20: cumulative 29,265,642 bytes
+  Decoded train shard 7/20: cumulative 34,187,584 bytes
+  Decoded train shard 8/20: cumulative 39,131,798 bytes
+  Decoded train shard 9/20: cumulative 43,961,317 bytes
+  Decoded train shard 10/20: cumulative 48,867,348 bytes
+  Decoded train shard 11/20: cumulative 53,760,143 bytes
+  Decoded train shard 12/20: cumulative 58,637,027 bytes
+  Decoded train shard 13/20: cumulative 63,574,831 bytes
+  Decoded train shard 14/20: cumulative 68,493,045 bytes
+  Decoded train shard 15/20: cumulative 73,424,474 bytes
+  Decoded train shard 16/20: cumulative 78,353,519 bytes
+  Decoded train shard 17/20: cumulative 83,191,009 bytes
+  Decoded train shard 18/20: cumulative 88,105,680 bytes
+  Decoded train shard 19/20: cumulative 92,976,713 bytes
+  Decoded train shard 20/20: cumulative 97,921,549 bytes
+  Decoded 20 train shards: 97,921,549 bytes (27.7s)
+    10.0M bytes (0.1 MB/s)
+    20.0M bytes (0.1 MB/s)
+    30.0M bytes (0.1 MB/s)
+    40.0M bytes (0.1 MB/s)
+    50.0M bytes (0.1 MB/s)
+    60.0M bytes (0.1 MB/s)
+    70.0M bytes (0.1 MB/s)
+    80.0M bytes (0.1 MB/s)
+    90.0M bytes (0.1 MB/s)
+  PPM built: order=5 prune=4 size=11.9MB (782.4s)
+  Collapse: 359039 words -> trie (292719 prefixes) in 23.6s
+  Basin sample (5K): A1=3341, A2=563, B1=646, B2=450
+    100000 bytes, BPB=2.2148, basin=SILENT, embed=alive resets=429 decouple=431 align=+0.968 geom_err=0.455 full_err=0.746
+    200000 bytes, BPB=2.2161, basin=SILENT, embed=alive resets=978 decouple=982 align=+0.939 geom_err=0.508 full_err=0.693
+    300000 bytes, BPB=2.2187, basin=SILENT, embed=alive resets=1473 decouple=1544 align=+0.920 geom_err=0.466 full_err=0.575
+    400000 bytes, BPB=2.2139, basin=SILENT, embed=alive resets=1946 decouple=2072 align=+0.755 geom_err=0.659 full_err=0.962
+  [embedding telemetry] resets=2409 decoupling_events=2411 final_alignment=+0.918 geom_err=0.542 full_err=0.633
+
+============================================================
+  val_bpb: 2.1728
+  bytes evaluated: 499,999
+  eval time: 1391.6s
+  total wall-clock: 2203.7s
+============================================================
