@@ -1,0 +1,11 @@
+lane,experiment,impl_file,inv_id,coq_theorem,proof_status,coq_file,phd_chapters,empirical_r7,cited_in_tex
+L-GS-1,Trinity identity (mirror),experiments/golden_sunflowers_jepa_ut_phinta/train_gpt.py,GS-INV-1,trinity_anchor,Proven,trios/docs/phd/theorems/Phi.v + sacred/CorePhi.v,Ch.3,N/A,no
+L-GS-2,PhiNTA frozen buffer,experiments/golden_sunflowers_jepa_ut_phinta/train_gpt.py,GS-INV-2,phinta_buffer_not_in_grad,Admitted,experiments/golden_sunflowers_jepa_ut_phinta/theorems/GoldenSunflowers.v,Ch.0,yes,no
+L-GS-3,PhiNTA gain = 1/phi,experiments/golden_sunflowers_jepa_ut_phinta/train_gpt.py,GS-INV-3,phi_ortho_init_gain_is_phi_inv,Admitted,experiments/golden_sunflowers_jepa_ut_phinta/theorems/GoldenSunflowers.v + trios/docs/phd/sacred/CorePhi.v::phi_inv,Ch.0;Ch.3,yes,no
+L-GS-4,JEPA loss nonneg,experiments/golden_sunflowers_jepa_ut_phinta/train_gpt.py,GS-INV-4,jepa_loss_nonnegative,Proven,experiments/golden_sunflowers_jepa_ut_phinta/theorems/GoldenSunflowers.v,Ch.0,yes,no
+L-GS-5,UT loops = round(phi^3) = 4,experiments/golden_sunflowers_jepa_ut_phinta/train_gpt.py,GS-INV-5,ut_loops_eq_round_phi_cube,Proven,experiments/golden_sunflowers_jepa_ut_phinta/theorems/GoldenSunflowers.v,Ch.0,yes,no
+L-GS-6,JEPA tap normalisation,experiments/golden_sunflowers_jepa_ut_phinta/train_gpt.py,GS-INV-6,(runtime),Runtime,smoke_modules.py [5/5],Ch.0,yes,no
+L-GS-7,Baseline byte-equivalence,experiments/golden_sunflowers_jepa_ut_phinta/baseline_equivalence.py,GS-INV-7,(runtime),Runtime,baseline_equivalence.py [3/3],Ch.0,yes,no
+L-GS-9,alpha_phi = phi^-3 / 2 (algebraic form),experiments/golden_sunflowers_jepa_ut_phinta/train_gpt.py,GS-INV-9,alpha_phi_times_phi_cubed,Proven,trios/docs/phd/theorems (mirror) + sacred/AlphaPhi.v,Ch.4,N/A,no
+L-GS-A17,Ablation factor coverage C/D/G,experiments/golden_sunflowers_jepa_ut_phinta/run_sweep.sh,GS-INV-A17,(none),Empirical,N/A,Ch.17,yes,no
+L-GS-G21,Gate-2/Gate-3 substrate derivation,experiments/golden_sunflowers_jepa_ut_phinta/compute_grant.md,GS-INV-G21,(see INV-7 refutations R1-R6),Mirror,trios/docs/phd/theorems/igla/INV7_IglaFoundCriterion.v,Ch.21,yes,no

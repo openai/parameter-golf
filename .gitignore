@@ -9,3 +9,10 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+# GOLDEN SUNFLOWERS proposal — Coq build artefacts
+records/track_non_record_16mb/2026-04-30_GoldenSunflowers_Proposal/theorems/*.vo
+records/track_non_record_16mb/2026-04-30_GoldenSunflowers_Proposal/theorems/*.vos
+records/track_non_record_16mb/2026-04-30_GoldenSunflowers_Proposal/theorems/*.vok
+records/track_non_record_16mb/2026-04-30_GoldenSunflowers_Proposal/theorems/*.glob
+records/track_non_record_16mb/2026-04-30_GoldenSunflowers_Proposal/theorems/.*.aux
+records/track_non_record_16mb/2026-04-30_GoldenSunflowers_Proposal/theorems/.nra.cache

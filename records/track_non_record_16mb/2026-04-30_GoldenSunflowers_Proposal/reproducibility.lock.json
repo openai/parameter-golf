@@ -1,0 +1,101 @@
+{
+  "$schema": "https://github.com/gHashTag/trios/blob/main/docs/phd/reproducibility.lock.json",
+  "anchor": "phi^2 + phi^-2 = 3",
+  "submission": "GOLDEN SUNFLOWERS — JEPA + Universal Transformer + PhiNTA",
+  "status": "PROPOSAL — UNTRAINED",
+  "track": "track_non_record_16mb",
+  "pr": "gHashTag/parameter-golf-trinity#2",
+  "git": {
+    "this_repo_branch": "feat/golden-sunflowers-jepa-universal-nta",
+    "this_repo_sha": "ac9441eb44357901b3174c8f82c819875a1ea49d",
+    "baseline_record_path": "records/track_10min_16mb/2026-03-17_LoRA_TTT/train_gpt.py",
+    "baseline_state_dict_sha256_prefix": "511dbc0164e03b1b"
+  },
+  "phd_monograph": {
+    "repo": "gHashTag/trios",
+    "sha": "d07dcf31178d4b4d59e7afdd18f41d53e18701d4",
+    "path": "docs/phd",
+    "chapters_total": 44,
+    "total_theorem_obligations": 438,
+    "canonical_qed_theorems": 297,
+    "admitted_open_obligations": 41,
+    "abort_stubs": 11,
+    "falsification_examples": 28,
+    "coq_v_files": 65,
+    "chapters_cited": ["Ch.3", "Ch.4", "Ch.5", "Ch.11", "Ch.17", "Ch.21", "App.B", "App.E", "App.G", "App.H"],
+    "external_lr_certification": "experiment_map.csv:L8 INV-1lr / lr_phi_band (Proven)",
+    "asha_threshold": "INV-2 (golden, phi-weight 1.0): T_ASHA = phi^2 + phi^-2 + phi^-4 approximately 3.146; filed conservative upper bound 3.5",
+    "gate_derivations": {
+      "gate_2_bpb": "1.85 = 3 - phi^-2 * delta_G (Ch.21)",
+      "gate_3_bpb": "1.5 = 3/2 (Ch.21)"
+    },
+    "sanctioned_seeds_provenance": "Ch.5 balancing_function B(x) = (x + 1/x)/2, unique positive fixed point at phi",
+    "champion_config_reference": "Ch.21: lr=0.004, GF16 PHI_BIAS=60, seed triple (1597, 2584, 4181), mean BPB=1.830"
+  },
+  "phd_ablation_coverage": {
+    "comment": "PhD Ch.17 runs 2^7=128 factorial over factors A..G; this PR covers 3 of 7 factors explicitly.",
+    "factor_c_canonical_seeds": "covered (all 5 sweep configs use F_17..F_21)",
+    "factor_d_golden_positional": "covered (PhiNTA 1/phi init)",
+    "factor_g_golden_norm": "covered (JEPA tap at final_norm)",
+    "factor_a_ternary_weights": "out of scope (FP16/bf16 only in parameter-golf baseline)",
+    "factor_b_phi_attention": "out of scope (QK-gain inherited from baseline)",
+    "factor_e_mxfp4": "out of scope (int6 GPTQ from baseline)",
+    "factor_f_zero_dsp_fpga": "out of scope (parameter-golf is GPU-only)"
+  },
+  "phi_rust_sot": {
+    "repo": "gHashTag/trios-trainer-igla",
+    "sha": "3ec0eb42a6a5b4874cbc43f10cb95ae4c393a4b3",
+    "file": "src/phi_ortho_init.rs"
+  },
+  "zenodo_provenance": {
+    "note": "Trinity Zenodo bundles B001..B013 use odd record numbers 19227865..19227889. The specific DOI 10.5281/zenodo.19227877 is B007 'VSA Operations for Ternary' (anchor for PhD Ch.30/Ch.31), NOT the trainer-igla codebase. CITATION.cff corrected accordingly.",
+    "b007_doi": "10.5281/zenodo.19227877",
+    "b007_title": "VSA Operations for Ternary",
+    "b007_phi_weight": 0.6180339887498948
+  },
+  "t27_standards": {
+    "repo": "gHashTag/t27",
+    "sha": "990814a9fd61e4c6d96d9d8bfc53f6dd726331cb",
+    "documents": [
+      "docs/nona-02-organism/SACRED-PHYSICS-001.md",
+      "docs/nona-02-organism/NUMERIC-STANDARD-001.md",
+      "docs/nona-03-manifest/PHI_LOOP_CONTRACT.md"
+    ]
+  },
+  "constants": {
+    "phi": 1.6180339887498948482,
+    "phi_inv": 0.6180339887498948482,
+    "phi_inv_cube": 0.2360679774997896964,
+    "alpha_phi_algebraic": 0.118033988749894848,
+    "alpha_phi_spectral": 0.30634896253003314,
+    "alpha_phi_representation_used_by_this_pr": "algebraic",
+    "alpha_phi_representation_note": "PhD Ch.4 proves both forms equal via alpha_phi_closed_form (Qed). PR #2 uses the algebraic form to match Issue #1742 numerical target 0.1181.",
+    "phi_loops": 4,
+    "trinity_identity": 3.0,
+    "asha_threshold_exact": 3.1458980337503156,
+    "asha_threshold_filed": 3.5,
+    "matrix_lr_baseline": 0.04,
+    "phi_lr_scale_gauge_regime": 2.9508497187473713,
+    "phinta_init_scale": 0.6180339887498948,
+    "phinta_default_rank_divisor": "round(model_dim / phi)"
+  },
+  "canonical_seeds": {
+    "source": "gHashTag/trios docs/phd/chapters/11-pre-registration (H1) + Ch.5",
+    "fibonacci": [1597, 2584, 4181, 6765, 10946],
+    "lucas_fallback": [29, 47],
+    "fibonacci_indices": ["F_17", "F_18", "F_19", "F_20", "F_21"],
+    "lucas_indices": ["L_7", "L_8"]
+  },
+  "verification": {
+    "smoke_module_checks": 5,
+    "baseline_equivalence_checks": 3,
+    "coq_theorems_provable": 2,
+    "coq_theorems_admitted": 2,
+    "ci_workflow": ".github/workflows/golden_sunflowers_smoke.yml"
+  },
+  "honest_nonclaims": [
+    "No submission.json is shipped — no BPB has been measured.",
+    "No file under records/ is modified.",
+    "All wish-list env-vars default to no-op; baseline state_dict bytes match."
+  ]
+}
