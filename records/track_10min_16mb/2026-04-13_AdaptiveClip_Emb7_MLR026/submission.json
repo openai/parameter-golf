@@ -1,0 +1,46 @@
+{
+  "author": "Dex Hunter",
+  "github_id": "dexhunter",
+  "name": "Record: Per-Layer Adaptive GPTQ Clip + int7 Embeddings + MATRIX_LR=0.026",
+  "blurb": "Per-layer adaptive GPTQ clip sigmas (MLP=12.0 tight for quality, Attn=13.0 loose for bytes), int7 embeddings (saves ~530KB vs int8), tighter embed clip (15.0), MATRIX_LR=0.026 (6-point sweep optimum), WARMDOWN_FRAC=0.75, TTT_CHUNK_SIZE=48. Built on PR #1530 v2 (VarLen attention, Triton fused MLP, doc-TTT LoRA, triple recurrence).",
+  "date": "2026-04-13T00:00:00Z",
+  "val_loss": 2.77666,
+  "val_bpb": 1.07493,
+  "val_bpb_std": 0.00078,
+  "seeds": [42, 0, 1337],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.77521,
+      "val_bpb": 1.07437,
+      "pre_quant_val_bpb": 1.07298,
+      "post_quant_val_bpb": 1.08495,
+      "artifact_bytes": 15934100,
+      "steps": 4888,
+      "train_time_seconds": 587,
+      "eval_time_seconds": 220
+    },
+    "0": {
+      "val_loss": 2.77579,
+      "val_bpb": 1.07460,
+      "pre_quant_val_bpb": 1.07184,
+      "post_quant_val_bpb": 1.08567,
+      "artifact_bytes": 15937217,
+      "steps": 4905,
+      "train_time_seconds": 587,
+      "eval_time_seconds": 218
+    },
+    "1337": {
+      "val_loss": 2.77897,
+      "val_bpb": 1.07582,
+      "pre_quant_val_bpb": 1.07310,
+      "post_quant_val_bpb": 1.08663,
+      "artifact_bytes": 15928721,
+      "steps": 4904,
+      "train_time_seconds": 587,
+      "eval_time_seconds": 213
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "bytes_total": 15933346,
+  "based_on": "PR #1530 (@samacqua)"
+}
