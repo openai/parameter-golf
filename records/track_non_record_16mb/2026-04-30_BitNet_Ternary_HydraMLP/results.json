@@ -1,0 +1,40 @@
+{
+  "package": "2026-04-30_bitnet_ternary_hydramlp",
+  "track": "non-record-10min-16mb",
+  "tokenizer": "sentencepiece_sp1024",
+  "vocab_size": 1024,
+  "gpu": "1xH100",
+  "wallclock_seconds": 600.404,
+  "step_stop": 774,
+  "total_tokens_seen": 532611072,
+  "tokens_per_second": 887000,
+  "model_params": 39139174,
+  "val_loss_at_stop": 2.30316927,
+  "val_bpb_at_stop": 1.36406657,
+  "final_int4_zlib_roundtrip_val_loss": 2.3032,
+  "final_int4_zlib_roundtrip_val_bpb": 1.3641,
+  "final_int4_zlib_roundtrip_exact_val_loss": 2.30316927,
+  "final_int4_zlib_roundtrip_exact_val_bpb": 1.36406657,
+  "submission_size_bytes": 12923413,
+  "submission_size_mb": 12.923,
+  "artifact_under_16mb": true,
+  "byte_breakdown": {
+    "int4_weights": 7130112,
+    "ternary_weights": 22763520,
+    "passthrough": 1817192,
+    "code_bytes": 261408,
+    "model_int4_ternary_zlib_total": 12662005
+  },
+  "ternary_config": {
+    "scope": "HydraMLP.gate_up,HydraMLP.down",
+    "scale_mode": "buffered_absmean",
+    "export": "int8_signs+per_group_fp16_scale"
+  },
+  "schedule": {
+    "iterations_target": 20000,
+    "warmup_steps": 20,
+    "warmdown_frac": 0.45,
+    "min_lr": 0.0,
+    "max_wallclock_seconds": 600.0
+  }
+}
