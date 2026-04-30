@@ -1,0 +1,50 @@
+{
+  "author": "bigbag",
+  "val_bpb": 1.06844,
+  "val_bpb_std": 0.00058,
+  "bytes_total_max": 15952215,
+  "seed_results": [
+    {
+      "seed": 1337,
+      "val_bpb": 1.06798,
+      "val_loss": 2.75871500,
+      "bytes_total": 15950405,
+      "train_time_ms": 599643,
+      "eval_time_ms": 409616
+    },
+    {
+      "seed": 42,
+      "val_bpb": 1.06824,
+      "val_loss": 2.75937977,
+      "bytes_total": 15952215,
+      "train_time_ms": 599651,
+      "eval_time_ms": 420960
+    },
+    {
+      "seed": 2025,
+      "val_bpb": 1.06909,
+      "val_loss": 2.76156888,
+      "bytes_total": 15948755,
+      "train_time_ms": 599564,
+      "eval_time_ms": 381181
+    }
+  ],
+  "score_first_ttt": true,
+  "no_pre_quant_ttt": true,
+  "no_ngram_cache": true,
+  "env_vars": "MIN_LR=0.10 QK_GAIN_INIT=5.25 GATE_ATTN_WIDTH=24 GPTQ_RESERVE_SECONDS=0.5 VAL_LOSS_EVERY=0",
+  "techniques": [
+    "PR #1874 verbatim code (SP8192 non-CaseOps)",
+    "LQER asymmetric rank-4 quantization correction",
+    "SmearGate + Attention Output Gate (width 24)",
+    "Polar Express Newton-Schulz coefficients",
+    "MIN_LR=0.10 warmdown floor",
+    "QK_GAIN_INIT=5.25 attention scaling",
+    "GATE_ATTN_WIDTH=24 full-dim gating",
+    "GPTQ_RESERVE_SECONDS=0.5 (maximize training steps)",
+    "VAL_LOSS_EVERY=0 (no mid-train eval overhead)",
+    "Phased TTT (3-phase score-first AdamW, LoRA rank 128)",
+    "11L x 512D x 8H/4KV, parallel residuals, depth recurrence",
+    "GPTQ int6/int7 + Brotli-11"
+  ]
+}
