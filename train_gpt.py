@@ -66,19 +66,19 @@ class Hyperparameters:
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 1.8625))
+    mlp_mult = float(os.environ.get("MLP_MULT", 1.75))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_max_base = float(os.environ.get("ROPE_MAX_BASE", 4096.0))
-    rope_min_base = float(os.environ.get("ROPE_MIN_BASE", 256.0))
+    rope_max_base = float(os.environ.get("ROPE_MAX_BASE", 8192.0))
+    rope_min_base = float(os.environ.get("ROPE_MIN_BASE", 512.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
-    embed_lr = float(os.environ.get("EMBED_LR", 0.0225))
-    head_lr = float(os.environ.get("HEAD_LR", 0.0225))
-    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.0125))
+    embed_lr = float(os.environ.get("EMBED_LR", 0.025))
+    head_lr = float(os.environ.get("HEAD_LR", 0.025))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.015))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.125))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.0225))
-    scalar_lr = float(os.environ.get("SCALAR_LR", 0.015))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.0275))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.0175))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
@@ -742,9 +742,9 @@ class Block(nn.Module):
         self.mlp_norm = RMSNorm()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len, use_rope, rope_proportion)
         self.mlp = MLP(dim, mlp_mult)
-        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.1))
+        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.05))
         self.resid_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(resid_scale))
-        self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.1))
+        self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32).mul(0.05))
 
     # Inside Block.forward
     def forward(self, x: Tensor, emb: Tensor) -> Tensor:
@@ -770,7 +770,7 @@ def get_linear_progression_kv_heads(layer_idx, total_layers, num_heads):
     
     return int(max(min_kv, kv_heads))
 
-def get_rope_p_smooth(i: int, num_layers: int, p_min=0.5, p_max=0.75) -> float:
+def get_rope_p_smooth(i: int, num_layers: int, p_min=0.375, p_max=0.875) -> float:
     if num_layers <= 1:
         return p_min
     progress = i / (num_layers - 1)
@@ -896,7 +896,6 @@ def main() -> None:
     inductor_config.triton.unique_kernel_names = True   # Prevents Triton kernel namespace collisions in DDP
     inductor_config.freezing = True                     # Aggressive constant-folding for inference/eval
     inductor_config.shape_padding = True
-    inductor_config.coordinate_descent_tuning = True
     inductor_config.epilogue_fusion = True
 
     if distributed:
