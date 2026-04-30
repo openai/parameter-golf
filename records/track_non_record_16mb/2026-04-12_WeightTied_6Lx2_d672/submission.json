@@ -1,0 +1,13 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-12",
+  "name": "Weight-Tied 6Lx2 Transformer (d=672)",
+  "author": "Yuito Kyouni",
+  "github_id": "yuitokyouni",
+  "val_bpb": 1.1639,
+  "val_loss": 1.9652,
+  "artifact_bytes": 13217085,
+  "training_time_seconds": 600,
+  "gpu": "8xH100 SXM",
+  "summary": "Weight-Tied 6Lx2 (12 effective layers from 6 unique blocks), d=672, SmearGate, XSA, EMA, GPTQ int6+lzma, Sliding Window Eval s=64"
+}
