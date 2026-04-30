@@ -1,0 +1,9 @@
+{
+  "author": "Daniel Wahnich",
+  "github_id": "manfromnowhere143",
+  "name": "Aweb Ultimate — 11L LeakyReLU² XSA4 EMA ParallelMuon TTT (1.1190 BPB, 10min 8×H100)",
+  "blurb": "Independent reproduction and improvement of PR #549 SOTA stack. 11L 512d LeakyReLU(0.5)² + XSA4 + Partial RoPE(16/64) + LN Scale + EMA(0.997) + Parallel Muon + GPTQ-lite int6 + Legal Score-First TTT. 7166 steps in 600s on 8×H100 SXM.",
+  "date": "2026-03-29",
+  "val_bpb": 1.1190,
+  "bytes_total": 15948863
+}

@@ -1,0 +1,11 @@
+{
+  "author": "Daniel Wahnich",
+  "github_id": "manfromnowhere143",
+  "name": "Aweb Ultimate — 11L LeakyReLU² XSA4 PartialRoPE EMA ParallelMuon Int6",
+  "blurb": "11L 512d LeakyReLU(0.5)² + XSA4 + Partial RoPE(16/64) + LN Scale + EMA(0.997) + Parallel Muon + GPTQ-lite int6/int8 mixed + SmearGate + BigramHash + ValueEmbedding. Sliding window eval stride=64.",
+  "date": "2026-03-23T00:00:00Z",
+  "val_bpb": 1.1190,
+  "val_bpb_sliding_window": 1.1217,
+  "val_bpb_ttt": 1.1190,
+  "bytes_total": 15948863
+}
