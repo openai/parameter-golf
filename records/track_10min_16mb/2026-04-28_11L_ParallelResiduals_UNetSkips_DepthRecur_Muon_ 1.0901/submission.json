@@ -1,0 +1,11 @@
+{
+  "author": "trung",
+  "github_id": "trung",
+  "name": "Parallel Residuals + U-Net Skip Fix",
+  "blurb": "Fixed the logic error with U-Net skip connections when combined with Parallel Residuals. Updated to use optimized compiled_model in eval_val_sliding. 3-seed average.",
+  "date": "2026-04-28T00:00:00Z",
+  "val_loss": 2.50840009,
+  "val_bpb": 1.09012178,
+  "bytes_total": 15976317,
+  "bytes_code": 84383
+}
