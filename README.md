@@ -8,11 +8,6 @@ Required root files:
 train.py
 requirements.txt
 ```
-
-Submission details and score placeholders are in [ARMENIA_SUBMISSION.md](ARMENIA_SUBMISSION.md).
-
-The FineWeb scores for seeds `1337`, `42`, and `2025` are intentionally left as placeholders until the queued 8xH100 YSU jobs finish.
-
 ---
 
 <img width="3840" height="1280" alt="1920x640-discord" src="https://github.com/user-attachments/assets/90607b26-171f-476a-90ae-69b9dbb7cb30" />
