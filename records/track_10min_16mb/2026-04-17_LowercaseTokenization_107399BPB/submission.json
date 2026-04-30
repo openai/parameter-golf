@@ -1,0 +1,12 @@
+{
+  "name": "nothingLiVa",
+  "github_id": "nothingLiVa",
+  "val_bpb": 1.07068,
+  "val_bpb_seeds": [1.07044, 1.07061, 1.07100],
+  "seeds": [123, 999, 42],
+  "artifact_size_bytes": [15989860, 15985501, 15983482],
+  "train_time_seconds": 590,
+  "hardware": "8x H100 80GB SXM",
+  "description": "Lowercase Tokenization + SP10240 + GPTQ + TTT optimization. BPB 1.07068 (3-seed mean)"
+}
+
