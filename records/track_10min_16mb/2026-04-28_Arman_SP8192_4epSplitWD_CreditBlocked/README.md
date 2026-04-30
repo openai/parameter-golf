@@ -70,7 +70,7 @@ MAX_WALLCLOCK_SECONDS=590
 The final PR should replace this draft with three valid 8xH100 logs:
 
 ```text
-seeds: 999, 42, 314
+seeds: 1337, 42, 2025
 hardware: 8x H100
 required: train_ms < 600,000, eval_ms < 600,000, artifact_bytes < 16,000,000
 ```
@@ -78,9 +78,9 @@ required: train_ms < 600,000, eval_ms < 600,000, artifact_bytes < 16,000,000
 Queued 8xH100 jobs on YSU at the time this draft was updated:
 
 ```text
-32652 pg_r40_999  SEED=999  TTT_CHUNK_TOKENS=40960  MAX_WALLCLOCK_SECONDS=590
-32653 pg_r40_42   SEED=42   TTT_CHUNK_TOKENS=40960  MAX_WALLCLOCK_SECONDS=590
-32654 pg_r40_314  SEED=314  TTT_CHUNK_TOKENS=40960  MAX_WALLCLOCK_SECONDS=590
+32652 pg_r40_1337  SEED=1337  TTT_CHUNK_TOKENS=40960  MAX_WALLCLOCK_SECONDS=590
+32653 pg_r40_42    SEED=42    TTT_CHUNK_TOKENS=40960  MAX_WALLCLOCK_SECONDS=590
+32654 pg_r40_2025  SEED=2025  TTT_CHUNK_TOKENS=40960  MAX_WALLCLOCK_SECONDS=590
 ```
 
 These are the only runs intended for final leaderboard evidence.
