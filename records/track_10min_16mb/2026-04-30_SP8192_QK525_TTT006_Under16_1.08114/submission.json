@@ -1,0 +1,23 @@
+{
+  "author": "Muhammad Zeeshan",
+  "github_id": "Syed-M-Zeeshan",
+  "name": "SP8192 QK5.25 Legal TTT LR0.006",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.08113832,
+  "val_bpb_std": 0.00054249,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {"val_loss": 2.79112779, "val_bpb": 1.08053255, "artifact_bytes": 15994309},
+    "314": {"val_loss": 2.79311801, "val_bpb": 1.08130302, "artifact_bytes": 15994445},
+    "999": {"val_loss": 2.79383193, "val_bpb": 1.08157940, "artifact_bytes": 15991302}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  }
+}
