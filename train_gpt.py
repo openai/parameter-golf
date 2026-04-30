@@ -1445,8 +1445,41 @@ def main() -> None:
         optimizers.insert(1, optimizer_head)
         optimizer_names.insert(1, "head")
 
-    freezeable_layer_params = [[p for p in block.parameters()] for block in base_model.blocks]
-    frozen_layer_count = 0
+    assigned_freeze_param_names: set[str] = set()
+    freeze_groups: list[tuple[str, list[tuple[str, nn.Parameter]]]] = []
+
+    def add_freeze_group(group_name: str, param_names: list[str]) -> None:
+        group_params = [(name, named_params[name]) for name in param_names if name in named_params]
+        if not group_params:
+            return
+        freeze_groups.append((group_name, group_params))
+        assigned_freeze_param_names.update(name for name, _ in group_params)
+
+    if args.layer_freeze_per_step > 0:
+        named_params = dict(base_model.named_parameters())
+        input_param_names = ["tok_emb.weight"]
+        if base_model.embed_proj is not None:
+            input_param_names.append("embed_proj.weight")
+        add_freeze_group("input", input_param_names)
+        for layer_idx in range(len(base_model.blocks)):
+            add_freeze_group(
+                f"block_{layer_idx}",
+                [name for name in named_params if name.startswith(f"blocks.{layer_idx}.")],
+            )
+        add_freeze_group("skip_controls", ["skip_weights", "skip_gates"])
+        output_param_names = []
+        if base_model.head_proj is not None:
+            output_param_names.append("head_proj.weight")
+        if base_model.lm_head is not None:
+            output_param_names.append("lm_head.weight")
+        output_param_names.extend(name for name in named_params if name.startswith("final_norm."))
+        add_freeze_group("output", output_param_names)
+        add_freeze_group(
+            "remaining",
+            [name for name in named_params if name not in assigned_freeze_param_names],
+        )
+    frozen_group_count = 0
+    frozen_ema_param_names: set[str] = set()
 
     def lr_metrics() -> dict[str, float]:
         metrics = {}
@@ -1476,7 +1509,13 @@ def main() -> None:
         f"looping:num_loops:{args.num_loops} loop_start:{args.loop_start} loop_end:{args.loop_end} "
         f"enable_at:{args.enable_looping_at:.3f} encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}"
     )
-    log0(f"layer_freeze:per_step:{args.layer_freeze_per_step} layers:{len(freezeable_layer_params)}")
+    if args.layer_freeze_per_step > 0:
+        log0(
+            f"layer_freeze:per_step:{args.layer_freeze_per_step} groups:{len(freeze_groups)} "
+            f"order:{[name for name, _ in freeze_groups]}"
+        )
+    else:
+        log0("layer_freeze:disabled")
     log0(
         f"export:compressor:{args.compressor} matrix_bits:{args.matrix_bits} embed_bits:{args.embed_bits} "
         f"gptq_calibration_batches:{args.gptq_calibration_batches}"
@@ -1534,25 +1573,27 @@ def main() -> None:
                 group["lr"] = group["base_lr"] * lr_scale
         return muon_momentum
 
-    def clear_frozen_layer_grads() -> None:
-        for layer_params in freezeable_layer_params[:frozen_layer_count]:
-            for p in layer_params:
+    def clear_frozen_param_grads() -> None:
+        for _, group_params in freeze_groups[:frozen_group_count]:
+            for _, p in group_params:
                 p.grad = None
 
-    def frozen_layers_for_step(step_value: int) -> int:
+    def frozen_groups_for_step(step_value: int) -> int:
         if args.layer_freeze_per_step <= 0:
             return 0
-        return min(step_value // args.layer_freeze_per_step, len(freezeable_layer_params))
+        return min(step_value // args.layer_freeze_per_step, len(freeze_groups))
 
-    def update_frozen_layers(step_value: int) -> None:
-        nonlocal frozen_layer_count
-        new_frozen_layer_count = frozen_layers_for_step(step_value)
-        if new_frozen_layer_count <= frozen_layer_count:
+    def update_frozen_groups(step_value: int) -> None:
+        nonlocal frozen_group_count
+        new_frozen_group_count = frozen_groups_for_step(step_value)
+        if new_frozen_group_count <= frozen_group_count:
             return
-        frozen_layer_count = new_frozen_layer_count
+        frozen_group_count = new_frozen_group_count
+        latest_group_name, latest_group_params = freeze_groups[frozen_group_count - 1]
+        frozen_ema_param_names.update(name for group in freeze_groups[:frozen_group_count] for name, _ in group[1])
         log0(
-            f"layer_freeze:step:{step_value} frozen_layers:{frozen_layer_count}/{len(freezeable_layer_params)} "
-            f"latest_layer:{frozen_layer_count - 1}"
+            f"layer_freeze:step:{step_value} frozen_groups:{frozen_group_count}/{len(freeze_groups)} "
+            f"latest_group:{latest_group_name} latest_params:{len(latest_group_params)}"
         )
 
     def train_step(step_value: int, lr_scale: float, collect_metrics: bool) -> tuple[float, dict[str, float], float]:
@@ -1592,7 +1633,7 @@ def main() -> None:
             train_metrics = {"loss": float(objective_loss.item())}
 
         muon_momentum = set_optimizer_state(step_value, lr_scale)
-        clear_frozen_layer_grads()
+        clear_frozen_param_grads()
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
         for opt in optimizers:
@@ -1694,7 +1735,7 @@ def main() -> None:
                 f"layer_loop:enabled step:{step} frac:{frac:.3f} "
                 f"encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}"
             )
-        update_frozen_layers(step)
+        update_frozen_groups(step)
         should_log_train = (
             args.train_log_every > 0
             and (step + 1 <= 5 or (step + 1) % args.train_log_every == 0 or stop_after_step is not None)
@@ -1707,6 +1748,8 @@ def main() -> None:
         train_loss = train_mtp_metrics["loss"]
         with torch.no_grad():
             for name, tensor in base_model.state_dict().items():
+                if name in frozen_ema_param_names:
+                    continue
                 ema_state[name].mul_(args.ema_decay).add_(tensor.detach().float(), alpha=1.0 - args.ema_decay)
 
         step += 1
