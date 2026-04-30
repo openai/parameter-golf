@@ -2,7 +2,8 @@
 
 **Track:** non-record / art submission  
 **Author:** Corben Sorenson ([@corbensorenson](https://github.com/corbensorenson))  
-**Status:** 1xH100 evidence. No official 8xH100 score is claimed.
+**Status:** non-record/art submission with 1xH100 scouts and a limited,
+self-funded 8xH100 follow-up. No leaderboard record is claimed.
 
 ## Executive Summary
 
@@ -48,7 +49,8 @@ https://github.com/corbensorenson/parameter-golf-experiments
 
 ## Best Preserved Result
 
-The best preserved legal run was a 10-minute 1xH100 RunPod scout:
+The best preserved legal run at PR-open time was a 10-minute 1xH100 RunPod
+scout:
 
 | Candidate | BPB | Steps | Step speed | Total artifact bytes |
 |---|---:|---:|---:|---:|
@@ -56,9 +58,27 @@ The best preserved legal run was a 10-minute 1xH100 RunPod scout:
 
 This artifact is under the decimal 16,000,000 byte cap by 341,855 bytes.
 
+After the PR was opened, I was able to self-fund roughly one hour of 8xH100
+RunPod time. I had applied for compute support but had not received any email
+response by the deadline window, so the 8x results below are what I could test
+within that narrow paid window.
+
+The best completed under-cap 8xH100 row preserved so far is:
+
+| Candidate | Final export BPB | Train-time val BPB | Steps | Step speed | Total artifact bytes |
+|---|---:|---:|---:|---:|---:|
+| `final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55` | `1.35536174` | `1.3158` | `6655` | `90.17 ms` | `15,803,789` |
+
+This row is under the decimal cap by 196,211 bytes. It should still be read as
+non-record/art evidence, not as a fully tuned official-record attempt: the 8x
+search budget was approximately one hour total, not a multi-seed or
+grant-supported sweep.
+
 Important limitations:
 
 - This is a 1xH100 result, not an official 8xH100 result.
+- The 8xH100 follow-up was self-funded and limited to about one hour of wall
+  time; no grant response had arrived by the time this was run.
 - The raw RunPod stdout from the strongest queue was lost when the pod was
   interrupted after the wallet ran out of funds.
 - `train.log` therefore contains the preserved audit note for the best row, not
@@ -312,6 +332,8 @@ This record folder includes:
 - `logs/8xh100_runpod_final8x_20260430_185628_completed1/`: completed first
   8xH100 row, showing the e832 row used the cluster well but exceeded the
   decimal artifact cap after export.
+- `logs/8xh100_runpod_legalfallback_20260430_191032_completed1/`: completed
+  first legal-size e768 fallback row from the one-hour 8xH100 window.
 
 Expected inputs:
 
@@ -370,6 +392,21 @@ compressed artifact size remained the binding constraint. The follow-up queue
 therefore moved to `FACTORED_EMBED_DIM=768` legalizer rows instead of continuing
 larger LQER/e832 variants.
 
+The first completed under-cap 8x legalizer row is preserved under:
+
+```text
+logs/8xh100_runpod_legalfallback_20260430_191032_completed1/
+```
+
+That result was:
+
+| Candidate | Final export BPB | Train-time val BPB | Steps | Step avg | Artifact bytes |
+|---|---:|---:|---:|---:|---:|
+| `final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55` | `1.35536174` | `1.3158` | `6655` | `90.17 ms` | `15,803,789` |
+
+This is the best completed under-cap 8xH100 evidence currently included in this
+submission. It came from the self-funded one-hour 8x window described above.
+
 ## Validity And Caveats
 
 This submission is deliberately explicit about what is and is not being claimed.
@@ -378,6 +415,7 @@ Claimed:
 
 - a self-contained non-record/art submission;
 - a best preserved legal 1xH100 scout result of `1.35692129` BPB;
+- a best preserved legal 8xH100 one-hour-window result of `1.35536174` BPB;
 - an artifact-size estimate of `15,658,145` bytes for that row;
 - a novel mirrored-recurrent / lexical-low-rank architecture family.
 
