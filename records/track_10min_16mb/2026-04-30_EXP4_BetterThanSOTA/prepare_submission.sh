@@ -2,7 +2,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/../../../.." && pwd)"
+repo_root="$(cd "$script_dir/../../.." && pwd)"
 source_log_dir="$repo_root/logs/exp4_4phase_2500docs"
 source_train_script="$repo_root/records/track_10min_16mb/2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611/train_gpt.py"
 dest_dir="$repo_root/records/track_10min_16mb/2026-04-30_EXP4_BetterThanSOTA"
