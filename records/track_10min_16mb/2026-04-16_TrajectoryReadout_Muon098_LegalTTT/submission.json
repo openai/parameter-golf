@@ -1,0 +1,39 @@
+{
+  "author": "Alexandr Azizyan",
+  "github_id": "aazizyan",
+  "name": "Trajectory-State Readout + Muon 0.98 + Legal TTT",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_bpb": 1.07880,
+  "val_bpb_std": 0.00030,
+  "seeds": [42, 2025, 1234],
+  "seed_results": {
+    "42": {"val_bpb": 1.07870, "artifact_bytes": 15990973},
+    "2025": {"val_bpb": 1.07911, "artifact_bytes": 15989784},
+    "1234": {"val_bpb": 1.07848, "artifact_bytes": 15990480}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Trajectory-State Readout (32 learned params, 16 groups) + Step-Based Loop Activation + Muon 0.98 + GPTQ SDClip + Score-First TTT (SGD 3ep) + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_submission": "@bigbag (PR #1493)",
+    "muon_098_gptq_timing": "@abaybektursun (PR #1518)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445, #1471)",
+    "trajectory_readout": "novel contribution"
+  }
+}
