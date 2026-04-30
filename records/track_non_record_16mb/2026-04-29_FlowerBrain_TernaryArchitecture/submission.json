@@ -1,52 +1,61 @@
 {
-  "name": "Flower Brain v3: SmearGate + LoRA-TTT + GPTQ — val_bpb 1.0680",
+  "name": "Flower Brain v3: SmearGate + TTT + GPTQ — val_bpb 1.0877 (3-seed mean)",
   "author": "G3sparky (Gavin Saunders)",
   "github_id": "G3sparky",
-  "track": "non_record_16mb",
+  "track": "10min_16mb",
   "date": "2026-04-30",
-  "val_bpb": 1.0680,
-  "val_bpb_std": null,
-  "bytes_total": 15984000,
-  "category": "unlimited_compute",
-  "category_note": "Trained on 1xH100 SXM for 2 hours. Unlimited compute track.",
-  "blurb": "Flower Brain v3: 6-cell architecture with SmearGate, LoRA-TTT (rank-128, 3-phase AdamW), QK-Gain 5.25, GPTQ int6/int8 compression, depth recurrence. Pre-quant 1.0805. Post-quant GPTQ 1.0933. Sliding window 1.0766. LoRA-TTT final 1.0680. Beats Ifrim unlimited compute leader (1.1239) by 0.056. OUR architecture.",
-  "hardware": "1x H100 SXM 80GB",
-  "training_time_seconds": 7189,
+  "val_bpb": 1.0877,
+  "val_bpb_std": 0.0001,
+  "bytes_total": 15994050,
+  "category": "record_candidate",
+  "blurb": "Flower Brain v3: novel 6-cell architecture with SmearGate (learned bigram gate), QK-Gain 5.25, depth recurrence (layers 3-5 x2), GPTQ int6/int8 + Brotli-11 compression, score-first TTT (3-epoch SGD). 8xH100 SXM, 3-seed mean 1.0877 BPB (std 0.0001). Under 16MB.",
+  "hardware": "8x H100 80GB SXM",
+  "training_time_seconds": 588,
   "params": 35945048,
   "compression": "GPTQ int6 (matrices) + int8 (embeddings) + brotli-11",
   "seeds": {
     "42": {
-      "pre_quant_post_ema_bpb": 1.0805,
-      "quantized_bpb": 1.0933,
-      "sliding_window_bpb": 1.0766,
-      "lora_ttt_bpb": 1.0680,
-      "steps": 5889,
-      "training_time_ms": 7188708,
-      "eval_time_ms": 3847238
+      "pre_quant_post_ema_bpb": 1.0949,
+      "quantized_bpb": 1.1057,
+      "sliding_window_bpb": 1.0892,
+      "ttt_bpb": 1.0876,
+      "artifact_bytes": 15994050,
+      "steps": 3720,
+      "eval_time_ms": 684689
+    },
+    "314": {
+      "pre_quant_post_ema_bpb": 1.0951,
+      "quantized_bpb": 1.1059,
+      "sliding_window_bpb": 1.0893,
+      "ttt_bpb": 1.0877,
+      "artifact_bytes": 15993082,
+      "steps": 3748,
+      "eval_time_ms": 663852
+    },
+    "999": {
+      "pre_quant_post_ema_bpb": 1.0963,
+      "quantized_bpb": 1.1063,
+      "sliding_window_bpb": 1.0897,
+      "ttt_bpb": 1.0877,
+      "artifact_bytes": 15994440,
+      "steps": 3741,
+      "eval_time_ms": 658495
     }
   },
   "key_changes": [
     "SmearGate: learned per-dimension blending with previous token embedding",
-    "LoRA-TTT: rank-128, alpha=144, 3-phase AdamW, score-before-update",
     "QK-Gain 5.25 (from 5.0)",
-    "TTT_CHUNK_TOKENS=16384 (from 32768)",
-    "GPTQ int6/int8 compression (from mixed ternary)",
-    "SDPA attention (PyTorch native, RunPod compatible)",
-    "EMA checkpoint saved to disk",
-    "LZMA bootstrap code compression"
+    "Score-first TTT: 3-epoch SGD per chunk, TTT_CHUNK_TOKENS=16384",
+    "GPTQ int6/int8 compression with LZMA bootstrap code",
+    "SDPA attention (PyTorch native)",
+    "Depth recurrence: layers 3-5 loop x2 (activated at 35%)",
+    "Flower Brain 6-cell architecture — novel, answers organizer wish list"
   ],
-  "v1_comparison": {
-    "v1_pre_quant": 1.1155,
-    "v3_pre_quant": 1.0805,
-    "improvement": 0.0350,
-    "v1_compression": "mixed ternary",
-    "v3_compression": "GPTQ int6/int8"
-  },
-  "experimental_findings": {
-    "ternary_gap_no_ste": 0.294,
-    "ternary_gap_with_ste": 0.684,
-    "gptq_gap": 0.013,
-    "conclusion": "GPTQ int6 preserves model quality far better than ternary. Ternary research documented as finding."
+  "also_submitted": {
+    "unlimited_compute": {
+      "val_bpb": 1.0680,
+      "note": "Same architecture, 2hr training on 1xH100 + LoRA-TTT eval"
+    }
   },
   "base": "Flower Brain 6-Cell Architecture + SP8192 + Depth Recurrence + Parallel Residuals"
 }
