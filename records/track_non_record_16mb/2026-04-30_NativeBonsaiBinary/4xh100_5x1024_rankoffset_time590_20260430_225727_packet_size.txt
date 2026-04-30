@@ -1,0 +1,14 @@
+npz=logs_4xh100_5x1024/4xh100_5x1024_rankoffset_time590_20260430_225727_mlx_model.npz
+mode=binary
+ternary_norm_mode=none
+binary_center_mode=none
+group_size=128
+raw_packet_bytes=15924633
+zlib_packet_bytes=15324994
+lzma_packet_bytes=15043264
+code_bytes=44631
+total_zlib_with_code=15369625
+total_lzma_with_code=15087895
+limit_bytes=16000000
+zlib_under_limit=True
+lzma_under_limit=True
