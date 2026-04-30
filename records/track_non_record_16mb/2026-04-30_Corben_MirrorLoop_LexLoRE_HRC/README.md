@@ -74,6 +74,14 @@ non-record/art evidence, not as a fully tuned official-record attempt: the 8x
 search budget was approximately one hour total, not a multi-seed or
 grant-supported sweep.
 
+The most important 8x lesson is negative: more hardware did not buy a large
+final exported-loss improvement for this architecture. The 8x rows used the
+cluster efficiently and reached more optimizer steps than the 1x scout, but the
+best final exported BPB only moved from `1.35692129` on 1xH100 to `1.35496419`
+on 8xH100. The likely bottleneck is therefore not raw wall-clock throughput
+alone; it is the combination of architecture capacity, train-time/export
+quantization gap, and the 16MB compressed artifact constraint.
+
 Important limitations:
 
 - This is a 1xH100 result, not an official 8xH100 result.
@@ -423,6 +431,10 @@ logs/8xh100_runpod_legalfallback_20260430_191032_completed2/
 
 This is the best completed under-cap 8xH100 evidence currently included in this
 submission.
+
+This should be read as a useful negative result as much as a score: scaling the
+same MirrorLoop/LexLoRE spine to 8xH100 improved utilization and step count, but
+did not unlock a qualitatively lower final exported loss.
 
 ## Validity And Caveats
 
