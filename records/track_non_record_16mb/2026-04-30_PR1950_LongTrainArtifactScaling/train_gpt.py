@@ -696,6 +696,41 @@ class DocumentPackingLoader:
             max_seqlen,
         )
 
+    def state_dict(self):
+        """Capture loader state for deterministic resume."""
+        if self._next_batch is not None:
+            self._next_batch.result()
+            self._next_batch = None
+        file_list = [str(p) for p in self.files]
+        remaining = list(self.file_iter)
+        current_shard_idx = len(file_list) - len(remaining) - 1
+        self.file_iter = iter(remaining)
+        return {
+            "file_list": file_list,
+            "current_shard_idx": current_shard_idx,
+            "cursor": self.cursor,
+        }
+
+    def load_state_dict(self, state):
+        """Restore loader state for deterministic resume."""
+        if self._next_batch is not None:
+            try:
+                self._next_batch.result()
+            except Exception:
+                pass
+            self._next_batch = None
+        if self._next_shard is not None:
+            try:
+                self._next_shard.result()
+            except Exception:
+                pass
+            self._next_shard = None
+        shard_idx = state["current_shard_idx"]
+        self.file_iter = iter(self.files[shard_idx + 1:])
+        self._init_shard(load_data_shard(self.files[shard_idx]))
+        self.cursor = state["cursor"]
+        self._next_shard = self._submit_next_shard()
+
 
 class ShuffledSequenceLoader:
     def __init__(self, h, device):
@@ -3386,6 +3421,166 @@ def timed_eval(label, fn, *args, **kwargs):
     return val_loss, val_bpb
 
 
+# ========== RESUMABLE CHECKPOINT SUPPORT ==========
+
+def _resume_manifest_path(resume_dir):
+    return os.path.join(resume_dir, "resume_manifest.json")
+
+
+def save_resume_checkpoint(
+    h, step, training_time_ms, base_model, ema_state, optimizers_obj,
+    muon_opt, train_loader, exported_minutes, resume_dir, keep_last=3
+):
+    """Save a resumable checkpoint (rank-local + rank-0 manifest). Atomic via rename."""
+    import json as json_mod
+    os.makedirs(resume_dir, exist_ok=True)
+
+    rank = h.rank if hasattr(h, 'rank') else 0
+    world_size = h.world_size if hasattr(h, 'world_size') else 1
+
+    ckpt = {
+        "step": step,
+        "training_time_ms": training_time_ms,
+        "world_size": world_size,
+        "rank": rank,
+        "model_state_dict": {k: v.cpu() for k, v in base_model.state_dict().items()},
+        "ema_state": {k: v.cpu() for k, v in ema_state.items()},
+        "optimizer_states": {
+            name: opt.state_dict()
+            for name, opt in [
+                ("optimizer_tok", optimizers_obj.optimizer_tok),
+                ("optimizer_muon", optimizers_obj.optimizer_muon),
+                ("optimizer_scalar", optimizers_obj.optimizer_scalar),
+            ]
+        },
+        "muon_shard_moms": [
+            m["shard_mom"].cpu().clone() for m in muon_opt._bank_meta
+        ] if muon_opt is not None and hasattr(muon_opt, '_bank_meta') and muon_opt._built else [],
+        "python_rng": random.getstate(),
+        "numpy_rng": np.random.get_state(),
+        "torch_rng": torch.random.get_rng_state(),
+        "cuda_rng": torch.cuda.get_rng_state(),
+        "loader_state": train_loader.state_dict() if hasattr(train_loader, 'state_dict') else None,
+        "looping_active": getattr(base_model, 'looping_active', False),
+        "exported_minutes": list(exported_minutes.keys()) if exported_minutes else [],
+        "hparam_fingerprint": {
+            "num_layers": h.num_layers,
+            "model_dim": h.model_dim,
+            "num_heads": h.num_heads,
+            "num_kv_heads": h.num_kv_heads,
+            "vocab_size": h.vocab_size,
+            "mlp_mult": h.mlp_mult,
+            "num_loops": h.num_loops,
+            "train_seq_len": h.train_seq_len,
+            "tokenizer_path": getattr(h, 'tokenizer_path', ''),
+            "data_path": getattr(h, 'data_path', ''),
+        },
+    }
+
+    ckpt_filename = f"resume_rank{rank}_step{step}.pt"
+    ckpt_path = os.path.join(resume_dir, ckpt_filename)
+    tmp_path = ckpt_path + ".tmp"
+    torch.save(ckpt, tmp_path)
+    os.replace(tmp_path, ckpt_path)
+
+    if rank == 0:
+        manifest = {
+            "step": step,
+            "training_time_ms": training_time_ms,
+            "world_size": world_size,
+            "timestamp": time.time(),
+            "rank_files": {
+                str(r): f"resume_rank{r}_step{step}.pt" for r in range(world_size)
+            },
+            "hparam_fingerprint": ckpt["hparam_fingerprint"],
+            "exported_minutes": ckpt["exported_minutes"],
+        }
+        manifest_path = _resume_manifest_path(resume_dir)
+        tmp_manifest = manifest_path + ".tmp"
+        with open(tmp_manifest, "w") as f:
+            json_mod.dump(manifest, f, indent=2)
+        os.replace(tmp_manifest, manifest_path)
+
+    if keep_last > 0 and rank == 0:
+        import glob as glob_mod
+        all_ckpts = sorted(
+            glob_mod.glob(os.path.join(resume_dir, "resume_rank0_step*.pt")),
+            key=os.path.getmtime,
+        )
+        if len(all_ckpts) > keep_last:
+            for old in all_ckpts[:-keep_last]:
+                old_step = old.split("_step")[1].replace(".pt", "")
+                for r in range(world_size):
+                    old_rank_file = os.path.join(resume_dir, f"resume_rank{r}_step{old_step}.pt")
+                    try:
+                        os.remove(old_rank_file)
+                    except OSError:
+                        pass
+
+    return ckpt_path
+
+
+def load_resume_checkpoint(h, resume_from, device):
+    """Load resumable checkpoint. Returns dict with all state or raises on incompatibility."""
+    import json as json_mod
+
+    rank = h.rank if hasattr(h, 'rank') else 0
+    world_size = h.world_size if hasattr(h, 'world_size') else 1
+
+    if os.path.isdir(resume_from):
+        manifest_path = _resume_manifest_path(resume_from)
+    else:
+        manifest_path = resume_from
+
+    if not os.path.exists(manifest_path):
+        raise FileNotFoundError(f"Resume manifest not found: {manifest_path}")
+
+    with open(manifest_path) as f:
+        manifest = json_mod.load(f)
+
+    saved_ws = manifest["world_size"]
+    if saved_ws != world_size:
+        raise ValueError(
+            f"Resume incompatible: saved world_size={saved_ws}, current={world_size}"
+        )
+
+    saved_fp = manifest["hparam_fingerprint"]
+    current_fp = {
+        "num_layers": h.num_layers,
+        "model_dim": h.model_dim,
+        "num_heads": h.num_heads,
+        "num_kv_heads": h.num_kv_heads,
+        "vocab_size": h.vocab_size,
+        "mlp_mult": h.mlp_mult,
+        "num_loops": h.num_loops,
+        "train_seq_len": h.train_seq_len,
+        "tokenizer_path": getattr(h, 'tokenizer_path', ''),
+        "data_path": getattr(h, 'data_path', ''),
+    }
+
+    for key in ["num_layers", "model_dim", "num_heads", "num_kv_heads",
+                "vocab_size", "mlp_mult", "num_loops"]:
+        if saved_fp.get(key) != current_fp.get(key):
+            raise ValueError(
+                f"Resume incompatible: {key} mismatch "
+                f"(saved={saved_fp.get(key)}, current={current_fp.get(key)})"
+            )
+
+    for key in ["tokenizer_path", "data_path"]:
+        if saved_fp.get(key) and current_fp.get(key) and saved_fp[key] != current_fp[key]:
+            log(f"WARNING: resume {key} differs: saved={saved_fp[key]}, current={current_fp[key]}")
+
+    resume_dir = os.path.dirname(manifest_path)
+    rank_file = manifest["rank_files"][str(rank)]
+    rank_path = os.path.join(resume_dir, rank_file)
+
+    if not os.path.exists(rank_path):
+        raise FileNotFoundError(f"Resume rank file not found: {rank_path}")
+
+    ckpt = torch.load(rank_path, map_location="cpu")
+    return ckpt
+
+
 def train_model(h, device, val_data):
     base_model = GPT(h).to(device).bfloat16()
     restore_fp32_params(base_model)
@@ -3533,9 +3728,59 @@ def train_model(h, device, val_data):
         _longtrain_code_text = Path(__file__).read_text(encoding="utf-8")
         log(f"LONGTRAIN:enabled milestones={export_minutes} mode={export_mode}")
 
+    # --- RESUME: load checkpoint if requested ---
+    resume_enabled = os.environ.get("RESUME_ENABLED", "0") == "1"
+    resume_from = os.environ.get("RESUME_FROM", "")
+    resume_dir = os.environ.get("RESUME_DIR", os.path.join(h.artifact_dir, "resume"))
+    resume_save_minutes_str = os.environ.get("RESUME_SAVE_MINUTES", "")
+    resume_keep_last = int(os.environ.get("RESUME_KEEP_LAST", "3"))
+    resume_save_minutes = []
+    if resume_enabled and resume_save_minutes_str:
+        resume_save_minutes = sorted(
+            int(m.strip()) for m in resume_save_minutes_str.split(",") if m.strip()
+        )
+    resumed_minutes_saved = set()
+
+    if resume_enabled and resume_from:
+        log(f"RESUME: loading from {resume_from}")
+        ckpt = load_resume_checkpoint(h, resume_from, device)
+        base_model.load_state_dict(ckpt["model_state_dict"])
+        for k, v in ckpt["ema_state"].items():
+            ema_state[k] = v.to(device=device, dtype=torch.float32)
+        for name, opt in [
+            ("optimizer_tok", optimizers.optimizer_tok),
+            ("optimizer_muon", optimizers.optimizer_muon),
+            ("optimizer_scalar", optimizers.optimizer_scalar),
+        ]:
+            if name in ckpt["optimizer_states"]:
+                opt.load_state_dict(ckpt["optimizer_states"][name])
+        muon_opt = optimizers.optimizer_muon
+        if muon_opt is not None and ckpt.get("muon_shard_moms"):
+            if not muon_opt._built:
+                muon_opt._build()
+            for m, saved_mom in zip(muon_opt._bank_meta, ckpt["muon_shard_moms"]):
+                m["shard_mom"].copy_(saved_mom.to(m["shard_mom"].device))
+        random.setstate(ckpt["python_rng"])
+        np.random.set_state(ckpt["numpy_rng"])
+        torch.random.set_rng_state(ckpt["torch_rng"])
+        torch.cuda.set_rng_state(ckpt["cuda_rng"])
+        if ckpt.get("loader_state") and hasattr(train_loader, 'load_state_dict'):
+            train_loader.load_state_dict(ckpt["loader_state"])
+        if ckpt.get("looping_active"):
+            base_model.looping_active = True
+        if ckpt.get("exported_minutes"):
+            for m in ckpt["exported_minutes"]:
+                exported_minutes[m] = True
+        step = ckpt["step"]
+        training_time_ms = ckpt["training_time_ms"]
+        log(f"RESUME: restored step={step}, training_time={training_time_ms/1000:.1f}s, "
+            f"exported_minutes={list(exported_minutes.keys())}")
+        del ckpt
+
     torch.cuda.synchronize()
     t0 = time.perf_counter()
-    step = 0
+    if not (resume_enabled and resume_from):
+        step = 0
     while True:
         last_step = (
             step == h.iterations
@@ -3702,6 +3947,36 @@ def train_model(h, device, val_data):
                 torch._dynamo.reset()
                 torch.cuda.synchronize()
                 t0 = time.perf_counter()
+
+        # --- RESUME: periodic save ---
+        if resume_enabled and resume_save_minutes:
+            _cur_train_min_r = approx_training_time_ms / 60000.0
+            for _rsm in resume_save_minutes:
+                if _rsm not in resumed_minutes_saved and _cur_train_min_r >= _rsm:
+                    if h.distributed:
+                        _rflag = torch.tensor([_rsm], dtype=torch.int32, device=device)
+                        dist.broadcast(_rflag, src=0)
+                        _rsm_synced = int(_rflag.item())
+                    else:
+                        _rsm_synced = _rsm
+                    if _rsm_synced > 0:
+                        torch.cuda.synchronize()
+                        if h.distributed:
+                            dist.barrier()
+                        training_time_ms += 1e3 * (time.perf_counter() - t0)
+                        log(f"RESUME:saving checkpoint at {_rsm_synced}min (step={step})")
+                        save_resume_checkpoint(
+                            h, step, training_time_ms, base_model, ema_state,
+                            optimizers, optimizers.optimizer_muon, train_loader,
+                            exported_minutes, resume_dir, resume_keep_last
+                        )
+                        resumed_minutes_saved.add(_rsm_synced)
+                        log(f"RESUME:checkpoint saved at {_rsm_synced}min")
+                        if h.distributed:
+                            dist.barrier()
+                        torch.cuda.synchronize()
+                        t0 = time.perf_counter()
+                    break
 
         reached_cap = (
             max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
