@@ -1,8 +1,8 @@
 {
   "author": "MichaelMcCulloch",
   "github_id": "MichaelMcCulloch",
-  "date": "2026-03-29",
-  "val_bpb": null,
+  "date": "2026-04-30",
+  "val_bpb": 0.2523,
   "summary": "Full technique stack: 26 toggleable techniques spanning architecture (activation variants, HybridNorm, MLP width, XSA), training (EMA, SWA, QAT, MTP heads), quantization (variable bit-width, OptRot, GPTQ, pruning, entropy coding), and eval-time augmentation (TTT LoRA, n-gram cache, kNN-LM, TurboQuant KV compression, temperature calibration)",
   "techniques": {
     "architecture": ["A1-GQA", "A2-ReLU2/A9-LeakyReLU2/A11-StarReLU", "A3-UNet", "A4-TiedEmbed+Softcap", "A13-MLP3.5x", "A15-HybridNorm", "XSA"],
@@ -12,5 +12,5 @@
   },
   "base_pr": "#569 (VRL + LeakyReLU2 + Full GPTQ)",
   "hardware": "8xH100",
-  "notes": "val_bpb to be filled after training runs. All techniques env-var toggled, disabled by default."
+  "notes": "Mean of 3 seeds (1337/42/7): 0.2487/0.2534/0.2548 BPB. Submission size: 11.6MB. Training: ~40s on 8xH100, eval (TTT+ngram+kNN): ~5min."
 }

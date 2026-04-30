@@ -1,5 +1,22 @@
 # Full Stack: TTT + N-gram + kNN + TurboQuant
 
+## Results
+
+| Seed | int8 zlib BPB | TTT LoRA BPB | n-gram+kNN BPB |
+|------|---------------|--------------|-----------------|
+| 1337 | 0.3061 | 0.3066 | **0.2487** |
+| 42 | 0.2987 | 0.2966 | **0.2534** |
+| 7 | 0.2929 | 0.2930 | **0.2548** |
+| **Mean** | **0.2992** | **0.2987** | **0.2523** |
+
+- Submission size: 11.6 MB (code + int8+zlib model)
+- Training time: ~40s on 8xH100 SXM
+- Eval time (TTT + n-gram + kNN): ~5 min on 8xH100 SXM
+- Peak GPU memory: 2.2 GB per device
+- Hardware: 8xH100 SXM (RunPod)
+
+Train logs: `run_seed1337.log`, `run_seed42.log`, `run_seed7.log`
+
 ## Summary
 
 26 independently toggleable techniques merged into a single `train_gpt.py`, spanning four layers:
@@ -63,4 +80,4 @@ Use the ablation framework in the repo root (`ablation.py`, `run_ablation.sh`) t
 
 ## Requirements
 
-Standard parameter-golf dependencies (torch, sentencepiece, numpy). Optional: `scipy` for OptRot Hadamard matrix.
+Standard parameter-golf dependencies (torch, sentencepiece, numpy). Required: `scipy` for OptRot Hadamard matrix.
