@@ -1,0 +1,132 @@
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  adapter_rank: 304
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: False
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 256
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 8.0
+  grad_accum_steps: 6
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/61e5a796-243b-4308-84ac-012e6617a5e1.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 3.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  random_backbone_seed: 42
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  run_id: 61e5a796-243b-4308-84ac-012e6617a5e1
+  scalar_lr: 0.02
+  seed: 1337
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 3
+  ttt_lr: 0.0005
+  ttt_momentum: 0.9
+  ttt_optimizer: adamw
+  use_random_adapters: True
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+train_shards:10
+val_tokens:40540160
+model_params:29907098
+gptq:reserving 8s, effective=592000ms
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:10/20
+warmup_step:20/20
+loop_warmup:enabled enc:[0, 1, 2, 3, 4, 5, 3, 4] dec:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step:1/20
+loop_warmup_step:2/20
+loop_warmup_step:3/20
+loop_warmup_step:4/20
+loop_warmup_step:5/20
+loop_warmup_step:6/20
+loop_warmup_step:10/20
+loop_warmup_step:20/20
+ema:disabled (random adapters mode)
+step:0/20000 val_loss:9.0173 val_bpb:3.4909 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:9.0168 train_time:0.0m tok/s:755510
+step:2/20000 train_loss:8.8394 train_time:0.0m tok/s:750997
+step:3/20000 train_loss:7.8614 train_time:0.1m tok/s:748755
+step:4/20000 train_loss:9.0133 train_time:0.1m tok/s:747174
+step:5/20000 train_loss:8.2363 train_time:0.1m tok/s:746211
+depth_recurrence:enabled step:195 frac:0.350 enc:[0, 1, 2, 3, 4, 5, 3, 4] dec:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+step:439/20000 val_loss:3.3923 val_bpb:1.3133 train_time:593530ms step_avg:1352.01ms
+stopping_early: wallclock_cap train_time:593530ms step:439/20000
+peak memory allocated: 70280 MiB reserved: 72360 MiB
+ema:skipped (disabled)
+pre_quant_post_ema val_loss:3.39231052 val_bpb:1.31326912 eval_time:33521ms
+Serialized model: 59959233 bytes
+Code size: 66401 bytes
+GPTQ: collecting Hessians...
+GPTQ: collected 1 Hessians in 11.5s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.adapter_A, blocks.attn.c_k.adapter_B, blocks.attn.c_q.adapter_A, blocks.attn.c_q.adapter_B, blocks.attn.c_v.adapter_A, blocks.attn.c_v.adapter_B, blocks.attn.proj.adapter_A, blocks.attn.proj.adapter_B, blocks.mlp.fc.adapter_A, blocks.mlp.fc.adapter_B, blocks.mlp.proj.adapter_A, blocks.mlp.proj.adapter_B
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.c_k.adapter_scale, blocks.attn.c_q.adapter_scale, blocks.attn.c_v.adapter_scale, blocks.attn.proj.adapter_scale, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp.fc.adapter_scale, blocks.mlp.proj.adapter_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model int8+brotli: 13446178 bytes (payload:30194379 raw_torch:30194379 payload_ratio:2.25x)
+Total submission size int8+brotli: 13512579 bytes
+quantized val_loss:3.45474224 val_bpb:1.33743838 eval_time:51928ms
+quantized_sliding val_loss:3.41487038 val_bpb:1.32200274 eval_time:285826ms
+ttt:start chunks=1238 lr=0.0005 epochs=3 optimizer=adamw
+quantized_ttt val_loss:3.43861555 val_bpb:1.33119524 eval_time:983236ms
