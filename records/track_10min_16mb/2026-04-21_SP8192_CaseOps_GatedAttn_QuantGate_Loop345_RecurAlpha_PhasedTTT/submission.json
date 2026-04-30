@@ -1,0 +1,11 @@
+{
+  "author": "tashapais",
+  "github_id": "tashapais",
+  "name": "SP8192 + CaseOps + Gated Attention + Quant Gate + Loop345 + Recur-Alpha + Phased TTT",
+  "blurb": "Adds Recur-Alpha (learned scalar carry per looped block, init=0) to the PR #1736 CaseOps+GatedAttn+QuantGate+Loop345+PhasedTTT stack. Recur-Alpha lets training decide how much first-visit activation to forward into subsequent recurrence passes. Costs 3 parameters, adds GRU-like memory to the depth recurrence with zero effect at initialization.",
+  "date": "2026-04-21",
+  "track": "10min_16mb",
+  "val_bpb": null,
+  "seeds": [42, 0, 1234],
+  "hardware": "8xH100 80GB SXM"
+}

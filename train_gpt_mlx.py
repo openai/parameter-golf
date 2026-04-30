@@ -94,6 +94,13 @@ class Hyperparameters:
     muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
+    # Depth recurrence + Cross-pass XSA + RecurAlpha
+    loop_start: int = int(os.environ.get("LOOP_START", 3))
+    loop_end: int = int(os.environ.get("LOOP_END", 5))
+    enable_looping_at: float = float(os.environ.get("ENABLE_LOOPING_AT", 0.35))
+    cross_pass_xsa: bool = bool(int(os.environ.get("CROSS_PASS_XSA", "0")))
+    recur_alpha_enabled: bool = bool(int(os.environ.get("RECUR_ALPHA_ENABLED", "0")))
+
     out_dir: str = os.environ.get("OUT_DIR", "logs")
 
     @property
@@ -369,6 +376,8 @@ class Block(nn.Module):
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
+        self.cross_pass_scale = mx.zeros((1,), dtype=mx.float32)
+        self.recur_alpha = mx.zeros((1,), dtype=mx.float32)
 
     def __call__(self, x: mx.array, x0: mx.array) -> mx.array:
         mix = self.resid_mix.astype(x.dtype)
@@ -386,7 +395,8 @@ class GPT(nn.Module):
     # - tied embeddings for the LM head (the baseline default setup)
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
-                 qk_gain_init: float):
+                 qk_gain_init: float, loop_start: int = 3, loop_end: int = 5,
+                 cross_pass_xsa: bool = False, recur_alpha_enabled: bool = False):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
@@ -398,6 +408,12 @@ class GPT(nn.Module):
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
         self.skip_weights = mx.ones((self.num_skip_weights, dim), dtype=mx.float32)
+        self.loop_start = loop_start
+        self.loop_end = loop_end
+        self.cross_pass_xsa = cross_pass_xsa
+        self.recur_alpha_enabled = recur_alpha_enabled
+        self.looping_active = False
+        self.loop_skip_weights = mx.ones((num_layers - loop_start, dim), dtype=mx.float32)
         self.blocks = [
             Block(dim, num_heads, num_kv_heads, mlp_mult, rope_base, qk_gain_init)
             for i in range(num_layers)
@@ -420,16 +436,35 @@ class GPT(nn.Module):
         x0 = x
         skips: list[mx.array] = []
 
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            # Odd layer counts have one more decoder block than encoder block. The baseline only
-            # applies a skip connection when one exists, then runs the remaining decoder block(s)
-            # without an added skip.
-            if skips:
-                x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        if not self.looping_active:
+            for i in range(self.num_encoder_layers):
+                x = self.blocks[i](x, x0)
+                skips.append(x)
+            for i in range(self.num_decoder_layers):
+                # Odd layer counts have one more decoder block than encoder block. The baseline only
+                # applies a skip connection when one exists, then runs the remaining decoder block(s)
+                # without an added skip.
+                if skips:
+                    x = x + self.skip_weights[i].astype(x.dtype)[None, None, :] * skips.pop()
+                x = self.blocks[self.num_encoder_layers + i](x, x0)
+        else:
+            # Loop345: encoder runs layers 0..loop_end; decoder re-runs loop_start..num_layers-1
+            # Cross-pass XSA: on the second pass, subtract scale * first-pass hidden state
+            loop_ids = set(range(self.loop_start, self.loop_end + 1))
+            carry: dict[int, mx.array] = {}
+            for i in range(self.loop_end + 1):
+                x = self.blocks[i](x, x0)
+                skips.append(x)
+                if i in loop_ids:
+                    carry[i] = x
+            for j, i in enumerate(range(self.loop_start, len(self.blocks))):
+                if skips:
+                    x = x + self.loop_skip_weights[j].astype(x.dtype)[None, None, :] * skips.pop()
+                if self.cross_pass_xsa and i in carry:
+                    x = x - self.blocks[i].cross_pass_scale.astype(x.dtype) * carry[i]
+                if self.recur_alpha_enabled and i in carry:
+                    x = x + self.blocks[i].recur_alpha.astype(x.dtype) * carry[i]
+                x = self.blocks[i](x, x0)
         return self.final_norm(x)
 
     def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
@@ -897,6 +932,10 @@ def main() -> None:
         rope_base=args.rope_base,
         tied_embed_init_std=args.tied_embed_init_std,
         qk_gain_init=args.qk_gain_init,
+        loop_start=args.loop_start,
+        loop_end=args.loop_end,
+        cross_pass_xsa=args.cross_pass_xsa,
+        recur_alpha_enabled=args.recur_alpha_enabled,
     )
     opt = SplitOptimizers(model, args)
 
@@ -1053,6 +1092,18 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss_value:.4f} "
                 f"train_time:{approx_train_time_ms:.0f}ms step_avg:{approx_train_time_ms / step:.2f}ms tok_s:{tok_s:.0f}"
             )
+        if not model.looping_active and args.enable_looping_at > 0.0:
+            elapsed_frac = (approx_train_time_ms / (1000.0 * args.max_wallclock_seconds)
+                            if args.max_wallclock_seconds > 0 else step / args.iterations)
+            if elapsed_frac >= args.enable_looping_at:
+                model.looping_active = True
+                compiled_loss = mx.compile(
+                    lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
+                compiled_loss_and_grad = mx.compile(
+                    nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
+                    inputs=model.state, outputs=model.state,
+                )
+                log(f"looping_active:True step:{step} elapsed_frac:{elapsed_frac:.3f} loop_start:{args.loop_start} loop_end:{args.loop_end} cross_pass_xsa:{args.cross_pass_xsa} recur_alpha:{args.recur_alpha_enabled}")
         if max_wallclock_ms is not None and stop_after_step is None and approx_train_time_ms >= max_wallclock_ms:
             stop_after_step = step
 
