@@ -150,8 +150,9 @@ matrix_keys (per block, 8 entries):
 
 `train_gpt_mlx.py` carries the analogous diff for local Apple Silicon iteration.
 
-## Followup Works
+## What to explore next
 
+This submission is meant to be a POC for future exploration. Areas (ranked): 
 - **Spending the freed compressed bytes**: deeper-but-narrower stacks, larger vocabularies, or
   more attention heads — anything that natively converts the 6.28 MB of freed artifact budget
   into L(N) at fixed wallclock. (One pilot at `MLP_MULT=4` / 26.5M params landed at val_bpb 1.3746
@@ -159,13 +160,14 @@ matrix_keys (per block, 8 entries):
   [`logs_8xh100/run3_pat_mlp4.log`](logs_8xh100/run3_pat_mlp4.log) for reference. Naive scale-up
   alone does not recover the val gap; it likely needs to be paired with K-sharing or a different
   step/wallclock budget.)
+- Combine w/ SOTA stack to see if it plays well
+- Incremental scaling: I did not test incremental scaling (paper's original use case) given limited compute - that would be an interesting followup.
 - Pattention on `q`/`k`/`v`/`proj` of `CausalSelfAttention`.
 - Cross-block parameter-token sharing (one K table per role, shared across all blocks). This is
   the actual parameter-golf angle and the main reason Tokenformer is mechanistically attractive
   for this challenge — saved for a follow-up where the scaling ablation can be run cleanly.
 - The `P_RATIO` ablation (P_RATIO ∈ {0.5, 1.0, 2.0}) demonstrating Tokenformer's headline
   "incremental scaling" claim in the parameter-golf setting.
-- Incremental scaling: I did not test incremental scaling (paper's original use case) given limited compute - that would be an interesting followup.
 
 ## File manifest
 
