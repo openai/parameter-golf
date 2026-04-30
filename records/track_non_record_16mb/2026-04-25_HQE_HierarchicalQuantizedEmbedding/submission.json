@@ -1,0 +1,13 @@
+{
+  "author": "anjing00monyet-arch",
+  "github_id": "anjing00monyet-arch",
+  "val_bpb": 1.35917110,
+  "val_loss": 2.29490346,
+  "model_size_bytes": 14784934,
+  "run_date": "2026-04-25",
+  "track": "non_record_16mb",
+  "summary": "Hierarchical Quantized Embedding (HQE): frequency-based mixed precision embedding using Zipf distribution",
+  "vocab": "sp1024",
+  "hardware": "1xH100 SXM",
+  "train_time_seconds": 595
+}
