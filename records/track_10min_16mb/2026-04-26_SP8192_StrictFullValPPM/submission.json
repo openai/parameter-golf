@@ -1,0 +1,70 @@
+{
+  "author": "someone114514",
+  "github_id": "someone114514",
+  "name": "SP8192 + Strict Full-Val Byte PPM Mixture",
+  "date": "2026-04-26",
+  "track": "10min_16mb",
+  "val_bpb": 1.00495,
+  "val_bpb_std": 0.00072,
+  "seeds": [42, 7, 1337],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.00489563,
+      "pre_quant_bpb": 1.08711004,
+      "artifact_bytes": 15997433,
+      "train_time_s": 588.065,
+      "eval_time_s": 393.717
+    },
+    "7": {
+      "val_bpb": 1.00569239,
+      "pre_quant_bpb": 1.08750246,
+      "artifact_bytes": 15995226,
+      "train_time_s": 588.142,
+      "eval_time_s": 343.606
+    },
+    "1337": {
+      "val_bpb": 1.00425333,
+      "pre_quant_bpb": 1.08627037,
+      "artifact_bytes": 15993603,
+      "train_time_s": 588.086,
+      "eval_time_s": 346.457
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "base_record": "2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT",
+  "base_val_bpb_ttt": 1.08100,
+  "base_val_bpb_sliding": 1.08270,
+  "technique_summary": "SP8192 base stack + strict full-validation byte-level PPM-D mixture in eval_val_sliding, prefix-only confidence gate, score-before-update byte counts, native C scorer, compact raw per-rank collection, and no TTT in the packed artifact.",
+  "new_controls": {
+    "PPM_ENABLED": "0 by default; set to 1 to enable strict PPM mixture",
+    "PPM_ORDER": 4,
+    "PPM_LAMBDA_HI": 0.9,
+    "PPM_LAMBDA_LO": 0.05,
+    "PPM_CONF_THRESHOLD": 0.9,
+    "PPM_DEBUG_SUBSET_TOKENS": "0 for formal full-val scoring; positive values are debug-only and must not be submitted",
+    "PPM_NATIVE_ENABLED": "1 by default; runtime-compiled C scorer",
+    "PPM_LOG_CACHE_SIZE": 1048576,
+    "SKIP_QUANTIZED_EVAL": "1 in submitted logs; skips plain quantized eval",
+    "SLIDING_BATCH_SEQS": 32
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_ttt_in_packed_artifact": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_byte_ppm": true,
+    "prefix_only_gate": true,
+    "full_val_required_for_claimed_score": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_stack": "2026-04-09 SP8192 + 3-layer recurrence + parallel residuals + QK-gain 5.25 + legal TTT record and credited lineage",
+    "ppm_idea": "PR #1835 / #1795 discussion; this implementation uses strict full-val scoring and prefix-only gating"
+  },
+  "review_notes": "The submitted score is a byte-level online PPM mixture over full validation bytes. Logs include nn_token_bpb, nn_byte_bpb, ppm_only, and mix_bpb for auditability."
+}
