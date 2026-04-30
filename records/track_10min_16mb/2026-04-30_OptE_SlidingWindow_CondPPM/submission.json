@@ -1,0 +1,34 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-30",
+  "name": "OptE_SlidingWindow_CondPPM",
+  "author": "Anmar Hindi",
+  "github_id": "anmarhindi",
+  "val_bpb": 1.029282,
+  "val_bpb_std": 0.000782,
+  "val_bpb_per_seed": {
+    "42": 1.02848514,
+    "1337": 1.03004769,
+    "314": 1.02931432
+  },
+  "diagnostic_pre_ema_3seed_mean": 1.168647,
+  "diagnostic_pre_ema_3seed_std": 0.000561,
+  "diagnostic_quantized_3seed_mean": 1.179078,
+  "diagnostic_quantized_3seed_std": 0.000564,
+  "diagnostic_post_ttt_3seed_mean": 1.029282,
+  "diagnostic_post_ttt_3seed_std": 0.000782,
+  "headline_metric": "cond_ppm",
+  "headline_metric_description": "byte-level conditional-PPM mixture BPB on sliding-window-scored full val (canonical byte counting, sigmoid gate alpha=15 beta=0.80). cond_ppm IS the headline; pre-quantization post-EMA was 1.147; post-quantization pre-cond-PPM was 1.179; cond-PPM mixture brings it to 1.029.",
+  "artifact_bytes_max": 15542968,
+  "wrapped_code_bytes": 49750,
+  "total_submission_bytes_max": 15592718,
+  "compliant_max_under_16mb": true,
+  "seeds": [
+    42,
+    1337,
+    314
+  ],
+  "hardware": "8xH100 80GB SXM",
+  "sliding_window_3seed_mean": 1.184435,
+  "sliding_window_3seed_std": 0.001035
+}
