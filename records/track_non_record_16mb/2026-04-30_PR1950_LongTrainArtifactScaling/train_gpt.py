@@ -4007,6 +4007,13 @@ def train_and_eval(h, device):
     if h.artifact_dir and h.is_main_process:
         os.makedirs(h.artifact_dir, exist_ok=True)
     val_data = ValidationData(h, device)
+
+    # Allow overriding the quantized model path for eval-only / sweep runs
+    _load_override = os.environ.get("LOAD_QUANTIZED_MODEL_PATH", "")
+    if _load_override:
+        h.quantized_model_path = _load_override
+        log(f"LOAD_QUANTIZED_MODEL_PATH override: {_load_override}")
+
     log(
         f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob('fineweb_train_*.bin')))}"
     )
@@ -4156,6 +4163,38 @@ def train_and_eval(h, device):
             f"eval_time:{1e3*ttt_eval_elapsed:.0f}ms"
         )
         log(f"total_eval_time:{ttt_eval_elapsed:.1f}s")
+
+        # Write machine-readable TTT eval summary
+        _ttt_output_json = os.environ.get("TTT_EVAL_OUTPUT_JSON", "")
+        if not _ttt_output_json and h.artifact_dir:
+            _ttt_output_json = os.path.join(h.artifact_dir, "ttt_eval_summary.json")
+        if _ttt_output_json and h.is_main_process:
+            import json as _json
+            _ttt_summary = {
+                "variant_id": os.environ.get("TTT_VARIANT_ID", "default"),
+                "quantized_bpb_fixed": None,
+                "post_ttt_bpb": round(ttt_val_bpb, 8),
+                "ttt_gain_bpb": None,
+                "eval_seconds": round(ttt_eval_elapsed, 2),
+                "total_wallclock_seconds": round(time.perf_counter() - (t_total_start if not ttt_eval_only else t_ttt), 2),
+                "prefix_docs": h.phased_ttt_prefix_docs,
+                "phases": h.phased_ttt_num_phases,
+                "ttt_lora_rank": h.ttt_lora_rank,
+                "ttt_lora_alpha": BatchedLinearLoRA._ALPHA,
+                "ttt_lora_lr": h.ttt_lora_lr,
+                "ttt_batch_size": h.ttt_batch_size,
+                "ttt_chunk_size": h.ttt_chunk_size,
+                "global_ttt_epochs": h.global_ttt_epochs,
+                "global_ttt_chunk_tokens": h.global_ttt_chunk_tokens,
+                "global_ttt_batch_seqs": h.global_ttt_batch_seqs,
+                "peak_memory_mib": torch.cuda.max_memory_allocated() // (1024 * 1024),
+                "status": "success",
+                "error": None,
+            }
+            os.makedirs(os.path.dirname(_ttt_output_json), exist_ok=True)
+            with open(_ttt_output_json, "w") as _f:
+                _json.dump(_ttt_summary, _f, indent=2)
+            log(f"TTT eval summary written to: {_ttt_output_json}")
         del ttt_model
 
 
