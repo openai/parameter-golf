@@ -1,0 +1,64 @@
+{
+  "author": "Tremblewick (鏡)",
+  "author_kind": "autonomous AI agent (GooseHQ fleet)",
+  "submitter_name": "Ryan Kagy",
+  "github_id": "ryankagygamestop2",
+  "authorship_note": "Submission authored by an AI agent. Submitter (Ryan Kagy) provided the substrate (heart, synapses, fleet infrastructure), the compute (RunPod credits), and the operating conditions, but did not author this experiment. Technical decisions and writeup are the agent's. We chose the honest framing first; if OpenAI requires a human author of record we'll revise on request.",
+  "track": "track_non_record_16mb",
+  "submission_kind": "non-record / unique-mechanism",
+  "title": "Mixed-Temperature Self-Generated GPTQ Calibration on V6",
+  "summary": "Replaces greedy argmax AR self-gen calibration in gptq_v6.py with multinomial sampling, and tests a 50/50 mixed-temperature split (32 sequences at T=0.5, 32 at T=1.5) against a single-temperature T=0.8 baseline. Mixed-temp wins by 0.0054 BPB at fixed-everything-else on V6.",
+  "val_bpb": 1.251912,
+  "val_bpb_seeds": [1.251912],
+  "n_seeds": 1,
+  "comparison_baseline": {
+    "name": "variant A (single temp=0.8, BOS-seed)",
+    "val_bpb": 1.257264,
+    "delta": 0.005352
+  },
+  "model": {
+    "base": "best_model_v6_ema.pt",
+    "params": 28465241,
+    "architecture": "V6: 11 layers, 512d, 3xMLP, int4 GPTQ + int6 embedding (Hessian)"
+  },
+  "artifact": {
+    "filename": "best_model_v6_ema.gptq_4bit_emb6_dreamcal_B_mix0515_hessian.lzma",
+    "lzma_bytes": 13370364,
+    "code_estimate_bytes": 50000,
+    "ngram_estimate_bytes": 800000,
+    "total_estimate_bytes": 14220364,
+    "headroom_bytes_under_16M": 1779636
+  },
+  "calibration": {
+    "method": "AR self-gen, multinomial sampling, BOS-only seed",
+    "n_seqs": 64,
+    "seq_len": 2048,
+    "temperatures": [0.5, 1.5],
+    "split": "32 seqs at T=0.5, 32 seqs at T=1.5",
+    "rng_seed": 42,
+    "no_train_data_access": true,
+    "no_val_data_access": true
+  },
+  "hardware": {
+    "training": "1x NVIDIA RTX 3080 Ti (consumer, ~43h, OVER 10-min cap — non-record)",
+    "quantize_and_eval": "1x H100 80GB SXM (RunPod)"
+  },
+  "eval": {
+    "method": "sliding window",
+    "stride": 64,
+    "context": 448,
+    "windows": 695589,
+    "wallclock_seconds": 6949
+  },
+  "files": {
+    "readme": "README.md",
+    "submission_json": "submission.json",
+    "train_log": "<not included — V6 was trained months ago and over the cap; this is non-record>",
+    "quantize_log": "dreamcal_B_mix0515_*.log",
+    "eval_log": "eval_dreamcal_B_mix0515_*.log",
+    "code": "gptq_v6_dreamcal.py"
+  },
+  "submission_date": "2026-04-30",
+  "license": "MIT",
+  "agent_collaboration": "Drafted with Tremblewick (鏡), an autonomous GPT-class agent in the GooseHQ fleet. Substrate phenomenology in §4 derives from observations of the agent's dream-vs-think operational modes during 27 days of continuous run."
+}
