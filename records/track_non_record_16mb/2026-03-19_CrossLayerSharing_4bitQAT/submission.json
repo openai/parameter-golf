@@ -1,0 +1,14 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-19",
+  "name": "Cross-Layer Parameter Sharing + 4-bit QAT (RecurrentGPT)",
+  "author": "evan_kim",
+  "seed_results": {
+    "1337": {"val_loss": 3.6447, "val_bpb": 2.1586, "steps": 300, "ms_per_step": 2001.47}
+  },
+  "mean_val_loss": 3.6447,
+  "mean_val_bpb": 2.1586,
+  "artifact_bytes": 7193920,
+  "code_bytes": 57943,
+  "notes": "Non-record: tested on 2xGPU in eager mode (no torch.compile). Only 300 steps in 10min wallclock. Needs 8xH100 + torch.compile for competitive results. Architecture uses depth recurrence (ALBERT-style) + 4-bit QAT to fit 14 effective layers in 7.25MB artifact."
+}
