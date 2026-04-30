@@ -41,25 +41,15 @@ First SSM-based entry in either track. Trained on 4×H200 SXM for one hour rathe
 
 ## Command
 
-Run from the **repo root** (so `./data/datasets/fineweb10B_sp1024` and `./data/tokenizers/fineweb_1024_bpe.model` resolve — same convention as the other records-folder submissions). The path to `train_gpt.py` is given relative to repo root:
+`train_gpt.py` imports a small local `modules/` package (`modules.bitlinear` for the BitNet-b1.58 ternary path; `modules.trigram_side_memory` is referenced under `TRIGRAM_SIDE_MEMORY=1`, which is **off** here but kept so the script remains import-clean). To make `modules/` resolvable, run from **inside this folder** rather than from the repo root:
 
 ```bash
-SEED=1337 \
-NUM_UNIQUE_LAYERS=7 NUM_LOOPS=3 \
-PARALLEL_LAYER_POSITIONS=0,1,2,3,4,5,6 \
-PARALLEL_SSM_TYPE=mamba2_kill MAMBA2_KILL_SELECTIVITY=1 \
-BIGRAM_VOCAB_SIZE=0 \
-TERNARY_BODY=1 \
-EMA_BETA=0.999 \
-TRAIN_BATCH_TOKENS=524288 ITERATIONS=20000 \
-WARMDOWN_ITERS=1800 LR_WARMUP_STEPS=30 MATRIX_LR=0.045 \
-TIED_EMBED_INIT_STD=0.05 MUON_BACKEND_STEPS=15 \
-MAX_WALLCLOCK_SECONDS=3600 VAL_TOKENS=0 \
-torchrun --standalone --nproc_per_node=4 \
-  records/track_non_record_16mb/2026-04-30_KillMamba2_TriParallel_n7_Ternary_EMA_4xH200_1hr/train_gpt.py
+cd records/track_non_record_16mb/2026-04-30_KillMamba2_TriParallel_n7_Ternary_EMA_4xH200_1hr/
+source ./env.sh
+torchrun --standalone --nproc_per_node=4 train_gpt.py
 ```
 
-`MAX_WALLCLOCK_SECONDS=3600` is the binding cap; `ITERATIONS=20000` is just an upper bound. Equivalent to sourcing `env.sh` in this folder, which sets the same variables plus `CONTROL_TENSOR_NAME_PATTERNS` (load-bearing for SSMs — keeps the dynamics buffers fp32 under ternary quantization) and a couple of inert defaults left explicit for clarity.
+`env.sh` sets `DATA_PATH=../../../data/datasets/fineweb10B_sp1024` and `TOKENIZER_PATH=../../../data/tokenizers/fineweb_1024_bpe.model` (three levels up from this folder reaches the repo root). It also sets `CONTROL_TENSOR_NAME_PATTERNS` (load-bearing — keeps SSM dynamics buffers fp32 under ternary quantization). `MAX_WALLCLOCK_SECONDS=3600` is the binding cap; `ITERATIONS=20000` is just an upper bound.
 
 ## Key metrics
 
@@ -83,8 +73,10 @@ torchrun --standalone --nproc_per_node=4 \
 
 ## Files
 
-- `train_gpt.py` — code snapshot
-- `env.sh` — canonical environment for the run; equivalent to the inline command above
-- `train_seed1337.log` — training log (partial: pod was stopped before the full `run.log` synced from `/workspace`; lines below were captured via the monitor stream during training and cover the headline numbers — pre/post-quant val_bpb, artifact bytes, step times, peak memory, EMA shadow swap)
+- `train_gpt.py` — code snapshot (104,676 bytes — what the harness reports as `code_bytes`)
+- `modules/bitlinear.py` — `BitLinear` (BitNet-b1.58 absmean STE) plus `pack_ternary` / `unpack_ternary` for the 2-bit packed export path; load-bearing under `TERNARY_BODY=1`
+- `modules/trigram_side_memory.py` — trigram side-memory blend; **inert** under this run's `TRIGRAM_SIDE_MEMORY=0` but referenced by import-time guards in `train_gpt.py`, so kept for completeness
+- `env.sh` — canonical environment; source from inside this folder
+- `train_seed1337.log` — training log (partial: pod was stopped before the full `run.log` synced from `/workspace`; the lines preserved cover the headline numbers — pre/post-quant val_bpb, artifact bytes, step times, peak memory, EMA shadow swap)
 - `result.json`, `submission.json` — leaderboard metadata
 - `requirements.txt` — `brotli` and `sentencepiece` are required at quant-export
