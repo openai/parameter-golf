@@ -80,16 +80,18 @@ class Hyperparameters:
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    # -1 means auto-detect from warmup timing. Set MUON_MOMENTUM_WARMUP_STEPS explicitly to override.
+    _muon_warmup_env = os.environ.get("MUON_MOMENTUM_WARMUP_STEPS")
+    muon_momentum_warmup_steps = int(_muon_warmup_env) if _muon_warmup_env is not None else -1
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
 # -----------------------------
-# MUON OPTIMIZER 
+# MUON OPTIMIZER
 # -----------------------------
-# 
+#
 # As borrowed from modded-nanogpt
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
@@ -169,7 +171,7 @@ class Muon(torch.optim.Optimizer):
 
 
 # -----------------------------
-# TOKENIZER-AGNOSTIC EVALUATION SETUP 
+# TOKENIZER-AGNOSTIC EVALUATION SETUP
 # -----------------------------
 #
 # It's common for small models have a large fraction of their parameters be embeddings, since the 2 * d_model * d_vocab vectors can be gigantic.
@@ -423,7 +425,7 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 
 
 # -----------------------------
-# DATA LOADING 
+# DATA LOADING
 # -----------------------------
 
 def load_data_shard(file: Path) -> Tensor:
@@ -934,11 +936,16 @@ def main() -> None:
 
     # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
     # initial weights/optimizer state so measured training starts from the true init.
+    # The second half of warmup steps (after JIT settles) are timed to estimate actual
+    # step speed, which is used to auto-set muon_momentum_warmup_steps when not explicit.
+    warmup_step_times: list[float] = []
     if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
         initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
         model.train()
         for warmup_step in range(args.warmup_steps):
+            torch.cuda.synchronize()
+            _ws_t0 = time.perf_counter()
             zero_grad_all()
             for micro_step in range(grad_accum_steps):
                 if distributed:
@@ -950,6 +957,9 @@ def main() -> None:
             for opt in optimizers:
                 opt.step()
             zero_grad_all()
+            torch.cuda.synchronize()
+            if warmup_step >= args.warmup_steps // 2:
+                warmup_step_times.append(time.perf_counter() - _ws_t0)
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
         base_model.load_state_dict(initial_model_state, strict=True)
@@ -959,6 +969,22 @@ def main() -> None:
         if distributed:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+
+    # Auto-set Muon momentum warmup steps from measured step speed.
+    # Targets reaching full momentum by 25% of training so 75% runs at peak 0.95.
+    # Override by setting MUON_MOMENTUM_WARMUP_STEPS explicitly.
+    if args.muon_momentum_warmup_steps < 0:
+        if warmup_step_times and max_wallclock_ms is not None:
+            est_step_ms = 1000.0 * sum(warmup_step_times) / len(warmup_step_times)
+            est_total_steps = int(max_wallclock_ms / est_step_ms)
+            args.muon_momentum_warmup_steps = max(20, min(est_total_steps // 4, 500))
+            log0(
+                f"muon_warmup_auto: est_step_ms={est_step_ms:.0f} est_total_steps={est_total_steps} "
+                f"muon_momentum_warmup_steps={args.muon_momentum_warmup_steps}"
+            )
+        else:
+            args.muon_momentum_warmup_steps = 100
+            log0("muon_warmup_auto: no timing data, fallback muon_momentum_warmup_steps=100")
 
     # -----------------------------
     # MAIN TRAINING LOOP

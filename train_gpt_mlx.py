@@ -91,7 +91,9 @@ class Hyperparameters:
     muon_momentum: float = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps: int = int(os.environ.get("MUON_BACKEND_STEPS", 5))
     muon_momentum_warmup_start: float = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
-    muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    # -1 means auto-detect from warmup timing. Set MUON_MOMENTUM_WARMUP_STEPS explicitly to override.
+    _muon_warmup_env = os.environ.get("MUON_MOMENTUM_WARMUP_STEPS")
+    muon_momentum_warmup_steps: int = int(_muon_warmup_env) if _muon_warmup_env is not None else -1
     grad_clip_norm: float = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
 
     out_dir: str = os.environ.get("OUT_DIR", "logs")
@@ -463,7 +465,7 @@ class Muon:
         self.buffers = {k: mx.zeros_like(params[k]) for k in keys}
 
     def step(self, params: dict[str, mx.array], grads: dict[str, mx.array], step: int, lr_mul: float) -> dict[str, mx.array]:
-        if self.args.muon_momentum_warmup_steps:
+        if self.args.muon_momentum_warmup_steps > 0:
             t = min(step / self.args.muon_momentum_warmup_steps, 1.0)
             momentum = (1.0 - t) * self.args.muon_momentum_warmup_start + t * self.args.muon_momentum
         else:
@@ -960,12 +962,15 @@ def main() -> None:
     # ==============================================================================
     # TRAINING LOOP
     # ==============================================================================
+    # Warmup primes MLX compile/allocation paths. The second half of warmup steps
+    # (after graph compilation settles) are timed to estimate actual step speed,
+    # which is used to auto-set muon_momentum_warmup_steps when not explicit.
+    # Note: MLX warmup does not apply optimizer updates; step time is forward+backward only,
+    # which is a slight underestimate of full step time (optimizer adds ~5-10%).
+    warmup_step_times: list[float] = []
     if args.warmup_steps > 0:
-        # Warmup should only prime MLX compile/allocation paths. Updating parameters here forces us
-        # to snapshot and restore model/optimizer state, which is expensive on unified-memory Macs.
-        # Instead we run the real train shapes, force the loss/grads to materialize, and then reset
-        # the loader so measured training still starts from the true init and token window.
         for warmup_step in range(args.warmup_steps):
+            _ws_t0 = time.perf_counter()
             accum: dict[str, mx.array] | None = None
             warmup_loss = mx.array(0.0, dtype=mx.float32)
             grad_scale = 1.0 / args.grad_accum_steps
@@ -974,6 +979,8 @@ def main() -> None:
                 accum = accumulate_flat_grads(accum, grads, grad_scale)
             mx.eval(warmup_loss, accum)
             mx.synchronize()
+            if warmup_step >= args.warmup_steps // 2:
+                warmup_step_times.append(time.perf_counter() - _ws_t0)
             if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
                 log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
 
@@ -994,6 +1001,22 @@ def main() -> None:
         mx.synchronize()
 
         train_loader = TokenLoader(args.train_files, log_fn=log, dataset_name=dataset_name)
+
+    # Auto-set Muon momentum warmup steps from measured step speed.
+    # Targets reaching full momentum by 25% of training so 75% runs at peak 0.95.
+    # Override by setting MUON_MOMENTUM_WARMUP_STEPS explicitly.
+    if args.muon_momentum_warmup_steps < 0:
+        if warmup_step_times and args.max_wallclock_seconds > 0:
+            est_step_ms = 1000.0 * sum(warmup_step_times) / len(warmup_step_times)
+            est_total_steps = int(1000.0 * args.max_wallclock_seconds / est_step_ms)
+            args.muon_momentum_warmup_steps = max(20, min(est_total_steps // 4, 500))
+            log(
+                f"muon_warmup_auto: est_step_ms={est_step_ms:.0f} est_total_steps={est_total_steps} "
+                f"muon_momentum_warmup_steps={args.muon_momentum_warmup_steps}"
+            )
+        else:
+            args.muon_momentum_warmup_steps = 100
+            log("muon_warmup_auto: no timing data, fallback muon_momentum_warmup_steps=100")
 
     train_time_ms = 0.0
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
