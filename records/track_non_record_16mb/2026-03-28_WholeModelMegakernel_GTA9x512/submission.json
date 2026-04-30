@@ -1,0 +1,18 @@
+{
+  "author": "GreQ + Codex",
+  "github_id": "GreQ",
+  "name": "Whole-Model GTA CUDA Path",
+  "track": "non-record-unlimited-compute-16mb",
+  "blurb": "Standalone packed-GTA non-record draft with an inline CUDA plus cuBLAS whole-model forward/eval path and a manual packed-buffer reverse pass. A finished 1x RTX PRO 6000 Blackwell run reached pre-quant 1.4984 BPB and post-quant 1.5345 BPB under the 16 MB artifact cap.",
+  "date": "2026-03-30T22:23:02Z",
+  "val_loss": 2.59101960,
+  "val_bpb": 1.53454775,
+  "pre_quant_val_loss": 2.5300,
+  "pre_quant_val_bpb": 1.4984,
+  "step_stop": 723,
+  "wallclock_seconds": 7206.646,
+  "bytes_total": 8519424,
+  "bytes_model_int8_zlib": 8389415,
+  "bytes_code": 130009,
+  "gpu": "1xRTXPRO6000BlackwellWorkstationEdition"
+}
