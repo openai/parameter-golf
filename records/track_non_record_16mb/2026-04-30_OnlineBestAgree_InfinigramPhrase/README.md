@@ -2,7 +2,7 @@
 
 **Online variable-length causal phrase memory with purity-weighted blending on top of the cached `#1394` SP8192 base.**
 
-> **Important note on evidence:** This submission is the lzma2+base85 single-file wrapper of the original three-file Direction 3 stack. The original 2026-04-26 8×H100 run produced the BPB numbers reported here and is included as `train_seed1337.log`. The wrapper itself was **not rerun on GPU**. The `15,998,983 bytes` total submission size is therefore a **projected** number, computed as `serialized_model_quantized+brotli (15,971,234) + len(wrapper train_gpt.py) (27,749)`, not a value emitted by a wrapper-rerun log.
+> **Important note on evidence:** This submission is the lzma2+base85 single-file wrapper of the original three-file source stack (`train_gpt.py` + `online_best_agree_eval.py` + `online_ngram_state.c`). The original 2026-04-26 8×H100 run produced the BPB numbers reported here and is included as `train_seed1337.log`. The wrapper itself was **not rerun on GPU**. The `15,998,983 bytes` total submission size is therefore a **projected** number, computed as `serialized_model_quantized+brotli (15,971,234) + len(wrapper train_gpt.py) (27,749)`, not a value emitted by a wrapper-rerun log.
 
 ---
 
