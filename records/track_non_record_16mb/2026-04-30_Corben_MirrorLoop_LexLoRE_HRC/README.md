@@ -39,6 +39,13 @@ intended to be an auditable non-record/art submission showing a novel architectu
 lane, the best score we obtained under limited 1xH100 testing, and the negative
 results that shaped the design.
 
+The broader experiment repository, including project notes, matrix runners,
+H100 launch tooling, and design ledgers, is public here:
+
+```text
+https://github.com/corbensorenson/parameter-golf-experiments
+```
+
 ## Best Preserved Result
 
 The best preserved legal run was a 10-minute 1xH100 RunPod scout:
