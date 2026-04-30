@@ -499,7 +499,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], bitlinear_weight_nam
     # - per-tensor int8 for other float tensors
     # - exact passthrough for non-floats
     # - passthrough for small float tensors, stored as fp16 to save bytes
-    from modules.bitlinear import pack_ternary
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -572,7 +571,6 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor], bitlinear_weight_nam
 
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     # 0086 v2: also restores packed-ternary weights via unpack_ternary.
-    from modules.bitlinear import unpack_ternary
     out: dict[str, Tensor] = {}
     qmeta = obj.get("qmeta", {})
     passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
@@ -699,10 +697,60 @@ class CastedLinear(nn.Linear):
 # 0083: BitNet b1.58 ternary BodyLinear. When TERNARY_BODY=1, body matmuls
 # (attn qkv/proj, mamba2 in/out_proj, MLP gates) use ternary {-γ,0,+γ}
 # weights with absmean γ + STE. Forward always ternarizes; quant export
-# stores the underlying fp32 weight at int8 (lossy) which gets re-ternarized
-# on every forward — so pre/post quant should agree closely. v1 tests the
-# CONSTRAINT only; v2 would pack ternary at ~2 bits/param for cap saving.
-from modules.bitlinear import BitLinear
+# packs ternary at ~2 bits/param. Reference: Ma et al. 2024, "The Era of
+# 1-bit LLMs", arxiv:2402.17764, eq (1)-(2). Inlined here so the submission
+# is single-file; pack_ternary/unpack_ternary used by quantize_state_dict_int8
+# below. Encoding offset (+1): -1→0b00, 0→0b01, +1→0b10. 4 vals per byte.
+
+class BitLinear(nn.Linear):
+    """BitNet b1.58 ternary weight Linear layer. Drop-in for nn.Linear."""
+
+    def forward(self, x: Tensor) -> Tensor:
+        w = self.weight
+        gamma = w.abs().mean().clamp(min=1e-8)
+        w_q = (w / gamma).round().clamp_(-1.0, 1.0)
+        w_ste = w + (w_q - w).detach()
+        bias = self.bias.to(x.dtype) if self.bias is not None else None
+        return F.linear(x, (gamma * w_ste).to(x.dtype), bias)
+
+
+def pack_ternary(w: Tensor) -> tuple[Tensor, float]:
+    """Ternarize w via absmean γ, pack into uint8 (4 vals/byte)."""
+    w_flat = w.detach().contiguous().view(-1).float()
+    gamma = w_flat.abs().mean().clamp(min=1e-8).item()
+    w_q = (w_flat / gamma).round().clamp_(-1.0, 1.0).to(torch.int8)
+    codes = (w_q + 1).to(torch.uint8)
+    n = codes.numel()
+    pad = (4 - n % 4) % 4
+    if pad:
+        codes = torch.cat([codes, torch.zeros(pad, dtype=torch.uint8)])
+    quad = codes.view(-1, 4)
+    packed = (
+        quad[:, 0] | (quad[:, 1] << 2) | (quad[:, 2] << 4) | (quad[:, 3] << 6)
+    ).contiguous()
+    return packed, gamma
+
+
+def unpack_ternary(packed: Tensor, gamma: float, shape) -> Tensor:
+    """Inverse of pack_ternary. Scales so BitLinear's forward-time recompute
+    of γ' = abs.mean(W) recovers the original γ — keeps post-quant output
+    bit-equivalent to training."""
+    n_total = 1
+    for s in shape:
+        n_total *= s
+    p = packed.to(torch.uint8)
+    c0 = p & 0b11
+    c1 = (p >> 2) & 0b11
+    c2 = (p >> 4) & 0b11
+    c3 = (p >> 6) & 0b11
+    codes = torch.stack([c0, c1, c2, c3], dim=1).view(-1)
+    codes = codes[:n_total].to(torch.int8)
+    w_q = codes.to(torch.float32) - 1.0
+    n_nonzero = (w_q != 0).sum().item()
+    frac_nonzero = max(n_nonzero / max(n_total, 1), 1e-8)
+    alpha = gamma / frac_nonzero
+    return (w_q * alpha).view(*shape)
+
 
 if os.environ.get("TERNARY_BODY", "0") == "1":
     BodyLinear = BitLinear
@@ -1479,7 +1527,10 @@ class GPT(nn.Module):
         # multi-K blend (3-way logsumexp of model + K=3 + K=4). Otherwise,
         # use the original single-K path (byte-identical to 0067/0068).
         if len(self._trigram_K_list) > 1:
-            from modules.trigram_side_memory import trigram_blend_loss_multi_K
+            raise NotImplementedError(
+                "trigram_side_memory removed in submission cleanup; this submission "
+                "uses TRIGRAM_SIDE_MEMORY=0 (default) so this code path is unreachable."
+            )
             packs_by_K: dict = {}
             for K in self._trigram_K_list:
                 pfx = f"trigram{K}_"
@@ -1516,7 +1567,10 @@ class GPT(nn.Module):
                 conf_gate_threshold=self._conf_gate_threshold,
             )
 
-        from modules.trigram_side_memory import trigram_blend_loss
+        raise NotImplementedError(
+            "trigram_side_memory removed in submission cleanup; this submission "
+            "uses TRIGRAM_SIDE_MEMORY=0 (default) so this code path is unreachable."
+        )
         return trigram_blend_loss(
             log_softmax,
             target_ids,
@@ -1996,10 +2050,9 @@ def main() -> None:
     # quantize_state_dict_int8 passthrough path (int tensors skip quant; small
     # float tensors get the keep_float path).
     if args.trigram_side_memory:
-        # Import lazily so TRIGRAM_SIDE_MEMORY=0 doesn't pull the module.
-        from modules.trigram_side_memory import (
-            build_trigram_pack,
-            pack_byte_size,
+        raise NotImplementedError(
+            "trigram_side_memory removed in submission cleanup; this submission "
+            "uses TRIGRAM_SIDE_MEMORY=0 (default) so this code path is unreachable."
         )
         log0(f"[trigram] TRIGRAM_SIDE_MEMORY=1 — building pack post-training")
         log0(
@@ -2175,10 +2228,9 @@ def main() -> None:
 
     # 0086 v2: build the set of weight names belonging to BitLinear modules so
     # quantize_state_dict_int8 routes them through pack_ternary instead of int8.
-    from modules.bitlinear import BitLinear as _BL
     bitlinear_weight_names = {
         f"{mod_name}.weight" for mod_name, mod in base_model.named_modules()
-        if isinstance(mod, _BL)
+        if isinstance(mod, BitLinear)
     }
     log0(f"v2 packed-ternary export: {len(bitlinear_weight_names)} BitLinear weights → 2-bit packed")
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict(), bitlinear_weight_names)

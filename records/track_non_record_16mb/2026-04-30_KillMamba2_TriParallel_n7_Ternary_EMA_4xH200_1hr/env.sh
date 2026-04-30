@@ -1,23 +1,21 @@
 # Canonical environment for this submission.
 #
-# Run from INSIDE this folder so the local `modules/` package (which holds
-# bitlinear.py and trigram_side_memory.py — referenced by train_gpt.py) is
-# importable as a sibling of train_gpt.py:
+# Run from the REPO ROOT (where data/ lives):
 #
-#   cd records/track_non_record_16mb/2026-04-30_KillMamba2_TriParallel_n7_Ternary_EMA_4xH200_1hr/
-#   source ./env.sh
-#   torchrun --standalone --nproc_per_node=4 train_gpt.py
+#   source records/track_non_record_16mb/2026-04-30_KillMamba2_TriParallel_n7_Ternary_EMA_4xH200_1hr/env.sh
+#   torchrun --standalone --nproc_per_node=4 \
+#     records/track_non_record_16mb/2026-04-30_KillMamba2_TriParallel_n7_Ternary_EMA_4xH200_1hr/train_gpt.py
 #
-# DATA_PATH and TOKENIZER_PATH below use ../../../ to reach the repo-root
-# data/ tree (this folder is 3 levels deep under the repo root).
+# train_gpt.py is fully self-contained — it does NOT import any local helper
+# modules. DATA_PATH and TOKENIZER_PATH default to ./data/datasets/fineweb10B_sp1024
+# and ./data/tokenizers/fineweb_1024_bpe.model, both of which resolve from the
+# repo root, matching the convention of every other records-folder submission.
 
 # --- Identity / data ---
 export RUN_ID="kill_mamba2_n7_ternary_ema_h200_1hr"
 export SEED=1337
 export VOCAB_SIZE=1024
 export TRAIN_SEQ_LEN=1024
-export DATA_PATH="../../../data/datasets/fineweb10B_sp1024"
-export TOKENIZER_PATH="../../../data/tokenizers/fineweb_1024_bpe.model"
 
 # --- Topology: 7 unique blocks × 3 weight-shared loops; parallel(attn || kill-Mamba-2) at every position ---
 export NUM_UNIQUE_LAYERS=7
