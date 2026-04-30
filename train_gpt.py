@@ -1,9 +1,3 @@
-"""
-The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
-
-Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -211,16 +205,109 @@ def build_sentencepiece_luts(
     )
 
 
-def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
+def load_validation_tokens(pattern: str, seq_len: int, mtp: int) -> Tensor:
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f"No files found for pattern: {pattern}")
     # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
     tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
-    usable = ((tokens.numel() - 1) // seq_len) * seq_len
+    usable = ((tokens.numel() - mtp) // seq_len) * seq_len
     if usable <= 0:
         raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
-    return tokens[: usable + 1]
+    return tokens[: usable + mtp]
+
+
+def offset_token_byte_counts(
+    input_ids: Tensor,
+    target_ids: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> Tensor:
+    if target_ids.ndim == 2:
+        prev_planes = [input_ids]
+        target_planes = [target_ids]
+    elif target_ids.ndim == 3:
+        prev_planes = [input_ids] + [target_ids[..., offset] for offset in range(target_ids.size(-1) - 1)]
+        target_planes = [target_ids[..., offset] for offset in range(target_ids.size(-1))]
+    else:
+        raise ValueError(f"target_ids must be 2D for NTP or 3D for MTP, got shape {tuple(target_ids.shape)}")
+
+    byte_counts: list[Tensor] = []
+    for prev_ids, tgt_ids in zip(prev_planes, target_planes, strict=True):
+        prev_ids = prev_ids.reshape(-1)
+        tgt_ids = tgt_ids.reshape(-1)
+        token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+        token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+        byte_counts.append(token_bytes.to(torch.float64).sum())
+    return torch.stack(byte_counts)
+
+
+def build_mtp_metrics(
+    offset_loss_sums: Tensor,
+    token_count: Tensor,
+    byte_counts: Tensor,
+    include_offset_metrics: bool,
+) -> dict[str, float]:
+    losses = (offset_loss_sums / token_count).detach().cpu().tolist()
+    byte_count_values = byte_counts.detach().cpu().tolist()
+    token_count_value = float(token_count.item())
+    bpbs = [
+        float(loss / math.log(2.0) * (token_count_value / max(float(byte_count), 1.0)))
+        for loss, byte_count in zip(losses, byte_count_values, strict=True)
+    ]
+
+    metrics = {"loss": float(losses[0]), "bpb": bpbs[0]}
+    if not include_offset_metrics:
+        return metrics
+
+    for offset, (loss, bpb) in enumerate(zip(losses, bpbs, strict=True), start=1):
+        metrics[f"loss_t{offset}"] = float(loss)
+        metrics[f"ppl_t{offset}"] = float(math.exp(loss))
+        metrics[f"bpb_t{offset}"] = bpb
+    for offset in range(2, len(losses) + 1):
+        current = float(losses[offset - 1])
+        first = float(losses[0])
+        previous = float(losses[offset - 2])
+        metrics[f"loss_t{offset}_over_t1"] = current / first if first != 0.0 else math.inf
+        metrics[f"loss_t{offset}_minus_t1"] = current - first
+        metrics[f"loss_t{offset}_over_t{offset - 1}"] = current / previous if previous != 0.0 else math.inf
+        metrics[f"loss_t{offset}_minus_t{offset - 1}"] = current - previous
+    return metrics
+
+
+def format_mtp_metrics(metrics: dict[str, float]) -> str:
+    if "loss_t1" not in metrics:
+        return ""
+
+    fields: list[str] = []
+    offset = 1
+    while f"loss_t{offset}" in metrics:
+        fields.append(f"loss_t{offset}:{metrics[f'loss_t{offset}']:.4f}")
+        fields.append(f"ppl_t{offset}:{metrics[f'ppl_t{offset}']:.4f}")
+        fields.append(f"bpb_t{offset}:{metrics[f'bpb_t{offset}']:.4f}")
+        offset += 1
+
+    for compare_offset in range(2, offset):
+        fields.append(f"loss_t{compare_offset}_over_t1:{metrics[f'loss_t{compare_offset}_over_t1']:.4f}")
+        fields.append(f"loss_t{compare_offset}_minus_t1:{metrics[f'loss_t{compare_offset}_minus_t1']:.4f}")
+        fields.append(
+            f"loss_t{compare_offset}_over_t{compare_offset - 1}:"
+            f"{metrics[f'loss_t{compare_offset}_over_t{compare_offset - 1}']:.4f}"
+        )
+        fields.append(
+            f"loss_t{compare_offset}_minus_t{compare_offset - 1}:"
+            f"{metrics[f'loss_t{compare_offset}_minus_t{compare_offset - 1}']:.4f}"
+        )
+    return " " + " ".join(fields)
+
+
+def namespaced_mtp_metrics(namespace: str, metrics: dict[str, float]) -> dict[str, float]:
+    return {
+        f"{namespace}/{name}": value
+        for name, value in metrics.items()
+        if name not in {"loss", "bpb"}
+    }
 
 
 def eval_val(
@@ -234,10 +321,11 @@ def eval_val(
     base_bytes_lut: Tensor,
     has_leading_space_lut: Tensor,
     is_boundary_token_lut: Tensor,
-) -> tuple[float, float]:
+) -> dict[str, float]:
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    metric_mtp = args.mtp if args.mtp >= 2 else 1
     local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
     if local_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -246,43 +334,62 @@ def eval_val(
             f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
         )
     local_batch_seqs = local_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    total_seqs = (val_tokens.numel() - metric_mtp) // args.train_seq_len
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
-    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_loss_sums = torch.zeros((metric_mtp,), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
-    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_counts = torch.zeros((metric_mtp,), device=device, dtype=torch.float64)
 
     model.eval()
     with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
             raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
+            raw_end = batch_seq_end * args.train_seq_len + metric_mtp
+            local_tokens = (batch_seq_end - batch_seq_start) * args.train_seq_len
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
+            x = local[:local_tokens].reshape(-1, args.train_seq_len)
+            if metric_mtp == 1:
+                y = local[1 : local_tokens + 1].reshape(-1, args.train_seq_len)
+            else:
+                y = torch.stack(
+                    [
+                        local[offset : offset + local_tokens].reshape(-1, args.train_seq_len)
+                        for offset in range(1, metric_mtp + 1)
+                    ],
+                    dim=-1,
+                )
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss = model(x, y).detach()
-            batch_token_count = float(y.numel())
-            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+                if metric_mtp == 1:
+                    batch_loss = model(x, y).detach()
+                    batch_offset_losses = batch_loss.reshape(1)
+                else:
+                    _, batch_offset_losses = model(x, y, return_offset_losses=True)
+            batch_token_count = float(x.numel())
+            val_loss_sums += batch_offset_losses.detach().to(torch.float64) * batch_token_count
             val_token_count += batch_token_count
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
-            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
-            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
-            val_byte_count += token_bytes.to(torch.float64).sum()
+            val_byte_counts += offset_token_byte_counts(
+                x,
+                y,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+            )
 
     if dist.is_available() and dist.is_initialized():
-        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_loss_sums, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
-        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_counts, op=dist.ReduceOp.SUM)
 
-    val_loss = val_loss_sum / val_token_count
-    bits_per_token = val_loss.item() / math.log(2.0)
-    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    metrics = build_mtp_metrics(
+        val_loss_sums,
+        val_token_count,
+        val_byte_counts,
+        include_offset_metrics=args.mtp >= 2,
+    )
     model.train()
-    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+    return metrics
 
 # -----------------------------
 # POST-TRAINING QUANTIZATION
@@ -720,7 +827,12 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(
+        self,
+        input_ids: Tensor,
+        target_ids: Tensor,
+        return_offset_losses: bool = False,
+    ) -> Tensor | tuple[Tensor, Tensor]:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -745,13 +857,21 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         if target_ids.ndim == 2:
             targets = target_ids.reshape(-1)
-            return F.cross_entropy(logits.float(), targets, reduction="mean")
+            token_losses = F.cross_entropy(logits.float(), targets, reduction="none")
+            loss = token_losses.mean()
+            if return_offset_losses:
+                return loss, loss.reshape(1)
+            return loss
         if target_ids.ndim != 3:
             raise ValueError(f"target_ids must be 2D for NTP or 3D for MTP, got shape {tuple(target_ids.shape)}")
         mtp = target_ids.size(-1)
         logits = logits.repeat_interleave(mtp, dim=0)
         targets = target_ids.reshape(-1)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+        token_losses = F.cross_entropy(logits.float(), targets, reduction="none").reshape(-1, mtp)
+        loss = token_losses.mean()
+        if return_offset_losses:
+            return loss, token_losses.mean(dim=0)
+        return loss
 
 
 # -----------------------------
@@ -908,13 +1028,14 @@ def main() -> None:
         )
     dataset_dir = Path(args.data_path).resolve()
     actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    metric_mtp = args.mtp if args.mtp >= 2 else 1
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len, metric_mtp)
     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
         sp, args.vocab_size, device
     )
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
-    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - metric_mtp}")
 
     # -----------------------------
     # MODEL + OPTIMIZER SETUP
@@ -1022,7 +1143,7 @@ def main() -> None:
             "setup/world_size": world_size,
             "setup/grad_accum_steps": grad_accum_steps,
             "setup/train_shards": actual_train_files,
-            "setup/val_tokens": val_tokens.numel() - 1,
+            "setup/val_tokens": val_tokens.numel() - metric_mtp,
         },
         step_value=0,
     )
@@ -1063,7 +1184,10 @@ def main() -> None:
                     model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
                 x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps, args.mtp)
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                    warmup_loss = model(x, y)
+                    if args.mtp >= 2:
+                        warmup_loss, _ = model(x, y, return_offset_losses=True)
+                    else:
+                        warmup_loss = model(x, y)
                 (warmup_loss * grad_scale).backward()
             for opt in optimizers:
                 opt.step()
@@ -1095,7 +1219,7 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
-            val_loss, val_bpb = eval_val(
+            val_metrics = eval_val(
                 args,
                 model,
                 rank,
@@ -1107,17 +1231,22 @@ def main() -> None:
                 has_leading_space_lut,
                 is_boundary_token_lut,
             )
+            val_loss = val_metrics["loss"]
+            val_bpb = val_metrics["bpb"]
             log0(
-                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f}"
+                f"{format_mtp_metrics(val_metrics)} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
+            val_wandb_metrics = {
+                "val/loss": val_loss,
+                "val/bpb": val_bpb,
+                "train/time_ms": training_time_ms,
+                "train/step_avg_ms": training_time_ms / max(step, 1),
+            }
+            val_wandb_metrics.update(namespaced_mtp_metrics("val", val_metrics))
             wandb_log(
-                {
-                    "val/loss": val_loss,
-                    "val/bpb": val_bpb,
-                    "train/time_ms": training_time_ms,
-                    "train/step_avg_ms": training_time_ms / max(step, 1),
-                },
+                val_wandb_metrics,
                 step_value=step,
             )
             torch.cuda.synchronize()
@@ -1134,16 +1263,43 @@ def main() -> None:
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
         zero_grad_all()
-        train_loss = torch.zeros((), device=device)
+        train_objective_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+        train_offset_loss_sums = torch.zeros((metric_mtp,), device=device, dtype=torch.float64)
+        train_token_count = torch.zeros((), device=device, dtype=torch.float64)
+        train_byte_counts = torch.zeros((metric_mtp,), device=device, dtype=torch.float64)
         for micro_step in range(grad_accum_steps):
             if distributed:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps, args.mtp)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
-            train_loss += loss.detach()
+                if args.mtp >= 2:
+                    loss, offset_losses = model(x, y, return_offset_losses=True)
+                else:
+                    loss = model(x, y)
+            batch_token_count = float(x.numel())
+            train_objective_loss_sum += loss.detach().to(torch.float64) * batch_token_count
+            train_token_count += batch_token_count
+            if args.mtp >= 2:
+                train_offset_loss_sums += offset_losses.detach().to(torch.float64) * batch_token_count
+                train_byte_counts += offset_token_byte_counts(
+                    x,
+                    y,
+                    base_bytes_lut,
+                    has_leading_space_lut,
+                    is_boundary_token_lut,
+                )
             (loss * grad_scale).backward()
-        train_loss /= grad_accum_steps
+        train_objective_loss = train_objective_loss_sum / train_token_count
+        if args.mtp >= 2:
+            train_mtp_metrics = build_mtp_metrics(
+                train_offset_loss_sums,
+                train_token_count,
+                train_byte_counts,
+                include_offset_metrics=True,
+            )
+        else:
+            train_mtp_metrics = {"loss": float(train_objective_loss.item())}
+        train_loss = train_mtp_metrics["loss"]
 
         frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
         muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
@@ -1168,15 +1324,22 @@ def main() -> None:
         )
         if should_log_train:
             train_metrics = {
-                "train/loss": train_loss.item(),
+                "train/loss": train_loss,
                 "train/time_ms": approx_training_time_ms,
                 "train/step_avg_ms": approx_training_time_ms / step,
                 "train/lr_scale": scale,
                 "optimizer/muon_momentum": muon_momentum,
             }
+            train_objective_log = ""
+            if args.mtp >= 2:
+                train_metrics["train/objective_loss"] = float(train_objective_loss.item())
+                train_objective_log = f"train_objective_loss:{train_objective_loss.item():.4f} "
+            train_metrics.update(namespaced_mtp_metrics("train", train_mtp_metrics))
             train_metrics.update(lr_metrics())
             log0(
-                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+                f"step:{step}/{args.iterations} train_loss:{train_loss:.4f}"
+                f"{format_mtp_metrics(train_mtp_metrics)} "
+                f"{train_objective_log}"
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
             wandb_log(train_metrics, step_value=step)
@@ -1259,7 +1422,7 @@ def main() -> None:
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
+    q_val_metrics = eval_val(
         args,
         model,
         rank,
@@ -1271,19 +1434,24 @@ def main() -> None:
         has_leading_space_lut,
         is_boundary_token_lut,
     )
+    q_val_loss = q_val_metrics["loss"]
+    q_val_bpb = q_val_metrics["bpb"]
     torch.cuda.synchronize()
     q_eval_time_ms = 1000.0 * (time.perf_counter() - t_qeval)
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f}"
+        f"{format_mtp_metrics(q_val_metrics)} "
         f"eval_time:{q_eval_time_ms:.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    final_wandb_metrics = {
+        "final/val_loss": q_val_loss,
+        "final/val_bpb": q_val_bpb,
+        "final/eval_time_ms": q_eval_time_ms,
+    }
+    final_wandb_metrics.update(namespaced_mtp_metrics("final/val", q_val_metrics))
     wandb_log(
-        {
-            "final/val_loss": q_val_loss,
-            "final/val_bpb": q_val_bpb,
-            "final/eval_time_ms": q_eval_time_ms,
-        },
+        final_wandb_metrics,
         step_value=step,
     )
     if wandb_run is not None:
