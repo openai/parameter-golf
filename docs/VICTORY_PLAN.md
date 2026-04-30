@@ -1,10 +1,11 @@
-# 🏁 VICTORY PLAN — T-18h to Deadline
+# 🏁 VICTORY PLAN — T-17h to Deadline
 
 ## Executive Summary
 
-**Gate-2 target**: BPB < 1.85 at step ≥ 4000 on ≥ 3 sanctioned seeds
-**Best realistic result**: BPB = 2.52 at step = 2000 (h=1536, lr=0.002, rng=1597)
-**Gap**: +36% above target (2.52 vs 1.85)
+**Gate-2 target**: BPB < 1.50 at step ≥ 4000 on ≥ 3 sanctioned seeds (issue #331)
+**Best realistic result**: BPB = 2.251 at step ≥ 4000 (h=1024, lr=0.0015)
+**Gap**: +0.75 above target (2.251 vs 1.50)
+**Honest probability**: <5% — requires architectural breakthrough not in current corpus
 
 ## Key Findings from 206 Completed Experiments
 
@@ -102,7 +103,7 @@ The only untested combination that might work:
 **What we WILL achieve:**
 1. ✅ Fleet infrastructure proven (206 experiments, 6 accounts)
 2. ✅ Scaling laws documented (BPB vs hidden, BPB vs LR, BPB vs steps)
-3. ✅ Training dynamics characterized (collapse phase, phase transition)
+3. ✅ Training dynamics characterized (h=828 catastrophic divergence at BPB>8 = worse than random)
 4. ✅ Best config identified (h=1536, lr=0.002 → 2.52 BPB)
 5. ✅ Format comparison (GF16 vs FP32 vs GF8)
 

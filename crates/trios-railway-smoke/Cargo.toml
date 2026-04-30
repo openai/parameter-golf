@@ -1,0 +1,20 @@
+[package]
+name = "trios-railway-smoke"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Smoke-test crate: validates the full IGLA RACE pipeline in <60s with synthetic data"
+
+[dependencies]
+anyhow = "1.0"
+serde_json = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+uuid = { version = "1.10", features = ["v4"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"

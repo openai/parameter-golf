@@ -206,16 +206,16 @@ impl PullQueueDb {
     pub async fn register_worker(
         &self,
         worker_id: &Uuid,
-        _railway_acc: &str,
+        railway_acc: &str,
         railway_svc: &str,
     ) -> Result<()> {
         let client = self.client.lock().await;
         client
             .execute(
                 "INSERT INTO workers (id, railway_acc, railway_svc_id, railway_svc_name, last_heartbeat, registered_at) \
-                 VALUES ($1, 'acc0', $2, $2, now(), now()) \
-                 ON CONFLICT (id) DO UPDATE SET last_heartbeat=now(), railway_svc_id=$2, railway_svc_name=$2",
-                &[&worker_id, &railway_svc],
+                 VALUES ($1, $2, $3, $3, now(), now()) \
+                 ON CONFLICT (id) DO UPDATE SET last_heartbeat=now(), railway_acc=$2, railway_svc_id=$3, railway_svc_name=$3",
+                &[&worker_id, &railway_acc, &railway_svc],
             )
             .await?;
         Ok(())

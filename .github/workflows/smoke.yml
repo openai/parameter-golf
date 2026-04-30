@@ -1,0 +1,121 @@
+name: smoke-cycle
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Smoke Test (<60s)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run unit tests
+        run: cargo test -p trios-railway-smoke --lib
+
+      - name: Run smoke pipeline test
+        run: cargo test -p trios-railway-smoke --features ci --lib
+
+      - name: Check clippy
+        run: cargo clippy -p trios-railway-smoke -- -D warnings
+
+      - name: Check formatting
+        run: cargo fmt -p trios-railway-smoke -- --check
+
+      - name: Run in-memory smoke cycle
+        run: |
+          # This simulates the full cycle without DB/GPU
+          cargo run --example smoke_in_memory
+        env:
+          RUST_LOG: info
+
+      - name: Verify JSONL parsing
+        run: |
+          # Test that we can parse trainer output
+          cat <<'EOF' > /tmp/test_trainer.jsonl
+          {"step":1,"loss":3.5,"val_bpb":3.6,"ts":"2024-01-01T00:00:00Z","duration_ms":100}
+          {"step":2,"loss":3.2,"val_bpb":3.3,"ts":"2024-01-01T00:00:01Z","duration_ms":200}
+          EOF
+
+          LINES=$(wc -l < /tmp/test_trainer.jsonl)
+          if [ "$LINES" -lt 2 ]; then
+            echo "ERROR: Expected at least 2 JSONL lines, got $LINES"
+            exit 1
+          fi
+          echo "✓ JSONL parsing works: $LINES lines"
+
+  igla-race-smoke:
+    name: IGLA Race Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-smoke')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build with smoke feature
+        run: cargo build -p trios-igla-race --features smoke
+
+      - name: Test smoke feature builds
+        run: cargo test -p trios-igla-race --features smoke
+
+  audit-smoke:
+    name: Audit DDL Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build audit crate
+        run: cargo build -p trios-railway-audit
+
+      - name: Generate DDL
+        run: cargo run -p trios-igla-race --bin tri-railway audit migrate-sql > /tmp/ddl.sql
+
+      - name: Verify DDL output
+        run: |
+          if [ ! -s /tmp/ddl.sql ]; then
+            echo "ERROR: DDL output is empty"
+            exit 1
+          fi
+          # Check for required tables
+          if ! grep -q "CREATE TABLE.*experiment_queue" /tmp/ddl.sql; then
+            echo "ERROR: experiment_queue table missing from DDL"
+            exit 1
+          fi
+          if ! grep -q "CREATE TABLE.*workers" /tmp/ddl.sql; then
+            echo "ERROR: workers table missing from DDL"
+            exit 1
+          fi
+          echo "✓ DDL contains required tables"

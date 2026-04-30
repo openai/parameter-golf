@@ -5,6 +5,8 @@ members = [
     "crates/trios-railway-audit",
     "crates/trios-railway-experience",
     "crates/trios-railway-mcp",
+    "crates/trios-railway-smoke",
+    "crates/trios-igla-race",
     "bin/tri-railway",
     "bin/seed-agent",
 ]
