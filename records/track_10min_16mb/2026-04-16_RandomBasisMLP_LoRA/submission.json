@@ -1,0 +1,33 @@
+{
+  "author": "Camden Rush",
+  "github_id": "camden-git",
+  "name": "Random-Basis MLPs + LoRA (Free Weights via PRNG Seed)",
+  "blurb": "MLP weight matrices are stored as a 4-byte PRNG seed. The Gaussian basis is frozen and rematerialized at eval, so nothing large ever hits the artifact, just a LoRA correction (r=16) and a per-hidden diagonal gate. This frees up the hidden width. SOTA runs at 4x expansion; this runs at 16x, which similar to the Gaussian basis does not touch the file size budget. First partial run: val_bpb=1.2554 pre-quant at 2564/20000 steps, wallclock-capped with loss still descending. The 4x wider hidden cuts throughput to roughly 70% of baseline, which is the expected tradeoff.",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss_pre_quant": 2.88861509,
+      "val_bpb_pre_quant": 1.25535884,
+      "steps": 2564,
+      "steps_planned": 20000,
+      "stopped": "wallclock_cap",
+      "train_time_ms": 590061,
+      "tok_per_sec": 3417153,
+      "model_params": 14486619,
+      "post_quant_val_bpb": null,
+      "artifact_bytes": null,
+      "notes": "Serialize path (GPTQ + brotli) not exercised in this run due to a missing brotli dep on the pod. Fixed in requirements.txt."
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "bytes_total": null,
+  "bytes_code": 74191,
+  "status": "non_record_exploratory",
+  "notes": "Submission format filed under non-record / exploratory track per repo rules."
+}
