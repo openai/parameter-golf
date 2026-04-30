@@ -44,6 +44,12 @@ class Hyperparameters:
     tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
+    wandb_enabled = os.environ.get("WANDB", "0") == "1"
+    wandb_project = os.environ.get("WANDB_PROJECT", "parameter-golf")
+    wandb_run_name = os.environ.get("WANDB_RUN_NAME", run_id)
+    wandb_entity = os.environ.get("WANDB_ENTITY") or None
+    wandb_group = os.environ.get("WANDB_GROUP") or None
+    wandb_tags = os.environ.get("WANDB_TAGS", "")
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
     val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
@@ -783,6 +789,69 @@ def main() -> None:
             with open(logfile, "a", encoding="utf-8") as f:
                 print(msg, file=f)
 
+    wandb_run = None
+    wandb_module = None
+    if args.wandb_enabled:
+        try:
+            import wandb as wandb_module
+        except ImportError as exc:
+            raise RuntimeError("WANDB=1 requires the wandb package; install dependencies first") from exc
+
+    if master_process and wandb_module is not None:
+        wandb_config = {
+            "run_id": args.run_id,
+            "seed": args.seed,
+            "data_path": args.data_path,
+            "tokenizer_path": args.tokenizer_path,
+            "vocab_size": args.vocab_size,
+            "num_layers": args.num_layers,
+            "num_kv_heads": args.num_kv_heads,
+            "model_dim": args.model_dim,
+            "num_heads": args.num_heads,
+            "mlp_mult": args.mlp_mult,
+            "tie_embeddings": args.tie_embeddings,
+            "train_batch_tokens": args.train_batch_tokens,
+            "train_seq_len": args.train_seq_len,
+            "iterations": args.iterations,
+            "warmup_steps": args.warmup_steps,
+            "warmdown_iters": args.warmdown_iters,
+            "max_wallclock_seconds": args.max_wallclock_seconds,
+            "val_batch_size": args.val_batch_size,
+            "val_loss_every": args.val_loss_every,
+            "train_log_every": args.train_log_every,
+            "embed_lr": args.embed_lr,
+            "head_lr": args.head_lr,
+            "tied_embed_lr": args.tied_embed_lr,
+            "matrix_lr": args.matrix_lr,
+            "scalar_lr": args.scalar_lr,
+            "muon_momentum": args.muon_momentum,
+            "muon_backend_steps": args.muon_backend_steps,
+            "muon_momentum_warmup_start": args.muon_momentum_warmup_start,
+            "muon_momentum_warmup_steps": args.muon_momentum_warmup_steps,
+            "beta1": args.beta1,
+            "beta2": args.beta2,
+            "adam_eps": args.adam_eps,
+            "grad_clip_norm": args.grad_clip_norm,
+        }
+        wandb_kwargs = {
+            "project": args.wandb_project,
+            "name": args.wandb_run_name,
+            "config": wandb_config,
+        }
+        if args.wandb_entity is not None:
+            wandb_kwargs["entity"] = args.wandb_entity
+        if args.wandb_group is not None:
+            wandb_kwargs["group"] = args.wandb_group
+        wandb_tags = [tag.strip() for tag in args.wandb_tags.split(",") if tag.strip()]
+        if wandb_tags:
+            wandb_kwargs["tags"] = wandb_tags
+        wandb_run = wandb_module.init(**wandb_kwargs)
+
+    def wandb_log(metrics: dict[str, float | int], step_value: int | None = None) -> None:
+        if wandb_run is None:
+            return
+        wandb_run.log(metrics, step=step_value)
+
     log0(code, console=False)
     log0("=" * 100, console=False)
     log0(f"Running Python {sys.version}", console=False)
@@ -883,6 +952,7 @@ def main() -> None:
         fused=True,
     )
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    optimizer_names = ["tok", "muon", "scalar"]
     if base_model.lm_head is not None:
         optimizer_head = torch.optim.Adam(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
@@ -891,6 +961,15 @@ def main() -> None:
             fused=True,
         )
         optimizers.insert(1, optimizer_head)
+        optimizer_names.insert(1, "head")
+
+    def lr_metrics() -> dict[str, float]:
+        metrics = {}
+        for name, opt in zip(optimizer_names, optimizers, strict=True):
+            for group_idx, group in enumerate(opt.param_groups):
+                suffix = name if len(opt.param_groups) == 1 else f"{name}_{group_idx}"
+                metrics[f"lr/{suffix}"] = float(group["lr"])
+        return metrics
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
@@ -908,6 +987,16 @@ def main() -> None:
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
     log0(f"seed:{args.seed}")
+    wandb_log(
+        {
+            "setup/model_params": n_params,
+            "setup/world_size": world_size,
+            "setup/grad_accum_steps": grad_accum_steps,
+            "setup/train_shards": actual_train_files,
+            "setup/val_tokens": val_tokens.numel() - 1,
+        },
+        step_value=0,
+    )
 
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
@@ -993,6 +1082,15 @@ def main() -> None:
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
+            wandb_log(
+                {
+                    "val/loss": val_loss,
+                    "val/bpb": val_bpb,
+                    "train/time_ms": training_time_ms,
+                    "train/step_avg_ms": training_time_ms / max(step, 1),
+                },
+                step_value=step,
+            )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 
@@ -1040,10 +1138,19 @@ def main() -> None:
             and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
         )
         if should_log_train:
+            train_metrics = {
+                "train/loss": train_loss.item(),
+                "train/time_ms": approx_training_time_ms,
+                "train/step_avg_ms": approx_training_time_ms / step,
+                "train/lr_scale": scale,
+                "optimizer/muon_momentum": muon_momentum,
+            }
+            train_metrics.update(lr_metrics())
             log0(
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
+            wandb_log(train_metrics, step_value=step)
 
         # Needed to sync whether we've reached the wallclock cap.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
@@ -1054,9 +1161,15 @@ def main() -> None:
         if stop_after_step is None and reached_cap:
             stop_after_step = step
 
-    log0(
-        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
-        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+    peak_allocated_mib = torch.cuda.max_memory_allocated() // 1024 // 1024
+    peak_reserved_mib = torch.cuda.max_memory_reserved() // 1024 // 1024
+    log0(f"peak memory allocated: {peak_allocated_mib} MiB reserved: {peak_reserved_mib} MiB")
+    wandb_log(
+        {
+            "memory/peak_allocated_mib": peak_allocated_mib,
+            "memory/peak_reserved_mib": peak_reserved_mib,
+        },
+        step_value=step,
     )
 
     # -----------------------------
@@ -1072,6 +1185,14 @@ def main() -> None:
         log0(f"Serialized model: {model_bytes} bytes")
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
+        wandb_log(
+            {
+                "artifact/raw_model_bytes": model_bytes,
+                "artifact/code_bytes": code_bytes,
+                "artifact/raw_total_submission_bytes": model_bytes + code_bytes,
+            },
+            step_value=step,
+        )
 
     quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
     quant_buf = io.BytesIO()
@@ -1090,6 +1211,16 @@ def main() -> None:
             f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
         )
         log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        wandb_log(
+            {
+                "artifact/int8_zlib_model_bytes": quant_file_bytes,
+                "artifact/int8_payload_bytes": quant_stats["int8_payload_bytes"],
+                "artifact/int8_raw_torch_bytes": quant_raw_bytes,
+                "artifact/int8_payload_ratio": ratio,
+                "artifact/int8_zlib_total_submission_bytes": quant_file_bytes + code_bytes,
+            },
+            step_value=step,
+        )
 
     if distributed:
         dist.barrier()
@@ -1112,11 +1243,22 @@ def main() -> None:
         is_boundary_token_lut,
     )
     torch.cuda.synchronize()
+    q_eval_time_ms = 1000.0 * (time.perf_counter() - t_qeval)
     log0(
         f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+        f"eval_time:{q_eval_time_ms:.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    wandb_log(
+        {
+            "final/val_loss": q_val_loss,
+            "final/val_bpb": q_val_bpb,
+            "final/eval_time_ms": q_eval_time_ms,
+        },
+        step_value=step,
+    )
+    if wandb_run is not None:
+        wandb_run.finish()
 
     if distributed:
         dist.destroy_process_group()
