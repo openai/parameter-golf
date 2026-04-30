@@ -1,0 +1,67 @@
+{
+  "author": "Abay Bektursun",
+  "github_id": "abaybektursun",
+  "name": "Asymmetric Two-Lane Parallel Routing + Tap-In V6 cross_w=0.12 + MUON_WD=0.12 + Trimmed GPTQ (reserve=4, calib=16) + Wider Loop + Per-Pass Embeddings + Muon 0.98 + Legal TTT",
+  "blurb": "Two-lane parallel residual routing with asymmetric init on the last three decoder layers (the single largest mechanism), wider 3-block depth recurrence with per-pass embeddings, Muon momentum 0.98 + WD 0.12, Tap-In V6 cross-window n-gram at eval time (w=0.12), and Legal Score-First TTT. 3-seed mean V6+TTT 1.073938, -0.007062 nats below the current leaderboard #1 (1.0810, PR #1493).",
+  "date": "2026-04-12",
+  "track": "10min_16mb",
+  "base_pr": 1420,
+  "val_bpb": 1.073938,
+  "val_bpb_std": 0.000704,
+  "val_bpb_method": "legal_ttt_tapin_v6_sliding_window_stride64",
+  "seeds": [
+    42,
+    1234,
+    2025
+  ],
+  "recommended_seed": 2025,
+  "train_gpt_py_bytes": 33409,
+  "seed_results": {
+    "42": {
+      "val_loss": 2.776053,
+      "val_bpb": 1.074701,
+      "raw_sw_bpb": 1.077692,
+      "steps": 4951,
+      "artifact_bytes": 15943555
+    },
+    "1234": {
+      "val_loss": 2.773728,
+      "val_bpb": 1.073801,
+      "raw_sw_bpb": 1.077604,
+      "steps": 4960,
+      "artifact_bytes": 15942701
+    },
+    "2025": {
+      "val_loss": 2.772468,
+      "val_bpb": 1.073313,
+      "raw_sw_bpb": 1.076417,
+      "steps": 4955,
+      "artifact_bytes": 15944620
+    }
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_pre_quant_ttt": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "tapin_v6_cross_w_tuning": "@abaybektursun",
+    "gptq_calibration_trim": "@abaybektursun",
+    "gptq_reserve_trim": "@abaybektursun",
+    "muon_wd_012": "@abaybektursun",
+    "asymmetric_lane_init": "@abaybektursun",
+    "two_lane_parallel_routing": "@abaybektursun",
+    "wider_loop_per_pass_embed": "@abaybektursun",
+    "muon_momentum_098": "@abaybektursun",
+    "tapin_v6_cpp_matcher": "@abaybektursun",
+    "legal_score_first_ttt": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "fused_mlp_cutlass": "@abaybektursun (PR #1420)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331)"
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128"
+}
