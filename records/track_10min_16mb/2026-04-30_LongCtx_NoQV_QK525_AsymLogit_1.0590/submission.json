@@ -1,0 +1,63 @@
+{
+  "author": "jelly",
+  "github_id": "jelly",
+  "name": "LongCtx No-QV QK5.25 + AsymLogit",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "status": "complete_3seed_clean_rerun",
+  "val_loss": 2.31746689,
+  "val_bpb": 1.05899193,
+  "val_bpb_std": 0.00029782,
+  "seeds": [
+    42,
+    0,
+    1234
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31655341,
+      "val_bpb": 1.05857451,
+      "artifact_bytes": 15988724,
+      "model_ptz_bytes": 15945952,
+      "code_compressed_bytes": 42772,
+      "steps": 4879,
+      "train_wallclock_s": 596.034,
+      "prequant_bpb": 1.06203086,
+      "quantized_bpb": 1.07040043,
+      "eval_time_s": 397.4,
+      "log": "train_seed42_clean_rerun.log"
+    },
+    "0": {
+      "val_loss": 2.31781716,
+      "val_bpb": 1.05915199,
+      "artifact_bytes": 15988166,
+      "model_ptz_bytes": 15945394,
+      "code_compressed_bytes": 42772,
+      "steps": 4868,
+      "train_wallclock_s": 596.139,
+      "prequant_bpb": 1.06262576,
+      "quantized_bpb": 1.07106641,
+      "eval_time_s": 396.3,
+      "log": "train_seed0_clean_rerun.log"
+    },
+    "1234": {
+      "val_loss": 2.31803009,
+      "val_bpb": 1.05924929,
+      "artifact_bytes": 15992777,
+      "model_ptz_bytes": 15950005,
+      "code_compressed_bytes": 42772,
+      "steps": 4880,
+      "train_wallclock_s": 596.069,
+      "prequant_bpb": 1.06240646,
+      "quantized_bpb": 1.07107313,
+      "eval_time_s": 417.7,
+      "log": "train_seed1234_clean_rerun.log"
+    }
+  },
+  "artifact_bytes_max": 15992777,
+  "bytes_total": 15992777,
+  "model_ptz_bytes_max": 15950005,
+  "code_compressed_bytes": 42772,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "CaseOps SP8192 run with 2560-token eval/TTT, no-QV LoRA TTT, QK gain 5.25, TTT local LR multiplier 0.75, prefix-3000 phased TTT, eval-only asymmetric logit rescale, AWQ-lite mixed-precision GPTQ, and per-group compression."
+}
