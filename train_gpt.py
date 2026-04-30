@@ -646,24 +646,21 @@ class Rotary(nn.Module):
         inv_freq = 1.0 / (base ** (torch.arange(0, self.rotary_dim, 2, dtype=torch.float32) / self.rotary_dim))
         t = torch.arange(max_seq_len, dtype=torch.float32)
         freqs = torch.outer(t, inv_freq)
-        cos = freqs.cos()[None, None, :, :].to(torch.bfloat16)
-        sin = freqs.sin()[None, None, :, :].to(torch.bfloat16)
-        self.register_buffer("cos", cos, persistent=False)
-        self.register_buffer("sin", sin, persistent=False)
+        self.register_buffer("cos", freqs.cos().view(1, 1, max_seq_len, -1), persistent=False)
+        self.register_buffer("sin", freqs.sin().view(1, 1, max_seq_len, -1), persistent=False)
 
-    def forward(self):
-        return self.cos, self.sin
-
-def rotate_half(x: Tensor):
-    x1, x2 = x.chunk(2, dim=-1)
-    return torch.cat((-x2, x1), dim=-1)
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        T = x.size(2)
+        return self.cos[:, :, :T, :].to(x.dtype), self.sin[:, :, :T, :].to(x.dtype)
 
 def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
-    rotary_dim = cos.shape[-1] * 2
-    x_ro = x[..., :rotary_dim]
-    x_pass = x[..., rotary_dim:]
-    x_rotated = (x_ro * cos.repeat_interleave(2, dim=-1)) + (rotate_half(x_ro) * sin.repeat_interleave(2, dim=-1))
-    return torch.cat((x_rotated, x_pass), dim=-1)
+    d = cos.shape[-1] * 2
+    x_rop = x[..., :d]
+    x_pass = x[..., d:]
+    x_rop = x_rop.view(*x_rop.shape[:-1], -1, 2)
+    x0, x1 = x_rop.unbind(-1)
+    res = torch.stack([x0 * cos - x1 * sin, x1 * cos + x0 * sin], dim=-1)
+    return torch.cat([res.flatten(-2), x_pass], dim=-1)
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, dim, num_heads, num_kv_heads, rope_base, qk_gain_init, seq_len=1024, use_rope=True, rope_proportion=0.5):
@@ -684,7 +681,7 @@ class CausalSelfAttention(nn.Module):
         bsz, seqlen, dim = x.shape
         qk = self.c_qk(x)
         q, k = qk.split([dim, self.kv_dim], dim=-1)
-        v_input = (self.v_mix * x) + ((1.0 - self.v_mix) * emb)
+        v_input = torch.lerp(emb, x, self.v_mix.to(x.dtype))
         v = self.c_v(v_input)
 
         q = q.reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
@@ -698,7 +695,7 @@ class CausalSelfAttention(nn.Module):
             q = apply_rotary_emb(q, cos, sin)
             k = apply_rotary_emb(k, cos, sin)
 
-        q = q * self.q_gain.to(dtype=q.dtype).view(1, -1, 1, 1)
+        q = q * self.q_gain.view(1, -1, 1, 1).to(q.dtype)
         y = F.scaled_dot_product_attention(
             q, k, v, 
             is_causal=True, 
@@ -745,10 +742,13 @@ class Block(nn.Module):
 
     # Inside Block.forward
     def forward(self, x: Tensor, emb: Tensor) -> Tensor:
-        attn_out = self.attn(self.attn_norm(x), emb)
-        y = x + self.attn_scale * attn_out
-        return self.resid_scale * x + y + self.mlp_scale * self.mlp(self.mlp_norm(y))
-
+        dtype = x.dtype
+        normed_x = self.attn_norm(x)
+        attn_out = self.attn(normed_x, emb)
+        y = x + self.attn_scale.to(dtype) * attn_out
+        normed_y = self.mlp_norm(y)
+        mlp_out = self.mlp(normed_y)
+        return self.resid_scale.to(dtype) * x + y + self.mlp_scale.to(dtype) * mlp_out
 
 def get_linear_progression_kv_heads(layer_idx, total_layers, num_heads):
     # Progresses from 2 heads at layer 0 to num_heads at the final layer
