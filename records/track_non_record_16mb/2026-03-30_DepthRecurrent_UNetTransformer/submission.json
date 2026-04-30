@@ -1,0 +1,18 @@
+{
+  "author": "Muhammad Ahmed Rayyan",
+  "github_id": "Muhammad-Ahmed-Rayyan",
+  "name": "Depth-Recurrent U-Net Transformer (Universal Transformer Variant)",
+  "blurb": "Depth-recurrent U-Net transformer with shared encoder/decoder blocks (Universal Transformer variant). Weight tying frees 16MB budget for wider model (dim=1024 vs baseline dim=512). Run on 1x A10 GPU.",
+  "val_bpb": 1.2919,
+  "val_bpb_raw": 1.2707,
+  "model_dim": 1024,
+  "num_recurrences": 9,
+  "num_heads": 16,
+  "num_kv_heads": 8,
+  "vocab_size": 1024,
+  "iterations": 20000,
+  "bytes_total": 14428120,
+  "bytes_code": 49507,
+  "track": "non-record-16mb",
+  "date": "2026-03-30"
+}
