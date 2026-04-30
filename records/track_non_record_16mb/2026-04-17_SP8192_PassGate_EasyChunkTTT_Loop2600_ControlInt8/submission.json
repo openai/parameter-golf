@@ -1,0 +1,47 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-17",
+  "name": "SP8192 Pass-Gated Recurrence + Easy-Chunk TTT + Late Loop Onset + Control-Int8 Packing",
+  "author": "Artem Buldin",
+  "github_id": "Buld1n",
+  "val_bpb": 1.08120,
+  "val_bpb_std": 0.00039,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.08065825,
+      "artifact_bytes": 15983090
+    },
+    "314": {
+      "val_bpb": 1.08135101,
+      "artifact_bytes": 15985665
+    },
+    "999": {
+      "val_bpb": 1.08158578,
+      "artifact_bytes": 15984091
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + looped layers 3-5 + parallel residuals from L6 + pass-gated recurrence + easy-chunk legal TTT + loop onset sweep (best at step 2600) + control-int8 packing + GPTQ SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true,
+    "record_claim": false
+  },
+  "notes": "Non-record submission. Best single-seed is 1.08065825, but the 3-seed mean 1.08119835 does not beat the current public SOTA mean.",
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev",
+    "recurrent_sp8192_stack": "@dexhunter",
+    "legal_ttt_framework": "@abaybektursun",
+    "parallel_residuals": "@Robby955, @msisovic",
+    "submission_variant": "@Buld1n"
+  }
+}
