@@ -67,9 +67,9 @@ The best completed under-cap 8xH100 row preserved so far is:
 
 | Candidate | Final export BPB | Train-time val BPB | Steps | Step speed | Total artifact bytes |
 |---|---:|---:|---:|---:|---:|
-| `final8x_legal_196k_r2_d704e768_w2200_wd02_lqer8t16_vocabmoe_qk55` | `1.35536174` | `1.3158` | `6655` | `90.17 ms` | `15,803,789` |
+| `final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55` | `1.35496419` | `1.3191` | `6658` | `90.13 ms` | `15,989,749` |
 
-This row is under the decimal cap by 196,211 bytes. It should still be read as
+This row is under the decimal cap by only 10,251 bytes. It should still be read as
 non-record/art evidence, not as a fully tuned official-record attempt: the 8x
 search budget was approximately one hour total, not a multi-seed or
 grant-supported sweep.
@@ -334,6 +334,9 @@ This record folder includes:
   decimal artifact cap after export.
 - `logs/8xh100_runpod_legalfallback_20260430_191032_completed1/`: completed
   first legal-size e768 fallback row from the one-hour 8xH100 window.
+- `logs/8xh100_runpod_legalfallback_20260430_191032_completed2/`: completed
+  first two legal-size e768 fallback rows, including the current best
+  under-cap 8xH100 row.
 
 Expected inputs:
 
@@ -407,6 +410,20 @@ That result was:
 This is the best completed under-cap 8xH100 evidence currently included in this
 submission. It came from the self-funded one-hour 8x window described above.
 
+The second completed legalizer row improved the final export score and nearly
+filled the artifact cap. It is preserved under:
+
+```text
+logs/8xh100_runpod_legalfallback_20260430_191032_completed2/
+```
+
+| Candidate | Final export BPB | Train-time val BPB | Steps | Step avg | Artifact bytes |
+|---|---:|---:|---:|---:|---:|
+| `final8x_legal_196k_r2_d704e768_w2200_wd02_lqer6t12_vocabmoe_qk55` | `1.35496419` | `1.3191` | `6658` | `90.13 ms` | `15,989,749` |
+
+This is the best completed under-cap 8xH100 evidence currently included in this
+submission.
+
 ## Validity And Caveats
 
 This submission is deliberately explicit about what is and is not being claimed.
@@ -415,7 +432,7 @@ Claimed:
 
 - a self-contained non-record/art submission;
 - a best preserved legal 1xH100 scout result of `1.35692129` BPB;
-- a best preserved legal 8xH100 one-hour-window result of `1.35536174` BPB;
+- a best preserved legal 8xH100 one-hour-window result of `1.35496419` BPB;
 - an artifact-size estimate of `15,658,145` bytes for that row;
 - a novel mirrored-recurrent / lexical-low-rank architecture family.
 
