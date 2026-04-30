@@ -1,31 +1,29 @@
-# IGLA Race - Submission 1 Configuration
-# Best result from Gate-2 (honest, not leaky)
+# Reproducible config for honest best row id=1387 in
+# `ledger_2026-04-30.sql.gz`. Anchor: phi^2 + phi^-2 = 3.
+#
+# The canonical source is the `config_json` JSONB column of the row.
+# This YAML is a hand-mirror for human consumption.
 
-seed: 1597
-hidden: 828
+canon_name: "IGLA-MEGAASHA-h1024-LR00300-AL2-step12000-acc4-rng4181-t28860"
+account: acc4
+created_by: human
+seed: 4181            # Fibonacci F_19 (sanctioned)
+hidden: 1024
+lr: 0.003
 ctx: 12
-lr: 0.0004
-steps: 100
+attn_layers: 2
+steps: 12000
+format: fp32          # gf16 leak-suspect rows are NOT this row
+wave: MEGA-ASHA-R2
+asha_rung: 2
+kill_at_step: 4000
+kill_if_bpb_over: 3.5
 
-# Architecture settings (inherited from base)
-model: "IGLA-S-P-RINT1K"
-attention: "sparse_attn_gate"
-ttt_depth: 4
-activation: "polar_non_stationary"
-fused_ce: true
-
-# Training constraints
-max_time_minutes: 10
-max_checkpoint_mb: 16
-
-# Data
-dataset: "fine_web"
-tokenizer: "bpe"
-
-# Optimizer
-optimizer: "adamw"
-weight_decay: 0.01
-
-# Regularization
-dropout: 0.1
-warmup_steps: 100
+# Result (verbatim from experiment_queue):
+#   final_bpb:   2.1505
+#   final_step:  12000
+#   finished_at: 2026-04-30T13:55:36 UTC
+#   status:      done
+#
+# This is our honest best. We do NOT claim it crosses the Gate-2
+# threshold (1.85). It is a reproducibility artifact only.
