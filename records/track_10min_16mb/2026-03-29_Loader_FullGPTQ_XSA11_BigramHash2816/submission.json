@@ -1,9 +1,0 @@
-{
-  "name": "Coprime-Stride Loader + Full Hessian GPTQ + XSA-all + BigramHash",
-  "val_bpb": 1.1122,
-  "bytes_total": 15983626,
-  "blurb": "Coprime-stride multi-shard data pipeline (PR #726 style) + Full Hessian GPTQ with Cholesky error compensation + XSA on all 11 layers + BigramHash(2816x112) + EMA + Parallel Muon. No TTT (sliding-only outperforms TTT on this stack). 3-seed mean: 1.1122 (std 0.0004). Built on PR #549.",
-  "author": "Dex Hunter",
-  "github_id": "dexhunter",
-  "date": "2026-03-29"
-}

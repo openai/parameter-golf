@@ -1,6 +1,0 @@
-# torch and flash-attn-3 are installed separately in setup.sh
-brotli
-huggingface-hub
-numpy
-sentencepiece
-tqdm
