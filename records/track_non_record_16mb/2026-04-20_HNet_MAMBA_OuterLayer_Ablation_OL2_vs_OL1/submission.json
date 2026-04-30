@@ -1,0 +1,13 @@
+{
+  "author": "aiejvn",
+  "github_id": "139830381",
+  "name": "H-Net OL1 byte260: MAMBA Outer-Layer Ablation — OL2 Collapses, OL1 Converges (1.5194 INT6 BPB)",
+  "date": "2026-04-20",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.05279137,
+  "val_bpb": 1.51936024,
+  "step_stop": 20000,
+  "wallclock_seconds": 85338,
+  "eval_method": "sliding_window_stride64",
+  "quantization": "INT6_GPTQ_zlib9"
+}
