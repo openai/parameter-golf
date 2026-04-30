@@ -1,0 +1,11 @@
+{
+  "author": "Ciprian-Florin Ifrim",
+  "github_id": "CiprianFlorin-Ifrim",
+  "name": "74.3M Ternary U-Net - v2 - BitNet b1.58 + BF16 Scales + EMBED_DIM=312 + NeoMuon + 4x relu2 MLP + FP8 QAT + Base-3 LZMA",
+  "blurb": "10L 768d ternary U-Net transformer with relu2 4x MLP, factored tied embedding (312-dim), BF16 scale storage, FP8 QAT, poly5 softcap, YaRN 2048, NeoMuon optimizer (3 Newton-Schulz steps), base-3+LZMA compression. Continuation of #640 with tighter roundtrip (0.0011 vs 0.0021) and richer embeddings. Sliding eval stride=16 T=0.90. 3-seed mean 1.1539 bpb (std 0.0004).",
+  "date": "2026-03-27T17:00:00Z",
+  "val_loss": 2.9791,
+  "val_bpb": 1.1535,
+  "bytes_total": 15953260,
+  "bytes_code": 76908
+}
