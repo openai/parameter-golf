@@ -1,0 +1,37 @@
+{
+  "author": "wisebreadloaf",
+  "github_id": "wisebreadloaf",
+  "name": "SP8192 + Progressive 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal TTT",
+  "date": "2026-04-20",
+  "track": "10min_16mb",
+  "val_bpb": 1.08061,
+  "val_bpb_std": 0.00112,
+  "seeds": [42, 999, 1337],
+  "seed_results": {
+    "42": {"val_bpb": 1.08051, "artifact_bytes": 15992388},
+    "999": {"val_bpb": 1.08177, "artifact_bytes": 15996018},
+    "1337": {"val_bpb": 1.07955, "artifact_bytes": 15989841}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + progressive 3-layer recurrence (phase1@0.35, phase2@0.55) + parallel residuals + QK-Gain 5.25 + EMA 0.9965 + legal TTT (SGD 3ep) + GPTQ SDClip + Brotli + packed LZMA code wrapper",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445, #1471)",
+    "v15_contribution": "progressive recurrence schedule on the merged SP8192 record family"
+  }
+}
