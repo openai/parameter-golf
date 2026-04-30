@@ -1,0 +1,19 @@
+{
+  "author": "Mike Ferguson",
+  "github_id": "mike-ferguson",
+  "name": "EvoNAS - (in progress)",
+  "blurb": "Non-record submission documenting EvoNAS (genome.py / evolve.py): joint search over architecture, optimizer, fake-QAT, recurrence/traversal/sharing, then MLX training of the mark3_run champion. Submitted model weights are int6+zlib from apply_gptq.py (~14.8 MB, under 16 MB cap); val_bpb below is full-val on that artifact. Training also emits int8+zlib (~18.6 MB, over cap) for comparison—see README.",
+  "date": "2026-03-30T12:00:00Z",
+  "track": "non-record-in-progress-unlimited-compute",
+  "val_loss": 2.236614,
+  "val_bpb": 1.324649,
+  "pre_quant_val_loss": 2.2139,
+  "pre_quant_val_bpb": 1.311193,
+  "train_export_int8_zlib_val_loss": 2.28141063,
+  "train_export_int8_zlib_val_bpb": 1.35117988,
+  "step_stop": 10000,
+  "wallclock_seconds": 144480,
+  "bytes_model_int6_zlib": 14784469,
+  "bytes_model_int8_zlib": 18612195,
+  "notes": "Primary score and size: int6+zlib (apply_gptq.py). bytes_model_int8_zlib is the train_gpt_mlx.py export at end of train.log—not the submitted bundle. train_gpt.py in this folder is the repo CUDA snapshot required for submission layout."
+}
