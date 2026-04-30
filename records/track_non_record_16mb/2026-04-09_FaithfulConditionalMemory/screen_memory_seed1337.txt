@@ -1,0 +1,10 @@
+logs/screen_memory_seed1337.txt
+seed:1337
+...
+step:13985/200000 val_loss:2.8223 val_bpb:1.6713 train_time:600036ms step_avg:42.91ms
+stopping_early: wallclock_cap train_time:600036ms step:13985/200000
+Serialized model int6+zstd: 2706000 bytes
+Total submission size int8+zlib: 2769754 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+final_int8_zlib_roundtrip val_loss:2.7586 val_bpb:1.6336 eval_time:298ms
+final_int8_zlib_roundtrip_exact val_loss:2.75858221 val_bpb:1.63364760
