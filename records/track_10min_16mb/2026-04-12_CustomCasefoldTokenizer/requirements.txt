@@ -1,0 +1,12 @@
+# Dependencies for verifying and reproducing the Custom Casefold Tokenizer submission.
+#
+# For judges (verify_bytes.py only):
+#   pip install sentencepiece
+#
+# For full reproduction (training + retokenization):
+#   pip install -r requirements.txt
+
+sentencepiece>=0.2.0
+huggingface_hub>=0.20.0
+brotli>=1.1.0
+numpy>=1.24.0
