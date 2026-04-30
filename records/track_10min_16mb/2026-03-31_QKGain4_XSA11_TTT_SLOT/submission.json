@@ -1,0 +1,19 @@
+{
+  "name": "QK-Gain 4.0 + XSA-11 + Muon-TTT + SLOT",
+  "val_bpb": "1.0962",
+  "val_bpb_seeds": {
+    "1337": "1.0957",
+    "42": "1.0963",
+    "2024": "1.0966"
+  },
+  "val_bpb_std": "0.0005",
+  "bytes_total": "15980000",
+  "blurb": "Built on PR #1135 with four additions: QK_GAIN_INIT=4.0 (from PR #1125 sweep), XSA expanded to all 11 layers, Muon-style TTT (3 epochs, score-first), and SLOT eval-time delta optimization (arXiv:2505.12392v2). 3-seed mean 1.0962 BPB (std 0.0005), beats merged SOTA 1.1147 by 0.019.",
+  "author": "bigbag1983",
+  "github_id": "bigbag1983",
+  "date": "2026-03-31",
+  "step_avg_ms": "87.5",
+  "training_steps": "6845",
+  "eval_time_ttt_s": "514",
+  "eval_time_slot_s": "248"
+}
