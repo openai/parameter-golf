@@ -95,19 +95,19 @@ This candidate packages that B2 + Adaptive Hedge path.
 The package is self-contained and under the byte cap:
 
 - model: 15,872,234 bytes
-- counted code wrapper: 57,102 bytes
-- total: 15,929,336 bytes
-- margin: 70,664 bytes
+- counted code wrapper: 57,161 bytes
+- total: 15,929,395 bytes
+- margin: 70,605 bytes
 
 Score reproduction is stable:
 
 - target exploratory score: 1.06083091 BPB
-- batch-32 package proof: 1.06083116 BPB
+- optimized batch-32 package proof: 1.06082922 BPB
 - batch-48 package proof: 1.06083288 BPB
 
-Runtime is the remaining issue:
+Runtime was the final issue, and the selected proof cleared it:
 
-- batch 32 inner eval: 588.5s
-- batch 32 wrapper wallclock: 631s
+- batch 32 before optimization: 588.5s inner eval, 631s wrapper wallclock
+- optimized batch 32: 544.1s inner eval, 566.3s total eval wallclock, 585s wrapper wallclock
 
-This draft should become a record-track claim only if the optimized proof clears the official runtime requirement. Otherwise it should be treated as a runtime-caveated follow-up.
+The final speedup was not a scoring retune. It reused the cross-entropy identity `loss = logZ - target_logit` to recover `logZ` and compute the hint log-prob without a second full vocabulary normalization. Scoring constants and validation behavior were preserved.

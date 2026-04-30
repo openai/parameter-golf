@@ -1,6 +1,6 @@
-# Draft: SP8192 CaseOps + B2 Adaptive Hedge Token N-Gram
+# SP8192 CaseOps + B2 Adaptive Hedge Token N-Gram
 
-Status: draft pending final runtime proof. This folder is staged as a ready-to-edit PR candidate, not a final record claim unless the optimized proof clears the official runtime requirement.
+Status: seed42 record-track proof complete. Seed0 and seed1234 follow-up runs are in progress and will be appended if they finish in time.
 
 ## Result
 
@@ -8,13 +8,13 @@ Current best packaged seed42 proof:
 
 | Metric | Value |
 | --- | ---: |
-| BPB | 1.06083116 |
+| BPB | 1.06082922 |
 | Prior same-method exploratory BPB | 1.06083091 |
 | Scored tokens | 47,851,520 |
 | Scored bytes | 151,074,499 |
 | Docs | 50,000 |
-| Artifact bytes | 15,929,336 |
-| Cap margin | 70,664 |
+| Artifact bytes | 15,929,395 |
+| Cap margin | 70,605 |
 
 Doc-order hash:
 
@@ -24,16 +24,17 @@ Doc-order hash:
 
 ## Runtime Status
 
-The package is under the 16 MB cap and reproduces the score, but runtime is still being tightened.
+The optimized seed42 package proof clears the 10-minute evaluation cutoff on 8xH100 SXM.
 
 | Variant | BPB | Inner eval | Wrapper wallclock | Note |
 | --- | ---: | ---: | ---: | --- |
 | batch 16 | not kept | 633.8s | 674s | too slow |
 | batch 24 | not kept | 621.5s | 663s | too slow |
-| batch 32 | 1.06083116 | 588.5s | 631s | best current runtime point; wrapper over target |
+| batch 32 before log-prob reuse | 1.06083116 | 588.5s | 631s | score/package good, wrapper over target |
 | batch 48 | 1.06083288 | 636.9s | 679s | slower from memory pressure/load imbalance |
+| optimized batch 32 with hint log-prob reuse | 1.06082922 | 544.1s | 585s | selected proof |
 
-An optimized batch-32 proof is being tested with mathematically equivalent hint-log-prob reuse. If that proof clears runtime and reproduces the score/count/hash, this draft can be converted into the final PR. If it does not, this folder should be treated as a non-record / runtime-caveated follow-up.
+Total eval wallclock for the selected proof was 566.3s. The full wrapper wallclock was 585s.
 
 ## Method
 
@@ -52,10 +53,10 @@ The n-gram overlay scores a normalized distribution over the official SP8192 Cas
 | Component | Bytes |
 | --- | ---: |
 | compressed model | 15,872,234 |
-| counted `train_gpt.py` wrapper | 57,102 |
-| total | 15,929,336 |
+| counted `train_gpt.py` wrapper | 57,161 |
+| total | 15,929,395 |
 | cap | 16,000,000 |
-| margin | 70,664 |
+| margin | 70,605 |
 
 The custom n-gram Python/C logic is embedded into the counted `train_gpt.py` wrapper. No uncounted helper files are required.
 
@@ -81,12 +82,12 @@ The final package path uses a validation-only data view:
 ## Included Files
 
 - `train_gpt.py` - counted self-contained wrapper.
-- `train_seed42.log` - current batch-32 proof log.
-- `submission.json` - draft metadata; update runtime fields after optimized proof.
+- `train_seed42.log` - optimized batch-32 seed42 proof log.
+- `submission.json` - seed42 metadata.
 - `package_size.json` - package accounting from the current proof.
 - `eval_data_manifest.json` - final eval data-view proof.
 - `ENGINEERING_LOG.md` - concise engineering log for reviewers.
 
 ## Relationship To PR #1915
 
-PR #1915 remains the conservative submitted anchor at 1.06504520 BPB. This draft is a separate Path A+ follow-up and intentionally does not modify the PR #1915 record folder.
+PR #1915 remains the conservative submitted anchor at 1.06504520 BPB. This submission is a separate Path A+ follow-up and intentionally does not modify the PR #1915 record folder.
