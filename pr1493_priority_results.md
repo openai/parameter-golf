@@ -40,6 +40,12 @@ Filled in as each experiment finishes. `pre` = pre-quantization post-EMA val_bpb
 | 6 | wd_paired | `WD_SCHEDULE_ENABLED=1 PAIRED_HEAD_MUON_ENABLED=1` | 1.08610 | 1.09891 | 1.08209 | **1.07974** | 16,029,924 | 4596/20000 | done — small real stack win, see `pr1493_wd_paired_session.md` |
 | 7 | wd_strong_paired | `WD_SCHEDULE_ENABLED=1 PAIRED_HEAD_MUON_ENABLED=1 WD_SCHED_LOW_FACTOR=0.50 WD_SCHED_HIGH_FACTOR=1.75` | 1.08573 | 1.09874 | 1.08194 | **1.07971** | 16,030,578 | 4602/20000 | done — pre-quant edge but no q_ttt stack vs wd_paired, see `pr1493_wd_strong_paired_session.md` |
 | 8 | wd_paired_iha | `WD_SCHEDULE_ENABLED=1 PAIRED_HEAD_MUON_ENABLED=1 IHA_ENABLED=1` | 1.08666 | — | — | — | — | 4528/20000 | killed by pre-quant gate (worse than wd_paired by 0.00056), see `pr1493_wd_paired_iha_session.md` |
+| 9 | wd_paired requant: 16-shard no-AR | `GPTQ_ALL_REDUCE=0 GPTQ_DAMP=0.01 GPTQ_BLOCK_SIZE=128` (re-quant, no training) | 1.08610 | 1.10117 | 1.08437 | **1.08060** | 16,034,159 | n/a | done — see `pr1493_gptq_allreduce_session.md` |
+| 10 | wd_paired requant: 16-shard AR | `GPTQ_ALL_REDUCE=1` (else same) | 1.08610 | 1.09855 | 1.08178 | **1.07977** | 16,032,979 | n/a | done — −0.00084 vs (9), confirms AR theory |
+| 11 | wd_paired requant: 128-shard no-AR | `GPTQ_ALL_REDUCE=0` (else same) | 1.08610 | 1.09852 | 1.08175 | **1.07976** | 16,032,799 | n/a | done — reproduces HF 1.07976130 |
+| 12 | wd_paired requant: 128-shard AR | `GPTQ_ALL_REDUCE=1` (else same) | 1.08610 | 1.09850 | 1.08174 | **1.07975** | 16,032,588 | n/a | done — AR saturated, Δ vs (11) within noise |
+| 13 | damp sweep at (12) | `GPTQ_DAMP={0.005,0.02,0.03,0.05}` (TTT off, q_sw proxy) | — | 1.0985–1.0986 | 1.08174–1.08182 | n/a | 16,030–16,033 K | n/a | done — 0.01 default optimal |
+| 14 | block_size sweep at (12) | `GPTQ_BLOCK_SIZE={64,256}` (TTT off) | — | 1.0985 | 1.08173–1.08174 | n/a | 16,032–16,033 K | n/a | done — all tied within 3e-6 BPB |
 
 ## Per-experiment notes
 

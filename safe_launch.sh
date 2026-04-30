@@ -3,12 +3,12 @@
 # If the file regressed (FS layer rolled it back), restore from the local backup or origin.
 set -euo pipefail
 
-EXPECTED_HEAD=74dc702
-BACKUP=/workspace/parameter-golf/train_pr1493.py.74dc702
-TARGET=/workspace/parameter-golf/train_pr1493.py
-REQUIRED_SYMBOLS=(paired_head_muon_enabled fold_iha_mixes paired_head_zeropower)
+REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+TARGET="$REPO_DIR/train_pr1493.py"
+BACKUP="$REPO_DIR/train_pr1493.py.74dc702"
+REQUIRED_SYMBOLS=(paired_head_muon_enabled fold_iha_mixes paired_head_zeropower 'gptq:all-rank Hessian' gptq_damp gptq_block_size)
 
-cd /workspace/parameter-golf
+cd "$REPO_DIR"
 
 ok=1
 for sym in "${REQUIRED_SYMBOLS[@]}"; do
@@ -34,5 +34,5 @@ if [ "$ok" -ne 1 ]; then
 fi
 
 CURRENT_HEAD=$(git rev-parse --short HEAD)
-echo "[safe_launch] HEAD=$CURRENT_HEAD file_md5=$(md5sum "$TARGET" | awk '{print $1}')" >&2
+echo "[safe_launch] HEAD=$CURRENT_HEAD file_md5=$(md5sum "$TARGET" | awk '{print $1}') symbols_ok" >&2
 exec "$@"

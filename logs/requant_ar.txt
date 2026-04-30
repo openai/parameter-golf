@@ -1,0 +1,131 @@
+====================================================================================================
+requant_eval Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  doc_shuffle_bos_id: -1
+  doc_shuffle_enabled: False
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_num_loops: -1
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_all_reduce: True
+  gptq_block_size: 128
+  gptq_calibration_batches: 64
+  gptq_damp: 0.01
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  iha_enabled: False
+  iha_mix_v: False
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/requant_ar.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  mtp_steps: 0
+  mtp_weight: 0.0
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  paired_head_muon_enabled: True
+  parallel_residual_start: 7
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: requant_ar
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 5
+  ttt_lr: 0.007
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  wd_sched_high_factor: 1.5
+  wd_sched_hold_frac: 0.4
+  wd_sched_low_factor: 0.65
+  wd_sched_ramp_frac: 0.85
+  wd_schedule_enabled: True
+  world_size: 8
+  xsa_last_n: 11
+  CKPT_PATH=wd_paired_s42.pt
+  OUT_PTZ=requant_ar.int6.ptz
+  GPTQ_DAMP=0.01 GPTQ_BLOCK_SIZE=128
+  GPTQ_CALIBRATION_BATCHES=64
+====================================================================================================
+val_tokens: 40540160
+pre-quant:eval_num_loops=2 looping_active=True encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+pre-quantization (loaded ckpt) val_loss:2.80551262 val_bpb:1.08610136 eval_time:9994ms
+Serialized model: 135431271 bytes
+Code size: 57700 bytes
+GPTQ:collecting Hessians from calibration data...
+gptq:all-rank Hessian averaging across 8 ranks (denom=512)
+GPTQ:collected 67 Hessians in 12.8s
+gptq:damp_frac=0.01 block_size=128
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 15975279 bytes
+Total submission size quantized+brotli: 16032979 bytes
+quantized:eval_num_loops=2 looping_active=True encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+quantized val_loss:2.83767291 val_bpb:1.09855162 eval_time:2394ms
+quantized_sliding_window val_loss:2.79435345 val_bpb:1.08178130 eval_time:92808ms
+ttt:eval_num_loops=2 looping_active=True encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+ttt:start chunks=1238 ttt_lr=0.007 ttt_epochs=5
+quantized_ttt val_loss:2.78915455 val_bpb:1.07976864 eval_time:469066ms
+requant_eval done: bytes_total=16032979 quant_file_bytes=15975279
