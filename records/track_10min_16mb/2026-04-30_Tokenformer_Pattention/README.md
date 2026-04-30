@@ -75,36 +75,6 @@ SEED=1337 \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-### Local MLX
-
-```bash
-RUN_ID=mlx_pat_smoke ITERATIONS=20 WARMUP_STEPS=2 \
-TRAIN_BATCH_TOKENS=8192 GRAD_ACCUM_STEPS=1 \
-VAL_LOSS_EVERY=0 VAL_BATCH_SIZE=8192 PATTENTION=1 \
-python3 train_gpt_mlx.py
-```
-
-## Local MLX results (1-shard, 20-step smoke)
-
-Identical hyperparameters except `PATTENTION`:
-
-| Metric                | Baseline (`PATTENTION=0`) | Tokenformer (`PATTENTION=1`) |
-|----------------------:|--------------------------:|-----------------------------:|
-| `model_params`        | 17,059,912                | 17,050,696 (-9k, **matched within 0.05%**) |
-| Step 1 train_loss     | 6.9429                    | 6.9429                       |
-| Step 5 train_loss     | 9.6199                    | 9.4912                       |
-| Step 10 train_loss    | 6.1684                    | 6.2307                       |
-| Step 20 train_loss    | 5.8821                    | 6.0181                       |
-| ms/step (M1)          | ~1100                     | ~775                         |
-
-Step-1 loss = 6.9429 ≈ ln(1024) = 6.9315 in both runs, confirming the zero-init residual stream
-(both `attn.proj.weight` and Pattention `V` are zero-initialized so each block is identity at init).
-Both curves decrease monotonically after the same shared step-2 transient (an artifact of
-`WARMUP_STEPS=2`, not Pattention-specific).
-
-Full summary logs: [`local_mlx_smoke/mlx_pattention.summary.txt`](local_mlx_smoke/mlx_pattention.summary.txt)
-and [`local_mlx_smoke/mlx_baseline.summary.txt`](local_mlx_smoke/mlx_baseline.summary.txt).
-
 ## 8xH100 results (10-minute wallclock, single seed=1337, sp1024)
 
 Two head-to-head runs were executed sequentially on a single 8xH100 SXM pod (NVIDIA H100 80GB, torch 2.11.0+cu128, FA3, 80 train shards × ~100M tokens each, val on full 62M-token val split). Wallclock cap = 600s including warmup; submission compute used = ~20 GPU-min total.
@@ -148,8 +118,6 @@ matrix_keys (per block, 8 entries):
   blocks.{i}.mlp.proj.K       blocks.{i}.mlp.proj.V
 ```
 
-`train_gpt_mlx.py` carries the analogous diff for local Apple Silicon iteration.
-
 ## What to explore next
 
 This submission is meant to be a POC for future exploration. Areas (ranked): 
@@ -174,10 +142,6 @@ This submission is meant to be a POC for future exploration. Areas (ranked):
 - `train_gpt.py` — the modified PyTorch/GPU script. `PATTENTION=1` is the submission config;
   `PATTENTION=0` reproduces the naive baseline exactly. This is the exact 50,566-byte file that
   produced the 8xH100 logs (matches the `Code size: 50566 bytes` line in `run1_baseline_pat0.log`).
-- `train_gpt_mlx.py` — the analogous Pattention diff for local Apple Silicon iteration. The repo
-  root keeps the unmodified baseline; this folder ships the Pattention version.
-- `local_mlx_smoke/mlx_pattention.summary.txt`, `local_mlx_smoke/mlx_baseline.summary.txt` — local
-  20-step smoke summaries from `train_gpt_mlx.py` showing matched params + decreasing loss.
 - `requirements.txt` — copied verbatim from repo root.
 - `submission.json` — leaderboard metadata.
 - `runbook.md` — exact commands for the 1xH100 sanity check and 8xH100 submission runs.
