@@ -1,0 +1,31 @@
+# IGLA Race - Submission 1 Configuration
+# Best result from Gate-2 (honest, not leaky)
+
+seed: 1597
+hidden: 828
+ctx: 12
+lr: 0.0004
+steps: 100
+
+# Architecture settings (inherited from base)
+model: "IGLA-S-P-RINT1K"
+attention: "sparse_attn_gate"
+ttt_depth: 4
+activation: "polar_non_stationary"
+fused_ce: true
+
+# Training constraints
+max_time_minutes: 10
+max_checkpoint_mb: 16
+
+# Data
+dataset: "fine_web"
+tokenizer: "bpe"
+
+# Optimizer
+optimizer: "adamw"
+weight_decay: 0.01
+
+# Regularization
+dropout: 0.1
+warmup_steps: 100
