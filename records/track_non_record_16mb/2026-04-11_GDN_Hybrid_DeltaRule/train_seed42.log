@@ -1,0 +1,86 @@
+W0411 15:34:47.012000 1558 torch/distributed/run.py:803] 
+W0411 15:34:47.012000 1558 torch/distributed/run.py:803] *****************************************
+W0411 15:34:47.012000 1558 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0411 15:34:47.012000 1558 torch/distributed/run.py:803] *****************************************
+=== Direction-5: GDN Hybrid Training ===
+Arch: D_GDN_Hybrid (ARCH_MODE=D)
+Seed: 42, Max steps: 9999, Warmdown: 3000
+Train seq_len: 2048, Wallclock budget: 590.0s
+QK_GAIN_INIT: 5.0
+World size: 8, Grad accum: 1
+EMA decay: 0.997, SWA: True (every 50)
+Late QAT threshold: 0.15
+MuonEq-R: enabled
+Validation tokens: 62,021,632
+Model built in 0.2s
+Parameters: {'embedding': 925697, 'recurrent': 13251360, 'attention': 792584, 'mlp': 18880512, 'other': 12800, 'total': 33862953}
+Total params: 33,862,953
+Matrix params: 33,263,616
+Scalar params: 75,049
+Embed params: 524,288
+Generated coprime shard order: stride across 80 shards
+
+================================================================================
+Starting training: max 9999 steps (from step 0)
+Wallclock budget: 590.0s
+================================================================================
+
+step     1/9999 | loss 6.9368 | lr_mul 0.0500 | mom 0.850 | 0.01 steps/s | 105s
+step     2/9999 | loss 6.7108 | lr_mul 0.1000 | mom 0.850 | 0.02 steps/s | 106s
+step     3/9999 | loss 6.1586 | lr_mul 0.1500 | mom 0.851 | 0.03 steps/s | 106s
+step     4/9999 | loss 5.8825 | lr_mul 0.2000 | mom 0.851 | 0.04 steps/s | 106s
+step     5/9999 | loss 5.8142 | lr_mul 0.2500 | mom 0.851 | 0.05 steps/s | 107s
+step     6/9999 | loss 5.7680 | lr_mul 0.3000 | mom 0.851 | 0.06 steps/s | 107s
+step     7/9999 | loss 5.7301 | lr_mul 0.3500 | mom 0.851 | 0.07 steps/s | 107s
+step     8/9999 | loss 5.7047 | lr_mul 0.4000 | mom 0.852 | 0.07 steps/s | 107s
+step     9/9999 | loss 5.6382 | lr_mul 0.4500 | mom 0.852 | 0.08 steps/s | 108s
+step    10/9999 | loss 5.5578 | lr_mul 0.5000 | mom 0.852 | 0.09 steps/s | 108s
+step   100/9999 | loss 3.6630 | lr_mul 1.0000 | mom 0.870 | 0.76 steps/s | 131s
+step   200/9999 | loss 2.6981 | lr_mul 1.0000 | mom 0.890 | 1.27 steps/s | 157s
+step   300/9999 | loss 2.5018 | lr_mul 1.0000 | mom 0.910 | 1.63 steps/s | 184s
+step   400/9999 | loss 2.4028 | lr_mul 1.0000 | mom 0.930 | 1.91 steps/s | 210s
+step   500/9999 | loss 2.3418 | lr_mul 1.0000 | mom 0.950 | 2.12 steps/s | 236s
+step   600/9999 | loss 2.3076 | lr_mul 1.0000 | mom 0.950 | 2.29 steps/s | 262s
+step   700/9999 | loss 2.2687 | lr_mul 1.0000 | mom 0.950 | 2.43 steps/s | 288s
+step   800/9999 | loss 2.2461 | lr_mul 1.0000 | mom 0.950 | 2.55 steps/s | 314s
+step   900/9999 | loss 2.1999 | lr_mul 1.0000 | mom 0.950 | 2.64 steps/s | 341s
+step  1000/9999 | loss 2.1895 | lr_mul 1.0000 | mom 0.950 | 2.73 steps/s | 367s
+step  1100/9999 | loss 2.1648 | lr_mul 1.0000 | mom 0.950 | 2.80 steps/s | 393s
+step  1200/9999 | loss 2.1622 | lr_mul 1.0000 | mom 0.950 | 2.86 steps/s | 419s
+step  1300/9999 | loss 2.1452 | lr_mul 1.0000 | mom 0.950 | 2.92 steps/s | 445s
+step  1400/9999 | loss 2.1368 | lr_mul 1.0000 | mom 0.950 | 2.97 steps/s | 471s
+step  1500/9999 | loss 2.1254 | lr_mul 1.0000 | mom 0.950 | 3.02 steps/s | 497s
+step  1600/9999 | loss 2.1342 | lr_mul 1.0000 | mom 0.950 | 3.06 steps/s | 523s
+step  1700/9999 | loss 2.1220 | lr_mul 1.0000 | mom 0.950 | 3.09 steps/s | 549s
+step  1800/9999 | loss 2.1120 | lr_mul 1.0000 | mom 0.950 | 3.13 steps/s | 576s
+Wallclock limit reached (590s), will stop after this step
+Stopping early at step 1857 (wallclock limit)
+
+Training complete in 590s (1857 steps)
+Peak memory: 35750 MiB
+Steps/sec: 3.15
+
+=== Applying EMA weights ===
+EMA BPB (no XSA): 1.017970
+Saved raw EMA model
+
+=== GPTQ: generating autoregressive calibration data ===
+GPTQ: generated 64 sequences, collecting hessians...
+GPTQ: collected hessians for 29 layers
+
+=== Quantizing to int6 + zstd-22 ===
+Artifact: 15,188,240 bytes (14.48 MB)
+
+=== Roundtrip Validation (quantized model) ===
+Quantized BPB (no XSA): 1.027163
+Quantization degradation: +0.009193
+Quantized BPB (XSA-all): 1.031736
+
+================================================================================
+FINAL RESULTS — D_GDN_Hybrid seed=42
+  Training: 1857 steps, 590s
+  EMA BPB:       1.017970
+  Quantized BPB: 1.027163
+  XSA BPB:       1.031736
+  Artifact:      /workspace/parameter-golf/checkpoints/final_model_D_GDN_Hybrid_seed42.int6.ptz
+================================================================================
