@@ -1,0 +1,210 @@
+W0429 16:02:03.643000 154 torch/distributed/run.py:803] 
+W0429 16:02:03.643000 154 torch/distributed/run.py:803] *****************************************
+W0429 16:02:03.643000 154 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0429 16:02:03.643000 154 torch/distributed/run.py:803] *****************************************
+logs/e735e273-9394-492b-b5fd-2c3c2d66b57a.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model:TTSM num_blocks:7 num_loops:1 effective_depth:7 model_dim:576
+ttsm:blocks=7/7 kind=SSM-only d_state=64 a_log_init=diverse scan_chunk_size=64 short_conv=True normalize_bc=True
+model_params:11035714
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.4 scalar_lr:0.02 muon_eq_r:True
+train_batch_tokens:32768 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+ternary:enabled=True per_row=True warmstart=0.1 monitor=log learned_quant_mix=False qm_penalty=0.001 layer_type_warmdown=True
+ternary_monitor:initialized mode=log
+ternary:warmstart bf16 for first 10% of training
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9573 train_time:160ms step_avg:159.66ms
+step:2/20000 train_loss:13.8095 train_time:277ms step_avg:138.48ms
+step:3/20000 train_loss:7.7085 train_time:433ms step_avg:144.42ms
+step:4/20000 train_loss:6.8335 train_time:589ms step_avg:147.32ms
+step:5/20000 train_loss:6.3488 train_time:745ms step_avg:149.02ms
+step:6/20000 train_loss:6.1646 train_time:902ms step_avg:150.41ms
+step:7/20000 train_loss:5.9004 train_time:1058ms step_avg:151.20ms
+step:8/20000 train_loss:5.4311 train_time:1214ms step_avg:151.78ms
+step:9/20000 train_loss:5.5429 train_time:1373ms step_avg:152.50ms
+step:10/20000 train_loss:5.4773 train_time:1529ms step_avg:152.87ms
+step:100/20000 train_loss:3.9029 train_time:15223ms step_avg:152.23ms
+step:200/20000 train_loss:3.6360 train_time:30450ms step_avg:152.25ms
+step:300/20000 train_loss:3.4224 train_time:45669ms step_avg:152.23ms
+ternary:activated layer_type_warmdown ramp_steps:354 step:394
+step:400/20000 train_loss:3.7694 train_time:60888ms step_avg:152.22ms
+monitor:learning flip_rate:1.000000 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:1
+step:500/20000 train_loss:3.4860 train_time:76115ms step_avg:152.23ms
+monitor:learning flip_rate:0.251582 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:2
+checkpoint:saved step:500 path:/workspace/ckpt_s000500_seed42.pt
+checkpoint:ptz_saved step:500 path:/workspace/ckpt_s000500_seed42.ptz size:12063980
+step:600/20000 train_loss:3.4718 train_time:92288ms step_avg:153.81ms
+monitor:learning flip_rate:0.236480 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:3
+step:700/20000 train_loss:3.5342 train_time:107518ms step_avg:153.60ms
+monitor:learning flip_rate:0.229603 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:4
+step:800/20000 train_loss:3.7680 train_time:122768ms step_avg:153.46ms
+monitor:learning flip_rate:0.228890 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:5
+step:900/20000 train_loss:3.5070 train_time:137992ms step_avg:153.32ms
+monitor:learning flip_rate:0.216324 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:6
+step:1000/20000 train_loss:3.6167 train_time:153224ms step_avg:153.22ms
+monitor:learning flip_rate:0.210186 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:7
+checkpoint:saved step:1000 path:/workspace/ckpt_s001000_seed42.pt
+checkpoint:ptz_saved step:1000 path:/workspace/ckpt_s001000_seed42.ptz size:12056058
+step:1100/20000 train_loss:3.7234 train_time:169378ms step_avg:153.98ms
+monitor:learning flip_rate:0.194191 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:8
+layer_type_warmdown:complete at step:1102
+step:1200/20000 train_loss:3.6442 train_time:184602ms step_avg:153.83ms
+monitor:learning flip_rate:0.182293 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:9
+step:1300/20000 train_loss:3.5068 train_time:199813ms step_avg:153.70ms
+monitor:learning flip_rate:0.175489 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:10
+step:1400/20000 train_loss:3.8614 train_time:215027ms step_avg:153.59ms
+monitor:learning flip_rate:0.164171 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:11
+step:1500/20000 train_loss:3.9501 train_time:230237ms step_avg:153.49ms
+monitor:learning flip_rate:0.161048 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:12
+checkpoint:saved step:1500 path:/workspace/ckpt_s001500_seed42.pt
+checkpoint:ptz_saved step:1500 path:/workspace/ckpt_s001500_seed42.ptz size:12047082
+step:1600/20000 train_loss:3.4522 train_time:246363ms step_avg:153.98ms
+monitor:learning flip_rate:0.146845 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:13
+step:1700/20000 train_loss:3.6442 train_time:261578ms step_avg:153.87ms
+monitor:learning flip_rate:0.133849 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:14
+step:1800/20000 train_loss:3.4947 train_time:276788ms step_avg:153.77ms
+monitor:learning flip_rate:0.119821 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:15
+step:1900/20000 train_loss:3.7969 train_time:292034ms step_avg:153.70ms
+monitor:learning flip_rate:0.109668 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:16
+step:2000/20000 train_loss:3.8891 train_time:307259ms step_avg:153.63ms
+monitor:learning flip_rate:0.102029 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:17
+checkpoint:saved step:2000 path:/workspace/ckpt_s002000_seed42.pt
+checkpoint:ptz_saved step:2000 path:/workspace/ckpt_s002000_seed42.ptz size:12044486
+step:2100/20000 train_loss:3.7660 train_time:323355ms step_avg:153.98ms
+monitor:learning flip_rate:0.092557 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:18
+step:2200/20000 train_loss:3.6453 train_time:338567ms step_avg:153.89ms
+monitor:learning flip_rate:0.085794 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:19
+step:2300/20000 train_loss:3.5297 train_time:353813ms step_avg:153.83ms
+monitor:learning flip_rate:0.079167 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:20
+step:2400/20000 train_loss:3.6347 train_time:369025ms step_avg:153.76ms
+monitor:learning flip_rate:0.072580 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:21
+step:2500/20000 train_loss:3.5448 train_time:384235ms step_avg:153.69ms
+monitor:learning flip_rate:0.066831 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:22
+checkpoint:saved step:2500 path:/workspace/ckpt_s002500_seed42.pt
+checkpoint:ptz_saved step:2500 path:/workspace/ckpt_s002500_seed42.ptz size:12042034
+step:2600/20000 train_loss:3.3144 train_time:400454ms step_avg:154.02ms
+monitor:learning flip_rate:0.061444 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:23
+step:2700/20000 train_loss:3.7056 train_time:415680ms step_avg:153.96ms
+monitor:learning flip_rate:0.056307 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:24
+step:2800/20000 train_loss:3.7497 train_time:430892ms step_avg:153.89ms
+monitor:learning flip_rate:0.051850 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:25
+step:2900/20000 train_loss:3.4319 train_time:446217ms step_avg:153.87ms
+monitor:learning flip_rate:0.046285 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:26
+step:3000/20000 train_loss:3.4664 train_time:461427ms step_avg:153.81ms
+monitor:learning flip_rate:0.042652 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:27
+checkpoint:saved step:3000 path:/workspace/ckpt_s003000_seed42.pt
+checkpoint:ptz_saved step:3000 path:/workspace/ckpt_s003000_seed42.ptz size:12041042
+step:3100/20000 train_loss:3.6180 train_time:478922ms step_avg:154.49ms
+monitor:learning flip_rate:0.037634 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:28
+step:3200/20000 train_loss:3.2874 train_time:494141ms step_avg:154.42ms
+monitor:learning flip_rate:0.032860 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:29
+step:3300/20000 train_loss:3.5751 train_time:509357ms step_avg:154.35ms
+monitor:learning flip_rate:0.028174 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:30
+step:3400/20000 train_loss:3.3550 train_time:524572ms step_avg:154.29ms
+monitor:learning flip_rate:0.024406 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:31
+step:3500/20000 train_loss:3.8713 train_time:539793ms step_avg:154.23ms
+monitor:learning flip_rate:0.020268 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:32
+checkpoint:saved step:3500 path:/workspace/ckpt_s003500_seed42.pt
+checkpoint:ptz_saved step:3500 path:/workspace/ckpt_s003500_seed42.ptz size:12040144
+step:3600/20000 train_loss:3.3901 train_time:556057ms step_avg:154.46ms
+monitor:learning flip_rate:0.015384 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:33
+step:3700/20000 train_loss:3.5309 train_time:571273ms step_avg:154.40ms
+monitor:learning flip_rate:0.011116 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:34
+step:3800/20000 train_loss:3.3641 train_time:586482ms step_avg:154.34ms
+monitor:learning flip_rate:0.006705 loss_vel:-1.000000 lr_factor:1.000 steps_in_state:35
+step:3889/20000 val_loss:3.3967 val_bpb:2.0117 train_time:600089ms step_avg:154.30ms
+stopping_early: wallclock_cap train_time:600089ms step:3889/20000
+peak memory allocated: 38095 MiB reserved: 39522 MiB
+ternary_monitor_summary: {'total_steps': 35, 'final_state': 'learning', 'final_lr_factor': 1.0, 'state_counts': {'learning': 35}, 'avg_flip_rate': 0.13412814097442138, 'final_loss_velocity': -1.0, 'frozen_episodes': 0, 'churning_episodes': 0}
+ternary_distribution: total:7,483,392 -1:33.4% 0:33.1% +1:33.4%
+ternary_serialize: ternary_params:7763968 passthrough_params:3271746
+Serialized model ternary+zlib: 12039626 bytes
+Code size: 100880 bytes
+Total submission size: 12140506 bytes
+final_eval_mode:sliding_window stride:96 batch_seqs:32
+  sliding_eval [  0.0%] 32/80757 windows running_bpb=1.925180
+  sliding_eval [  2.0%] 1632/80757 windows running_bpb=2.021044
+  sliding_eval [  4.0%] 3232/80757 windows running_bpb=1.985360
+  sliding_eval [  6.0%] 4832/80757 windows running_bpb=2.009071
+  sliding_eval [  8.0%] 6432/80757 windows running_bpb=2.014345
+  sliding_eval [  9.9%] 8032/80757 windows running_bpb=2.009534
+  sliding_eval [ 11.9%] 9632/80757 windows running_bpb=2.007353
+  sliding_eval [ 13.9%] 11232/80757 windows running_bpb=2.012014
+  sliding_eval [ 15.9%] 12832/80757 windows running_bpb=2.011026
+  sliding_eval [ 17.9%] 14432/80757 windows running_bpb=2.012044
+  sliding_eval [ 19.9%] 16032/80757 windows running_bpb=2.015362
+  sliding_eval [ 21.8%] 17632/80757 windows running_bpb=2.017320
+  sliding_eval [ 23.8%] 19232/80757 windows running_bpb=2.021735
+  sliding_eval [ 25.8%] 20832/80757 windows running_bpb=2.020565
+  sliding_eval [ 27.8%] 22432/80757 windows running_bpb=2.024036
+  sliding_eval [ 29.8%] 24032/80757 windows running_bpb=2.023923
+  sliding_eval [ 31.7%] 25632/80757 windows running_bpb=2.024551
+  sliding_eval [ 33.7%] 27232/80757 windows running_bpb=2.030427
+  sliding_eval [ 35.7%] 28832/80757 windows running_bpb=2.031924
+  sliding_eval [ 37.7%] 30432/80757 windows running_bpb=2.032703
+  sliding_eval [ 39.7%] 32032/80757 windows running_bpb=2.031216
+  sliding_eval [ 41.6%] 33632/80757 windows running_bpb=2.032382
+  sliding_eval [ 43.6%] 35232/80757 windows running_bpb=2.033270
+  sliding_eval [ 45.6%] 36832/80757 windows running_bpb=2.033172
+  sliding_eval [ 47.6%] 38432/80757 windows running_bpb=2.034914
+  sliding_eval [ 49.6%] 40032/80757 windows running_bpb=2.034014
+  sliding_eval [ 51.6%] 41632/80757 windows running_bpb=2.033366
+  sliding_eval [ 53.5%] 43232/80757 windows running_bpb=2.033146
+  sliding_eval [ 55.5%] 44832/80757 windows running_bpb=2.031532
+  sliding_eval [ 57.5%] 46432/80757 windows running_bpb=2.030514
+  sliding_eval [ 59.5%] 48032/80757 windows running_bpb=2.029468
+  sliding_eval [ 61.5%] 49632/80757 windows running_bpb=2.029884
+  sliding_eval [ 63.4%] 51232/80757 windows running_bpb=2.029239
+  sliding_eval [ 65.4%] 52832/80757 windows running_bpb=2.029305
+  sliding_eval [ 67.4%] 54432/80757 windows running_bpb=2.030022
+  sliding_eval [ 69.4%] 56032/80757 windows running_bpb=2.032949
+  sliding_eval [ 71.4%] 57632/80757 windows running_bpb=2.031508
+  sliding_eval [ 73.3%] 59232/80757 windows running_bpb=2.032410
+  sliding_eval [ 75.3%] 60832/80757 windows running_bpb=2.032854
+  sliding_eval [ 77.3%] 62432/80757 windows running_bpb=2.033547
+  sliding_eval [ 79.3%] 64032/80757 windows running_bpb=2.034310
+  sliding_eval [ 81.3%] 65632/80757 windows running_bpb=2.037585
+  sliding_eval [ 83.3%] 67232/80757 windows running_bpb=2.037453
+  sliding_eval [ 85.2%] 68832/80757 windows running_bpb=2.037533
+  sliding_eval [ 87.2%] 70432/80757 windows running_bpb=2.036644
+  sliding_eval [ 89.2%] 72032/80757 windows running_bpb=2.036905
+  sliding_eval [ 91.2%] 73632/80757 windows running_bpb=2.037254
+  sliding_eval [ 93.2%] 75232/80757 windows running_bpb=2.037504
+  sliding_eval [ 95.1%] 76832/80757 windows running_bpb=2.037974
+  sliding_eval [ 97.1%] 78432/80757 windows running_bpb=2.038270
+  sliding_eval [ 99.1%] 80032/80757 windows running_bpb=2.039144
+final_ternary_roundtrip val_loss:3.3824 val_bpb:2.0032 eval_time:1823473ms
+final_ternary_roundtrip_exact val_loss:3.38236311 val_bpb:2.00323032
+[W429 16:44:38.398182101 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W429 16:44:38.500840353 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W429 16:44:38.731560272 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W429 16:44:38.862484357 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W429 16:44:38.911345223 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W429 16:44:38.943544393 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W429 16:44:38.030114791 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W429 16:44:38.033248966 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W429 16:44:41.139661567 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
