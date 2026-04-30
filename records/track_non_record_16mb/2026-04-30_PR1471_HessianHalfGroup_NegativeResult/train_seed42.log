@@ -1,0 +1,48 @@
+run_id: full-pr1471-hess-half-group-seed42-20260428-1341
+mode: full
+track: non-record-16mb
+base_record: PR1471 / records/track_10min_16mb/2026-04-08_SP8192_SDClip_3LayerRecur_EMA0.9965_1.0866
+hardware: 8xH100
+seed: 42
+env: HESSIAN_CLIP_LAMBDA=0.0875,CLIP_MULT_EARLY=1.03,CLIP_MULT_LOOP=1.015,CLIP_MULT_MID=1.0,CLIP_MULT_LATE=0.985
+dataset_variant: sp8192
+tokenizer_variant: fineweb_8192_bpe
+command: conda run --no-capture-output -n golf312J modal run modal_runner_full.py --mode full --record pr1471 --seed 42 --confirm-8gpu --env "HESSIAN_CLIP_LAMBDA=0.0875,CLIP_MULT_EARLY=1.03,CLIP_MULT_LOOP=1.015,CLIP_MULT_MID=1.0,CLIP_MULT_LATE=0.985"
+
+Run note:
+This is the preserved run record for a non-record negative result. The full raw
+Modal stdout was not retained locally, but the metrics below are copied from
+the manager full-run record immediately after the completed 8xH100 run.
+
+Hypothesis:
+Use a conservative row/group Hessian-aware SDClip modulation on top of PR1471.
+The row term is controlled by HESSIAN_CLIP_LAMBDA=0.0875. The group multipliers
+slightly loosen early and loop-layer clipping and slightly tighten late-layer
+clipping:
+
+CLIP_MULT_EARLY=1.03
+CLIP_MULT_LOOP=1.015
+CLIP_MULT_MID=1.0
+CLIP_MULT_LATE=0.985
+
+Observed result:
+stop_step: 4017/20000
+train_time_s: 590.110
+eval_time_s: 277.205
+pre_quant_post_ema_val_bpb: 1.09444822
+final_int6_roundtrip_val_bpb: 1.11193162
+final_int6_sliding_window_val_loss: 2.82858227
+final_int6_sliding_window_val_bpb: 1.09503234
+code_bytes: 90415
+model_bytes: 15902710
+artifact_total_bytes: 15993125
+artifact_cap_bytes: 16000000
+artifact_headroom_bytes: 6875
+legal_ttt_check: pass (TTT disabled)
+verdict: KEEP as non-record full-run evidence; reject as optimization
+
+Comparison:
+PR1471 public same-lineage reference is approximately 1.0866 sliding BPB. This
+run is worse by +0.00843234 BPB, so it is not an optimization result. It is
+still a completed legal full run showing this conservative Hessian/group clip
+setting did not transfer positively at full scale.

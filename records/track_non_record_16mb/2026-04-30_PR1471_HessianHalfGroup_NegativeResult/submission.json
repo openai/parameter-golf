@@ -1,0 +1,49 @@
+{
+  "author": "LoBreeze",
+  "github_id": "LoBreeze",
+  "name": "PR1471 Hessian Half-Group Clip Negative Result",
+  "blurb": "Non-record full 8xH100 result on the PR1471 SP8192 no-TTT stack. A conservative Hessian-aware/group SDClip variant completed under the 10-minute training cap and 16MB artifact cap, but regressed versus the PR1471 public same-lineage reference. This documents that the tested row/group Hessian modulation did not transfer at full scale.",
+  "date": "2026-04-30",
+  "track": "non-record-16mb",
+  "val_loss": 2.82858227,
+  "val_bpb": 1.09503234,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": 1.09444822,
+  "quantized_roundtrip_val_bpb": 1.11193162,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.82858227,
+      "val_bpb": 1.09503234,
+      "quantized_roundtrip_val_bpb": 1.11193162,
+      "pre_quant_val_bpb": 1.09444822,
+      "artifact_bytes": 15993125,
+      "train_time_s": 590.110,
+      "eval_time_s": 277.205,
+      "stop_step": 4017
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR1471 SP8192 + SDClip + 3-layer recurrence + no TTT, with HESSIAN_CLIP_LAMBDA=0.0875 and conservative group clip multipliers early=1.03, loop=1.015, mid=1.0, late=0.985. The result stayed legal but regressed by +0.00843234 BPB versus the PR1471 same-lineage public reference.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": false,
+    "three_seeds": false,
+    "non_record_negative_result": true
+  },
+  "attribution": {
+    "base_stack": "@X-Abhishek-X (PR #1471)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "hessian_sdclip_direction": "@Robby955 (PR #1412)",
+    "adaptive_hessian_clip_direction": "PR #1689 lineage",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)"
+  }
+}
