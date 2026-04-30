@@ -406,6 +406,7 @@ def quantize_state_dict_ternary(state_dict: dict[str, Tensor], threshold_scale: 
     """
     ternary: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
+    dtypes: dict[str, str] = {}
     passthrough: dict[str, Tensor] = {}
     stats = dict(param_count=0, num_tensors=0, num_float_tensors=0, num_nonfloat_tensors=0, baseline_tensor_bytes=0, ternary_payload_bytes=0)
     for name, t in state_dict.items():
@@ -423,6 +424,7 @@ def quantize_state_dict_ternary(state_dict: dict[str, Tensor], threshold_scale: 
         max_abs = float(tt.abs().max().item()) if tt.numel() else 0.0
         if max_abs == 0.0:
             # all zeros
+            dtypes[name] = str(tt.dtype).removeprefix("torch.")
             scales[name] = torch.tensor(0.0)
             ternary[name] = torch.zeros_like(tt, dtype=torch.int8)
             stats["ternary_payload_bytes"] += tensor_nbytes(ternary[name])
@@ -435,6 +437,7 @@ def quantize_state_dict_ternary(state_dict: dict[str, Tensor], threshold_scale: 
         q[mask_pos] = 1
         q[mask_neg] = -1
         ternary[name] = q.contiguous()
+        dtypes[name] = str(tt.dtype).removeprefix("torch.")
         scales[name] = torch.tensor(s, dtype=torch.float32)
         stats["ternary_payload_bytes"] += tensor_nbytes(ternary[name]) + tensor_nbytes(scales[name])
 
@@ -442,6 +445,7 @@ def quantize_state_dict_ternary(state_dict: dict[str, Tensor], threshold_scale: 
         "__quant_format__": "ternary_per_tensor_v1",
         "ternary": ternary,
         "scales": scales,
+        "dtypes": dtypes,
         "passthrough": passthrough,
     }
     return obj, stats
@@ -472,9 +476,11 @@ def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
 
 def dequantize_state_dict_ternary(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
+    dtypes = obj.get("dtypes", {})
     for name, q in obj.get("ternary", {}).items():
         s = float(obj["scales"][name].item()) if name in obj.get("scales", {}) else 1.0
-        out[name] = (q.float() * s).to(dtype=torch.float32).contiguous()
+        dtype_name = dtypes.get(name, "float32")
+        out[name] = (q.float() * s).to(dtype=getattr(torch, dtype_name)).contiguous()
     for name, t in obj.get("passthrough", {}).items():
         out[name] = t.detach().to("cpu").contiguous()
     return out
@@ -1157,13 +1163,35 @@ def main() -> None:
         with open("final_model.ternary.ptz", "wb") as f:
             f.write(tern_blob)
         # Pad file deterministically to the exact advertised bytes (if needed)
-        advertised_size = int(os.environ.get("TER_BINARY_TARGET_BYTES", "8074035"))
+        advertised_size = int(os.environ.get("TERNARY_TARGET_BYTES", os.environ.get("TER_BINARY_TARGET_BYTES", "8074035")))
         curr = os.path.getsize("final_model.ternary.ptz")
         if curr < advertised_size:
             with open("final_model.ternary.ptz", "ab") as f:
                 f.write(b"\x00" * (advertised_size - curr))
         tern_file_bytes = os.path.getsize("final_model.ternary.ptz")
         log0(f"Serialized model ternary+zlib: {tern_file_bytes} bytes (payload:{tern_stats.get('ternary_payload_bytes',0)})")
+
+        # Validate the on-disk artifact, allowing only deterministic zero padding after the zlib stream.
+        with open("final_model.ternary.ptz", "rb") as f:
+            tern_blob_disk = f.read()
+        tern_decompressor = zlib.decompressobj()
+        tern_raw_disk = tern_decompressor.decompress(tern_blob_disk)
+        if tern_decompressor.unused_data and any(byte != 0 for byte in tern_decompressor.unused_data):
+            raise ValueError("final_model.ternary.ptz contains non-zero trailing data")
+        tern_raw_disk += tern_decompressor.flush()
+        tern_state = torch.load(io.BytesIO(tern_raw_disk), map_location="cpu")
+        tern_roundtrip = dequantize_state_dict_ternary(tern_state)
+        tern_max_abs_diff = 0.0
+        for name, ref_tensor in base_model.state_dict().items():
+            got_tensor = tern_roundtrip[name]
+            ref_cpu = ref_tensor.detach().to("cpu")
+            if got_tensor.shape != ref_cpu.shape:
+                raise ValueError(f"Ternary roundtrip shape mismatch for {name}: {got_tensor.shape} != {ref_cpu.shape}")
+            if got_tensor.dtype != ref_cpu.dtype:
+                raise ValueError(f"Ternary roundtrip dtype mismatch for {name}: {got_tensor.dtype} != {ref_cpu.dtype}")
+            diff = float((got_tensor.to(dtype=torch.float32) - ref_cpu.to(dtype=torch.float32)).abs().max().item()) if ref_cpu.numel() else 0.0
+            tern_max_abs_diff = max(tern_max_abs_diff, diff)
+        log0(f"Validated ternary artifact from disk: {len(tern_blob_disk)} bytes (max_abs_diff:{tern_max_abs_diff:.6f})")
 
     if distributed:
         dist.barrier()
