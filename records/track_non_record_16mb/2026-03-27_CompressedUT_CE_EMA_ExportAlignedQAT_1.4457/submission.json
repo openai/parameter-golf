@@ -1,0 +1,22 @@
+{
+  "author": "Mihir Srivastava",
+  "github_id": "mihir-s-05",
+  "name": "CompressedUT CE + EMA Export + Export-Aligned Late QAT",
+  "blurb": "Non-record 8xH100 submission using the byte-level compressed_ut CE-only path with larger width, EMA export weights, export-aligned late QAT, and stronger int6 clip search. Full-validation shipped-artifact score reached 1.44568091 bpb under the 16,000,000-byte cap.",
+  "date": "2026-03-27T05:53:42Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.00206964,
+  "val_bpb": 1.44568091,
+  "pre_quant_val_loss": 0.9972,
+  "pre_quant_val_bpb": 1.4386,
+  "step_stop": 8694,
+  "wallclock_seconds": 600.191,
+  "bytes_total": 14707311,
+  "bytes_model_int6_zlib": 14588307,
+  "bytes_code": 119004,
+  "gpu": "8xH100 SXM",
+  "model_family": "compressed_ut",
+  "train_stage": "ce",
+  "compression": "int6 + zlib-9",
+  "eval_scope": "full"
+}

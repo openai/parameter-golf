@@ -4,21 +4,25 @@ import os
 import shutil
 from pathlib import Path
 
-from huggingface_hub import hf_hub_download
+from huggingface_hub import HfApi, hf_hub_download
 
 
-REPO_ID = os.environ.get("MATCHED_FINEWEB_REPO_ID", "willdepueoai/parameter-golf")
-REMOTE_ROOT_PREFIX = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "datasets")
+REPO_ID = os.environ.get("MATCHED_FINEWEB_REPO_ID", "mistobaan/fineweb10B_bytes")
+REMOTE_ROOT_PREFIX = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "")
 ROOT = Path(__file__).resolve().parent
 DATASETS_DIR = ROOT / "datasets"
 TOKENIZERS_DIR = ROOT / "tokenizers"
+RAW_BYTE_VARIANTS = {"rawbytes", "bytes", "byte256"}
+RAW_BYTE_DATASET_DIR = "fineweb10B_bytes"
 
 def dataset_dir_for_variant(name: str) -> str:
+    if name in RAW_BYTE_VARIANTS:
+        return RAW_BYTE_DATASET_DIR
     if name == "byte260":
         return "fineweb10B_byte260"
     if name.startswith("sp") and name[2:].isdigit():
         return f"fineweb10B_{name}"
-    raise ValueError(f"unsupported variant {name!r}; expected byte260 or sp<VOCAB_SIZE>")
+    raise ValueError(f"unsupported variant {name!r}; expected rawbytes, byte260, or sp<VOCAB_SIZE>")
 
 
 def local_path_for_remote(relative_path: str) -> Path:
@@ -29,6 +33,8 @@ def local_path_for_remote(relative_path: str) -> Path:
         return DATASETS_DIR.joinpath(*remote_path.parts[1:])
     if remote_path.parts[:1] == ("tokenizers",):
         return TOKENIZERS_DIR.joinpath(*remote_path.parts[1:])
+    if remote_path.name.startswith("fineweb_") and remote_path.suffix == ".bin":
+        return DATASETS_DIR / RAW_BYTE_DATASET_DIR / remote_path.name
     return ROOT / remote_path
 
 
@@ -84,6 +90,16 @@ def artifact_paths_for_tokenizer(tokenizer_entry: dict) -> list[str]:
     return artifacts
 
 
+def list_raw_byte_shards() -> tuple[list[str], list[str]]:
+    api = HfApi()
+    all_files = sorted(api.list_repo_files(repo_id=REPO_ID, repo_type="dataset"))
+    train_files = [path for path in all_files if Path(path).name.startswith("fineweb_train_") and path.endswith(".bin")]
+    val_files = [path for path in all_files if Path(path).name.startswith("fineweb_val_") and path.endswith(".bin")]
+    if not train_files or not val_files:
+        raise ValueError(f"Could not find raw-byte shards in dataset repo {REPO_ID}")
+    return train_files, val_files
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Download challenge FineWeb shards from Hugging Face")
     parser.add_argument(
@@ -101,8 +117,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--variant",
-        default="sp1024",
-        help="Tokenizer family to download, for example sp1024, sp4096, or byte260.",
+        default="rawbytes",
+        help="Tokenizer family to download, for example rawbytes, byte260, sp1024, or sp4096.",
     )
     parser.add_argument(
         "--skip-manifest",
@@ -123,6 +139,20 @@ def main() -> None:
     train_shards = args.train_shards_positional if args.train_shards_positional is not None else args.train_shards
     if train_shards < 0:
         raise ValueError("train_shards must be non-negative")
+
+    if args.variant in RAW_BYTE_VARIANTS:
+        if args.with_docs:
+            raise ValueError("--with-docs is not supported for the published raw-byte shard repo")
+        train_files, val_files = list_raw_byte_shards()
+        if train_shards > len(train_files):
+            raise ValueError(
+                f"{args.variant} only has {len(train_files)} training shards on {REPO_ID}, requested {train_shards}"
+            )
+        for path in val_files:
+            get(path)
+        for path in train_files[:train_shards]:
+            get(path)
+        return
 
     manifest = load_manifest(skip_manifest_download=args.skip_manifest)
     dataset_entry = next((x for x in manifest.get("datasets", []) if x.get("name") == dataset_dir), None)
