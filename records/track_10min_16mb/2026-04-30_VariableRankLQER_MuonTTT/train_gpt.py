@@ -299,6 +299,7 @@ class Hyperparameters:
     ttt_mlp_lora = bool(int(os.environ.get("TTT_MLP_LORA", "1")))
     ttt_o_lora = bool(int(os.environ.get("TTT_O_LORA", "1")))
     ttt_optimizer = os.environ.get("TTT_OPTIMIZER", "adam")
+    ttt_muon_ns_steps = int(os.environ.get("TTT_MUON_NS_STEPS", "3"))
     ttt_eval_batches = os.environ.get("TTT_EVAL_BATCHES", "")
     val_doc_fraction = float(os.environ.get("VAL_DOC_FRACTION", 1.0))
     compressor = os.environ.get("COMPRESSOR", "brotli")
@@ -366,6 +367,11 @@ class Hyperparameters:
     lqer_factor_bits = int(os.environ.get("LQER_FACTOR_BITS", 4))
     lqer_asym_enabled = bool(int(os.environ.get("LQER_ASYM_ENABLED", "1")))
     lqer_asym_group = int(os.environ.get("LQER_ASYM_GROUP", "64"))
+    lqer_variable_rank = bool(int(os.environ.get("LQER_VARIABLE_RANK", "0")))
+    lqer_variable_rank_cap = int(os.environ.get("LQER_VARIABLE_RANK_CAP", "8"))
+    lqer_variable_rank_floor = int(os.environ.get("LQER_VARIABLE_RANK_FLOOR", "0"))
+    byte_audit_enabled = bool(int(os.environ.get("BYTE_AUDIT_ENABLED", "1")))
+    byte_audit_tokens = int(os.environ.get("BYTE_AUDIT_TOKENS", "100000"))
     distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
     rank = int(os.environ.get("RANK", "0"))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -1884,6 +1890,48 @@ class Muon(torch.optim.Optimizer):
         return loss
 
 
+class TTTMuon(torch.optim.Optimizer):
+    def __init__(self, params, lr, momentum=0.0, weight_decay=0.0, ns_steps=3):
+        super().__init__(
+            params,
+            dict(lr=lr, momentum=momentum, weight_decay=weight_decay, ns_steps=ns_steps),
+        )
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        for group in self.param_groups:
+            lr = group["lr"]
+            momentum = group["momentum"]
+            wd = group["weight_decay"]
+            ns_steps = group["ns_steps"]
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+                g = p.grad
+                if wd > 0.0:
+                    p.data.mul_(1.0 - lr * wd)
+                if momentum > 0.0:
+                    state = self.state[p]
+                    if "momentum_buffer" not in state:
+                        state["momentum_buffer"] = torch.zeros_like(g)
+                    buf = state["momentum_buffer"]
+                    buf.mul_(momentum).add_(g)
+                    update = g.add(buf, alpha=momentum)
+                else:
+                    update = g
+                if update.ndim >= 2 and min(update.shape[-2:]) > 1:
+                    update = zeropower_via_newtonschulz5(update, steps=ns_steps).to(p.dtype)
+                    scale = math.sqrt(max(update.shape[-2:]))
+                    p.add_(update, alpha=-lr * scale)
+                else:
+                    p.add_(update, alpha=-lr)
+        return loss
+
+
 CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
@@ -2217,6 +2265,63 @@ def _lqer_pack_asym(A, B, g=64):
     return qA, sA, qB, sB
 
 
+def _lqer_storage_units(rows, cols, rank, asym_on, asym_g):
+    if rank <= 0:
+        return 0
+    if asym_on and (rank * cols) % asym_g == 0:
+        return rows * rank + rank * cols + 2 + 2 * ((rank * cols) // asym_g)
+    return rows * rank + rank * cols + 2 * rows + 2 * rank
+
+
+def _allocate_variable_lqer_ranks(lqer_cands, hessians, h, asym_on, asym_g):
+    uniform_top = sorted(lqer_cands.items(), key=lambda kv: -kv[1][1])[: h.lqer_top_k]
+    budget_units = 0
+    for _, (E, _) in uniform_top:
+        r = min(h.lqer_rank, min(E.shape))
+        budget_units += _lqer_storage_units(E.shape[0], E.shape[1], r, asym_on, asym_g)
+    cap = max(0, int(getattr(h, "lqer_variable_rank_cap", h.lqer_rank)))
+    floor = max(0, int(getattr(h, "lqer_variable_rank_floor", 0)))
+    ranks = {name: 0 for name in lqer_cands}
+    used_units = 0
+    traces = {}
+    for name, (E, _) in lqer_cands.items():
+        H = hessians.get(name)
+        traces[name] = float(torch.trace(H).item()) if H is not None else 0.0
+        max_rank = min(cap, min(E.shape))
+        for _ in range(min(floor, max_rank)):
+            unit = _lqer_storage_units(E.shape[0], E.shape[1], ranks[name] + 1, asym_on, asym_g)
+            unit -= _lqer_storage_units(E.shape[0], E.shape[1], ranks[name], asym_on, asym_g)
+            if used_units + unit > budget_units:
+                break
+            ranks[name] += 1
+            used_units += unit
+    while True:
+        best = None
+        best_score = -1.0
+        for name, (E, _) in lqer_cands.items():
+            if ranks[name] >= min(cap, min(E.shape)):
+                continue
+            prev = _lqer_storage_units(E.shape[0], E.shape[1], ranks[name], asym_on, asym_g)
+            nxt = _lqer_storage_units(E.shape[0], E.shape[1], ranks[name] + 1, asym_on, asym_g)
+            delta = nxt - prev
+            if delta <= 0 or used_units + delta > budget_units:
+                continue
+            # Trace per stored byte favors high-sensitivity tensors without drifting over the old residual budget.
+            score = traces[name] / delta
+            if score > best_score:
+                best = (name, delta)
+                best_score = score
+        if best is None:
+            break
+        name, delta = best
+        ranks[name] += 1
+        used_units += delta
+    if not any(ranks.values()):
+        return {}, budget_units, used_units, traces
+    assert used_units <= budget_units, "LQER variable-rank residual byte budget drift"
+    return {name: r for name, r in ranks.items() if r > 0}, budget_units, used_units, traces
+
+
 def gptq_mixed_quantize(state_dict, hessians, h):
     result = {}
     meta = {}
@@ -2270,12 +2375,27 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             E = t.float() - W_q
             lqer_cands[name] = (E, float(E.norm()))
     if lqer_on and lqer_cands:
-        top = sorted(lqer_cands.items(), key=lambda kv: -kv[1][1])[: h.lqer_top_k]
         asym_on = bool(getattr(h, "lqer_asym_enabled", False))
         asym_g = int(getattr(h, "lqer_asym_group", 64))
+        if bool(getattr(h, "lqer_variable_rank", False)):
+            rank_map, budget_units, used_units, traces = _allocate_variable_lqer_ranks(
+                lqer_cands, hessians, h, asym_on, asym_g
+            )
+            top = [(name, lqer_cands[name]) for name in rank_map]
+            log(
+                "[lqer-var] "
+                f"selected={[(n, rank_map[n]) for n, _ in top]} "
+                f"storage_units={used_units}/{budget_units} "
+                f"top_traces={sorted(traces.values(), reverse=True)[:8]}"
+            )
+        else:
+            top = sorted(lqer_cands.items(), key=lambda kv: -kv[1][1])[: h.lqer_top_k]
+            rank_map = {}
         for (name, (E, _)) in top:
             U, S, Vh = torch.linalg.svd(E, full_matrices=False)
-            r = min(h.lqer_rank, S.numel())
+            r = min(rank_map.get(name, h.lqer_rank), S.numel())
+            if r <= 0:
+                continue
             A = (U[:, :r] * S[:r]).contiguous()
             B = Vh[:r, :].contiguous()
             if asym_on and B.numel() % asym_g == 0:
@@ -2729,6 +2849,46 @@ def _loss_bpb(loss_sum, token_count, byte_count):
     return val_loss, val_bpb
 
 
+def _byte_accounting_audit(h, val_data, label):
+    if (
+        not getattr(h, "byte_audit_enabled", True)
+        or h.rank != 0
+        or getattr(val_data, "_byte_audit_done", False)
+    ):
+        return
+    n = min(int(getattr(h, "byte_audit_tokens", 100000)), val_data.val_tokens.numel() - 1)
+    if n <= 0:
+        raise ValueError("[byte-audit] validation data too short")
+    if val_data.caseops_enabled:
+        if val_data.val_bytes is None:
+            raise AssertionError("[byte-audit] CaseOps enabled but val_bytes sidecar is missing")
+        if val_data.val_bytes.numel() != val_data.val_tokens.numel():
+            raise AssertionError(
+                f"[byte-audit] sidecar length mismatch: bytes={val_data.val_bytes.numel()} "
+                f"tokens={val_data.val_tokens.numel()}"
+            )
+        sample_bytes = val_data.val_bytes[1 : n + 1].to(torch.int64)
+        total = int(sample_bytes.sum().item())
+        if total <= 0 or int(sample_bytes.min().item()) < 0:
+            raise AssertionError(f"[byte-audit] invalid CaseOps byte sidecar total={total}")
+        log(
+            f"[byte-audit:{label}] caseops sidecar tokens={n} bytes={total} "
+            f"mean_bytes={total / max(n, 1):.4f} OK"
+        )
+    else:
+        x = val_data.val_tokens[:n]
+        y = val_data.val_tokens[1 : n + 1]
+        tok_bytes = val_data.base_bytes_lut[y].to(torch.float64)
+        tok_bytes += (
+            val_data.has_leading_space_lut[y] & ~val_data.is_boundary_token_lut[x]
+        ).to(torch.float64)
+        total = float(tok_bytes.sum().item())
+        if total <= 0:
+            raise AssertionError(f"[byte-audit] invalid SentencePiece LUT total={total}")
+        log(f"[byte-audit:{label}] sentencepiece_lut tokens={n} bytes={total:.0f} OK")
+    val_data._byte_audit_done = True
+
+
 def eval_val(h, device, val_data, model, forward_logits_fn=None):
     seq_len = h.eval_seq_len
     local_batch_tokens = h.val_batch_tokens // (h.world_size * h.grad_accum_steps)
@@ -2756,6 +2916,7 @@ def eval_val(h, device, val_data, model, forward_logits_fn=None):
     global BOS_ID
     if BOS_ID is None:
         BOS_ID = 1
+    _byte_accounting_audit(h, val_data, "eval_val")
     with torch.no_grad():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
@@ -3022,6 +3183,7 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
     global BOS_ID
     if BOS_ID is None:
         BOS_ID = 1
+    _byte_accounting_audit(h, val_data, "ttt_phased")
     base_model.eval()
     for p in base_model.parameters():
         p.requires_grad_(False)
@@ -3081,6 +3243,12 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
             return torch.optim.SGD(
                 lora.parameters(), lr=h.ttt_lora_lr,
                 momentum=h.ttt_beta1, weight_decay=h.ttt_weight_decay,
+            )
+        if h.ttt_optimizer == "muon":
+            return TTTMuon(
+                lora.parameters(), lr=h.ttt_lora_lr,
+                momentum=h.ttt_beta1, weight_decay=h.ttt_weight_decay,
+                ns_steps=h.ttt_muon_ns_steps,
             )
         return torch.optim.AdamW(
             lora.parameters(), lr=h.ttt_lora_lr,
