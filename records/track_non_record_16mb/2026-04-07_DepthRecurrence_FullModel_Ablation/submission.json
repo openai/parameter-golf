@@ -1,0 +1,11 @@
+{
+  "author": "codeprakhar25",
+  "github_id": "codeprakhar25",
+  "name": "Full-Model Depth Recurrence Ablation (7x2)",
+  "blurb": "Systematic ablation of full-model depth recurrence (N unique blocks × R repeats) with U-Net skip connections. 7 configs tested. Best: 7×2 = 1.3680 BPB (+0.036 vs baseline) at 26% smaller artifact. Key finding: torch.compile shows NO slowdown with depth recurrence, contradicting prior reports.",
+  "date": "2026-04-07T12:00:00Z",
+  "val_loss": 2.3132,
+  "val_bpb": 1.3680,
+  "bytes_total": 10000000,
+  "bytes_code": 52000
+}
