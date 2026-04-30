@@ -306,6 +306,7 @@ class Hyperparameters:
     ttt_eval_seq_len = int(os.environ.get("TTT_EVAL_SEQ_LEN", 2048))
     ttt_batch_size = int(os.environ.get("TTT_BATCH_SIZE", 64))
     ttt_grad_steps = int(os.environ.get("TTT_GRAD_STEPS", 1))
+    ttt_grad_steps_clean = bool(int(os.environ.get("TTT_GRAD_STEPS_CLEAN", "0")))
     ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 1.0))
     ttt_beta1 = float(os.environ.get("TTT_BETA1", 0))
     ttt_beta2 = float(os.environ.get("TTT_BETA2", 0.999))
@@ -3586,7 +3587,14 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                     per_doc = per_tok_loss[
                         :, chunk_offset : chunk_offset + chunk_size
                     ].mean(dim=-1)
-                    if is_window_start and gi == 0:
+                    # Original path: zero_grad only at the start of an update window
+                    # (gi==0). With TTT_GRAD_STEPS>1 this leaves gi=0's gradient in
+                    # .grad when gi=1 runs, so step 2 sees (grad_gi0 + grad_gi1) —
+                    # effectively ~2x gradient magnitude on the second update.
+                    # Clean path (TTT_GRAD_STEPS_CLEAN=1): also zero_grad before every
+                    # gi>0 step so each optimizer.step() sees only its own fresh gradient,
+                    # giving true independent half-LR updates with different curvature.
+                    if (is_window_start and gi == 0) or (h.ttt_grad_steps_clean and gi > 0):
                         cur_opt.zero_grad(set_to_none=True)
                     (per_doc * activate_chunk_mask).sum().backward()
                     if is_update_step:
@@ -4031,6 +4039,7 @@ def train_and_eval(h, device):
             return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
 
         fwd_ttt_compiled = _fwd_ttt
+        log(f"ttt_grad_steps: {h.ttt_grad_steps}  ttt_grad_steps_clean: {h.ttt_grad_steps_clean}")
         log(f"ttt_lora:warming up compile (random tokens, no val data)")
         global BOS_ID
         if BOS_ID is None:
