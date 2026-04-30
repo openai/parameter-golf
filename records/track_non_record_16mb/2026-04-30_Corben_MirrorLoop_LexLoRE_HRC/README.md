@@ -300,6 +300,8 @@ This record folder includes:
 - `run_1xh100_best.sh`: exact 1xH100 command for the best preserved row.
 - `submission.json`: metadata for the non-record submission.
 - `train.log`: preserved result note and caveats.
+- `logs/8xh100_runpod_final8x_20260430_185628/`: live 8xH100 RunPod log
+  snapshot copied off the pod during the first official-shaped 8x attempt.
 
 Expected inputs:
 
@@ -316,6 +318,28 @@ bash run_1xh100_best.sh
 The script is written for the RunPod Parameter Golf image and a single H100.
 An official-shaped 8xH100 follow-up would use the same architecture constants
 with a distributed launch and a re-tuned global batch schedule.
+
+## 8xH100 Log Snapshot
+
+After this PR was opened, an 8xH100 RunPod became available. The first
+official-shaped matrix was launched with the same no-fetch bundle described in
+the project notes. A live snapshot of that run is included under:
+
+```text
+logs/8xh100_runpod_final8x_20260430_185628/
+```
+
+That snapshot includes:
+
+- the full live runner log at the time it was copied off the pod;
+- the candidate plan for the five-row 8x matrix;
+- the first candidate's per-run log snapshot;
+- a `snapshot-status.txt` file with GPU utilization and timestamp.
+
+It is intentionally labeled as a snapshot because the matrix was still running
+when those files were first preserved. Completed 8x results should be added as
+another update if the pod finishes before the submission can no longer be
+edited.
 
 ## Validity And Caveats
 
