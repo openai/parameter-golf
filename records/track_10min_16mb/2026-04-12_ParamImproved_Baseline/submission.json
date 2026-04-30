@@ -1,0 +1,36 @@
+{
+  "author": "",
+  "github_id": "",
+  "name": "Improved Tier1 Baseline — SP8192 + 3-Layer Recurrence + Parallel Residuals + Skip Gates + GPTQ Brotli",
+  "date": "2026-04-12",
+  "track": "10min_16mb",
+  "val_bpb": 1.09704,
+  "val_bpb_std": "",
+  "seeds": [42, 999],
+  "seed_results": {
+    "42": {"val_bpb": 1.09704, "artifact_bytes": 16072361},
+    "999": {"artifact_bytes": 16019390}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "SP8192 + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + Skip Gates + QK-Gain 5.25 + EMA 0.9965 + WD 0.095 + GPTQ SDClip (int6/int8) + Brotli + Sliding Window Eval",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": false,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": false,
+    "three_seeds": false
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip_muoneqr": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445)",
+    "gptq_xsa": "@abaybektursun (PR #1019)",
+    "leakyrelu_ttt_precedent": "@abaybektursun (PR #549)"
+  }
+}
