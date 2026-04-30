@@ -1,0 +1,73 @@
+W0416 01:25:21.825000 42332 torch/distributed/run.py:851] 
+W0416 01:25:21.825000 42332 torch/distributed/run.py:851] *****************************************
+W0416 01:25:21.825000 42332 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0416 01:25:21.825000 42332 torch/distributed/run.py:851] *****************************************
+logs/8902c5be-68b9-4841-9475-dad8610f8726.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192nb_bpe.model
+train_loader:dataset:fineweb10B_sp8192nb train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192nb/fineweb_val_*.bin tokens:40203264
+model_params:20882280
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.0085 val_bpb:3.4656 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:9.0073 train_time:193ms step_avg:193.23ms
+step:2/20000 train_loss:16.5922 train_time:392ms step_avg:196.07ms
+step:3/20000 train_loss:11.5909 train_time:595ms step_avg:198.24ms
+step:4/20000 train_loss:9.0395 train_time:797ms step_avg:199.33ms
+step:5/20000 train_loss:8.5771 train_time:1000ms step_avg:199.99ms
+step:6/20000 train_loss:8.4729 train_time:1203ms step_avg:200.45ms
+step:7/20000 train_loss:8.1950 train_time:1405ms step_avg:200.78ms
+step:8/20000 train_loss:8.1143 train_time:1608ms step_avg:200.98ms
+step:9/20000 train_loss:7.6834 train_time:1810ms step_avg:201.14ms
+step:10/20000 train_loss:7.3865 train_time:2013ms step_avg:201.29ms
+step:200/20000 train_loss:4.0629 train_time:40659ms step_avg:203.29ms
+step:400/20000 train_loss:3.8247 train_time:81397ms step_avg:203.49ms
+step:600/20000 train_loss:3.5940 train_time:122150ms step_avg:203.58ms
+step:800/20000 train_loss:3.5205 train_time:162912ms step_avg:203.64ms
+step:1000/20000 train_loss:3.3971 train_time:203682ms step_avg:203.68ms
+step:1000/20000 val_loss:3.5036 val_bpb:1.3479 train_time:203694ms step_avg:203.69ms
+step:1200/20000 train_loss:3.3872 train_time:244506ms step_avg:203.76ms
+step:1400/20000 train_loss:3.3285 train_time:285282ms step_avg:203.77ms
+step:1600/20000 train_loss:3.4765 train_time:326051ms step_avg:203.78ms
+step:1800/20000 train_loss:3.3610 train_time:366814ms step_avg:203.79ms
+step:2000/20000 train_loss:3.3671 train_time:407572ms step_avg:203.79ms
+step:2000/20000 val_loss:3.3960 val_bpb:1.3065 train_time:407584ms step_avg:203.79ms
+step:2200/20000 train_loss:3.3199 train_time:448333ms step_avg:203.79ms
+step:2400/20000 train_loss:3.1753 train_time:489093ms step_avg:203.79ms
+step:2600/20000 train_loss:3.3822 train_time:529855ms step_avg:203.79ms
+step:2800/20000 train_loss:3.0767 train_time:570614ms step_avg:203.79ms
+step:2945/20000 val_loss:3.3036 val_bpb:1.2709 train_time:600199ms step_avg:203.80ms
+stopping_early: wallclock_cap train_time:600199ms step:2945/20000
+peak memory allocated: 15297 MiB reserved: 16494 MiB
+Applying EMA weights...
+Serialized model: 75184133 bytes
+Code size: 52910 bytes
+Total submission size: 75237043 bytes
+Serialized model int6+zstd: 10264638 bytes
+Total submission size int6+zstd: 10317548 bytes
+final_int8_zlib_roundtrip val_loss:3.3731 val_bpb:1.2977 eval_time:4546ms
+final_int8_zlib_roundtrip_exact val_loss:3.37312708 val_bpb:1.29765622

@@ -1,0 +1,93 @@
+W0419 20:37:33.108000 1798 torch/distributed/run.py:792] 
+W0419 20:37:33.108000 1798 torch/distributed/run.py:792] *****************************************
+W0419 20:37:33.108000 1798 torch/distributed/run.py:792] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0419 20:37:33.108000 1798 torch/distributed/run.py:792] *****************************************
+/usr/bin/python3: can't open file '/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_stepbound.py': [Errno 2] No such file or directory
+/usr/bin/python3: can't open file '/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_stepbound.py': [Errno 2] No such file or directory
+/usr/bin/python3: can't open file '/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_stepbound.py': [Errno 2] No such file or directory
+/usr/bin/python3: can't open file '/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_stepbound.py': [Errno 2] No such file or directory
+/usr/bin/python3: can't open file '/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_stepbound.py': [Errno 2] No such file or directory
+/usr/bin/python3: can't open file '/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_stepbound.py': [Errno 2] No such file or directory
+/usr/bin/python3: can't open file '/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_stepbound.py': [Errno 2] No such file or directory
+/usr/bin/python3: can't open file '/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_stepbound.py': [Errno 2] No such file or directory
+E0419 20:37:33.484000 1798 torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 2) local_rank: 0 (pid: 1873) of binary: /usr/bin/python3
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 918, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 909, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 138, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 269, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_breadcrumb_recur_ema_stochdepth_stepbound.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-04-19_20:37:33
+  host      : a75fff80d138
+  rank      : 1 (local_rank: 1)
+  exitcode  : 2 (pid: 1874)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[2]:
+  time      : 2026-04-19_20:37:33
+  host      : a75fff80d138
+  rank      : 2 (local_rank: 2)
+  exitcode  : 2 (pid: 1875)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[3]:
+  time      : 2026-04-19_20:37:33
+  host      : a75fff80d138
+  rank      : 3 (local_rank: 3)
+  exitcode  : 2 (pid: 1876)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[4]:
+  time      : 2026-04-19_20:37:33
+  host      : a75fff80d138
+  rank      : 4 (local_rank: 4)
+  exitcode  : 2 (pid: 1877)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[5]:
+  time      : 2026-04-19_20:37:33
+  host      : a75fff80d138
+  rank      : 5 (local_rank: 5)
+  exitcode  : 2 (pid: 1878)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[6]:
+  time      : 2026-04-19_20:37:33
+  host      : a75fff80d138
+  rank      : 6 (local_rank: 6)
+  exitcode  : 2 (pid: 1879)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[7]:
+  time      : 2026-04-19_20:37:33
+  host      : a75fff80d138
+  rank      : 7 (local_rank: 7)
+  exitcode  : 2 (pid: 1880)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-19_20:37:33
+  host      : a75fff80d138
+  rank      : 0 (local_rank: 0)
+  exitcode  : 2 (pid: 1873)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

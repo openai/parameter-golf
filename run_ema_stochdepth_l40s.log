@@ -1,0 +1,73 @@
+W0416 02:14:57.290000 46105 torch/distributed/run.py:851] 
+W0416 02:14:57.290000 46105 torch/distributed/run.py:851] *****************************************
+W0416 02:14:57.290000 46105 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0416 02:14:57.290000 46105 torch/distributed/run.py:851] *****************************************
+logs/64c6349c-cc13-4e32-a39b-f0465443d0fd.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192nb_bpe.model
+train_loader:dataset:fineweb10B_sp8192nb train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192nb/fineweb_val_*.bin tokens:40203264
+model_params:20882280
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.0085 val_bpb:3.4656 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:9.0073 train_time:192ms step_avg:192.27ms
+step:2/20000 train_loss:16.5916 train_time:386ms step_avg:192.79ms
+step:3/20000 train_loss:11.5967 train_time:588ms step_avg:196.12ms
+step:4/20000 train_loss:9.0379 train_time:792ms step_avg:197.98ms
+step:5/20000 train_loss:8.5754 train_time:995ms step_avg:199.04ms
+step:6/20000 train_loss:8.4672 train_time:1199ms step_avg:199.79ms
+step:7/20000 train_loss:8.1914 train_time:1405ms step_avg:200.66ms
+step:8/20000 train_loss:8.1073 train_time:1607ms step_avg:200.88ms
+step:9/20000 train_loss:7.6769 train_time:1811ms step_avg:201.17ms
+step:10/20000 train_loss:7.3842 train_time:2013ms step_avg:201.32ms
+step:200/20000 train_loss:4.0326 train_time:40762ms step_avg:203.81ms
+step:400/20000 train_loss:3.7871 train_time:81630ms step_avg:204.08ms
+step:600/20000 train_loss:3.5436 train_time:122507ms step_avg:204.18ms
+step:800/20000 train_loss:3.4575 train_time:163405ms step_avg:204.26ms
+step:1000/20000 train_loss:3.3488 train_time:204317ms step_avg:204.32ms
+step:1000/20000 val_loss:3.4676 val_bpb:1.3340 train_time:204337ms step_avg:204.34ms
+step:1200/20000 train_loss:3.2874 train_time:245248ms step_avg:204.37ms
+step:1400/20000 train_loss:3.2186 train_time:286211ms step_avg:204.44ms
+step:1600/20000 train_loss:3.3928 train_time:327127ms step_avg:204.45ms
+step:1800/20000 train_loss:3.2404 train_time:368045ms step_avg:204.47ms
+step:2000/20000 train_loss:3.2423 train_time:408960ms step_avg:204.48ms
+step:2000/20000 val_loss:3.3690 val_bpb:1.2961 train_time:408979ms step_avg:204.49ms
+step:2200/20000 train_loss:3.2102 train_time:449886ms step_avg:204.49ms
+step:2400/20000 train_loss:3.0685 train_time:490802ms step_avg:204.50ms
+step:2600/20000 train_loss:3.2804 train_time:531718ms step_avg:204.51ms
+step:2800/20000 train_loss:3.0405 train_time:572634ms step_avg:204.51ms
+step:2934/20000 val_loss:3.3110 val_bpb:1.2737 train_time:600073ms step_avg:204.52ms
+stopping_early: wallclock_cap train_time:600073ms step:2934/20000
+peak memory allocated: 15369 MiB reserved: 16494 MiB
+Applying EMA weights...
+Serialized model: 75184133 bytes
+Code size: 52973 bytes
+Total submission size: 75237106 bytes
+Serialized model int6+zstd: 15782643 bytes
+Total submission size int6+zstd: 15835616 bytes
+final_int8_zlib_roundtrip val_loss:3.3216 val_bpb:1.2778 eval_time:4587ms
+final_int8_zlib_roundtrip_exact val_loss:3.32157110 val_bpb:1.27782242

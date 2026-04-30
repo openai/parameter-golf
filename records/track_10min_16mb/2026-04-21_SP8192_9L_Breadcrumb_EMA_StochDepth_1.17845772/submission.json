@@ -1,0 +1,31 @@
+{
+  "author": "Unwindology",
+  "github_id": "Unwindology",
+  "name": "SP8192 + 9L Breadcrumb + EMA + Stochastic Depth",
+  "date": "2026-04-21",
+  "track": "10min_16mb",
+  "val_bpb": 1.17845772,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {"val_bpb": 1.17845772, "artifact_bytes": 15897032}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.x",
+  "model_params": 20882280,
+  "steps_completed": 6886,
+  "step_avg_ms": 87.12,
+  "train_wallclock_ms": 599923,
+  "technique_summary": "SP8192 byte-fallback tokenizer + 9L x 512d x 8H/4KV GQA + MLP 2x + Breadcrumb gating + EMA(0.997) + Stochastic depth + Muon optimizer + Int6 + zlib",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": false,
+    "three_seeds": false
+  },
+  "notes": "Single-seed submission from an independent researcher on self-funded compute. A 10-layer variant reached ~1.1745 fp16 but could not be compressed under the 16 MB cap and was not packaged. Supersedes 2026-04-17 entry (val_bpb 1.18034, 15,880,130 bytes) after an overnight confirmation and challenger session on 2026-04-21 in which four alternative strategies were tested and none improved on this record."
+}

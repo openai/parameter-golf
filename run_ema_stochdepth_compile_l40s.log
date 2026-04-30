@@ -1,0 +1,1145 @@
+W0416 02:59:42.107000 52125 torch/distributed/run.py:851] 
+W0416 02:59:42.107000 52125 torch/distributed/run.py:851] *****************************************
+W0416 02:59:42.107000 52125 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0416 02:59:42.107000 52125 torch/distributed/run.py:851] *****************************************
+logs/8329dbe7-3fe8-4dc7-ac1b-332b50df704b.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192nb_bpe.model
+train_loader:dataset:fineweb10B_sp8192nb train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192nb/fineweb_val_*.bin tokens:40203264
+model_params:20882280
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1252, in <module>
+[rank4]:     main()
+[rank4]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1064, in main
+[rank4]:     warmup_loss = model(x, y)
+[rank4]:                   ^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank4]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank4]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank4]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank4]:     return super().__call__(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 799, in forward
+[rank4]:     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank4]:     return super().__call__(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 949, in call_wrapped
+[rank4]:     return self._wrapped_call(self, *args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 461, in __call__
+[rank4]:     raise e
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 447, in __call__
+[rank4]:     return super(self.cls, obj).__call__(*args, **kwargs)  # type: ignore[misc]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "<eval_with_key>.158", line 149, in forward
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank4]:     return self._call_impl(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank4]:     return forward_call(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 215, in forward
+[rank4]:     x = self.submod(*args)
+[rank4]:         ^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank4]:     return fn(*args, **kwargs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/aot_autograd.py", line 1200, in forward
+[rank4]:     return compiled_fn(full_args)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 566, in runtime_wrapper
+[rank4]:     all_outs = call_func_at_runtime_with_args(
+[rank4]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank4]:     out = normalize_as_list(f(args))
+[rank4]:                             ^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 105, in g
+[rank4]:     return f(*args)
+[rank4]:            ^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/autograd/function.py", line 596, in apply
+[rank4]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2503, in forward
+[rank4]:     fw_outs = call_func_at_runtime_with_args(
+[rank4]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank4]:     out = normalize_as_list(f(args))
+[rank4]:                             ^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 894, in wrapper
+[rank4]:     return compiled_fn(runtime_args)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 783, in wrapper
+[rank4]:     return compiled_fn(runtime_args)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 1011, in inner_fn
+[rank4]:     outs = compiled_fn(args)
+[rank4]:            ^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/output_code.py", line 656, in __call__
+[rank4]:     return self.current_callable(inputs)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/tmp/torchinductor_root/cy/ccyqnx6aysfys4i4cud4kpynzcg4sjznobhgnkh5ujxmpi3pxddh.py", line 1953, in call
+[rank4]:     (buf0, buf1, buf2, buf3, buf5, buf7, buf8, buf10, buf9, buf12, buf13, buf14, buf15, buf17, buf18, buf19, buf20, buf22, buf24, buf23, buf25, buf26, buf27, buf28, buf29, buf30, buf34, buf32, buf36, buf37, buf39, buf41, buf40, buf42, buf43, buf44, buf45, buf46, buf48, buf50, buf51, buf53, buf52, buf55, buf56, buf57, buf58, buf60, buf61, buf62, buf65, buf66, buf68, buf74, buf67, buf69, buf70, buf71, buf72, buf73, buf75, buf79, buf77, buf81, buf82, buf84, buf86, buf85, buf87, buf88, buf89, buf90, buf91, buf93, buf95, buf96, buf98, buf97, buf100, buf101, buf102, buf103, buf105, buf106, buf107, buf110, buf111, buf113, buf119, buf112, buf114, buf115, buf116, buf117, buf118, buf120, buf124, buf122, buf126, buf127, buf129, buf131, buf130, buf132, buf133, buf134, buf135, buf136, buf138, buf140, buf141, buf143, buf142, buf145, buf146, buf147, buf148, buf150, buf151, buf152, buf153, buf155, buf157, buf156, buf158, buf159, primals_2, primals_4, primals_5, primals_6, primals_7, primals_9, primals_14, primals_16, primals_17, primals_18, primals_22, primals_23, primals_24, primals_26, primals_30, primals_32, primals_33, primals_37, primals_38, primals_39, primals_41, primals_45, primals_47, primals_48, primals_52, primals_53, primals_54, primals_56) = self.partitions[0](partition0_args)
+[rank4]:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/compile_fx.py", line 1875, in run
+[rank4]:     return compiled_fn(new_inputs)  # type: ignore[arg-type]
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/cudagraph_trees.py", line 433, in deferred_cudagraphify
+[rank4]:     new_static_input_idxs = remove_unaligned_input_idxs(inputs, static_input_idxs)
+[rank4]:                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/utils.py", line 3466, in remove_unaligned_input_idxs
+[rank4]:     if isinstance(input, torch.Tensor) and (input.data_ptr() % ALIGNMENT) == 0:
+[rank4]:                                             ^^^^^^^^^^^^^^^^
+[rank4]: RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 807, in forward
+[rank4]:     x = self.blocks[i](x, x0)
+[rank4]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 738, in forward
+[rank4]:     attn_out = self.attn(self.attn_norm(x))
+[rank4]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 672, in forward
+[rank4]:     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank4]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 625, in forward
+[rank4]:     self._cos_cached = freqs.cos()[None, None, :, :]. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1252, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1064, in main
+[rank2]:     warmup_loss = model(x, y)
+[rank2]:                   ^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank2]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank2]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank2]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank2]:     return super().__call__(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 799, in forward
+[rank2]:     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank2]:     return super().__call__(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 949, in call_wrapped
+[rank2]:     return self._wrapped_call(self, *args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 461, in __call__
+[rank2]:     raise e
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 447, in __call__
+[rank2]:     return super(self.cls, obj).__call__(*args, **kwargs)  # type: ignore[misc]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "<eval_with_key>.158", line 149, in forward
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 215, in forward
+[rank2]:     x = self.submod(*args)
+[rank2]:         ^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank2]:     return fn(*args, **kwargs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/aot_autograd.py", line 1200, in forward
+[rank2]:     return compiled_fn(full_args)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 566, in runtime_wrapper
+[rank2]:     all_outs = call_func_at_runtime_with_args(
+[rank2]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank2]:     out = normalize_as_list(f(args))
+[rank2]:                             ^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 105, in g
+[rank2]:     return f(*args)
+[rank2]:            ^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/autograd/function.py", line 596, in apply
+[rank2]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2503, in forward
+[rank2]:     fw_outs = call_func_at_runtime_with_args(
+[rank2]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank2]:     out = normalize_as_list(f(args))
+[rank2]:                             ^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 894, in wrapper
+[rank2]:     return compiled_fn(runtime_args)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 783, in wrapper
+[rank2]:     return compiled_fn(runtime_args)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 1011, in inner_fn
+[rank2]:     outs = compiled_fn(args)
+[rank2]:            ^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/output_code.py", line 656, in __call__
+[rank2]:     return self.current_callable(inputs)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/tmp/torchinductor_root/vu/cvu7amb6ldvguwkmxpk6wzyqrxq3nfjqa5jabvm3iyzvds54ugrr.py", line 1953, in call
+[rank2]:     (buf0, buf1, buf2, buf3, buf5, buf7, buf8, buf10, buf9, buf12, buf13, buf14, buf15, buf17, buf18, buf19, buf20, buf22, buf24, buf23, buf25, buf26, buf27, buf28, buf29, buf30, buf34, buf32, buf36, buf37, buf39, buf41, buf40, buf42, buf43, buf44, buf45, buf46, buf48, buf50, buf51, buf53, buf52, buf55, buf56, buf57, buf58, buf60, buf61, buf62, buf65, buf66, buf68, buf74, buf67, buf69, buf70, buf71, buf72, buf73, buf75, buf79, buf77, buf81, buf82, buf84, buf86, buf85, buf87, buf88, buf89, buf90, buf91, buf93, buf95, buf96, buf98, buf97, buf100, buf101, buf102, buf103, buf105, buf106, buf107, buf110, buf111, buf113, buf119, buf112, buf114, buf115, buf116, buf117, buf118, buf120, buf124, buf122, buf126, buf127, buf129, buf131, buf130, buf132, buf133, buf134, buf135, buf136, buf138, buf140, buf141, buf143, buf142, buf145, buf146, buf147, buf148, buf150, buf151, buf152, buf153, buf155, buf157, buf156, buf158, buf159, primals_2, primals_4, primals_5, primals_6, primals_7, primals_9, primals_14, primals_16, primals_17, primals_18, primals_22, primals_23, primals_24, primals_26, primals_30, primals_32, primals_33, primals_37, primals_38, primals_39, primals_41, primals_45, primals_47, primals_48, primals_52, primals_53, primals_54, primals_56) = self.partitions[0](partition0_args)
+[rank2]:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/compile_fx.py", line 1875, in run
+[rank2]:     return compiled_fn(new_inputs)  # type: ignore[arg-type]
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/cudagraph_trees.py", line 433, in deferred_cudagraphify
+[rank2]:     new_static_input_idxs = remove_unaligned_input_idxs(inputs, static_input_idxs)
+[rank2]:                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/utils.py", line 3466, in remove_unaligned_input_idxs
+[rank2]:     if isinstance(input, torch.Tensor) and (input.data_ptr() % ALIGNMENT) == 0:
+[rank2]:                                             ^^^^^^^^^^^^^^^^
+[rank2]: RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 807, in forward
+[rank2]:     x = self.blocks[i](x, x0)
+[rank2]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 738, in forward
+[rank2]:     attn_out = self.attn(self.attn_norm(x))
+[rank2]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 672, in forward
+[rank2]:     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank2]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 625, in forward
+[rank2]:     self._cos_cached = freqs.cos()[None, None, :, :]. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1252, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1064, in main
+[rank0]:     warmup_loss = model(x, y)
+[rank0]:                   ^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank0]:     return super().__call__(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 799, in forward
+[rank0]:     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank0]:     return super().__call__(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 949, in call_wrapped
+[rank0]:     return self._wrapped_call(self, *args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 461, in __call__
+[rank0]:     raise e
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 447, in __call__
+[rank0]:     return super(self.cls, obj).__call__(*args, **kwargs)  # type: ignore[misc]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "<eval_with_key>.158", line 149, in forward
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 215, in forward
+[rank0]:     x = self.submod(*args)
+[rank0]:         ^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank0]:     return fn(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/aot_autograd.py", line 1200, in forward
+[rank0]:     return compiled_fn(full_args)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 566, in runtime_wrapper
+[rank0]:     all_outs = call_func_at_runtime_with_args(
+[rank0]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank0]:     out = normalize_as_list(f(args))
+[rank0]:                             ^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 105, in g
+[rank0]:     return f(*args)
+[rank0]:            ^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/autograd/function.py", line 596, in apply
+[rank0]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2503, in forward
+[rank0]:     fw_outs = call_func_at_runtime_with_args(
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank0]:     out = normalize_as_list(f(args))
+[rank0]:                             ^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 894, in wrapper
+[rank0]:     return compiled_fn(runtime_args)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 783, in wrapper
+[rank0]:     return compiled_fn(runtime_args)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 1011, in inner_fn
+[rank0]:     outs = compiled_fn(args)
+[rank0]:            ^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/output_code.py", line 656, in __call__
+[rank0]:     return self.current_callable(inputs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/tmp/torchinductor_root/dk/cdke6ulcb6ntjho5hkaz325eg2v7nwkejor3tu2mr75stteadclw.py", line 1953, in call
+[rank0]:     (buf0, buf1, buf2, buf3, buf5, buf7, buf8, buf10, buf9, buf12, buf13, buf14, buf15, buf17, buf18, buf19, buf20, buf22, buf24, buf23, buf25, buf26, buf27, buf28, buf29, buf30, buf34, buf32, buf36, buf37, buf39, buf41, buf40, buf42, buf43, buf44, buf45, buf46, buf48, buf50, buf51, buf53, buf52, buf55, buf56, buf57, buf58, buf60, buf61, buf62, buf65, buf66, buf68, buf74, buf67, buf69, buf70, buf71, buf72, buf73, buf75, buf79, buf77, buf81, buf82, buf84, buf86, buf85, buf87, buf88, buf89, buf90, buf91, buf93, buf95, buf96, buf98, buf97, buf100, buf101, buf102, buf103, buf105, buf106, buf107, buf110, buf111, buf113, buf119, buf112, buf114, buf115, buf116, buf117, buf118, buf120, buf124, buf122, buf126, buf127, buf129, buf131, buf130, buf132, buf133, buf134, buf135, buf136, buf138, buf140, buf141, buf143, buf142, buf145, buf146, buf147, buf148, buf150, buf151, buf152, buf153, buf155, buf157, buf156, buf158, buf159, primals_2, primals_4, primals_5, primals_6, primals_7, primals_9, primals_14, primals_16, primals_17, primals_18, primals_22, primals_23, primals_24, primals_26, primals_30, primals_32, primals_33, primals_37, primals_38, primals_39, primals_41, primals_45, primals_47, primals_48, primals_52, primals_53, primals_54, primals_56) = self.partitions[0](partition0_args)
+[rank0]:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/compile_fx.py", line 1875, in run
+[rank0]:     return compiled_fn(new_inputs)  # type: ignore[arg-type]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/cudagraph_trees.py", line 433, in deferred_cudagraphify
+[rank0]:     new_static_input_idxs = remove_unaligned_input_idxs(inputs, static_input_idxs)
+[rank0]:                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/utils.py", line 3466, in remove_unaligned_input_idxs
+[rank0]:     if isinstance(input, torch.Tensor) and (input.data_ptr() % ALIGNMENT) == 0:
+[rank0]:                                             ^^^^^^^^^^^^^^^^
+[rank0]: RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 807, in forward
+[rank0]:     x = self.blocks[i](x, x0)
+[rank0]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 738, in forward
+[rank0]:     attn_out = self.attn(self.attn_norm(x))
+[rank0]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 672, in forward
+[rank0]:     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank0]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 625, in forward
+[rank0]:     self._cos_cached = freqs.cos()[None, None, :, :]. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1252, in <module>
+[rank7]:     main()
+[rank7]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1064, in main
+[rank7]:     warmup_loss = model(x, y)
+[rank7]:                   ^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank7]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank7]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank7]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank7]:     return super().__call__(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 799, in forward
+[rank7]:     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank7]:     return super().__call__(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 949, in call_wrapped
+[rank7]:     return self._wrapped_call(self, *args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 461, in __call__
+[rank7]:     raise e
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 447, in __call__
+[rank7]:     return super(self.cls, obj).__call__(*args, **kwargs)  # type: ignore[misc]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "<eval_with_key>.158", line 149, in forward
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank7]:     return self._call_impl(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank7]:     return forward_call(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 215, in forward
+[rank7]:     x = self.submod(*args)
+[rank7]:         ^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank7]:     return fn(*args, **kwargs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/aot_autograd.py", line 1200, in forward
+[rank7]:     return compiled_fn(full_args)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 566, in runtime_wrapper
+[rank7]:     all_outs = call_func_at_runtime_with_args(
+[rank7]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank7]:     out = normalize_as_list(f(args))
+[rank7]:                             ^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 105, in g
+[rank7]:     return f(*args)
+[rank7]:            ^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/autograd/function.py", line 596, in apply
+[rank7]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2503, in forward
+[rank7]:     fw_outs = call_func_at_runtime_with_args(
+[rank7]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank7]:     out = normalize_as_list(f(args))
+[rank7]:                             ^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 894, in wrapper
+[rank7]:     return compiled_fn(runtime_args)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 783, in wrapper
+[rank7]:     return compiled_fn(runtime_args)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 1011, in inner_fn
+[rank7]:     outs = compiled_fn(args)
+[rank7]:            ^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/output_code.py", line 656, in __call__
+[rank7]:     return self.current_callable(inputs)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/tmp/torchinductor_root/r5/cr57gb5cuer5vfz6r6sex4ptyja3ebupzoqpnrdbexvgwjaadtjj.py", line 1953, in call
+[rank7]:     (buf0, buf1, buf2, buf3, buf5, buf7, buf8, buf10, buf9, buf12, buf13, buf14, buf15, buf17, buf18, buf19, buf20, buf22, buf24, buf23, buf25, buf26, buf27, buf28, buf29, buf30, buf34, buf32, buf36, buf37, buf39, buf41, buf40, buf42, buf43, buf44, buf45, buf46, buf48, buf50, buf51, buf53, buf52, buf55, buf56, buf57, buf58, buf60, buf61, buf62, buf65, buf66, buf68, buf74, buf67, buf69, buf70, buf71, buf72, buf73, buf75, buf79, buf77, buf81, buf82, buf84, buf86, buf85, buf87, buf88, buf89, buf90, buf91, buf93, buf95, buf96, buf98, buf97, buf100, buf101, buf102, buf103, buf105, buf106, buf107, buf110, buf111, buf113, buf119, buf112, buf114, buf115, buf116, buf117, buf118, buf120, buf124, buf122, buf126, buf127, buf129, buf131, buf130, buf132, buf133, buf134, buf135, buf136, buf138, buf140, buf141, buf143, buf142, buf145, buf146, buf147, buf148, buf150, buf151, buf152, buf153, buf155, buf157, buf156, buf158, buf159, primals_2, primals_4, primals_5, primals_6, primals_7, primals_9, primals_14, primals_16, primals_17, primals_18, primals_22, primals_23, primals_24, primals_26, primals_30, primals_32, primals_33, primals_37, primals_38, primals_39, primals_41, primals_45, primals_47, primals_48, primals_52, primals_53, primals_54, primals_56) = self.partitions[0](partition0_args)
+[rank7]:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/compile_fx.py", line 1875, in run
+[rank7]:     return compiled_fn(new_inputs)  # type: ignore[arg-type]
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/cudagraph_trees.py", line 433, in deferred_cudagraphify
+[rank7]:     new_static_input_idxs = remove_unaligned_input_idxs(inputs, static_input_idxs)
+[rank7]:                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/utils.py", line 3466, in remove_unaligned_input_idxs
+[rank7]:     if isinstance(input, torch.Tensor) and (input.data_ptr() % ALIGNMENT) == 0:
+[rank7]:                                             ^^^^^^^^^^^^^^^^
+[rank7]: RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 807, in forward
+[rank7]:     x = self.blocks[i](x, x0)
+[rank7]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 738, in forward
+[rank7]:     attn_out = self.attn(self.attn_norm(x))
+[rank7]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 672, in forward
+[rank7]:     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank7]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 625, in forward
+[rank7]:     self._cos_cached = freqs.cos()[None, None, :, :]. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1252, in <module>
+[rank5]:     main()
+[rank5]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1064, in main
+[rank5]:     warmup_loss = model(x, y)
+[rank5]:                   ^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank5]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank5]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank5]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank5]:     return super().__call__(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 799, in forward
+[rank5]:     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank5]:     return super().__call__(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 949, in call_wrapped
+[rank5]:     return self._wrapped_call(self, *args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 461, in __call__
+[rank5]:     raise e
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 447, in __call__
+[rank5]:     return super(self.cls, obj).__call__(*args, **kwargs)  # type: ignore[misc]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "<eval_with_key>.158", line 149, in forward
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank5]:     return self._call_impl(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank5]:     return forward_call(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 215, in forward
+[rank5]:     x = self.submod(*args)
+[rank5]:         ^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank5]:     return fn(*args, **kwargs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/aot_autograd.py", line 1200, in forward
+[rank5]:     return compiled_fn(full_args)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 566, in runtime_wrapper
+[rank5]:     all_outs = call_func_at_runtime_with_args(
+[rank5]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank5]:     out = normalize_as_list(f(args))
+[rank5]:                             ^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 105, in g
+[rank5]:     return f(*args)
+[rank5]:            ^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/autograd/function.py", line 596, in apply
+[rank5]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2503, in forward
+[rank5]:     fw_outs = call_func_at_runtime_with_args(
+[rank5]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank5]:     out = normalize_as_list(f(args))
+[rank5]:                             ^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 894, in wrapper
+[rank5]:     return compiled_fn(runtime_args)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 783, in wrapper
+[rank5]:     return compiled_fn(runtime_args)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 1011, in inner_fn
+[rank5]:     outs = compiled_fn(args)
+[rank5]:            ^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/output_code.py", line 656, in __call__
+[rank5]:     return self.current_callable(inputs)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/tmp/torchinductor_root/rb/crb74npch3j62sdcitztvbul6zurlopzh7kbptahhvj4dugsmmso.py", line 1953, in call
+[rank5]:     (buf0, buf1, buf2, buf3, buf5, buf7, buf8, buf10, buf9, buf12, buf13, buf14, buf15, buf17, buf18, buf19, buf20, buf22, buf24, buf23, buf25, buf26, buf27, buf28, buf29, buf30, buf34, buf32, buf36, buf37, buf39, buf41, buf40, buf42, buf43, buf44, buf45, buf46, buf48, buf50, buf51, buf53, buf52, buf55, buf56, buf57, buf58, buf60, buf61, buf62, buf65, buf66, buf68, buf74, buf67, buf69, buf70, buf71, buf72, buf73, buf75, buf79, buf77, buf81, buf82, buf84, buf86, buf85, buf87, buf88, buf89, buf90, buf91, buf93, buf95, buf96, buf98, buf97, buf100, buf101, buf102, buf103, buf105, buf106, buf107, buf110, buf111, buf113, buf119, buf112, buf114, buf115, buf116, buf117, buf118, buf120, buf124, buf122, buf126, buf127, buf129, buf131, buf130, buf132, buf133, buf134, buf135, buf136, buf138, buf140, buf141, buf143, buf142, buf145, buf146, buf147, buf148, buf150, buf151, buf152, buf153, buf155, buf157, buf156, buf158, buf159, primals_2, primals_4, primals_5, primals_6, primals_7, primals_9, primals_14, primals_16, primals_17, primals_18, primals_22, primals_23, primals_24, primals_26, primals_30, primals_32, primals_33, primals_37, primals_38, primals_39, primals_41, primals_45, primals_47, primals_48, primals_52, primals_53, primals_54, primals_56) = self.partitions[0](partition0_args)
+[rank5]:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/compile_fx.py", line 1875, in run
+[rank5]:     return compiled_fn(new_inputs)  # type: ignore[arg-type]
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/cudagraph_trees.py", line 433, in deferred_cudagraphify
+[rank5]:     new_static_input_idxs = remove_unaligned_input_idxs(inputs, static_input_idxs)
+[rank5]:                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/utils.py", line 3466, in remove_unaligned_input_idxs
+[rank5]:     if isinstance(input, torch.Tensor) and (input.data_ptr() % ALIGNMENT) == 0:
+[rank5]:                                             ^^^^^^^^^^^^^^^^
+[rank5]: RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 807, in forward
+[rank5]:     x = self.blocks[i](x, x0)
+[rank5]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 738, in forward
+[rank5]:     attn_out = self.attn(self.attn_norm(x))
+[rank5]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 672, in forward
+[rank5]:     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank5]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 625, in forward
+[rank5]:     self._cos_cached = freqs.cos()[None, None, :, :]. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1252, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1064, in main
+[rank1]:     warmup_loss = model(x, y)
+[rank1]:                   ^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank1]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank1]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank1]:     return super().__call__(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 799, in forward
+[rank1]:     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank1]:     return super().__call__(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 949, in call_wrapped
+[rank1]:     return self._wrapped_call(self, *args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 461, in __call__
+[rank1]:     raise e
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 447, in __call__
+[rank1]:     return super(self.cls, obj).__call__(*args, **kwargs)  # type: ignore[misc]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "<eval_with_key>.158", line 149, in forward
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 215, in forward
+[rank1]:     x = self.submod(*args)
+[rank1]:         ^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank1]:     return fn(*args, **kwargs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/aot_autograd.py", line 1200, in forward
+[rank1]:     return compiled_fn(full_args)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 566, in runtime_wrapper
+[rank1]:     all_outs = call_func_at_runtime_with_args(
+[rank1]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank1]:     out = normalize_as_list(f(args))
+[rank1]:                             ^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 105, in g
+[rank1]:     return f(*args)
+[rank1]:            ^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/autograd/function.py", line 596, in apply
+[rank1]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2503, in forward
+[rank1]:     fw_outs = call_func_at_runtime_with_args(
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank1]:     out = normalize_as_list(f(args))
+[rank1]:                             ^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 894, in wrapper
+[rank1]:     return compiled_fn(runtime_args)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 783, in wrapper
+[rank1]:     return compiled_fn(runtime_args)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 1011, in inner_fn
+[rank1]:     outs = compiled_fn(args)
+[rank1]:            ^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/output_code.py", line 656, in __call__
+[rank1]:     return self.current_callable(inputs)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/tmp/torchinductor_root/4a/c4a5eyd3e2kvweisrmeduy4p45v6vnh2c4c3knjwy7rq4xj7zxra.py", line 1953, in call
+[rank1]:     (buf0, buf1, buf2, buf3, buf5, buf7, buf8, buf10, buf9, buf12, buf13, buf14, buf15, buf17, buf18, buf19, buf20, buf22, buf24, buf23, buf25, buf26, buf27, buf28, buf29, buf30, buf34, buf32, buf36, buf37, buf39, buf41, buf40, buf42, buf43, buf44, buf45, buf46, buf48, buf50, buf51, buf53, buf52, buf55, buf56, buf57, buf58, buf60, buf61, buf62, buf65, buf66, buf68, buf74, buf67, buf69, buf70, buf71, buf72, buf73, buf75, buf79, buf77, buf81, buf82, buf84, buf86, buf85, buf87, buf88, buf89, buf90, buf91, buf93, buf95, buf96, buf98, buf97, buf100, buf101, buf102, buf103, buf105, buf106, buf107, buf110, buf111, buf113, buf119, buf112, buf114, buf115, buf116, buf117, buf118, buf120, buf124, buf122, buf126, buf127, buf129, buf131, buf130, buf132, buf133, buf134, buf135, buf136, buf138, buf140, buf141, buf143, buf142, buf145, buf146, buf147, buf148, buf150, buf151, buf152, buf153, buf155, buf157, buf156, buf158, buf159, primals_2, primals_4, primals_5, primals_6, primals_7, primals_9, primals_14, primals_16, primals_17, primals_18, primals_22, primals_23, primals_24, primals_26, primals_30, primals_32, primals_33, primals_37, primals_38, primals_39, primals_41, primals_45, primals_47, primals_48, primals_52, primals_53, primals_54, primals_56) = self.partitions[0](partition0_args)
+[rank1]:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/compile_fx.py", line 1875, in run
+[rank1]:     return compiled_fn(new_inputs)  # type: ignore[arg-type]
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/cudagraph_trees.py", line 433, in deferred_cudagraphify
+[rank1]:     new_static_input_idxs = remove_unaligned_input_idxs(inputs, static_input_idxs)
+[rank1]:                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/utils.py", line 3466, in remove_unaligned_input_idxs
+[rank1]:     if isinstance(input, torch.Tensor) and (input.data_ptr() % ALIGNMENT) == 0:
+[rank1]:                                             ^^^^^^^^^^^^^^^^
+[rank1]: RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 807, in forward
+[rank1]:     x = self.blocks[i](x, x0)
+[rank1]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 738, in forward
+[rank1]:     attn_out = self.attn(self.attn_norm(x))
+[rank1]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 672, in forward
+[rank1]:     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank1]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 625, in forward
+[rank1]:     self._cos_cached = freqs.cos()[None, None, :, :]. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1252, in <module>
+[rank3]:     main()
+[rank3]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1064, in main
+[rank3]:     warmup_loss = model(x, y)
+[rank3]:                   ^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank3]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank3]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank3]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank3]:     return super().__call__(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 799, in forward
+[rank3]:     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank3]:     return super().__call__(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 949, in call_wrapped
+[rank3]:     return self._wrapped_call(self, *args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 461, in __call__
+[rank3]:     raise e
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 447, in __call__
+[rank3]:     return super(self.cls, obj).__call__(*args, **kwargs)  # type: ignore[misc]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "<eval_with_key>.158", line 149, in forward
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 215, in forward
+[rank3]:     x = self.submod(*args)
+[rank3]:         ^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank3]:     return fn(*args, **kwargs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/aot_autograd.py", line 1200, in forward
+[rank3]:     return compiled_fn(full_args)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 566, in runtime_wrapper
+[rank3]:     all_outs = call_func_at_runtime_with_args(
+[rank3]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank3]:     out = normalize_as_list(f(args))
+[rank3]:                             ^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 105, in g
+[rank3]:     return f(*args)
+[rank3]:            ^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/autograd/function.py", line 596, in apply
+[rank3]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2503, in forward
+[rank3]:     fw_outs = call_func_at_runtime_with_args(
+[rank3]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank3]:     out = normalize_as_list(f(args))
+[rank3]:                             ^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 894, in wrapper
+[rank3]:     return compiled_fn(runtime_args)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 783, in wrapper
+[rank3]:     return compiled_fn(runtime_args)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 1011, in inner_fn
+[rank3]:     outs = compiled_fn(args)
+[rank3]:            ^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/output_code.py", line 656, in __call__
+[rank3]:     return self.current_callable(inputs)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/tmp/torchinductor_root/6t/c6tr5lsk7gpjijhzz4ad53vpoohkzkoxxpmmxjpwbjdufhi7ddxt.py", line 1953, in call
+[rank3]:     (buf0, buf1, buf2, buf3, buf5, buf7, buf8, buf10, buf9, buf12, buf13, buf14, buf15, buf17, buf18, buf19, buf20, buf22, buf24, buf23, buf25, buf26, buf27, buf28, buf29, buf30, buf34, buf32, buf36, buf37, buf39, buf41, buf40, buf42, buf43, buf44, buf45, buf46, buf48, buf50, buf51, buf53, buf52, buf55, buf56, buf57, buf58, buf60, buf61, buf62, buf65, buf66, buf68, buf74, buf67, buf69, buf70, buf71, buf72, buf73, buf75, buf79, buf77, buf81, buf82, buf84, buf86, buf85, buf87, buf88, buf89, buf90, buf91, buf93, buf95, buf96, buf98, buf97, buf100, buf101, buf102, buf103, buf105, buf106, buf107, buf110, buf111, buf113, buf119, buf112, buf114, buf115, buf116, buf117, buf118, buf120, buf124, buf122, buf126, buf127, buf129, buf131, buf130, buf132, buf133, buf134, buf135, buf136, buf138, buf140, buf141, buf143, buf142, buf145, buf146, buf147, buf148, buf150, buf151, buf152, buf153, buf155, buf157, buf156, buf158, buf159, primals_2, primals_4, primals_5, primals_6, primals_7, primals_9, primals_14, primals_16, primals_17, primals_18, primals_22, primals_23, primals_24, primals_26, primals_30, primals_32, primals_33, primals_37, primals_38, primals_39, primals_41, primals_45, primals_47, primals_48, primals_52, primals_53, primals_54, primals_56) = self.partitions[0](partition0_args)
+[rank3]:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/compile_fx.py", line 1875, in run
+[rank3]:     return compiled_fn(new_inputs)  # type: ignore[arg-type]
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/cudagraph_trees.py", line 433, in deferred_cudagraphify
+[rank3]:     new_static_input_idxs = remove_unaligned_input_idxs(inputs, static_input_idxs)
+[rank3]:                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/utils.py", line 3466, in remove_unaligned_input_idxs
+[rank3]:     if isinstance(input, torch.Tensor) and (input.data_ptr() % ALIGNMENT) == 0:
+[rank3]:                                             ^^^^^^^^^^^^^^^^
+[rank3]: RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 807, in forward
+[rank3]:     x = self.blocks[i](x, x0)
+[rank3]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 738, in forward
+[rank3]:     attn_out = self.attn(self.attn_norm(x))
+[rank3]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 672, in forward
+[rank3]:     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank3]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 625, in forward
+[rank3]:     self._cos_cached = freqs.cos()[None, None, :, :]. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1252, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 1064, in main
+[rank6]:     warmup_loss = model(x, y)
+[rank6]:                   ^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1699, in forward
+[rank6]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank6]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/parallel/distributed.py", line 1524, in _run_ddp_forward
+[rank6]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank6]:     return super().__call__(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1024, in compile_wrapper
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 799, in forward
+[rank6]:     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 472, in __call__
+[rank6]:     return super().__call__(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 949, in call_wrapped
+[rank6]:     return self._wrapped_call(self, *args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 461, in __call__
+[rank6]:     raise e
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/fx/graph_module.py", line 447, in __call__
+[rank6]:     return super(self.cls, obj).__call__(*args, **kwargs)  # type: ignore[misc]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "<eval_with_key>.158", line 149, in forward
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+[rank6]:     return self._call_impl(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+[rank6]:     return forward_call(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/backends/distributed.py", line 215, in forward
+[rank6]:     x = self.submod(*args)
+[rank6]:         ^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+[rank6]:     return fn(*args, **kwargs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/aot_autograd.py", line 1200, in forward
+[rank6]:     return compiled_fn(full_args)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 566, in runtime_wrapper
+[rank6]:     all_outs = call_func_at_runtime_with_args(
+[rank6]:                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank6]:     out = normalize_as_list(f(args))
+[rank6]:                             ^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 105, in g
+[rank6]:     return f(*args)
+[rank6]:            ^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/autograd/function.py", line 596, in apply
+[rank6]:     return super().apply(*args, **kwargs)  # type: ignore[misc]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 2503, in forward
+[rank6]:     fw_outs = call_func_at_runtime_with_args(
+[rank6]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/utils.py", line 138, in call_func_at_runtime_with_args
+[rank6]:     out = normalize_as_list(f(args))
+[rank6]:                             ^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 894, in wrapper
+[rank6]:     return compiled_fn(runtime_args)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 783, in wrapper
+[rank6]:     return compiled_fn(runtime_args)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_functorch/_aot_autograd/runtime_wrappers.py", line 1011, in inner_fn
+[rank6]:     outs = compiled_fn(args)
+[rank6]:            ^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/output_code.py", line 656, in __call__
+[rank6]:     return self.current_callable(inputs)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/tmp/torchinductor_root/yq/cyqsntuobzzblymegpesxuhhy6fvtxcrngz36snhhcn3gwtxq4qw.py", line 1953, in call
+[rank6]:     (buf0, buf1, buf2, buf3, buf5, buf7, buf8, buf10, buf9, buf12, buf13, buf14, buf15, buf17, buf18, buf19, buf20, buf22, buf24, buf23, buf25, buf26, buf27, buf28, buf29, buf30, buf34, buf32, buf36, buf37, buf39, buf41, buf40, buf42, buf43, buf44, buf45, buf46, buf48, buf50, buf51, buf53, buf52, buf55, buf56, buf57, buf58, buf60, buf61, buf62, buf65, buf66, buf68, buf74, buf67, buf69, buf70, buf71, buf72, buf73, buf75, buf79, buf77, buf81, buf82, buf84, buf86, buf85, buf87, buf88, buf89, buf90, buf91, buf93, buf95, buf96, buf98, buf97, buf100, buf101, buf102, buf103, buf105, buf106, buf107, buf110, buf111, buf113, buf119, buf112, buf114, buf115, buf116, buf117, buf118, buf120, buf124, buf122, buf126, buf127, buf129, buf131, buf130, buf132, buf133, buf134, buf135, buf136, buf138, buf140, buf141, buf143, buf142, buf145, buf146, buf147, buf148, buf150, buf151, buf152, buf153, buf155, buf157, buf156, buf158, buf159, primals_2, primals_4, primals_5, primals_6, primals_7, primals_9, primals_14, primals_16, primals_17, primals_18, primals_22, primals_23, primals_24, primals_26, primals_30, primals_32, primals_33, primals_37, primals_38, primals_39, primals_41, primals_45, primals_47, primals_48, primals_52, primals_53, primals_54, primals_56) = self.partitions[0](partition0_args)
+[rank6]:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/compile_fx.py", line 1875, in run
+[rank6]:     return compiled_fn(new_inputs)  # type: ignore[arg-type]
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/cudagraph_trees.py", line 433, in deferred_cudagraphify
+[rank6]:     new_static_input_idxs = remove_unaligned_input_idxs(inputs, static_input_idxs)
+[rank6]:                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.11/dist-packages/torch/_inductor/utils.py", line 3466, in remove_unaligned_input_idxs
+[rank6]:     if isinstance(input, torch.Tensor) and (input.data_ptr() % ALIGNMENT) == 0:
+[rank6]:                                             ^^^^^^^^^^^^^^^^
+[rank6]: RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 807, in forward
+[rank6]:     x = self.blocks[i](x, x0)
+[rank6]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 738, in forward
+[rank6]:     attn_out = self.attn(self.attn_norm(x))
+[rank6]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 672, in forward
+[rank6]:     cos, sin = self.rotary(seqlen, x.device, q.dtype)
+[rank6]:   File "/workspace/parameter-golf/train_breadcrumb_recur_ema_stochdepth_compile.py", line 625, in forward
+[rank6]:     self._cos_cached = freqs.cos()[None, None, :, :]. To prevent overwriting, clone the tensor outside of torch.compile() or call torch.compiler.cudagraph_mark_step_begin() before each model invocation.
+[rank0]:[W416 03:00:28.597572364 ProcessGroupNCCL.cpp:1575] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0416 03:00:29.777000 52125 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 52195 closing signal SIGTERM
+W0416 03:00:29.777000 52125 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 52196 closing signal SIGTERM
+W0416 03:00:29.777000 52125 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 52197 closing signal SIGTERM
+W0416 03:00:29.777000 52125 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 52198 closing signal SIGTERM
+W0416 03:00:29.778000 52125 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 52199 closing signal SIGTERM
+W0416 03:00:29.779000 52125 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 52200 closing signal SIGTERM
+W0416 03:00:29.779000 52125 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 52201 closing signal SIGTERM
+E0416 03:00:30.559000 52125 torch/distributed/elastic/multiprocessing/api.py:986] failed (exitcode: 1) local_rank: 7 (pid: 52202) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 362, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 990, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 981, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 317, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_breadcrumb_recur_ema_stochdepth_compile.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-04-16_03:00:30
+  host      : 55f242843a9b
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 52195)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[2]:
+  time      : 2026-04-16_03:00:30
+  host      : 55f242843a9b
+  rank      : 1 (local_rank: 1)
+  exitcode  : -15 (pid: 52196)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 52196
+[3]:
+  time      : 2026-04-16_03:00:30
+  host      : 55f242843a9b
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 52197)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[4]:
+  time      : 2026-04-16_03:00:30
+  host      : 55f242843a9b
+  rank      : 3 (local_rank: 3)
+  exitcode  : -15 (pid: 52198)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 52198
+[5]:
+  time      : 2026-04-16_03:00:30
+  host      : 55f242843a9b
+  rank      : 4 (local_rank: 4)
+  exitcode  : 1 (pid: 52199)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[6]:
+  time      : 2026-04-16_03:00:30
+  host      : 55f242843a9b
+  rank      : 5 (local_rank: 5)
+  exitcode  : -15 (pid: 52200)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 52200
+[7]:
+  time      : 2026-04-16_03:00:30
+  host      : 55f242843a9b
+  rank      : 6 (local_rank: 6)
+  exitcode  : -15 (pid: 52201)
+  error_file: <N/A>
+  traceback : Signal 15 (SIGTERM) received by PID 52201
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-16_03:00:29
+  host      : 55f242843a9b
+  rank      : 7 (local_rank: 7)
+  exitcode  : 1 (pid: 52202)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

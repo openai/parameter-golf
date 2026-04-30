@@ -1,0 +1,73 @@
+W0416 01:04:46.797000 41262 torch/distributed/run.py:851] 
+W0416 01:04:46.797000 41262 torch/distributed/run.py:851] *****************************************
+W0416 01:04:46.797000 41262 torch/distributed/run.py:851] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0416 01:04:46.797000 41262 torch/distributed/run.py:851] *****************************************
+logs/5d5570d1-9999-409c-977a-de5efdc510a9.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192nb_bpe.model
+train_loader:dataset:fineweb10B_sp8192nb train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192nb/fineweb_val_*.bin tokens:40203264
+model_params:20882280
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.0085 val_bpb:3.4656 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:9.0073 train_time:191ms step_avg:191.25ms
+step:2/20000 train_loss:16.5916 train_time:383ms step_avg:191.68ms
+step:3/20000 train_loss:11.5966 train_time:586ms step_avg:195.40ms
+step:4/20000 train_loss:9.0379 train_time:789ms step_avg:197.18ms
+step:5/20000 train_loss:8.5754 train_time:992ms step_avg:198.32ms
+step:6/20000 train_loss:8.4674 train_time:1194ms step_avg:198.97ms
+step:7/20000 train_loss:8.1914 train_time:1396ms step_avg:199.49ms
+step:8/20000 train_loss:8.1071 train_time:1599ms step_avg:199.83ms
+step:9/20000 train_loss:7.6768 train_time:1801ms step_avg:200.14ms
+step:10/20000 train_loss:7.3843 train_time:2004ms step_avg:200.36ms
+step:200/20000 train_loss:4.0407 train_time:40635ms step_avg:203.17ms
+step:400/20000 train_loss:3.7875 train_time:81367ms step_avg:203.42ms
+step:600/20000 train_loss:3.5410 train_time:122137ms step_avg:203.56ms
+step:800/20000 train_loss:3.4531 train_time:162934ms step_avg:203.67ms
+step:1000/20000 train_loss:3.3129 train_time:203751ms step_avg:203.75ms
+step:1000/20000 val_loss:3.4553 val_bpb:1.3292 train_time:203771ms step_avg:203.77ms
+step:1200/20000 train_loss:3.2845 train_time:244566ms step_avg:203.80ms
+step:1400/20000 train_loss:3.2064 train_time:285433ms step_avg:203.88ms
+step:1600/20000 train_loss:3.3623 train_time:326248ms step_avg:203.91ms
+step:1800/20000 train_loss:3.2331 train_time:367070ms step_avg:203.93ms
+step:2000/20000 train_loss:3.2422 train_time:407891ms step_avg:203.95ms
+step:2000/20000 val_loss:3.3707 val_bpb:1.2967 train_time:407911ms step_avg:203.96ms
+step:2200/20000 train_loss:3.1996 train_time:448718ms step_avg:203.96ms
+step:2400/20000 train_loss:3.0654 train_time:489543ms step_avg:203.98ms
+step:2600/20000 train_loss:3.2765 train_time:530372ms step_avg:203.99ms
+step:2800/20000 train_loss:2.9962 train_time:571202ms step_avg:204.00ms
+step:2941/20000 val_loss:3.3163 val_bpb:1.2758 train_time:600012ms step_avg:204.02ms
+stopping_early: wallclock_cap train_time:600012ms step:2941/20000
+peak memory allocated: 15297 MiB reserved: 16494 MiB
+Applying EMA weights...
+Serialized model: 75184133 bytes
+Code size: 52563 bytes
+Total submission size: 75236696 bytes
+Serialized model int6+zstd: 15818881 bytes
+Total submission size int6+zstd: 15871444 bytes
+final_int8_zlib_roundtrip val_loss:3.3298 val_bpb:1.2810 eval_time:4586ms
+final_int8_zlib_roundtrip_exact val_loss:3.32976675 val_bpb:1.28097532
