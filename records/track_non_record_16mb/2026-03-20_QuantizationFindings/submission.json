@@ -1,0 +1,11 @@
+{
+  "author": "kellyvv",
+  "github_id": "kellyvv",
+  "name": "Quantization Findings: SWA Reversal + Int5 Failure",
+  "blurb": "Two quantization findings: (1) SWA-84 makes int6 roundtrip BETTER than pre-quant (-0.037 BPB reversal), (2) Mixed int5/int6 quant gap explodes 4.5x from 0.3 to 1.4 BPB on undertrained models.",
+  "date": "2026-03-21T01:00:00Z",
+  "val_loss": 2.5603,
+  "val_bpb": 1.5164,
+  "bytes_total": 12704729,
+  "bytes_code": 67933
+}

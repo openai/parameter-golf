@@ -1,0 +1,11 @@
+{
+  "author": "kellyvv",
+  "github_id": "kellyvv",
+  "name": "Depth-Recurrent 3x3 MLX (dev, Apple Silicon)",
+  "blurb": "3 unique blocks x 3 recurrent loops, dim=768, AdaLN conditioning, GQA. Trained on Apple M3 Max via MLX for 2000 steps (~150 H100-equivalent steps). Non-record: limited by local hardware, not H100.",
+  "date": "2026-03-20T00:00:00Z",
+  "val_loss": 2.8247,
+  "val_bpb": 1.6729,
+  "bytes_total": 9354004,
+  "bytes_code": 59182
+}
