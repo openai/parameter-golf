@@ -1,0 +1,9 @@
+{
+  "author": "nprime06",
+  "github_id": "nprime06",
+  "name": "Negative Results Compendium: 14 Axes of Failed or Marginal Experiments on the PR-1493/PR-1787 Stack",
+  "blurb": "Systematic documentation of 14 experimental directions that failed, regressed, or produced marginal gains on the PR-1493 through PR-1787 frontier stacks. Covers FP8 training, multi-token prediction, batch-size ramp, weight decay scheduling, L1 sparsity, loop depth curriculum, SparseGPT, quantization grid design, tokenizer sweep, dataset substitution, systems knobs, DeepSeek NS10, and a deep investigation into training-time weight entropy shaping. Includes measured BPB numbers from 50+ compute runs on 8xH100. The weight entropy investigation is the most novel contribution: we prove that Gaussian weight distributions (induced by L2 regularization) are already maximum-entropy at fixed variance, making them maximally hard to compress — but also maximally expressive for the model, creating a fundamental tension that simple regularizers cannot resolve.",
+  "date": "2026-04-30",
+  "track": "non-record-negative-results",
+  "hardware": "8xH100 80GB SXM (Modal, RunPod)"
+}
