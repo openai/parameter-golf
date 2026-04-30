@@ -1,0 +1,46 @@
+{
+  "author": "bigbag",
+  "val_bpb": 1.06513,
+  "val_bpb_std": 0.00055,
+  "bytes_total_max": 15976709,
+  "seed_results": [
+    {
+      "seed": 42,
+      "val_bpb": 1.06449,
+      "val_loss": 2.32949800,
+      "bytes_total": 15975592,
+      "train_time_ms": 596195,
+      "eval_time_ms": 586485
+    },
+    {
+      "seed": 314,
+      "val_bpb": 1.06543,
+      "val_loss": 2.33156225,
+      "bytes_total": 15976709,
+      "train_time_ms": 596039,
+      "eval_time_ms": 562761
+    },
+    {
+      "seed": 999,
+      "val_bpb": 1.06547,
+      "val_loss": 2.33162252,
+      "bytes_total": 15976693,
+      "train_time_ms": 596014,
+      "eval_time_ms": 507060
+    }
+  ],
+  "score_first_ttt": true,
+  "no_pre_quant_ttt": true,
+  "no_ngram_cache": true,
+  "bpb_note": "val_bpb computed via standard sentencepiece LUT byte counting (consistent with PR #1769 methodology). Train logs report sidecar-based BPB due to byte sidecar loading on training pods; val_loss (nats/token) is the ground truth.",
+  "techniques": [
+    "SP8192 CaseOps tokenizer (lossless reversible case normalization)",
+    "Recurrence depth curriculum (1->3->4 phased training)",
+    "SmearGate (L2)",
+    "GatedAttn + QuantGate",
+    "LoRA-TTT improvements (alpha/rank scaling, warm-start A, WD 1.0, alpha 144)",
+    "Phased TTT (3-phase score-first AdamW)",
+    "11L x 512D x 8H/4KV, parallel residuals, depth recurrence",
+    "GPTQ int6/int7 + Brotli-11"
+  ]
+}
