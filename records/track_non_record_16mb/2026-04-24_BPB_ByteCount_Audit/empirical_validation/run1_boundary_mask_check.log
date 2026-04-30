@@ -1,0 +1,13 @@
+[run1] Loading tokenizer from /workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
+[run1] vocab_size = 8192
+[run1] Computing per-token boundary flags...
+[run1] vocab: 3 control, 1 unknown, 0 unused
+[run1] Loading 1 val shard(s)
+[run1]   fineweb_val_000000.bin: 40,540,803 tokens (max id=8191, min id=1)
+[run1] total val tokens: 40,540,803
+[run1] predecessor tokens: 40,540,802
+[run1] predecessor counts: control=50000, unknown=0, unused=0
+[run1] predecessor_n_any_boundary = 50000
+[run1] boundary_mask_is_no_op = False
+[run1] Wrote /workspace/agent-pgolf/audit/empirical_validation/run1_boundary_mask_check.json
+[run1] DONE

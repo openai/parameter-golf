@@ -1,0 +1,31 @@
+[run1.5] Loading tokenizer + val...
+[run1.5] val: 40,540,803 tokens, vocab: 8192
+[run1.5] Building LUTs...
+[run1.5]   leading_space tokens: 5459
+[run1.5]   boundary tokens (vocab): 4
+
+[run1.5] Mode results:
+  sliding-window-boundary-masked:
+    canonical_bytes = 151,080,878
+    buggy_bytes     = 176,332,734
+    ratio           = 1.1671413109
+    scored_tokens   = 40,540,799
+
+  all-tokens-boundary-masked:
+    canonical_bytes = 151,080,891
+    buggy_bytes     = 176,332,748
+    ratio           = 1.1671413031
+    scored_tokens   = 40,540,802
+
+  all-tokens-no-mask:
+    canonical_bytes = 151,080,891
+    buggy_bytes     = 176,332,748
+    ratio           = 1.1671413031
+    scored_tokens   = 40,540,802
+
+[run1.5] Pairwise ratio differences:
+  sliding-window-boundary-masked  -  all-tokens-boundary-masked  = +0.0000000078  (0.00000067%)
+  sliding-window-boundary-masked  -  all-tokens-no-mask  = +0.0000000078  (0.00000067%)
+  all-tokens-boundary-masked  -  all-tokens-no-mask  = +0.0000000000  (0.00000000%)
+[run1.5] Wrote /workspace/agent-pgolf/audit/empirical_validation/run1_5_scoring_modes.json
+[run1.5] DONE

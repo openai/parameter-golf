@@ -1,0 +1,16 @@
+{
+  "pr_number": 1758,
+  "script_path": "records/track_10min_16mb/2026-04-20_SP8192_PreQuantTTT_Unfrozen_LR1e3/train_gpt.py",
+  "lut_status": "OBFUSCATED",
+  "reported_bpb": 1.0284,
+  "inflation_ratio": null,
+  "computed_inflation_ratio": null,
+  "inferred_canonical_bpb": null,
+  "passes_merged_sota_threshold": null,
+  "merged_sota_threshold": 1.0738,
+  "seq_len": 2048,
+  "stride": 64,
+  "notes": "Code is lzma/b85-obfuscated; LUT cannot be verified statically.",
+  "author": "kilojoules",
+  "pr_dir": "records/track_10min_16mb/2026-04-20_SP8192_PreQuantTTT_Unfrozen_LR1e3/"
+}

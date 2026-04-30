@@ -1,0 +1,18 @@
+[run4] val: 40,540,803 tokens
+
+[run4] === seq_len=2048, stride=64 ===
+  canonical: ratio=1.1671396680, scored=40,542,786
+  yahya:     ratio=1.1655008719, scored=40,542,786
+  yahya - quoted (1.1746): -0.009099 (-0.7747%)
+
+[run4] === seq_len=1024, stride=64 ===
+  canonical: ratio=1.1671405119, scored=40,541,762
+  yahya:     ratio=1.1655016582, scored=40,541,762
+  yahya - quoted (1.1746): -0.009098 (-0.7746%)
+
+[run4] === seq_len=1024, stride=1024 ===
+  canonical: ratio=1.1671413031, scored=40,540,802
+  yahya:     ratio=1.1655023954, scored=40,540,802
+  yahya - quoted (1.1746): -0.009098 (-0.7745%)
+
+[run4] Wrote /workspace/agent-pgolf/audit/empirical_validation/run4_seq_len_1024.json

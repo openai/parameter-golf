@@ -1,0 +1,20 @@
+{
+  "pr_number": 1784,
+  "script_path": "records/track_10min_16mb/2026-04-23_GatedAttn_AlphaLoRA144_WarmStart_1.07081/train_gpt.py",
+  "lut_status": "CORRECT",
+  "reported_bpb": 1.07081,
+  "inflation_ratio": 1.0,
+  "computed_inflation_ratio": 1.1671413031314464,
+  "inferred_canonical_bpb": 1.07081,
+  "passes_merged_sota_threshold": true,
+  "merged_sota_threshold": 1.0738,
+  "seq_len": 2048,
+  "stride": 64,
+  "canonical_byte_count": 151080891,
+  "buggy_byte_count": 176332748,
+  "leading_space_token_count": 25251857,
+  "scored_token_count": 40540802,
+  "num_windows": 633420,
+  "author": "renqianluo",
+  "pr_dir": "records/track_10min_16mb/2026-04-23_GatedAttn_AlphaLoRA144_WarmStart_1.07081/"
+}

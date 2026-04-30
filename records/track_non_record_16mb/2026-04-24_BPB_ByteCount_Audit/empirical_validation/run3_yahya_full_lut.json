@@ -1,0 +1,41 @@
+{
+  "ratios": {
+    "canonical_lut__canonical_formula__sliding-window-boundary-masked": {
+      "canonical_bytes": 151080878,
+      "buggy_bytes": 176332734,
+      "ratio": 1.1671413108944204,
+      "scored_tokens": 40540799,
+      "eval_add": 25251856
+    },
+    "canonical_lut__canonical_formula__all-tokens-boundary-masked": {
+      "canonical_bytes": 151080891,
+      "buggy_bytes": 176332748,
+      "ratio": 1.1671413031314464,
+      "scored_tokens": 40540802,
+      "eval_add": 25251857
+    },
+    "yahya_lut__yahya_formula__sliding-window-boundary-masked": {
+      "canonical_bytes": 152576975,
+      "buggy_bytes": 177828831,
+      "ratio": 1.1655024029674201,
+      "scored_tokens": 40540799,
+      "eval_add": 25251856
+    },
+    "yahya_lut__yahya_formula__all-tokens-boundary-masked": {
+      "canonical_bytes": 152576988,
+      "buggy_bytes": 177828845,
+      "ratio": 1.1655023954202057,
+      "scored_tokens": 40540802,
+      "eval_add": 25251857
+    }
+  },
+  "yahya_quoted_ratio": 1.1746,
+  "yahya_actual_ratio_sliding_window": 1.1655024029674201,
+  "yahya_quoted_vs_actual_diff": -0.009097597032579952,
+  "yahya_quoted_vs_actual_pct_diff": -0.7745272460905799,
+  "canonical_ratio_sliding_window": 1.1671413108944204,
+  "canonical_matches_audit_tool": true,
+  "tokenizer_path": "/workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model",
+  "val_path": "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin",
+  "timestamp_utc": "2026-04-27T10:30:07.806117+00:00"
+}
