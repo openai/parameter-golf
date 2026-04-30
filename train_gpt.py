@@ -53,8 +53,8 @@ class Hyperparameters:
 
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
-    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1024))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 384))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 2048))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 512))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -62,21 +62,22 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 10))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 8))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
-    mlp_mult = float(os.environ.get("MLP_MULT", 1.6))
+    mlp_mult = float(os.environ.get("MLP_MULT", 1.85))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
-    rope_base = float(os.environ.get("ROPE_BASE", 4096.0))
+    rope_max_base = float(os.environ.get("ROPE_MAX_BASE", 4096.0))
+    rope_min_base = float(os.environ.get("ROPE_MIN_BASE", 256.0))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
 
     # Optimizer hyperparameters.
-    embed_lr = float(os.environ.get("EMBED_LR", 0.025))
-    head_lr = float(os.environ.get("HEAD_LR", 0.025))
+    embed_lr = float(os.environ.get("EMBED_LR", 0.0225))
+    head_lr = float(os.environ.get("HEAD_LR", 0.0225))
     tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.0125))
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.125))
-    matrix_lr = float(os.environ.get("MATRIX_LR", 0.025))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.0225))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.015))
     muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
     muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
@@ -86,7 +87,6 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 1.0))
-    keep_prob = float(os.environ.get("KEEP_PROB", 0.8))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -777,6 +777,12 @@ def get_rope_p_smooth(i: int, num_layers: int, p_min=0.5, p_max=0.75) -> float:
     scale = math.sin(progress * math.pi)
     return p_min + (p_max - p_min) * scale
 
+def get_rope_base_progression(layer_idx: int, total_layers: int, min_base: float, max_base: float) -> float:
+    if total_layers <= 1:
+        return max_base
+    fraction = layer_idx / (total_layers - 1)
+    return min_base * ((max_base / min_base) ** fraction)
+
 def get_linear_progression_mlp_mult(layer_idx: int, total_layers: int, base_mult: int) -> float:
     # If base_mult is 2, this progresses from 1.0 (Layer 0) to 3.0 (Final Layer)
     min_mult = float(base_mult) * 0.5
@@ -796,10 +802,10 @@ class GPT(nn.Module):
         tie_embeddings: bool,
         tied_embed_init_std: float,
         logit_softcap: float,
-        rope_base: float,
+        rope_max_base: float,
+        rope_min_base: float,
         qk_gain_init: float,
         seq_len: int=1024,
-        keep_prob: float=0.8
     ):
         super().__init__()
         self.tie_embeddings = tie_embeddings
@@ -814,7 +820,7 @@ class GPT(nn.Module):
                 num_heads,
                 get_linear_progression_kv_heads(i, num_layers, num_kv_heads),
                 get_linear_progression_mlp_mult(i, num_layers, mlp_mult),
-                rope_base,
+                get_rope_base_progression(i, num_layers, rope_min_base, rope_max_base),
                 qk_gain_init,
                 seq_len=seq_len,
                 use_rope=True,
@@ -824,7 +830,6 @@ class GPT(nn.Module):
         ])
         self.final_norm = RMSNorm()
         self.logit_softcap = logit_softcap
-        self.keep_prob = keep_prob
         self.lm_head = None if tie_embeddings else nn.Linear(model_dim, vocab_size, bias=False)
         self.skip_scales = nn.Parameter(torch.zeros(self.num_encoder_layers, model_dim, dtype=torch.float32))
         
@@ -890,6 +895,9 @@ def main() -> None:
     inductor_config.fx_graph_cache = True               # Caches compiled kernels to disk (saves 5+ minutes on restart)
     inductor_config.triton.unique_kernel_names = True   # Prevents Triton kernel namespace collisions in DDP
     inductor_config.freezing = True                     # Aggressive constant-folding for inference/eval
+    inductor_config.shape_padding = True
+    inductor_config.coordinate_descent_tuning = True
+    inductor_config.epilogue_fusion = True
 
     if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
@@ -972,10 +980,10 @@ def main() -> None:
         tie_embeddings=args.tie_embeddings,
         tied_embed_init_std=args.tied_embed_init_std,
         logit_softcap=args.logit_softcap,
-        rope_base=args.rope_base,
+        rope_max_base=args.rope_max_base,
+        rope_min_base=args.rope_min_base,
         qk_gain_init=args.qk_gain_init,
-        seq_len=args.train_seq_len,
-        keep_prob=args.keep_prob
+        seq_len=args.train_seq_len
     ).to(device).bfloat16()
     restore_low_dim_params_to_fp32(base_model)
     compiled_model = torch.compile(base_model, fullgraph=True)
@@ -1269,5 +1277,27 @@ def main() -> None:
     if distributed:
         dist.destroy_process_group()
 
+def main_params():
+    args = Hyperparameters()
+    base_model = GPT(
+        vocab_size=args.vocab_size,
+        num_layers=args.num_layers,
+        model_dim=args.model_dim,
+        num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
+        mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
+        tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap,
+        rope_max_base=args.rope_max_base,
+        rope_min_base=args.rope_min_base,
+        qk_gain_init=args.qk_gain_init,
+        seq_len=args.train_seq_len
+    )
+    print(sum([p.numel() for p in base_model.parameters()]))
+
 if __name__ == "__main__":
-    main()
+    if not torch.cuda.is_available():
+        main_params()
+    else:
+        main()
