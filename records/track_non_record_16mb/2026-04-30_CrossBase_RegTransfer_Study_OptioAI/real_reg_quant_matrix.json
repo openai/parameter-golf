@@ -1,0 +1,266 @@
+{
+  "no-reg": {
+    "int4 sym per-tensor": {
+      "l2_distortion": 8.665924072265625,
+      "cos_shift": 0.058444440364837646,
+      "isoscore_post": 0.9379310607910156,
+      "eff_rank_post": 4.676845098324823
+    },
+    "int4 sym per-row": {
+      "l2_distortion": 7.969930648803711,
+      "cos_shift": 0.049631595611572266,
+      "isoscore_post": 0.9429349899291992,
+      "eff_rank_post": 17.07542076078601
+    },
+    "int4 asym per-row": {
+      "l2_distortion": 7.040150165557861,
+      "cos_shift": 0.03654921054840088,
+      "isoscore_post": 0.9111442565917969,
+      "eff_rank_post": 78.67987774765582
+    },
+    "int6 sym per-row": {
+      "l2_distortion": 4.770608901977539,
+      "cos_shift": 0.01566535234451294,
+      "isoscore_post": 0.8909909725189209,
+      "eff_rank_post": 103.73207476658023
+    },
+    "int8 sym per-row": {
+      "l2_distortion": 1.2735472917556763,
+      "cos_shift": 0.0011124610900878906,
+      "isoscore_post": 0.9084160327911377,
+      "eff_rank_post": 97.27140992067748
+    },
+    "AWQ-lite int4": {
+      "l2_distortion": 2.503967761993408,
+      "cos_shift": 0.004290342330932617,
+      "isoscore_post": 0.9011155962944031,
+      "eff_rank_post": 100.39177831746376
+    },
+    "GPTQ-lite int4": {
+      "l2_distortion": 51.821632385253906,
+      "cos_shift": 0.4511241912841797,
+      "isoscore_post": 0.537254810333252,
+      "eff_rank_post": 106.64174919958656
+    }
+  },
+  "SimCTG": {
+    "int4 sym per-tensor": {
+      "l2_distortion": 8.885649681091309,
+      "cos_shift": 0.06010890007019043,
+      "isoscore_post": 0.9370186924934387,
+      "eff_rank_post": 3.1090120294548624
+    },
+    "int4 sym per-row": {
+      "l2_distortion": 7.985650062561035,
+      "cos_shift": 0.04347085952758789,
+      "isoscore_post": 0.9251681566238403,
+      "eff_rank_post": 12.936205182701624
+    },
+    "int4 asym per-row": {
+      "l2_distortion": 7.186392784118652,
+      "cos_shift": 0.032656848430633545,
+      "isoscore_post": 0.9017077684402466,
+      "eff_rank_post": 62.38439015852314
+    },
+    "int6 sym per-row": {
+      "l2_distortion": 5.099906921386719,
+      "cos_shift": 0.014867603778839111,
+      "isoscore_post": 0.8821943998336792,
+      "eff_rank_post": 97.97688454189425
+    },
+    "int8 sym per-row": {
+      "l2_distortion": 1.4151151180267334,
+      "cos_shift": 0.00112152099609375,
+      "isoscore_post": 0.8963391184806824,
+      "eff_rank_post": 91.62891844039687
+    },
+    "AWQ-lite int4": {
+      "l2_distortion": 2.658930778503418,
+      "cos_shift": 0.00402677059173584,
+      "isoscore_post": 0.8892554044723511,
+      "eff_rank_post": 95.11689794763643
+    },
+    "GPTQ-lite int4": {
+      "l2_distortion": 57.328311920166016,
+      "cos_shift": 0.46479684114456177,
+      "isoscore_post": 0.38995546102523804,
+      "eff_rank_post": 99.04585869628714
+    }
+  },
+  "SimCTG+QAHSP": {
+    "int4 sym per-tensor": {
+      "l2_distortion": 8.90207290649414,
+      "cos_shift": 0.04147696495056152,
+      "isoscore_post": 0.9752295017242432,
+      "eff_rank_post": 3.1338453281846426
+    },
+    "int4 sym per-row": {
+      "l2_distortion": 8.396255493164062,
+      "cos_shift": 0.037551701068878174,
+      "isoscore_post": 0.9723882675170898,
+      "eff_rank_post": 10.321481681455186
+    },
+    "int4 asym per-row": {
+      "l2_distortion": 7.7742919921875,
+      "cos_shift": 0.030310511589050293,
+      "isoscore_post": 0.9479402303695679,
+      "eff_rank_post": 61.19273380707454
+    },
+    "int6 sym per-row": {
+      "l2_distortion": 5.7215166091918945,
+      "cos_shift": 0.01521909236907959,
+      "isoscore_post": 0.922627329826355,
+      "eff_rank_post": 103.85328116432875
+    },
+    "int8 sym per-row": {
+      "l2_distortion": 1.6117725372314453,
+      "cos_shift": 0.0011837482452392578,
+      "isoscore_post": 0.9344638586044312,
+      "eff_rank_post": 98.82931581135958
+    },
+    "AWQ-lite int4": {
+      "l2_distortion": 2.8120150566101074,
+      "cos_shift": 0.0035818815231323242,
+      "isoscore_post": 0.9302618503570557,
+      "eff_rank_post": 101.67765613469722
+    },
+    "GPTQ-lite int4": {
+      "l2_distortion": 65.60872650146484,
+      "cos_shift": 0.4830549955368042,
+      "isoscore_post": 0.42430219054222107,
+      "eff_rank_post": 102.3128287695318
+    }
+  },
+  "SimCTG+ES": {
+    "int4 sym per-tensor": {
+      "l2_distortion": 8.765625,
+      "cos_shift": 0.062296152114868164,
+      "isoscore_post": 0.936721682548523,
+      "eff_rank_post": 3.9066363675054414
+    },
+    "int4 sym per-row": {
+      "l2_distortion": 8.043916702270508,
+      "cos_shift": 0.05177617073059082,
+      "isoscore_post": 0.9349973201751709,
+      "eff_rank_post": 18.594726647796865
+    },
+    "int4 asym per-row": {
+      "l2_distortion": 7.1346306800842285,
+      "cos_shift": 0.0385744571685791,
+      "isoscore_post": 0.8988239765167236,
+      "eff_rank_post": 81.55246436667036
+    },
+    "int6 sym per-row": {
+      "l2_distortion": 4.726665019989014,
+      "cos_shift": 0.015722990036010742,
+      "isoscore_post": 0.8786011934280396,
+      "eff_rank_post": 103.6412998748405
+    },
+    "int8 sym per-row": {
+      "l2_distortion": 1.2452131509780884,
+      "cos_shift": 0.0010887980461120605,
+      "isoscore_post": 0.8960879445075989,
+      "eff_rank_post": 96.95184951116325
+    },
+    "AWQ-lite int4": {
+      "l2_distortion": 2.50549054145813,
+      "cos_shift": 0.004423320293426514,
+      "isoscore_post": 0.8884121179580688,
+      "eff_rank_post": 99.88234456906645
+    },
+    "GPTQ-lite int4": {
+      "l2_distortion": 50.17822265625,
+      "cos_shift": 0.4484516978263855,
+      "isoscore_post": 0.4249190390110016,
+      "eff_rank_post": 100.84690672770277
+    }
+  },
+  "SimCTG+HSU": {
+    "int4 sym per-tensor": {
+      "l2_distortion": 9.063629150390625,
+      "cos_shift": 0.0570681095123291,
+      "isoscore_post": 0.9595622420310974,
+      "eff_rank_post": 4.471798045349368
+    },
+    "int4 sym per-row": {
+      "l2_distortion": 8.505067825317383,
+      "cos_shift": 0.04947108030319214,
+      "isoscore_post": 0.9467036128044128,
+      "eff_rank_post": 19.69998277960704
+    },
+    "int4 asym per-row": {
+      "l2_distortion": 7.623517990112305,
+      "cos_shift": 0.03686553239822388,
+      "isoscore_post": 0.9114422798156738,
+      "eff_rank_post": 78.14374941041602
+    },
+    "int6 sym per-row": {
+      "l2_distortion": 5.184071063995361,
+      "cos_shift": 0.01574110984802246,
+      "isoscore_post": 0.8899648785591125,
+      "eff_rank_post": 103.23084138151381
+    },
+    "int8 sym per-row": {
+      "l2_distortion": 1.3814940452575684,
+      "cos_shift": 0.0011126995086669922,
+      "isoscore_post": 0.9071061015129089,
+      "eff_rank_post": 96.6253216326656
+    },
+    "AWQ-lite int4": {
+      "l2_distortion": 2.6982033252716064,
+      "cos_shift": 0.004202067852020264,
+      "isoscore_post": 0.9030233025550842,
+      "eff_rank_post": 100.00491793874347
+    },
+    "GPTQ-lite int4": {
+      "l2_distortion": 56.08349609375,
+      "cos_shift": 0.45256686210632324,
+      "isoscore_post": 0.538358747959137,
+      "eff_rank_post": 106.7523560471735
+    }
+  },
+  "SimCTG+AOS": {
+    "int4 sym per-tensor": {
+      "l2_distortion": 8.788201332092285,
+      "cos_shift": 0.05601924657821655,
+      "isoscore_post": 0.9357870817184448,
+      "eff_rank_post": 3.757452934414734
+    },
+    "int4 sym per-row": {
+      "l2_distortion": 8.076977729797363,
+      "cos_shift": 0.04601740837097168,
+      "isoscore_post": 0.9340577125549316,
+      "eff_rank_post": 14.520423604886107
+    },
+    "int4 asym per-row": {
+      "l2_distortion": 7.245190620422363,
+      "cos_shift": 0.034468114376068115,
+      "isoscore_post": 0.9058271050453186,
+      "eff_rank_post": 70.79133016702093
+    },
+    "int6 sym per-row": {
+      "l2_distortion": 5.06667947769165,
+      "cos_shift": 0.015466868877410889,
+      "isoscore_post": 0.8826003670692444,
+      "eff_rank_post": 100.9460638891694
+    },
+    "int8 sym per-row": {
+      "l2_distortion": 1.3779029846191406,
+      "cos_shift": 0.0011301040649414062,
+      "isoscore_post": 0.8975257873535156,
+      "eff_rank_post": 94.78506932919245
+    },
+    "AWQ-lite int4": {
+      "l2_distortion": 2.6380958557128906,
+      "cos_shift": 0.0041866302490234375,
+      "isoscore_post": 0.8914800882339478,
+      "eff_rank_post": 98.09973908449749
+    },
+    "GPTQ-lite int4": {
+      "l2_distortion": 55.92982864379883,
+      "cos_shift": 0.47122877836227417,
+      "isoscore_post": 0.45693013072013855,
+      "eff_rank_post": 102.4443442124175
+    }
+  }
+}
