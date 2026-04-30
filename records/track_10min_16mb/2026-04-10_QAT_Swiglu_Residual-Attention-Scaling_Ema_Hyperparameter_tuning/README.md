@@ -417,8 +417,7 @@ After hyperparameter tuning reached ~1.68, the following architectural improveme
 
 ## Files
 
-- **final_optim_h100.py**: Main training script
-- **final_model.pt**: Full precision model state (debug only)
+- **train_gpt.py**: Main training script
 - **final_model.int8.ptz**: Compressed model (Int8 + Zlib)
 - **train.log**: Training logs with metrics
 
@@ -433,7 +432,7 @@ After hyperparameter tuning reached ~1.68, the following architectural improveme
 **Run Training:**
 
 ```bash
-python final_optim_h100.py
+python records/track_10min_16mb/2026-04-10_QAT_Swiglu_Residual-Attention-Scaling_Ema_Hyperparameter_tuning/train_gpt.py
 ```
 
 **Environment Variables (optional):**
