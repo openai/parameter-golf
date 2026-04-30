@@ -1,0 +1,8 @@
+{
+  "author": "UniversalComputingResearch",
+  "name": "21L + PRP SwiGLU + Shared Attention + sp8192 + 2048 context length",
+  "github": "https://github.com/UniversalComputingResearch",
+  "val_bpb": 1.3540,
+  "description": "Custom architecture experiment for Parameter Golf.",
+  "status": "Awaiting compute credits"
+}
