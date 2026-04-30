@@ -1,3 +1,132 @@
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: /root/rehearsal_out/seed42
+  attn_clip_sigmas: 12.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.95
+  caseops_enabled: True
+  compressor: pergroup
+  data_dir: ./data/
+  datasets_dir: /root/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 12.0
+  embed_lr: 0.6
+  embed_wd: 0.06
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 5.5
+  grad_accum_steps: 2
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 100000
+  ln_scale: True
+  local_rank: 0
+  logfile: /root/rehearsal_out/seed42/train_seed42.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 14400.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 12.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /root/rehearsal_out/seed42/final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 3
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  quantized_model_path: /root/rehearsal_out/seed42/final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: train_seed42
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 1.0
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /root/caseops_data/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: /root/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 1.0
+  val_batch_tokens: 524288
+  val_bytes_files: /root/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /root/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.75
+  warmup_steps: 20
+  world_size: 4
+  xsa_last_n: 11
+====================================================================================================
+Source code:
+====================================================================================================
 import base64, collections, copy, fcntl, glob, io, lzma, math, os
 from pathlib import Path
 import random, re, subprocess, sys, time, uuid, numpy as np, sentencepiece as spm, torch, torch.distributed as dist, torch.nn.functional as F
@@ -4284,3 +4413,341 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Mar  3 2026, 12:15:18) [GCC 13.3.0]
+Running PyTorch 2.11.0+cu128
+====================================================================================================
+train_shards: 80
+val_tokens: 47851520
+model_params:35945671
+gptq:reserving 5.5s, effective=14394500ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+LONGTRAIN:enabled milestones=[60, 120, 180, 240] mode=light
+0/100000 val_loss: 9.0076 val_bpb: 4.1159
+1/100000 train_loss: 9.0077 train_time: 0.0m tok/s: 3897742
+2/100000 train_loss: 12.9138 train_time: 0.0m tok/s: 3408089
+3/100000 train_loss: 10.3047 train_time: 0.0m tok/s: 3093867
+4/100000 train_loss: 8.6517 train_time: 0.0m tok/s: 2872107
+5/100000 train_loss: 7.9188 train_time: 0.0m tok/s: 2805314
+500/100000 train_loss: 2.6471 train_time: 2.7m tok/s: 2410090
+1000/100000 train_loss: 2.7475 train_time: 5.6m tok/s: 2355301
+1500/100000 train_loss: 2.5760 train_time: 8.4m tok/s: 2332443
+2000/100000 train_loss: 2.6510 train_time: 11.3m tok/s: 2319396
+2500/100000 train_loss: 2.5402 train_time: 14.2m tok/s: 2312226
+3000/100000 train_loss: 2.6435 train_time: 17.0m tok/s: 2307366
+3500/100000 train_loss: 2.4944 train_time: 19.9m tok/s: 2303902
+4000/100000 train_loss: 2.5327 train_time: 22.8m tok/s: 2300710
+4000/100000 val_loss: 2.5798 val_bpb: 1.1788
+4500/100000 train_loss: 2.5670 train_time: 25.6m tok/s: 2299584
+5000/100000 train_loss: 2.6112 train_time: 28.5m tok/s: 2297796
+RESUME:saving checkpoint at 30min (step=5257)
+RESUME:checkpoint saved at 30min
+5500/100000 train_loss: 2.5587 train_time: 31.4m tok/s: 2295965
+6000/100000 train_loss: 2.5935 train_time: 34.3m tok/s: 2294850
+6500/100000 train_loss: 2.6278 train_time: 37.1m tok/s: 2293810
+7000/100000 train_loss: 2.5252 train_time: 40.0m tok/s: 2293136
+7500/100000 train_loss: 2.6498 train_time: 42.9m tok/s: 2292849
+8000/100000 train_loss: 2.5806 train_time: 45.7m tok/s: 2292162
+8000/100000 val_loss: 2.5649 val_bpb: 1.1720
+8500/100000 train_loss: 2.5995 train_time: 48.6m tok/s: 2292458
+9000/100000 train_loss: 2.5146 train_time: 51.5m tok/s: 2291793
+9500/100000 train_loss: 2.6005 train_time: 54.3m tok/s: 2291723
+10000/100000 train_loss: 2.4241 train_time: 57.2m tok/s: 2291237
+LONGTRAIN:exporting checkpoint at 60min (step=10488, train_time=3600.4s)
+Serialized model: 135413837 bytes
+Code size (uncompressed): 182470 bytes
+Code size (compressed): 37175 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 3.3s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.attn_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda
+GPTQ:quantized in 11.5s
+Serialize: per-group lrzip compression...
+GPTQ:compressed+saved in 86.1s
+Serialized model quantized+pergroup: 15910599 bytes
+Total submission size quantized+pergroup: 15947774 bytes
+LONGTRAIN:checkpoint 60min exported: 15947774 bytes in 102.0s
+RESUME:saving checkpoint at 60min (step=10488)
+RESUME:checkpoint saved at 60min
+10500/100000 train_loss: 2.5743 train_time: 62.7m tok/s: 2195807
+11000/100000 train_loss: 2.6354 train_time: 67.7m tok/s: 2129829
+11500/100000 train_loss: 2.5094 train_time: 70.6m tok/s: 2135142
+12000/100000 train_loss: 2.6434 train_time: 73.5m tok/s: 2138858
+12000/100000 val_loss: 2.5463 val_bpb: 1.1635
+12500/100000 train_loss: 2.4452 train_time: 78.0m tok/s: 2100360
+13000/100000 train_loss: 2.7634 train_time: 80.9m tok/s: 2107246
+13500/100000 train_loss: 2.5966 train_time: 83.7m tok/s: 2113129
+layer_loop:enabled step:13540 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+RESUME:saving checkpoint at 90min (step=13938)
+RESUME:checkpoint saved at 90min
+14000/100000 train_loss: 2.5132 train_time: 90.5m tok/s: 2027145
+14500/100000 train_loss: 2.6015 train_time: 94.8m tok/s: 2005587
+15000/100000 train_loss: 2.4993 train_time: 99.0m tok/s: 1985813
+15500/100000 train_loss: 2.5713 train_time: 103.3m tok/s: 1967642
+16000/100000 train_loss: 2.4824 train_time: 107.5m tok/s: 1950833
+16000/100000 val_loss: 2.4924 val_bpb: 1.1389
+16500/100000 train_loss: 2.4555 train_time: 111.7m tok/s: 1936159
+17000/100000 train_loss: 2.5575 train_time: 115.9m tok/s: 1921852
+LONGTRAIN:exporting checkpoint at 120min (step=17480, train_time=7200.5s)
+Serialized model: 135413837 bytes
+Code size (uncompressed): 182470 bytes
+Code size (compressed): 37175 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 4.6s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.attn_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda
+GPTQ:quantized in 11.4s
+Serialize: per-group lrzip compression...
+GPTQ:compressed+saved in 85.9s
+Serialized model quantized+pergroup: 15907238 bytes
+Total submission size quantized+pergroup: 15944413 bytes
+LONGTRAIN:checkpoint 120min exported: 15944413 bytes in 103.8s
+RESUME:saving checkpoint at 120min (step=17480)
+RESUME:checkpoint saved at 120min
+17500/100000 train_loss: 2.5020 train_time: 124.5m tok/s: 1842065
+18000/100000 train_loss: 2.5886 train_time: 131.3m tok/s: 1796729
+18500/100000 train_loss: 2.5451 train_time: 135.6m tok/s: 1787729
+19000/100000 train_loss: 2.4873 train_time: 140.0m tok/s: 1779083
+19500/100000 train_loss: 2.4269 train_time: 144.3m tok/s: 1771043
+20000/100000 train_loss: 2.4206 train_time: 148.7m tok/s: 1763367
+20000/100000 val_loss: 2.4474 val_bpb: 1.1183
+RESUME:saving checkpoint at 150min (step=20021)
+RESUME:checkpoint saved at 150min
+20500/100000 train_loss: 2.4537 train_time: 155.3m tok/s: 1729718
+21000/100000 train_loss: 2.4578 train_time: 159.6m tok/s: 1724881
+21500/100000 train_loss: 2.4135 train_time: 163.8m tok/s: 1720360
+22000/100000 train_loss: 2.3260 train_time: 168.0m tok/s: 1716061
+22500/100000 train_loss: 2.4375 train_time: 172.3m tok/s: 1712004
+23000/100000 train_loss: 2.4389 train_time: 176.5m tok/s: 1708277
+LONGTRAIN:exporting checkpoint at 180min (step=23418, train_time=10800.6s)
+Serialized model: 135413837 bytes
+Code size (uncompressed): 182470 bytes
+Code size (compressed): 37175 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 4.7s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.attn_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda
+GPTQ:quantized in 11.4s
+Serialize: per-group lrzip compression...
+GPTQ:compressed+saved in 86.1s
+Serialized model quantized+pergroup: 15907614 bytes
+Total submission size quantized+pergroup: 15944789 bytes
+LONGTRAIN:checkpoint 180min exported: 15944789 bytes in 103.4s
+RESUME:saving checkpoint at 180min (step=23418)
+RESUME:checkpoint saved at 180min
+23500/100000 train_loss: 2.4346 train_time: 182.3m tok/s: 1689799
+24000/100000 train_loss: 2.4038 train_time: 187.1m tok/s: 1680928
+24000/100000 val_loss: 2.3900 val_bpb: 1.0921
+24500/100000 train_loss: 2.4442 train_time: 194.1m tok/s: 1654775
+25000/100000 train_loss: 2.3421 train_time: 198.3m tok/s: 1652619
+25500/100000 train_loss: 2.3624 train_time: 202.5m tok/s: 1650394
+26000/100000 train_loss: 2.4392 train_time: 206.7m tok/s: 1648379
+RESUME:saving checkpoint at 210min (step=26387)
+RESUME:checkpoint saved at 210min
+26500/100000 train_loss: 2.3798 train_time: 211.0m tok/s: 1646479
+27000/100000 train_loss: 2.3304 train_time: 215.2m tok/s: 1644591
+27500/100000 train_loss: 2.1791 train_time: 219.4m tok/s: 1642754
+28000/100000 train_loss: 2.3375 train_time: 223.6m tok/s: 1641004
+28000/100000 val_loss: 2.3127 val_bpb: 1.0568
+28500/100000 train_loss: 2.3078 train_time: 227.9m tok/s: 1639279
+29000/100000 train_loss: 2.1922 train_time: 232.3m tok/s: 1636279
+29500/100000 train_loss: 2.3156 train_time: 236.6m tok/s: 1634072
+29888/100000 val_loss: 2.3199 val_bpb: 1.0600
+stopping_early: wallclock_cap train_time: 14394813ms step: 29888/100000
+peak memory allocated: 45565 MiB reserved: 47298 MiB
+ema:applying EMA weights
+Serialized model: 135417533 bytes
+Code size (uncompressed): 182470 bytes
+Code size (compressed): 37175 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 4.7s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.attn_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda
+GPTQ:quantized in 11.6s
+Serialize: per-group lrzip compression...
+GPTQ:compressed+saved in 85.8s
+Serialized model quantized+pergroup: 15895463 bytes
+Total submission size quantized+pergroup: 15932638 bytes
+serialize_wallclock: 103.166s
+artifact_production_wallclock: 14497.979s (train_loop=14394.8s + serialize=103.2s, must be < 14400.0)
+total_elapsed_wallclock: 15335.785s (includes model build + torch.compile + data loading)
+diagnostic pre-quantization post-ema val_loss:2.26608698 val_bpb:1.03545673 eval_time:13864ms
+Deserialize: per-group lrzip decompression...
+Deserialize: decompression done in 17.9s
+diagnostic quantized val_loss:2.28666334 val_bpb:1.04485881 eval_time:109606ms
+Deserialize: per-group lrzip decompression...
+Deserialize: decompression done in 19.3s
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (171.3s)
+
+beginning TTT eval timer
+ttt_phased: total_docs:50000 prefix_docs:2000 suffix_docs:48000 num_phases:3 boundaries:[666, 1333, 2000]
+ttp: b780/782 bl:2.1943 bb:1.0571 rl:2.1943 rb:1.0571 dl:13091-17244 gd:0
+ttp: b777/782 bl:2.2623 bb:1.0602 rl:2.2198 rb:1.0583 dl:8452-9229 gd:0
+ttp: b774/782 bl:2.2366 bb:1.0414 rl:2.2235 rb:1.0545 dl:6447-6872 gd:0
+ttp: b771/782 bl:2.2549 bb:1.0357 rl:2.2285 rb:1.0514 dl:5523-5749 gd:0
+ttp: b768/782 bl:2.1879 bb:1.0189 rl:2.2235 rb:1.0474 dl:4859-5083 gd:0
+ttpp: phase:1/3 pd:912 gd:666 t:407.8s
+tttg: c1/133 lr:0.001000 t:1.1s
+tttg: c2/133 lr:0.001000 t:1.1s
+tttg: c3/133 lr:0.000999 t:1.2s
+tttg: c4/133 lr:0.000999 t:1.3s
+tttg: c5/133 lr:0.000998 t:1.3s
+tttg: c6/133 lr:0.000996 t:1.4s
+tttg: c7/133 lr:0.000995 t:1.5s
+tttg: c8/133 lr:0.000993 t:1.6s
+tttg: c9/133 lr:0.000991 t:1.6s
+tttg: c10/133 lr:0.000989 t:1.7s
+tttg: c11/133 lr:0.000986 t:1.8s
+tttg: c12/133 lr:0.000983 t:1.8s
+tttg: c13/133 lr:0.000980 t:1.9s
+tttg: c14/133 lr:0.000976 t:2.0s
+tttg: c15/133 lr:0.000973 t:2.1s
+tttg: c16/133 lr:0.000968 t:2.1s
+tttg: c17/133 lr:0.000964 t:2.2s
+tttg: c18/133 lr:0.000960 t:2.3s
+tttg: c19/133 lr:0.000955 t:2.3s
+tttg: c20/133 lr:0.000950 t:2.4s
+tttg: c21/133 lr:0.000944 t:2.5s
+tttg: c22/133 lr:0.000939 t:2.6s
+tttg: c23/133 lr:0.000933 t:2.6s
+tttg: c24/133 lr:0.000927 t:2.7s
+tttg: c25/133 lr:0.000921 t:2.8s
+tttg: c26/133 lr:0.000914 t:2.8s
+tttg: c27/133 lr:0.000907 t:2.9s
+tttg: c28/133 lr:0.000900 t:3.0s
+tttg: c29/133 lr:0.000893 t:3.0s
+tttg: c30/133 lr:0.000886 t:3.1s
+tttg: c31/133 lr:0.000878 t:3.2s
+tttg: c32/133 lr:0.000870 t:3.3s
+tttg: c33/133 lr:0.000862 t:3.3s
+tttg: c34/133 lr:0.000854 t:3.4s
+tttg: c35/133 lr:0.000845 t:3.5s
+tttg: c36/133 lr:0.000836 t:3.5s
+tttg: c37/133 lr:0.000827 t:3.6s
+tttg: c38/133 lr:0.000818 t:3.7s
+tttg: c39/133 lr:0.000809 t:3.8s
+tttg: c40/133 lr:0.000800 t:3.8s
+tttg: c41/133 lr:0.000790 t:3.9s
+tttg: c42/133 lr:0.000780 t:4.0s
+tttg: c43/133 lr:0.000770 t:4.0s
+tttg: c44/133 lr:0.000760 t:4.1s
+tttg: c45/133 lr:0.000750 t:4.2s
+tttg: c46/133 lr:0.000740 t:4.3s
+tttg: c47/133 lr:0.000729 t:4.3s
+tttg: c48/133 lr:0.000718 t:4.4s
+tttg: c49/133 lr:0.000708 t:4.5s
+tttg: c50/133 lr:0.000697 t:4.5s
+tttg: c51/133 lr:0.000686 t:4.6s
+tttg: c52/133 lr:0.000675 t:4.7s
+tttg: c53/133 lr:0.000664 t:4.8s
+tttg: c54/133 lr:0.000652 t:4.8s
+tttg: c55/133 lr:0.000641 t:4.9s
+tttg: c56/133 lr:0.000629 t:5.0s
+tttg: c57/133 lr:0.000618 t:5.0s
+tttg: c58/133 lr:0.000606 t:5.1s
+tttg: c59/133 lr:0.000595 t:5.2s
+tttg: c60/133 lr:0.000583 t:5.3s
+tttg: c61/133 lr:0.000571 t:5.3s
+tttg: c62/133 lr:0.000559 t:5.4s
+tttg: c63/133 lr:0.000548 t:5.5s
+tttg: c64/133 lr:0.000536 t:5.6s
+tttg: c65/133 lr:0.000524 t:5.6s
+tttg: c66/133 lr:0.000512 t:5.7s
+tttg: c67/133 lr:0.000500 t:5.8s
+tttg: c68/133 lr:0.000488 t:5.8s
+tttg: c69/133 lr:0.000476 t:5.9s
+tttg: c70/133 lr:0.000464 t:6.0s
+tttg: c71/133 lr:0.000452 t:6.1s
+tttg: c72/133 lr:0.000441 t:6.1s
+tttg: c73/133 lr:0.000429 t:6.2s
+tttg: c74/133 lr:0.000417 t:6.3s
+tttg: c75/133 lr:0.000405 t:6.3s
+tttg: c76/133 lr:0.000394 t:6.4s
+tttg: c77/133 lr:0.000382 t:6.5s
+tttg: c78/133 lr:0.000371 t:6.6s
+tttg: c79/133 lr:0.000359 t:6.6s
+tttg: c80/133 lr:0.000348 t:6.7s
+tttg: c81/133 lr:0.000336 t:6.8s
+tttg: c82/133 lr:0.000325 t:6.8s
+tttg: c83/133 lr:0.000314 t:6.9s
+tttg: c84/133 lr:0.000303 t:7.0s
+tttg: c85/133 lr:0.000292 t:7.1s
+tttg: c86/133 lr:0.000282 t:7.1s
+tttg: c87/133 lr:0.000271 t:7.2s
+tttg: c88/133 lr:0.000260 t:7.3s
+tttg: c89/133 lr:0.000250 t:7.3s
+tttg: c90/133 lr:0.000240 t:7.4s
+tttg: c91/133 lr:0.000230 t:7.5s
+tttg: c92/133 lr:0.000220 t:7.6s
+tttg: c93/133 lr:0.000210 t:7.6s
+tttg: c94/133 lr:0.000200 t:7.7s
+tttg: c95/133 lr:0.000191 t:7.8s
+tttg: c96/133 lr:0.000182 t:7.8s
+tttg: c97/133 lr:0.000173 t:7.9s
+tttg: c98/133 lr:0.000164 t:8.0s
+tttg: c99/133 lr:0.000155 t:8.1s
+tttg: c100/133 lr:0.000146 t:8.1s
+tttg: c101/133 lr:0.000138 t:8.2s
+tttg: c102/133 lr:0.000130 t:8.3s
+tttg: c103/133 lr:0.000122 t:8.4s
+tttg: c104/133 lr:0.000114 t:8.4s
+tttg: c105/133 lr:0.000107 t:8.5s
+tttg: c106/133 lr:0.000100 t:8.6s
+tttg: c107/133 lr:0.000093 t:8.6s
+tttg: c108/133 lr:0.000086 t:8.7s
+tttg: c109/133 lr:0.000079 t:8.8s
+tttg: c110/133 lr:0.000073 t:8.9s
+tttg: c111/133 lr:0.000067 t:8.9s
+tttg: c112/133 lr:0.000061 t:9.0s
+tttg: c113/133 lr:0.000056 t:9.1s
+tttg: c114/133 lr:0.000050 t:9.1s
+tttg: c115/133 lr:0.000045 t:9.2s
+tttg: c116/133 lr:0.000040 t:9.3s
+tttg: c117/133 lr:0.000036 t:9.4s
+tttg: c118/133 lr:0.000032 t:9.4s
+tttg: c119/133 lr:0.000027 t:9.5s
+tttg: c120/133 lr:0.000024 t:9.6s
+tttg: c121/133 lr:0.000020 t:9.6s
+tttg: c122/133 lr:0.000017 t:9.7s
+tttg: c123/133 lr:0.000014 t:9.8s
+tttg: c124/133 lr:0.000011 t:9.9s
+tttg: c125/133 lr:0.000009 t:9.9s
+tttg: c126/133 lr:0.000007 t:10.0s
+tttg: c127/133 lr:0.000005 t:10.1s
+tttg: c128/133 lr:0.000004 t:10.1s
+tttg: c129/133 lr:0.000002 t:10.2s
+tttg: c130/133 lr:0.000001 t:10.3s
+tttg: c131/133 lr:0.000001 t:10.4s
+tttg: c132/133 lr:0.000000 t:10.4s
+ttpr: phase:1/3 t:420.0s

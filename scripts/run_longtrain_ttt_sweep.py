@@ -52,6 +52,19 @@ FIXED_TTT_ENV = {
     "GLOBAL_TTT_LR": "0.001",
     "TTT_ENABLED": "1",
     "TTT_EVAL_ONLY": "1",
+    # Required for CaseOps tokenizer/data path resolution in train_gpt.py
+    "CASEOPS_ENABLED": "1",
+    "SMEAR_GATE_ENABLED": "1",
+    "SPARSE_ATTN_GATE_ENABLED": "1",
+    "COMPRESSOR": "pergroup",
+    "LQER_ENABLED": "1",
+    "LQER_RANK": "4",
+    "LQER_TOP_K": "3",
+    "LQER_FACTOR_BITS": "4",
+    "LQER_ASYM_ENABLED": "1",
+    "LQER_ASYM_GROUP": "64",
+    "EMBED_BITS": "7",
+    "NCCL_NET": "Socket",
 }
 
 # ---------------------------------------------------------------------------
@@ -237,7 +250,7 @@ def build_variant_env(variant_id, variant_config, artifact_path,
     env["OUTPUT_DIR"] = variant_out
 
     if data_path:
-        env["DATA_DIR"] = data_path
+        env["DATA_PATH"] = data_path
     if tok_path:
         env["TOKENIZER_PATH"] = tok_path
 

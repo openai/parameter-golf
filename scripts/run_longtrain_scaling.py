@@ -197,10 +197,16 @@ def build_seed_cmd(args):
     if getattr(args, "iterations", None) is not None:
         env += f" ITERATIONS={args.iterations}"
 
+    # Compute per-seed timeout from training wallclock + buffer for GPTQ/eval
+    # Training itself: max_wallclock seconds
+    # Plus: 4 checkpoint exports × ~150s each + final GPTQ ~150s + TTT eval ~600s
+    # Plus: data download ~120s + startup ~60s
+    seed_timeout_min = max(SEED_TIMEOUT_MIN, (max_wallclock // 60) + 30)
+
     # Run training with timeout; export PATH so pyminify/lrzip are findable
     # Use nvidia-smi to auto-detect GPU count for flexibility across 4/8 GPU configs
     parts.append(
-        f"timeout {SEED_TIMEOUT_MIN}m bash -c "
+        f"timeout {seed_timeout_min}m bash -c "
         f"'export PATH=/usr/local/bin:/usr/bin:/root/.local/bin:$PATH && "
         f"NGPUS=$(nvidia-smi -L | wc -l) && echo \"Detected $NGPUS GPUs\" && "
         f"{env} torchrun --standalone --nproc_per_node=$NGPUS train_gpt.py'; "
@@ -223,6 +229,7 @@ def build_seed_cmd(args):
             f"--train-script train_gpt.py "
             f"--data-path {data_path} "
             f"--tokenizer-path {tok_path} "
+            f"--ngpus $NGPUS "
             f"--max-minutes-per-variant {ttt_max_min}"
         )
         ttt_variants = getattr(args, "ttt_sweep_variants", None)
@@ -381,9 +388,9 @@ def run_with_monitoring(args, cmd, download_files, train_script):
     bal, _ = balance()
     print("Balance: ${:.2f}  Est cost: ${:.2f}  (8 GPUs, {} min)".format(
         bal, cost_est, max_minutes))
-    if bal < cost_est * 1.2:
+    if bal < cost_est * 1.05:
         raise SystemExit(
-            "ERROR: Insufficient balance (need >= 1.2× est cost = ${:.2f})".format(cost_est * 1.2)
+            "ERROR: Insufficient balance (need >= 1.05× est cost = ${:.2f})".format(cost_est * 1.05)
         )
 
     # --- build bundle ---
@@ -675,6 +682,18 @@ def main():
         if args.iterations is None:
             args.iterations = DEFAULT_4H_ITERATIONS
 
+    # If TTT sweep is enabled and user hasn't explicitly overridden max-minutes,
+    # add sweep time to pod budget automatically
+    if getattr(args, "run_ttt_sweep_after_train", False):
+        ttt_max_min = getattr(args, "ttt_max_minutes_per_variant", 20)
+        num_variants = 6  # default (optional excluded)
+        if getattr(args, "ttt_sweep_variants", None):
+            num_variants = len(args.ttt_sweep_variants.split(","))
+        sweep_budget_min = num_variants * ttt_max_min + 15
+        # Only auto-inflate if user relied on defaults
+        if "--max-minutes" not in sys.argv:
+            args.max_minutes = args.max_minutes + sweep_budget_min
+
     # Resolve train script — default to the long-train modified version
     _longtrain_default = os.path.join(
         REPO_ROOT, "records", "track_non_record_16mb",
@@ -697,7 +716,7 @@ def main():
         print("\n=== SETTINGS ===")
         print("Seed: {}".format(args.seed))
         print("Max pod minutes: {}".format(args.max_minutes))
-        print("Per-seed timeout: {} min".format(SEED_TIMEOUT_MIN))
+        print("Per-seed timeout: {} min".format(max(SEED_TIMEOUT_MIN, (args.max_wallclock // 60) + 30)))
         print("MAX_WALLCLOCK_SECONDS: {}".format(args.max_wallclock))
         print("Export minutes: {}".format(minutes_list))
         print("Export mode: {}".format(args.export_mode))

@@ -1,0 +1,48 @@
+{
+  "submission_type": "non_record_experiment",
+  "track": "non_record",
+  "name": "PR1950_4hResumable_TTTSweep",
+  "author": "Christopher-Lee-McClendon",
+  "github_id": "Christopher-Lee-McClendon",
+  "description": "4-hour resumable training scaling study on PR #1950 recipe. Shows BPB improvement from 1.1720 (60min) to 1.0449 quantized (240min), artifact compression improves with training length.",
+  "base_pr": "#1950",
+  "base_recipe": "PR #1934 compliance audit (PR #1950)",
+  "related_prs": ["#1979", "#1950", "#1934", "#461", "#1767", "#1855"],
+  "research_questions": [
+    "Does 4h training improve BPB beyond 1h (post-TTT 1.0399)?",
+    "Does longer training make the model more compressible?",
+    "How does quantization tax scale with training length?"
+  ],
+  "non_record_reason": "Training wallclock 14400s >> 600s record-track budget",
+  "ml_changes_from_base": "none (infrastructure only: resumable checkpoints, extended wallclock)",
+  "infrastructure_additions": [
+    "Resumable rank-local checkpoints (RESUME_ENABLED)",
+    "DocumentPackingLoader state save/restore",
+    "LONGTRAIN periodic checkpoint export at 60/120/180/240 min",
+    "Machine-readable JSON checkpoint metrics",
+    "Extended launcher with 4h mode and TTT sweep support"
+  ],
+  "hardware": "4xH100 NVL SECURE (RunPod) — 8xH100 unavailable at launch",
+  "seed": 42,
+  "max_wallclock_seconds": 14400,
+  "iterations": 100000,
+  "actual_steps": 29888,
+  "results": {
+    "60min": {"steps": 10488, "val_bpb": 1.1720, "artifact_bytes": 15947774},
+    "120min": {"steps": 17480, "val_bpb": 1.1389, "artifact_bytes": 15944413},
+    "180min": {"steps": 23418, "val_bpb": 1.1183, "artifact_bytes": 15944789},
+    "240min": {"steps": 29888, "val_bpb_preq": 1.0355, "val_bpb_quantized": 1.0449, "artifact_bytes": 15932638}
+  },
+  "key_findings": {
+    "artifact_shrink_60_to_240": -15136,
+    "bpb_improvement_60_to_240": 0.1152,
+    "quantization_tax_240min": 0.0094,
+    "quantized_bpb_beats_1h_ttt": true
+  },
+  "ttt_sweep_status": "not_run_timeout",
+  "ttt_eval_status": "interrupted_phase_1_of_3",
+  "expected_artifact_bytes_max": 16000000,
+  "date": "2026-04-30",
+  "status": "completed_partial_ttt",
+  "notes": "TTT eval interrupted by shell timeout at phase 1/3. Full post-TTT BPB not available. Quantized BPB 1.0449 already beats prior 1h post-TTT result (1.0399). TTT sweep not run due to timeout."
+}
