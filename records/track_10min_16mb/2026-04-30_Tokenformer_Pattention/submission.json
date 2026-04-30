@@ -1,0 +1,33 @@
+{
+  "track": "10min_16mb",
+  "track_subtype": "non_record",
+  "date": "2026-04-30",
+  "name": "Tokenformer (Pattention) — first-class attempt",
+  "author": "Alex Wu",
+  "github_id": "alexwu",
+  "val_bpb": 1.37707353,
+  "val_loss": 2.32513098,
+  "bytes_total": 9579528,
+  "model_params": 17050696,
+  "config": {
+    "PATTENTION": 1,
+    "PATTENTION_P_RATIO": 1.0,
+    "VOCAB_SIZE": 1024,
+    "MLP_MULT": 2,
+    "SEED": 1337,
+    "MAX_WALLCLOCK_SECONDS": 600
+  },
+  "hardware": "8xH100 SXM (NVIDIA H100 80GB HBM3)",
+  "wallclock_seconds": 600.045,
+  "steps_completed": 10046,
+  "comparison": {
+    "baseline_PATTENTION_0_MLP_MULT_2": {
+      "val_bpb_int8_zlib": 1.23050547,
+      "val_loss_int8_zlib": 2.07765695,
+      "bytes_total": 15861681,
+      "model_params": 17059912,
+      "steps_completed": 11555
+    }
+  },
+  "notes": "v1 Pattention drop-in for dense MLP fc/proj only (attention layers unchanged). Submission is the matched-params Pattention run; the comparison entry is the apples-to-apples dense baseline at matched parameter count. Headline finding: at matched params (~17M), Pattention shrinks the int8+zlib model artifact by ~40% (9.58MB vs 15.86MB) at the cost of +0.147 BPB val. Filed as non-record: the contribution is the compression characterization, not a leaderboard-position improvement. See README.md for full analysis. A supplementary scale-up pilot (MLP_MULT=4, 26.5M params, 11.36MB compressed, val_bpb 1.3746) is preserved at logs_8xh100/run3_pat_mlp4.log but is not part of the head-to-head comparison."
+}
