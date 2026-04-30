@@ -1,0 +1,10 @@
+# RunPod validation, 1xH100 80GB, 1,048,576-token eval slice.
+# Fresh control against promoted rank1024.
+
+rank_sweep seed=314 rank=0 tokens=1048576 val_loss=3.36701924 val_bpb=1.32170177 elapsed=37.4s
+rank_sweep seed=314 rank=1024 tokens=1048576 val_loss=3.36280603 val_bpb=1.32004790 elapsed=36.3s
+
+promoted_rank=1024
+control_bpb=1.32170177
+variant_bpb=1.32004790
+delta_bpb=-0.00165387

@@ -1,0 +1,76 @@
+{
+  "author": "Hetul Patel",
+  "github_id": "Hetul803",
+  "name": "SP8192 Legal TTT + Rank1024 Adapter Memory TTT",
+  "date": "2026-04-25",
+  "track": "10min_16mb",
+  "promoted_rank": 1024,
+  "validation": {
+    "type": "1M-token eval slice",
+    "eval_tokens": 1048576,
+    "seeds": [42, 314, 999],
+    "control_bpb_mean": 1.32170074,
+    "variant_bpb_mean": 1.32009830,
+    "delta_bpb_mean": -0.00160245,
+    "seed_results": {
+      "42": {
+        "control_bpb": 1.32169984,
+        "variant_bpb": 1.32003903,
+        "delta_bpb": -0.00166081,
+        "runtime_seconds": 77.7
+      },
+      "314": {
+        "control_bpb": 1.32170177,
+        "variant_bpb": 1.32004790,
+        "delta_bpb": -0.00165387,
+        "runtime_seconds": 36.3
+      },
+      "999": {
+        "control_bpb": 1.32170062,
+        "variant_bpb": 1.32020796,
+        "delta_bpb": -0.00149266,
+        "runtime_seconds": 36.4
+      }
+    }
+  },
+  "full_validation_estimate": {
+    "basis": "2026-04-09 official 3-seed mean BPB 1.08100 plus measured 1M-slice mean delta -0.00160245",
+    "estimated_mean_bpb": 1.07940,
+    "measured_full_validation": false
+  },
+  "artifact_size": {
+    "code_bytes": 16920,
+    "model_bytes_source": "2026-04-09 SP8192 official seed logs; adapter is eval-time only and adds no stored model tensors",
+    "estimated_total_bytes_by_seed": {
+      "42": 15992220,
+      "314": 15993245,
+      "999": 15993558
+    },
+    "max_estimated_total_bytes": 15993558,
+    "under_16000000": true
+  },
+  "hardware": {
+    "validation_pod": "1xH100 80GB",
+    "official_target": "8xH100 80GB"
+  },
+  "technique_summary": "Adds a rank1024 eval-time random-feature adapter to the legal score-first TTT loop. The adapter is scored before update, zero-initialized, and not stored in the artifact.",
+  "compliance": {
+    "train_under_600s_target": true,
+    "eval_under_600s_target": true,
+    "artifact_under_16mb": true,
+    "score_first_ttt": true,
+    "no_future_token_leakage": true,
+    "no_validation_data_during_training": true,
+    "no_dts": true,
+    "no_adaptive_routing": true,
+    "no_lexical_cache": true,
+    "no_suffix_cache": true,
+    "no_rdc": true,
+    "no_ctr": true,
+    "no_ttla_only": true
+  },
+  "attribution": {
+    "base_stack": "2026-04-09 SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal Score-First TTT",
+    "final_adapter_memory_ttt": "Hetul Patel"
+  }
+}

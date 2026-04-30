@@ -1,0 +1,15 @@
+# RunPod validation, 1xH100 80GB, 1,048,576-token eval slice.
+# Seed 42 rank sweep and promoted comparison.
+
+rank_sweep seed=42 rank=0 tokens=1048576 val_loss=3.36701435 val_bpb=1.32169984 elapsed=79.9s
+rank_sweep seed=42 rank=256 tokens=1048576 val_loss=3.36409436 val_bpb=1.32055362 elapsed=76.6s
+rank_sweep seed=42 rank=384 tokens=1048576 val_loss=3.36375795 val_bpb=1.32042157 elapsed=77.5s
+rank_sweep seed=42 rank=512 tokens=1048576 val_loss=3.36352723 val_bpb=1.32033100 elapsed=77.2s
+rank_sweep seed=42 rank=768 tokens=1048576 val_loss=3.36329406 val_bpb=1.32023947 elapsed=77.2s
+rank_sweep seed=42 rank=1024 tokens=1048576 val_loss=3.36278345 val_bpb=1.32003903 elapsed=77.7s
+rank_sweep seed=42 rank=1536 tokens=1048576 val_loss=3.36354799 val_bpb=1.32033915 elapsed=77.5s
+
+promoted_rank=1024
+control_bpb=1.32169984
+variant_bpb=1.32003903
+delta_bpb=-0.00166081
