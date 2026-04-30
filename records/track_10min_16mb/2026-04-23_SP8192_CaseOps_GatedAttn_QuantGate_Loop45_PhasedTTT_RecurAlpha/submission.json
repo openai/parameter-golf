@@ -1,0 +1,24 @@
+{
+  "author": "leon",
+  "github_id": "leon",
+  "name": "SP8192 + CaseOps + Gated Attention + Quant Gate + Loop4-5 + Phased TTT + Frozen Recurrent Alpha",
+  "blurb": "Frozen cross-layer recurrent alpha/beta scalars on the #1736 stack. After training with learnable depth-recurrence blends (RECUR_ALPHA_ENABLED=1, NUM_LOOPS=2, loop layers 3-5), the converged alpha/beta values are frozen as constants. BPB scored on original pre-transform UTF-8 bytes via per-token byte sidecar (CaseOps).",
+  "date": "2026-04-23",
+  "track": "10min_16mb",
+  "val_loss": 2.32888,
+  "val_bpb": 1.06421,
+  "val_bpb_std": 0.00023,
+  "val_loss_std": 0.00049,
+  "seeds": [1, 777, 2025],
+  "seed_results": {
+    "1":    {"val_loss": 2.32832766, "val_bpb": 1.06395488, "artifact_bytes": 15976882, "steps": 4775, "train_time_s": 596.1, "eval_time_s": 458.7},
+    "777":  {"val_loss": 2.32906016, "val_bpb": 1.06428960, "artifact_bytes": 15975842, "steps": 4777, "train_time_s": 596.1, "eval_time_s": 458.9},
+    "2025": {"val_loss": 2.32926558, "val_bpb": 1.06438348, "artifact_bytes": 15976882, "steps": 4791, "train_time_s": 596.1, "eval_time_s": 453.4}
+  },
+  "artifact_bytes_mean": 15976535,
+  "train_time_s_mean": 596.1,
+  "eval_time_s_mean": 457.0,
+  "hardware": "8xH100 80GB SXM",
+  "commit": "c3a99b3",
+  "reproducibility_notes": "Run prepare_caseops_data.py once to tokenize FineWeb via CaseOps. Then run train_gpt.py per seed with RECUR_ALPHA_ENABLED=1 NUM_LOOPS=2 as documented in README.md."
+}
