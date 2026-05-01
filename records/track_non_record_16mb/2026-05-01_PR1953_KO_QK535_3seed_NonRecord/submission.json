@@ -1,0 +1,70 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "Non-record: PR1953 K+O-only TTT + QK_GAIN_INIT=5.35",
+  "blurb": "Clean PR #1953-family follow-up. Seed 42 reached 1.05767136 val_bpb, but 3-seed mean was 1.05857803, so this is submitted as a non-record reproducibility and variance finding rather than a record claim.",
+  "description": "PR #1953-style stack with phased score-first TTT restricted to K and O LoRA adapters only, MLP LoRA disabled, EVAL_SEQ_LEN=2688, TTT_EVAL_SEQ_LEN=2688, TTT_LOCAL_LR_MULT=0.75, and QK_GAIN_INIT=5.35. All three seeds fit the 16MB artifact cap and 600s eval cap, but the 3-seed mean did not justify a record submission.",
+  "date": "2026-05-01",
+  "track": "non-record-16mb",
+  "val_loss": 2.31656272,
+  "val_loss_std": 0.00202338,
+  "val_bpb": 1.05857803,
+  "val_bpb_std": 0.00092460,
+  "pre_quant_val_bpb": 1.06176791,
+  "quantized_val_bpb": 1.06979806,
+  "seeds": [42, 314, 7],
+  "per_seed": {
+    "42": {
+      "val_bpb": 1.05767136,
+      "val_loss": 2.31457858,
+      "pre_quant_val_bpb": 1.06087844,
+      "quantized_val_bpb": 1.06891249,
+      "train_step": 4927,
+      "train_time_s": 596.120,
+      "eval_time_s": 434.877,
+      "artifact_bytes": 15978954,
+      "code_uncompressed_bytes": 159688,
+      "code_compressed_bytes": 34125
+    },
+    "314": {
+      "val_bpb": 1.05854316,
+      "val_loss": 2.31648639,
+      "pre_quant_val_bpb": 1.06164848,
+      "quantized_val_bpb": 1.06975107,
+      "train_step": 4927,
+      "train_time_s": 596.119,
+      "eval_time_s": 390.025,
+      "artifact_bytes": 15983413,
+      "code_uncompressed_bytes": 159688,
+      "code_compressed_bytes": 34125
+    },
+    "7": {
+      "val_bpb": 1.05951958,
+      "val_loss": 2.31862318,
+      "pre_quant_val_bpb": 1.06277681,
+      "quantized_val_bpb": 1.07073062,
+      "train_step": 4900,
+      "train_time_s": 596.073,
+      "eval_time_s": 391.064,
+      "artifact_bytes": 15978698,
+      "code_uncompressed_bytes": 159688,
+      "code_compressed_bytes": 34125
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "wallclock_seconds": 600,
+  "train_time_s_max": 596.120,
+  "total_eval_time_s_max": 434.877,
+  "bytes_total": 15983413,
+  "max_artifact_bytes": 15983413,
+  "artifact_headroom_bytes": 16587,
+  "code_uncompressed_bytes": 159688,
+  "key_changes": [
+    "PR #1953-family long-context score-first phased TTT stack",
+    "TTT restricted to K and O LoRA adapters",
+    "TTT_MLP_LORA=0",
+    "QK_GAIN_INIT=5.35",
+    "EVAL_SEQ_LEN=2688 and TTT_EVAL_SEQ_LEN=2688"
+  ],
+  "non_record_reason": "Seed 42 was strong, but the 3-seed mean was not record-worthy under the open clean frontier."
+}
