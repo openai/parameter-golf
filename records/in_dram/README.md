@@ -24,6 +24,8 @@ This allows me to
 
 ### Results
 
+The model has ~74.5M parameters (74,495,056) with the default configuration: 10 layers, model_dim=1024, mlp_mult=2, 8 heads / 4 KV heads, vocab_size=1024, and tied embeddings.
+
 I achieve a pre-quant bpb of 1.2268, not too far off from the baseline. This confirms that int4 quantization of attention vectors + ternary quantization of weights + int4 quantization of activations has potential.
 
 ### Future work
