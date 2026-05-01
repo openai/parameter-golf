@@ -1,6 +1,6 @@
-# Fixed-Stride H-Net + Muon | val_bpb = 1.9058
+# [Non-Record] Fixed-Stride H-Net + Muon | val_bpb = 1.9058
 
-**Track**: 10min_16mb | **Author**: @firfre | **Date**: 2026-04-30
+**Track**: non_record_16mb | **Author**: @firfre | **Date**: 2026-04-30
 
 > **Note**: This result was obtained by training for **10 minutes on a single H100 80GB**. The competition evaluates on 8×H100, which means more steps in the same wall-clock budget — the actual submission score is expected to be better than the val_bpb reported here.
 
