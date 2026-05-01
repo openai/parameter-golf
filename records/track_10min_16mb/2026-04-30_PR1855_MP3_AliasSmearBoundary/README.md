@@ -1,6 +1,6 @@
 # Record candidate: PR #1855 stack + MP3 marker-pair fusion + alias smear boundary
 
-**val_bpb: 1.06042** (1-seed measured on 8×H100, phased TTT eval) | ~16.74 MB *(see Note on size)* | 8×H100 SXM, 600 s wallclock | TTT (phased)
+**val_bpb: 1.06042** (1-seed reference on author's DGX H100 box, phased TTT eval) | ~16.74 MB on DGX *(see Note on size)* | target environment: 8×H100 SXM, 600 s wallclock | TTT (phased)
 
 3-seed verification on runpod (SEEDS=42, 0, 1234) — see `train_seed*.log` after the run.
 
@@ -48,10 +48,10 @@ is unambiguous).
 
 ## Component contributions (1-seed DGX ablations)
 
-Each row reports the swttt `val_bpb` impact of the listed change. PR #1855
-author measurements are on runpod (3-seed mean); ours are 1-seed on DGX, so
-the absolute numbers are not directly comparable across rows but the deltas
-within a row are honest.
+Each row reports the `val_bpb` impact of the listed change (PR #1855 stack
+uses phased TTT eval). PR #1855 author measurements are on runpod (3-seed
+mean); ours are 1-seed on DGX, so the absolute numbers are not directly
+comparable across rows but the deltas within a row are honest.
 
 | Component | Comparison | Δ val_bpb |
 |---|---|---|
@@ -87,8 +87,8 @@ CaseOps corpus (verified by full-corpus token-count audit). They become
 alias rows after warm-init + training; their original byte-fallback meaning
 is unused in CaseOps text.
 
-Token saving: **8.47 %** (15.02 B → 13.75 B train tokens; 9.66 M → 8.82 M val
-tokens). Bytes lossless: val sidecar sum unchanged.
+Token saving: **8.47 %** (~14.97 B → ~13.71 B train tokens; ~48 M → ~44 M val
+tokens, canonical 50 K val docs). Bytes lossless: val sidecar sum unchanged.
 
 ### Static warm-init for alias rows
 
@@ -106,14 +106,16 @@ Hparams: `MARKER_PAIR_W_SPACE=0.4`, `MARKER_PAIR_W_TITLE=0.6`,
 
 **Token saving (training-side win)**: replacing the three `[▁, MARKER]`
 2-grams with single alias donor tokens reduces the train stream by **8.47 %**
-(15.02 B → 13.75 B train tokens; val: 9.66 M → 8.82 M tokens). With the same
-600 s wallclock budget, the model effectively sees more *unique* documents
-per training step. Bytes lossless: the val sidecar byte sum is unchanged
-(BPB is computed on canonical pre-transform UTF-8 byte counts), so this is a
-free token-side compression — not a metric trick.
+(~14.97 B → ~13.71 B train tokens; ~48 M → ~44 M val tokens, canonical 50 K
+val docs). With the same 600 s wallclock budget, the model effectively sees
+more *unique* documents per training step. Bytes lossless: the val sidecar
+byte sum is unchanged (BPB is computed on canonical pre-transform UTF-8
+byte counts), so this is a free token-side compression — not a metric trick.
 
 **NLL distance breakdown (eval-side win)**: per-position NLL bucketed by
-distance from the most recent alias position (DGX measurement, int6 level):
+distance from the most recent alias position (measured on a swttt-eval
+stack at int6 level — the mechanism generalizes to phased TTT, only the
+absolute mbpb numbers may shift):
 
 | distance | MP1 (single TITLE pair) | **MP3 (3 marker pairs, this work)** |
 |---|---|---|
