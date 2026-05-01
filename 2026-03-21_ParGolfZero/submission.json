@@ -1,0 +1,22 @@
+{
+  "name": "Sanjith G",
+  "github_id": "sanjith3057",
+  "run_name": "ParGolf-Zero v2",
+  "track": "non_record_16mb",
+  "val_bpb": null,
+  "notes": "Non-record submission. 6-layer joint optimization system. Pipeline confirmed on Kaggle T4. Awaiting H100 compute grant for final scored run. Artifact confirmed at 5.52MB under 16MB limit.",
+  "approach": "Joint compression-aware training — per-row weight range penalty minimizes int8 quantization error during every gradient step. QAT activates in final 500 steps. BigramHash(10240) adds bigram lookup. SWA over last 40% of training. zstd-22 compression. TTT low-rank regularization on Q/V projections.",
+  "layers": {
+    "L1_COMPAT": "Auto-detects GPU platform, runs on T4/A100/H100/CPU",
+    "L2_TRAIN": "FP16 embed + Muon WD=0.02 + warmdown=20000 + SWA",
+    "L3_COMPRESS": "Weight range penalty + QAT final 500 steps + zstd-22",
+    "L4_EVAL": "Sliding window stride=64, 960 token context per token",
+    "L5_ADAPT": "Low-rank Q/V regularization for TTT LoRA readiness",
+    "L6_BIGRAM": "BigramHash(10240) learned bigram table on logits"
+  },
+  "artifact_size_bytes": 5524254,
+  "hardware_tested": "Kaggle T4 (smoke test, 200 steps)",
+  "hardware_target": "8xH100 SXM (pending compute grant)",
+  "val_bpb_smoke_test": 3.1899,
+  "roundtrip_val_bpb_smoke_test": 3.2311
+}
