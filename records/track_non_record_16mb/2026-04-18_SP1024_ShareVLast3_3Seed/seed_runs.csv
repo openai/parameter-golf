@@ -1,0 +1,4 @@
+experiment,seed,last_val_bpb,roundtrip_val_bpb,roundtrip_exact_val_bpb,submission_bytes,stopped_step,output_dir
+submission_seed1337,1337,1.2791,1.2808,1.28079096,15972114,3000,output/submission_sharev3_3seed/submission_seed1337_20260418_100202
+submission_seed2027,2027,1.2755,1.2772,1.27717259,15973626,3000,output/submission_sharev3_3seed/submission_seed2027_20260418_103507
+submission_seed3407,3407,1.2779,1.2795,1.27952108,15975453,3000,output/submission_sharev3_3seed/submission_seed3407_20260418_110812
