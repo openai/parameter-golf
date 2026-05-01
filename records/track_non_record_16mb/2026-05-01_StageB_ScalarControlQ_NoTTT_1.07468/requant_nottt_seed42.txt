@@ -1,0 +1,32 @@
+Requant-only helper:
+  run_id: stageb_scalar_scout_scalar_lqtop1_embed150_requant_nottt
+  artifact_dir: /workspace/pg_stageb_train/artifacts_scalar_scout_scalar_lqtop1_embed150
+  model_path: /workspace/pg_stageb_train/artifacts_scalar_scout_scalar_lqtop1_embed150/final_model.pt
+  quantized_model_path: /workspace/pg_stageb_train/artifacts_scalar_scout_scalar_lqtop1_embed150/final_model.int6.ptz
+  compressor: brotli
+  gptq_calibration_batches: 20
+  matrix_clip_sigmas: 12.65
+  embed_clip_sigmas: 15.0
+  mlp_clip_sigmas: 11.75
+  attn_clip_sigmas: 13.0
+  caseops_enabled: True
+  datasets_dir: /workspace/pg_stageb_train/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  tokenizer_path: /workspace/pg_stageb_train/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+train_shards: 80
+val_tokens: 47851520
+Serialized model: 135417533 bytes
+Code size (uncompressed): 161055 bytes
+Code size (compressed): 32000 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 3.2s
+Quantized weights:
+  gate_int8_row: blocks.attn.attn_gate_w
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, smear_gate.weight, smear_lambda
+  scalar_int8: blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
+GPTQ:quantized in 10.4s
+GPTQ:compressed+saved in 67.0s
+Serialized model quantized+brotli: 15962574 bytes
+Total submission size quantized+brotli: 15994574 bytes
+requant diagnostic quantized val_loss:2.35196111 val_bpb:1.07468466 eval_time:11096ms

@@ -1,0 +1,67 @@
+{
+  "author": "Kbediako",
+  "github_id": "Kbediako",
+  "name": "Non-record StageB scalar-control quantization without TTT",
+  "blurb": "Single-seed conservative non-record fallback: StageB CaseOps / SmearGate / SparseAttnGate / LQER artifact with scalar/control-tensor int8 storage, reporting the under-cap no-TTT full-validation score only.",
+  "date": "2026-05-01",
+  "track": "track_non_record_16mb",
+  "validation_status": "single_seed_non_record_not_sota",
+  "val_bpb": 1.07468466,
+  "val_loss": 2.35196111,
+  "seeds": [
+    42
+  ],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.07468466,
+      "val_loss": 2.35196111,
+      "train_time_s_internal": 592.136,
+      "eval_time_s_diagnostic": 11.096,
+      "artifact_production_wallclock_s": 1098.443,
+      "compressed_model_bytes": 15962574,
+      "code_bytes_estimate": 31947,
+      "artifact_bytes_counted_total": 15994521,
+      "artifact_cap_margin_bytes": 5479,
+      "prequant_post_ema_val_bpb": 1.06448128,
+      "prequant_post_ema_val_loss": 2.32963088
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 CaseOps + BOS-safe SmearGate + SparseAttnGate + LQER/GPTQ int6/int7 quantization + scalar/control-tensor int8 storage + Brotli; no TTT score claimed",
+  "run_tracking": {
+    "run_id": "stageb_scalar_scout_scalar_lqtop1_embed150_requant_nottt",
+    "parent_run_id": "runpod_8xh100_stageb_train_seed42_20260501T1302AEST",
+    "flywheel_primary_node_id": "cc0b4d0c-78c0-40e7-9b26-4083ab544461",
+    "flywheel_node_id": "1450c4a2-7893-4a09-ab33-c5b4bee7e380",
+    "flywheel_execution_id": "c1546b10-ca8e-4d18-90ad-5b6b851e8c3e",
+    "local_evidence": "runs/stageb_train_20260501T1235AEST/local_results/scalar_lqtop1_embed150",
+    "manifest": "runs/flywheel_manifest.jsonl"
+  },
+  "source_hashes": {
+    "train_gpt_py_sha256": "58f054f2194959f670ed105bbb591473bfcd41a2510cbfafd7e78ff7f78fc842",
+    "artifact_sha256": "0204d242b4e963396ed61206f55e7bc32b4095f5bfdf43a59b55cc26661a74d3",
+    "requant_nottt_log_sha256": "e31a8d022f0e28d6ae1640ea417a4fd0d0a978baaca09402d4c4d86abf0f0016",
+    "train_log_sha256": "ef9619d7fc179163838bd7f40f0ecd9c92e70bbc63b08c701130c450125f7c47"
+  },
+  "compliance": {
+    "artifact_under_16mb": true,
+    "train_under_600s_internal_timer": true,
+    "full_validation": true,
+    "no_validation_training": true,
+    "no_eval_network": true,
+    "no_casefold": true,
+    "no_byte_ppm": true,
+    "ngram_scoring_active": false,
+    "ttt_score_claimed": false,
+    "three_seeds": false,
+    "record_ready": false
+  },
+  "comparison": {
+    "accepted_pr1493_val_bpb": 1.081,
+    "current_candidate_bpb": 1.07468466,
+    "accepted_pr1787_reference_bpb_approx": 1.06335,
+    "accepted_pr1851_pr1868_reference_bpb_approx": 1.0614,
+    "accepted_pr1855_reference_bpb_approx": 1.06108
+  }
+}
