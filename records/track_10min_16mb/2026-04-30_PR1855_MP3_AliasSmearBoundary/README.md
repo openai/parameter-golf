@@ -35,17 +35,6 @@ into the following word would over-inject the same information twice. We
 treat each alias position as a smear boundary — vocab surgery condenses the
 information; the boundary keeps it from spreading.
 
-A scale sweep on the PR #1855 stack (DGX, 1-seed) confirmed all four scale
-values land within 1-seed seed noise (PR #1855 author 3-seed std ≈ 0.0009);
-`scale=0.0` is the cleanest design with no arbitrary constant:
-
-| ALIAS_PREV_SMEAR_SCALE | val_bpb (DGX 1-seed) |
-|---|---|
-| 1.0 (no dampening, identical to PR #1855 SmearGate) | 1.06043 |
-| 0.5 | 1.06059 |
-| 0.25 | 1.06048 |
-| **0.0 (this submission — alias smear boundary)** | **1.06042** |
-
 ## Code-level patch
 
 The diff against PR #1855's `train_gpt.py` is **+62 / −2 lines**, organised
