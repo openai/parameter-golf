@@ -1,0 +1,24 @@
+# Core — exact versions used on the submission pod
+torch==2.11.0
+sentencepiece>=0.2.0
+numpy>=1.24
+huggingface-hub>=0.22
+
+# SemanticEngine / ChaosControl library. Pinned to the public commit that adds
+# the batched packet-online eval path and submission-facing engine entrypoint.
+chaoscontrol @ git+https://github.com/KenMalloy/chaoscontrol.git@e7da6b53bb5be4020a5c3ab043c12c6695d12065
+
+# TransformerEngine (CUDA 13 build). Must be installed before building native extensions.
+# transformer_engine[pytorch]==2.13.0
+# Install with:
+#   pip install transformer_engine[pytorch]==2.13.0 \
+#     --extra-index-url https://pypi.nvidia.com \
+#     --only-binary=:all: \
+#     nvidia-cublas==13.4.0.1
+#
+# See chaoscontrol/scripts/pod_setup_cuda13.sh for the full idempotent install.
+
+# Native extensions — built from the chaoscontrol repo, not pip-installed.
+# After cloning to CHAOSCONTROL_ROOT, run:
+#   bash scripts/pod_build_native_extensions.sh
+# Extensions: _lm_head_loss, _cpu_ssm_controller, _ssm_scan
