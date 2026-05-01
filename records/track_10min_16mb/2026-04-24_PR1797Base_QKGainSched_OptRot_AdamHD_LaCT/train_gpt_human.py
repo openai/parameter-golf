@@ -251,6 +251,7 @@ class Hyperparameters:
     skip_gates_enabled = bool(int(os.environ.get("SKIP_GATES_ENABLED", "1")))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 3e1))
+    asym_logit_rescale = bool(int(os.environ.get("ASYM_LOGIT_RESCALE", "0")))
     rope_base = float(os.environ.get("ROPE_BASE", 1e4))
     rope_dims = int(os.environ.get("ROPE_DIMS", 16))
     rope_train_seq_len = int(os.environ.get("ROPE_TRAIN_SEQ_LEN", 2048))
@@ -1296,6 +1297,10 @@ class GPT(nn.Module):
         self.tie_embeddings = h.tie_embeddings
         self.tied_embed_init_std = h.tied_embed_init_std
         self.logit_softcap = h.logit_softcap
+        self.asym_logit_enabled = h.asym_logit_rescale
+        if self.asym_logit_enabled:
+            self.softcap_pos = nn.Parameter(torch.tensor(h.logit_softcap))
+            self.softcap_neg = nn.Parameter(torch.tensor(h.logit_softcap))
         self.fused_ce_enabled = bool(h.fused_ce_enabled)
         self.tok_emb = nn.Embedding(h.vocab_size, h.model_dim)
         self.num_layers = h.num_layers
@@ -1555,9 +1560,20 @@ class GPT(nn.Module):
             return F.linear(hidden, self.tok_emb.weight)
         return self.lm_head(hidden)
 
+    def _apply_asym_softcap(self, logits):
+        """Asymmetric softcap: independent pos/neg learned scalars (PR #1923).
+        Init: softcap_pos == softcap_neg == logit_softcap → identical to scalar at step 0."""
+        sp = self.softcap_pos.to(logits.dtype)
+        sn = self.softcap_neg.to(logits.dtype)
+        return torch.where(logits >= 0,
+                           sp * torch.tanh(logits / sp),
+                           sn * torch.tanh(logits / sn))
+
     def forward_logits(self, input_ids, cu_seqlens=None, max_seqlen=0):
         hidden = self._forward_hidden(input_ids, cu_seqlens=cu_seqlens, max_seqlen=max_seqlen)
         logits_proj = self._project_logits(hidden)
+        if self.asym_logit_enabled:
+            return self._apply_asym_softcap(logits_proj)
         return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
 
     def forward(self, input_ids, target_ids, cu_seqlens=None, max_seqlen=0):
@@ -1659,7 +1675,10 @@ class GPT(nn.Module):
         else:
             logits = self.lm_head(x)
         logits = logits + lora.lm_head_lora(x)
-        logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        if self.asym_logit_enabled:
+            logits = self._apply_asym_softcap(logits)
+        else:
+            logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
         bsz, sl, V = logits.shape
         if hint_ids is None:
             return F.cross_entropy(
