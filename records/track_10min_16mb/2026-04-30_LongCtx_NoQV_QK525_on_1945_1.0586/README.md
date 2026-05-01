@@ -51,6 +51,12 @@ Each lever was already publicly measured on a closely related base. None alone c
 
 **AWQ-lite mixed precision via PR #1945 / PR #1908**: during GPTQ calibration, collect activation RMS per layer, select the most-salient 64-column group, keep that group at int8 inside the GPTQ solve. Inherited from PR #1945.
 
+## Data source
+
+This submission uses the canonical CaseOps SP8192 export hosted on Hugging Face (`romeerp/parameter-golf-caseops-v1`), accessed via `huggingface_hub.snapshot_download`. The HF manifest reports `num_val_docs: 50000`, `docs_val: 50000`, `files_train: 80`, `tokens_train: 8000000058`, with disjoint train/val partitions per the canonical first-50k-docs validation split.
+
+No local rebuild via `prepare_caseops_data.py` was used in the production runs; `prepare_caseops_data.py` is not part of this PR's file set, and no `--val-docs` invocation appears in the submitted setup. The submitted logs (`train_seed42.log`, `train_seed0.log`, `train_seed1234.log`) all use `DATA_PATH=/workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved`, which points at the HF snapshot extraction location. All three seeds report `val_tokens: 47851520`, consistent with the canonical 50k validation split.
+
 ## Compliance (Issue #1017)
 
 - [x] **C1 strict causal dependence**: standard sliding-window scoring with cu_seqlens packed-doc handling. PR #1855 BOS-fixed SmearGate inherited.
