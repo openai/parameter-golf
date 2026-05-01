@@ -2,7 +2,7 @@
 
 This submission consolidates our strongest v13 lane: the SP8192 CaseOps transformer stack with SmearGate BOS masking, per-group `lrzip` compression, and a causal sidecar-aware byte PPM evaluator.
 
-The final score comes from a narrow evaluator retune over the already-validated v13/SP8192 artifacts:
+The final score is backed by three fresh end-to-end v13 reruns with the submitted defaults:
 
 ```text
 PPM_ORDER=5
@@ -18,23 +18,23 @@ Thanks to Claude for the late-stage experiment design help and to Codex for impl
 
 | Seed | Final `ppm_sliding val_bpb` | Artifact bytes | Training stop | Eval time |
 |---:|---:|---:|---:|---:|
-| 42 | `0.94151072` | `15,942,636` | `4802` steps / `599.546s` | `510.410s` |
-| 314 | `0.94180705` | `15,946,930` | `4803` steps / `599.583s` | `500.300s` |
-| 999 | `0.94192810` | `15,937,542` | `4767` steps / `599.657s` | `497.643s` |
+| 42 | `0.94182660` | `15,987,305` | `4773` steps / `599.686s` | `507.652s` |
+| 314 | `0.94146034` | `15,983,753` | `4770` steps / `599.628s` | `516.897s` |
+| 999 | `0.94197117` | `15,988,348` | `4772` steps / `599.644s` | `519.029s` |
 
 Three-seed mean:
 
 ```text
-0.94174862
+0.94175270
 ```
 
 Sample standard deviation:
 
 ```text
-0.00021474
+0.00026331
 ```
 
-All three artifacts remain under the strict decimal `16,000,000` byte cap. Using the checked-in `train_gpt.py` with no local minifier available, the largest measured artifact plus compressed code wrapper is `15,995,881` bytes.
+All three fresh artifacts remain under the strict decimal `16,000,000` byte cap. The largest fresh measured artifact plus compressed code wrapper is `15,988,348` bytes.
 
 ## What changed
 
@@ -63,11 +63,7 @@ The checked-in script sets the final PPM gate as defaults, so a fresh run follow
 
 ## Evidence notes
 
-The included `train_seed*.log` files are the full source training logs for the three artifacts. The final PPM gate was tuned after those artifacts were produced, so the exact final score lines are in the paired `eval_seed*_v13_ppm.log` files. This is an evaluation-only retune: it does not change trained weights, artifact bytes, tokenizer, or training data.
-
-A fresh end-to-end v13 rerun with these defaults was started on the 8xH100 box while this PR was prepared; these logs can replace the paired evidence as soon as they finish.
-
-Update: fresh seed-42 and seed-314 reruns finished cleanly as `fresh_seed42_v13_submit.log` and `fresh_seed314_v13_submit.log`:
+The included `fresh_seed*_v13_submit.log` files are full fresh end-to-end runs with the submitted PPM defaults in `train_gpt.py`. The older `train_seed*.log` and paired `eval_seed*_v13_ppm.log` files are retained as lineage/eval-retune evidence, but the headline score below uses the cleaner fresh rerun set.
 
 ```text
 seed 42:
@@ -83,9 +79,16 @@ Total submission size quantized+pergroup: 15983753 bytes
 diagnostic quantized val_loss:2.35632034 val_bpb:1.07667653 eval_time:9243ms
 ppm_mixer val_bpb:0.94146034 eval_time:471320ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
 ppm_sliding val_loss:2.36627199 val_bpb:0.94146034 eval_time:516897ms
+
+seed 999:
+stopping_early: wallclock_cap train_time: 599644ms step: 4772/20000
+Total submission size quantized+pergroup: 15988348 bytes
+diagnostic quantized val_loss:2.35838976 val_bpb:1.07762211 eval_time:8788ms
+ppm_mixer val_bpb:0.94197117 eval_time:473888ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
+ppm_sliding val_loss:2.36682950 val_bpb:0.94197117 eval_time:519029ms
 ```
 
-Fresh seed 42 is slightly worse than the original seed-42 eval-only evidence; fresh seed 314 is better than the original seed-314 eval-only evidence. The headline 3-seed mean is left unchanged until the queued fresh seed-999 run finishes.
+The earlier eval-only three-seed mean was `0.94174862`; the fresh end-to-end mean is `0.94175270`. The difference is only `0.00000408` bpb, and the fresh set is the cleaner evidence for review.
 
 ## Exact final lines
 
@@ -94,6 +97,8 @@ Seed 42:
 ```text
 ppm_mixer val_bpb:0.94151072 eval_time:464892ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
 ppm_sliding val_loss:2.36642906 val_bpb:0.94151072 eval_time:510410ms
+fresh ppm_mixer val_bpb:0.94182660 eval_time:462353ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
+fresh ppm_sliding val_loss:2.36677335 val_bpb:0.94182660 eval_time:507652ms
 ```
 
 Seed 314:
@@ -101,6 +106,8 @@ Seed 314:
 ```text
 ppm_mixer val_bpb:0.94180705 eval_time:454770ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
 ppm_sliding val_loss:2.36687117 val_bpb:0.94180705 eval_time:500300ms
+fresh ppm_mixer val_bpb:0.94146034 eval_time:471320ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
+fresh ppm_sliding val_loss:2.36627199 val_bpb:0.94146034 eval_time:516897ms
 ```
 
 Seed 999:
@@ -108,6 +115,8 @@ Seed 999:
 ```text
 ppm_mixer val_bpb:0.94192810 eval_time:452193ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
 ppm_sliding val_loss:2.36740764 val_bpb:0.94192810 eval_time:497643ms
+fresh ppm_mixer val_bpb:0.94197117 eval_time:473888ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
+fresh ppm_sliding val_loss:2.36682950 val_bpb:0.94197117 eval_time:519029ms
 ```
 
 ## Included files
@@ -117,6 +126,7 @@ ppm_sliding val_loss:2.36740764 val_bpb:0.94192810 eval_time:497643ms
 - `eval_seed42_v13_ppm.log`, `eval_seed314_v13_ppm.log`, `eval_seed999_v13_ppm.log` - exact v13 PPM score logs
 - `fresh_seed42_v13_submit.log` - fresh end-to-end v13 seed-42 rerun with the submitted defaults
 - `fresh_seed314_v13_submit.log` - fresh end-to-end v13 seed-314 rerun with the submitted defaults
+- `fresh_seed999_v13_submit.log` - fresh end-to-end v13 seed-999 rerun with the submitted defaults
 - `submission.json` - leaderboard metadata
 - `LEGALITY_AUDIT.md` - compliance audit
 - `REFERENCES.md` - public PR and component lineage notes
