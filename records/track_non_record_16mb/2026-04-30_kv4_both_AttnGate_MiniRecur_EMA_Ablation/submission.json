@@ -1,0 +1,142 @@
+{
+  "author": "Sai Bharadwaj Reddy ",
+  "github_id": "bharadwaj1098",
+  "linkedin": "https://www.linkedin.com/in/bharadwaj1098/",
+  "submission": {
+    "track": "non_record_16mb",
+    "name": "kv4_both_AttnGate_MiniRecur_EMA_Ablation",
+    "date": "2026-04-30",
+    "description": "kv4_both attention stack (parallel residuals + mini depth recurrence + AttnOutGate + QK gain) + int8 embeddings + sliding-window eval + EMA on 10L MLP3x SP8192. Non-record submission with full attention-component ablation data and an engineering finding on bf16 EMA truncation."
+  },
+  "headline": {
+    "val_bpb_mean_3seed": 1.16132695,
+    "val_bpb_std_3seed": 0.00244,
+    "val_bpb_min": 1.15900273,
+    "val_bpb_max": 1.16389022,
+    "artifact_bytes_mean": 14867887,
+    "artifact_mb_mean": 14.868
+  },
+  "seeds": [
+    {
+      "seed": 42,
+      "val_bpb_post_quant": 1.16389022,
+      "val_loss_post_quant": 3.00643665,
+      "artifact_bytes": 14877992,
+      "artifact_mb": 14.878,
+      "training_steps": 7418,
+      "training_time_ms": 600036,
+      "eval_time_ms": 68083,
+      "log_file": "train_seed42.log"
+    },
+    {
+      "seed": 1337,
+      "val_bpb_post_quant": 1.15900273,
+      "val_loss_post_quant": 2.99381183,
+      "artifact_bytes": 14867414,
+      "artifact_mb": 14.867,
+      "training_steps": 7419,
+      "training_time_ms": 600055,
+      "eval_time_ms": 68066,
+      "log_file": "train_seed1337.log"
+    },
+    {
+      "seed": 2024,
+      "val_bpb_post_quant": 1.16108789,
+      "val_loss_post_quant": 2.99919799,
+      "artifact_bytes": 14858254,
+      "artifact_mb": 14.858,
+      "training_steps": 7415,
+      "training_time_ms": 600037,
+      "eval_time_ms": 68003,
+      "log_file": "train_seed2024.log"
+    }
+  ],
+  "hardware": {
+    "gpu": "8xH100 SXM",
+    "training_wallclock_cap_seconds": 600,
+    "eval_wallclock_cap_seconds": 600,
+    "all_seeds_within_cap": true
+  },
+  "reference_comparisons": {
+    "readme_baseline_bpb": 1.2244,
+    "improvement_over_readme": -0.06307,
+    "same_stack_no_ema_3seed_mean": 1.16961,
+    "ema_contribution_on_mean": -0.00828
+  },
+  "architecture": {
+    "num_layers": 10,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "vocab_size": 8192,
+    "train_seq_len": 2048,
+    "tie_embeddings": true,
+    "logit_softcap": 30.0,
+    "rope_base": 10000.0,
+    "qk_gain_init": 1.5,
+    "parallel_start_layer": 5,
+    "recur_layers": [4, 5],
+    "recur_extra_count": 1,
+    "use_new_attention": true,
+    "use_k_gain": true,
+    "use_head_gate": true
+  },
+  "training": {
+    "train_batch_tokens": 524288,
+    "val_batch_tokens": 524288,
+    "warmup_steps": 20,
+    "warmdown_iters": 400,
+    "matrix_lr": 0.05,
+    "embed_lr": 0.8,
+    "scalar_lr": 0.04,
+    "muon_momentum": 0.95,
+    "muon_wd": 0.025,
+    "beta1": 0.9,
+    "beta2": 0.95,
+    "grad_clip_norm": 0.0,
+    "ema_decay": 0.9965,
+    "ema_state_dtype": "float32"
+  },
+  "eval": {
+    "eval_stride": 64,
+    "sliding_window": true,
+    "final_eval_tokens": "full fineweb_val split"
+  },
+  "quantization": {
+    "algorithm": "per-row percentile clip + round-to-nearest (baseline)",
+    "clip_percentile": 99.99984,
+    "mlp_bits": 5,
+    "attn_bits": 6,
+    "embedding_bits": 8,
+    "passthrough_max_numel": 65536,
+    "compression": "zstd-22"
+  },
+  "novelty": {
+    "claim": "None of the individual techniques are novel; every component is from merged or open PRs in openai/parameter-golf.",
+    "contributions": [
+      "Systematic 9-config attention-gate ablation isolating head_gate (~-0.003 BPB) vs k_gain (flat).",
+      "Engineering finding: bf16 EMA state silently truncates small-magnitude weights over thousands of mul_(0.9965) steps. Fix: fp32 EMA state.",
+      "Empirical 1-GPU to 8xH100 calibration data for this configuration family.",
+      "43-run training history documenting what worked, what was flat, and what regressed."
+    ]
+  },
+  "attributions": [
+    {"pr": 1394, "author": "clarkkev", "contribution": "SP8192 tokenizer + recipe base"},
+    {"pr": 1204, "author": "msisovic", "contribution": "Parallel residuals + mini depth recurrence (layers 4,5 sweet spot)"},
+    {"pr": 1412, "author": "Robby955", "contribution": "Parallel residuals on SP8192"},
+    {"pr": 1445, "author": "X-Abhishek-X", "contribution": "EMA 0.9965 + WD tuning"},
+    {"pr": 1667, "author": null, "contribution": "AttnOutGate (per-head attention output gate)"},
+    {"pr": 1770, "author": null, "contribution": "QK-Gain 5.25"},
+    {"pr": "04-09 merged record", "author": null, "contribution": "Overall recipe shape"}
+  ],
+  "included_files": [
+    "README.md",
+    "train_gpt.py",
+    "submission.json",
+    "train_seed42.log",
+    "train_seed1337.log",
+    "train_seed2024.log",
+    "experiment_history.tsv"
+  ]
+}
