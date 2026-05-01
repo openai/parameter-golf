@@ -1,6 +1,6 @@
 # Record: TTT Peer-LoRA Ensemble
 
-**val_bpb = TBD** (1 seed) | **~15.99 MB** | 8xH100 SXM | PyTorch 2.10.0+cu130
+**val_bpb = 1.05749** (1 seed) | **~15.99 MB** | 8xH100 SXM | PyTorch 2.10.0+cu130
 
 This record introduces peer-LoRA ensembling into the test-time training (TTT) evaluation loop. After each batch's per-doc LoRAs are fully trained, we run k-1 additional forwards using *other* docs' trained LoRAs from the same batch. This is leakage-free: LoRA_p was trained only on doc_p's tokens, so applying it to doc_q reveals no target information. On uncertain tokens (high predictive entropy), we blend own and peer predictions in probability space; confident tokens use only their own prediction. The routing decision is target-free -- it depends only on the model's output distribution, not on validation labels.
 
@@ -10,11 +10,11 @@ Built on [PR #2014](https://github.com/openai/parameter-golf/pull/2014), descend
 
 | Seed | Pre-Quant BPB | Post-Quant BPB | **Post-TTT BPB** | Artifact |
 |------|--------------:|---------------:|-----------------:|---------:|
-| 314  | -   | -  | - | - |
+| 42   | 1.05899 | 1.06755 | **1.05749** | 15,986,824 |
 
 Baseline PR #2014 3-seed mean: val_bpb 1.05855 (as reported by @simonbissonnette).
 
-Delta: TBD
+Delta: -0.00106 vs PR #2014 baseline (1.05855)
 
 ## Key Changes vs PR #2014
 
@@ -45,7 +45,7 @@ Higher LR lets the per-doc LoRAs fit more aggressively; lower weight decay gives
 
 | Env var | Default | Description |
 |---|---:|---|
-| `TTT_PEER_ENSEMBLE_K` | 3 | Peers per batch incl. self (set 1 to disable) |
+| `TTT_PEER_ENSEMBLE_K` | 4 | Peers per batch incl. self (set 1 to disable) |
 | `TTT_PEER_CONF_THRESHOLD` | 0.5 | Predictive entropy threshold for routing |
 | `TTT_PEER_CONF_BLEND_W` | 0.8 | Weight on own prediction in blend |
 
@@ -64,7 +64,7 @@ sudo apt-get install -y lrzip
 python3 data/cached_challenge_fineweb.py --variant sp8192_lossless_caps_caseops_v1_reserved
 
 # Run
-SEED=314 torchrun --standalone --nproc_per_node=8 train_gpt.py
+SEED=42 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 All hyperparameters (CASEOPS_ENABLED=1, VOCAB_SIZE=8192, ensemble settings, etc.) are baked into `train_gpt.py`.
