@@ -243,9 +243,9 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 | Seed | val_bpb (phased TTT) | val_loss | size (bytes) | step_avg (ms) | steps |
 |---|---|---|---|---|---|
 | 42   | **1.05889359** | 2.52537040 | 15,899,656 | 120.08 | 4993 |
-| 0    | not run (deadline) | — | — | — | — |
-| 1234 | not run (deadline) | — | — | — | — |
+| 0    | TBD (running, post-deadline) | — | — | — | — |
+| 1234 | TBD (running, post-deadline) | — | — | — | — |
 
-Single-seed result on the canonical runpod environment. Eval time 691.3s (compile warmup 102.8s + 3-phase TTT 588.5s).
+Seed 42 result on the canonical runpod environment. Eval time 691.3s (compile warmup 102.8s + 3-phase TTT 588.5s). Seeds 0 and 1234 are running sequentially after the deadline and will be appended to this PR as they complete.
 
 Note: phased TTT eval initially OOMed at the phase 1→2 boundary on runpod (ran fine through training, GPTQ, post-quant eval, and phase 1; crashed in `dist.all_reduce` during phase 2 setup). Re-ran the eval pass (`TTT_EVAL_ONLY=1`) with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` to avoid memory fragmentation across phase boundaries — completed cleanly. The merged log shows training + the successful eval re-run.
