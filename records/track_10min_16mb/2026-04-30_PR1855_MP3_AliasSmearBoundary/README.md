@@ -85,14 +85,7 @@ in rough order of contribution (most are inherited from PR #1855).
 |---|-----------|---------|--------|
 | 1 | **MP3 marker-pair fusion** | 3 alias donor tokens for `[▁,TITLE]` / `[▁,ALLCAPS]` / `[▁,CAPNEXT]`; warm-init `0.4·E[▁]+0.6·E[marker]`, norm-matched | **this work** |
 | 2 | **Alias smear boundary (`ALIAS_PREV_SMEAR_SCALE=0.0`)** | SmearGate's previous-position contribution disabled at the position immediately following an alias token; regular positions unchanged | **this work** |
-| 3 | **Phased TTT eval** | 3 cumulative phases at doc-boundaries 833/1666/2500 (max prefix 2500 docs); LoRA rank=80, per-doc reset; covers Q/K/V/O/MLP + lm_head | [#1855](https://github.com/openai/parameter-golf/pull/1855) |
-| 4 | **LQER asymmetric int4** | rank=4 quant-error correction on top-3 (largest Frobenius residual) tensors, asym_group=64 | [#1797](https://github.com/openai/parameter-golf/pull/1797) |
-| 5 | **Sparse attention head-output gate** | `gate_window=12`, `SPARSE_ATTN_GATE_SCALE=0.5`, per-row int8 quant on the gate (`GATED_ATTN_QUANT_GATE=1`) | [#1787](https://github.com/openai/parameter-golf/pull/1787) |
-| 6 | **SmearGate (BOS-fixed, base behaviour)** | `gate_window=12` position-mixing with `not_bos` mask | [#1667](https://github.com/openai/parameter-golf/pull/1667) + PR #1855 BOS fix |
-| 7 | **Polar-Express MuonEqR** | Muon + row L2 normalization (EQ-R) + 5-step Polar-Express minimax tuples | [#1344](https://github.com/openai/parameter-golf/pull/1344) + [#1787](https://github.com/openai/parameter-golf/pull/1787) |
-| 8 | **Fused softcapped CE Triton kernel** | single-pass training-only fused cross-entropy with logit softcap | [#1787](https://github.com/openai/parameter-golf/pull/1787) |
-| 9 | **GPTQ int6 + int7 embed + per-row int8 attn-gate + per-group lrzip+brotli** | GPTQ Hessian (calib batches=16); per-group similarity-sort lrzip + brotli compression on the int6 GPTQ blob | [#535](https://github.com/openai/parameter-golf/pull/535), [#1586](https://github.com/openai/parameter-golf/pull/1586), [#1736](https://github.com/openai/parameter-golf/pull/1736), [#1855](https://github.com/openai/parameter-golf/pull/1855) |
-| 10 | **CaseOps tokenizer** | sp8192 lossless caps + 4 reserved markers (TITLE / ALLCAPS / CAPNEXT / ESC); donors 8/9/10 are byte-fallback IDs with 0 occurrences | [#1729](https://github.com/openai/parameter-golf/pull/1729) |
+| 3 | **PR #1855 stack** | full architecture + optimizer + quantization + compression + phased TTT eval inherited unchanged: 11L XSA + LQER asym int4 + SparseAttnGate + BOS-fixed SmearGate + Polar-Express MuonEqR + fused softcapped CE Triton kernel + GPTQ int6 + int7 embed + per-row int8 attn-gate + per-group lrzip+brotli + 9-hparam stack + CaseOps tokenizer | [#1855](https://github.com/openai/parameter-golf/pull/1855) |
 
 ## MP3 marker-pair fusion (vocabulary surgery)
 

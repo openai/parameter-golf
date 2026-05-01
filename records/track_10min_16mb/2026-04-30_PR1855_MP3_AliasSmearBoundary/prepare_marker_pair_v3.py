@@ -112,35 +112,46 @@ def _write_shard_with_header(path: str, toks: np.ndarray):
         fh.write(toks.tobytes())
 
 
-def process_shards(src_pattern: str, dst_dir: str, with_bytes: bool, label: str):
+def _process_one_shard(args):
+    """Per-shard worker: read input + bytes sidecar (if val), apply fuse, write output."""
+    src, dst_dir, with_bytes = args
+    name = os.path.basename(src)
+    dst = os.path.join(dst_dir, name)
+    _hdr, toks = _read_shard_with_header(src)
+    bytes_arr = None
+    if with_bytes:
+        bp = src.replace("fineweb_val_", "fineweb_val_bytes_")
+        if os.path.exists(bp):
+            _hdr_b, bytes_arr = _read_shard_with_header(bp)
+            if len(bytes_arr) != len(toks):
+                raise RuntimeError(f"length mismatch: {bp} ({len(bytes_arr)}) vs {src} ({len(toks)})")
+    new_toks, new_bytes = fuse_stream(toks, bytes_arr)
+    _write_shard_with_header(dst, new_toks)
+    if with_bytes and new_bytes is not None:
+        _write_shard_with_header(dst.replace("fineweb_val_", "fineweb_val_bytes_"), new_bytes)
+    return name, len(toks), len(new_toks)
+
+
+def process_shards(src_pattern: str, dst_dir: str, with_bytes: bool, label: str, workers: int):
+    """Per-shard parallelism — each shard is fully independent (read, transform, write).
+    Default workers = os.cpu_count() to saturate all cores."""
+    import multiprocessing as mp
     os.makedirs(dst_dir, exist_ok=True)
     src_files = sorted(glob.glob(src_pattern))
     if not src_files:
         print(f"  [{label}] no shards matched {src_pattern}")
         return 0, 0
-    print(f"  [{label}] {len(src_files)} shards")
+    n = len(src_files)
+    print(f"  [{label}] {n} shards, workers={workers}")
     total_in, total_out = 0, 0
-    for src in src_files:
-        name = os.path.basename(src)
-        dst = os.path.join(dst_dir, name)
-        _hdr, toks = _read_shard_with_header(src)
-        bytes_arr = None
-        if with_bytes:
-            bp = src.replace("fineweb_val_", "fineweb_val_bytes_")
-            if os.path.exists(bp):
-                _hdr_b, bytes_arr = _read_shard_with_header(bp)
-                if len(bytes_arr) != len(toks):
-                    raise RuntimeError(f"length mismatch: {bp} ({len(bytes_arr)}) vs {src} ({len(toks)})")
-            else:
-                print(f"    WARN: bytes sidecar missing for {name}")
-        new_toks, new_bytes = fuse_stream(toks, bytes_arr)
-        _write_shard_with_header(dst, new_toks)
-        if with_bytes and new_bytes is not None:
-            _write_shard_with_header(dst.replace("fineweb_val_", "fineweb_val_bytes_"), new_bytes)
-        saved = len(toks) - len(new_toks)
-        total_in += len(toks)
-        total_out += len(new_toks)
-        print(f"    {name}: {len(toks):>11,} -> {len(new_toks):>11,}  (-{saved:,}, {saved / len(toks) * 100:.2f}%)")
+    args_iter = [(src, dst_dir, with_bytes) for src in src_files]
+    with mp.Pool(processes=min(workers, n)) as pool:
+        for name, n_in, n_out in pool.imap_unordered(_process_one_shard, args_iter, chunksize=1):
+            saved = n_in - n_out
+            total_in += n_in
+            total_out += n_out
+            # print sparsely to keep log readable
+    print(f"  [{label}] all {n} shards done: {total_in:,} -> {total_out:,} ({(total_in - total_out)/max(total_in,1)*100:.2f}% saved)")
     return total_in, total_out
 
 
@@ -173,13 +184,15 @@ def main():
 
     os.makedirs(dst_root, exist_ok=True)
 
-    print("\n[train shards]")
-    tr_in, tr_out = process_shards(f"{src_root}/fineweb_train_*.bin", dst_root, False, "train")
+    workers = int(os.environ.get("WORKERS", os.cpu_count() or 8))
+
+    print(f"\n[train shards] workers={workers}")
+    tr_in, tr_out = process_shards(f"{src_root}/fineweb_train_*.bin", dst_root, False, "train", workers)
     if tr_in:
         print(f"  train total: {tr_in:,} -> {tr_out:,}  ({(tr_in - tr_out) / tr_in * 100:.2f}% saved)")
 
-    print("\n[val shards + bytes sidecar]")
-    val_in, val_out = process_shards(f"{src_root}/fineweb_val_[0-9]*.bin", dst_root, True, "val")
+    print(f"\n[val shards + bytes sidecar] workers={workers}")
+    val_in, val_out = process_shards(f"{src_root}/fineweb_val_[0-9]*.bin", dst_root, True, "val", workers)
     if val_in:
         print(f"  val total: {val_in:,} -> {val_out:,}  ({(val_in - val_out) / val_in * 100:.2f}% saved)")
 

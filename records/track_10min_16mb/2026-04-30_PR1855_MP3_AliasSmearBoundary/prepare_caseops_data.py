@@ -112,18 +112,26 @@ def _write_shard(out_path: pathlib.Path, arr: np.ndarray) -> None:
         fh.write(arr.tobytes())
 
 
-def _iter_docs(docs_path: pathlib.Path):
+def _iter_docs(docs_path: pathlib.Path, skip: int = 0, limit=None):
     with docs_path.open("r", encoding="utf-8") as fh:
+        seen = 0
+        emitted = 0
         for line in fh:
             line = line.strip()
             if not line:
                 continue
+            if seen < skip:
+                seen += 1
+                continue
+            if limit is not None and emitted >= limit:
+                break
             obj = json.loads(line)
             yield obj["text"] if isinstance(obj, dict) else obj
+            emitted += 1
 
 
-def _enumerated_docs(docs_path: pathlib.Path):
-    for idx, text in enumerate(_iter_docs(docs_path)):
+def _enumerated_docs(docs_path: pathlib.Path, skip: int = 0, limit=None):
+    for idx, text in enumerate(_iter_docs(docs_path, skip=skip, limit=limit)):
         yield idx, text
 
 
@@ -135,6 +143,9 @@ def main() -> None:
     ap.add_argument("--val-docs", type=int, default=10_000, help="Validation docs count (default: 10000)")
     ap.add_argument("--workers", type=int, default=os.cpu_count(), help="Worker processes (default: os.cpu_count())")
     ap.add_argument("--chunksize", type=int, default=64, help="imap chunksize (default: 64)")
+    ap.add_argument("--skip-docs", type=int, default=0, help="Skip first N docs (for parallel slicing)")
+    ap.add_argument("--max-docs", type=int, default=None, help="Process only this many docs after --skip-docs")
+    ap.add_argument("--out-suffix", type=str, default="", help="Suffix appended to output dir name (for parallel splits)")
     args = ap.parse_args()
 
     # Verify SP model loads in main process (catch errors early).
@@ -147,7 +158,8 @@ def main() -> None:
         flush=True,
     )
 
-    train_out = args.out / "datasets" / "fineweb10B_sp8192_lossless_caps_caseops_v1_reserved"
+    out_name = "fineweb10B_sp8192_lossless_caps_caseops_v1_reserved" + args.out_suffix
+    train_out = args.out / "datasets" / out_name
     train_out.mkdir(parents=True, exist_ok=True)
 
     val_buf_tokens: list[int] = []
@@ -167,7 +179,7 @@ def main() -> None:
     ) as pool:
         for idx, token_ids, byte_counts in pool.imap(
             _process_doc,
-            _enumerated_docs(args.docs),
+            _enumerated_docs(args.docs, skip=args.skip_docs, limit=args.max_docs),
             chunksize=args.chunksize,
         ):
             if byte_counts is not None:
