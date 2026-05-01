@@ -1,0 +1,9 @@
+{
+  "name": "Adaptive Focal Loss + Residual Vector Quantization + Progressive Depth Warmup",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Three novel techniques on PR #549 stack: (1) Adaptive Focal Cross-Entropy dynamically upweights hard-to-predict tokens using model confidence, focusing limited training budget on informative tokens. (2) Residual Vector Quantization (int6 base + int4 residual) provides ~10-bit effective precision, exploiting 9MB artifact headroom from zstd-22. (3) Progressive Depth Warmup trains layers bottom-up in 3 stages, giving deep layers cleaner gradients. Plus poly5 softcap, Z-loss, YaRN, stride-16. Awaiting 8xH100 verification.",
+  "author": "Monisha Kollipara",
+  "github_id": "monisha-max",
+  "date": "2026-04-04"
+}
