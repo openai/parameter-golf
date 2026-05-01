@@ -1,0 +1,88 @@
+{
+  "author": "Benjamin Hadad",
+  "github_id": "codemath3000",
+  "name": "SP8192 CaseOps + Progressive 3k Context + Short-Doc Score-First TTT + GATE_WINDOW=8 + GPTQ_CALIBRATION_BATCHES=32",
+  "blurb": "Single-knob (resp. two-knob) refinement on top of PR #2014: GATE_WINDOW=8 + GPTQ_CALIBRATION_BATCHES=32. Every other hyperparameter, env var, and code path is byte-for-byte the PR #2014 reproduction command. Full validation target coverage preserved (val_tokens == target_tokens == 47853343).",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "val_loss_std": null,
+  "val_bpb_std": null,
+  "seeds": [
+    42,
+    314,
+    0
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": null,
+      "val_bpb": null,
+      "artifact_bytes": null,
+      "step_avg_ms": null,
+      "train_wallclock_ms": null,
+      "eval_time_s": null,
+      "val_tokens": 47853343,
+      "target_tokens": 47853343,
+      "pre_quant_val_bpb": null,
+      "quantized_val_bpb": null
+    },
+    "314": {
+      "val_loss": null,
+      "val_bpb": null,
+      "artifact_bytes": null,
+      "step_avg_ms": null,
+      "train_wallclock_ms": null,
+      "eval_time_s": null,
+      "val_tokens": 47853343,
+      "target_tokens": 47853343,
+      "pre_quant_val_bpb": null,
+      "quantized_val_bpb": null
+    },
+    "0": {
+      "val_loss": null,
+      "val_bpb": null,
+      "artifact_bytes": null,
+      "step_avg_ms": null,
+      "train_wallclock_ms": null,
+      "eval_time_s": null,
+      "val_tokens": 47853343,
+      "target_tokens": 47853343,
+      "pre_quant_val_bpb": null,
+      "quantized_val_bpb": null
+    }
+  },
+  "comparison_baseline": "PR #2014",
+  "comparison_baseline_bpb": 1.05759252,
+  "delta_vs_baseline_bpb": null,
+  "merged_leaderboard_baseline": "PR #1855",
+  "merged_leaderboard_baseline_bpb": 1.06107587,
+  "delta_vs_leaderboard_bpb": null,
+  "artifact_bytes_max": null,
+  "train_wallclock_ms_max": null,
+  "step_avg_ms_mean": null,
+  "eval_time_s_mean": null,
+  "eval_time_s_max": null,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "lever_changes": [
+    {
+      "name": "GATE_WINDOW",
+      "from": 12,
+      "to": 8
+    },
+    {
+      "name": "GPTQ_CALIBRATION_BATCHES",
+      "from": 16,
+      "to": 32
+    }
+  ],
+  "compliance": {
+    "artifact_under_16mb": null,
+    "train_under_600s": null,
+    "eval_under_600s": null,
+    "n_seeds": 3,
+    "full_validation_targets": true,
+    "val_tokens_equal_target_tokens": true
+  }
+}
