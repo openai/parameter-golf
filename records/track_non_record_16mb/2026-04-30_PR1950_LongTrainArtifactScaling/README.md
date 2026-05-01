@@ -13,21 +13,23 @@
 | Training steps | 16,001 | 30,688 | 49,765 |
 | Training val_bpb | 1.0615 | — | 1.0599* |
 | Quantized BPB (pre-TTT) | — | 1.0449 | **1.04273** |
-| Post-TTT BPB | 1.03988 | — | **1.03471** |
-| TTT gain | — | — | 0.00802 |
+| Post-TTT BPB | 1.03988 | — | **1.03387** |
+| TTT gain | — | — | 0.00886 |
 | Artifact bytes | 15,944,203 | 15,932,638 | 15,926,271 |
 
 *training_val_bpb at step ~48000 (last logged, non-EMA, earlier step; not a like-for-like GPTQ comparator); †3-seed mean from record submission
 
 **Conclusions:**
-1. Post-TTT BPB improves with training duration (1.060 at 10 min → 1.035 at 6h; note: 10-min is 3-seed mean, 6h is seed-42 only)
+1. Post-TTT BPB improves with training duration (1.060 at 10 min → 1.034 at 6h; note: 10-min is 3-seed mean, 6h is seed-42 only)
 2. Artifact size is effectively constant (within ~27 KB, 0.17%) — compression is at entropy floor
-3. The PR #1979 control TTT parameters (rank 96, alpha 144, lr 1e-4) were best
-   among tested variants — no improvement found from higher rank, LR, or batch size
-4. At rank 128/alpha 192, raising LR from 1e-4 to 3e-4 worsened BPB by ~0.052
-5. Batch-128 variants failed (likely memory-related; peak was 47.8 GB at batch 64)
-6. Matched 240min, 300min, and 360min checkpoint controls all show GPTQ tax; at 6h
-   the tax is +0.00932885 BPB and TTT recovers ~86% of it, ending +0.00130648
+3. **Removing Q/V LoRA targets** (v7) while keeping K+MLP+O achieves the best BPB
+   (1.03387) with 4.2 GiB less memory than the full-target control
+4. Single-phase TTT with only 1000 prefix docs (v12) nearly matches 3-phase control
+   (1.03421 vs 1.03471) in ~60% less global-SGD time
+5. At rank 128/alpha 192, raising LR from 1e-4 to 3e-4 worsened BPB by ~0.052
+6. Batch-128 variants failed (likely memory-related; peak was 47.8 GB at batch 64)
+7. Matched 240min, 300min, and 360min checkpoint controls all show GPTQ tax; at 6h
+   the tax is +0.00932885 BPB and TTT (v7) recovers ~95% of it, ending only +0.00047
    above the matched pre-quant EMA
 
 ## TTT/LoRA Hyperparameter Sweep
@@ -37,7 +39,9 @@ Sweep conducted on the 360-min (6h) quantized artifact using `TTT_EVAL_ONLY=1`:
 | Variant | LoRA Rank | LR | Batch | Chunk | BPB | Status |
 |---------|-----------|------|-------|-------|-----|--------|
 | **sliding_window** | — | — | — | — | 1.04273 | ✓ baseline |
-| **v0_control** | 96 | 1e-4 | 64 | 48 | **1.03471** | ✓ best |
+| v0_control | 96 | 1e-4 | 64 | 48 | 1.03471 | ✓ |
+| **v7_noqv_rank96** | 96 (K+MLP+O+lm_head) | 1e-4 | 64 | 48 | **1.03387** | ✓ **best** |
+| v12_phase1_prefix1000 | 96 | 1e-4 | 64 | 48 | 1.03421 | ✓ |
 | v1_rank128 | 128 | 1e-4 | 64 | 48 | 1.03877 | ✓ |
 | v2_rank128_lr3e4 | 128 | 3e-4 | 64 | 48 | 1.09049 | ✓ regression |
 | v3_batch128 | 128 | 3e-4 | 128 | 64 | — | failed* |
@@ -46,7 +50,7 @@ Sweep conducted on the 360-min (6h) quantized artifact using `TTT_EVAL_ONLY=1`:
 | v6_phase4 | 128 | 3e-4 | 128 | 64 | — | failed* |
 
 The sliding_window control runs the quantized artifact with no TTT adaptation,
-providing the proper baseline: **TTT gain = 1.04273 − 1.03471 = 0.00802 BPB**.
+providing the proper baseline: **TTT gain = 1.04273 − 1.03387 = 0.00886 BPB** (v7).
 
 *Variants v3–v6 failed with exit code 1 (likely memory-related: v0 peak was 47.8 GB
 at batch_size=64, so batch_size=128 would approach or exceed H100 80 GB capacity).
@@ -55,9 +59,12 @@ at batch_size=64, so batch_size=128 would approach or exceed H100 80 GB capacity
 TTT_BETA2=0.999, TTT_OPTIMIZER=adam, TTT_WARM_START_A=1, FUSED_CE_ENABLED=1,
 GLOBAL_TTT_LR=0.001, PHASED_TTT_PREFIX_DOCS=2000, PHASED_TTT_NUM_PHASES=3.
 
-**Key finding:** The control parameters from PR #1979 (originally derived from
-PR #461's score-first framework with improvements from PR #1767 and PR #1855)
-were best among tested variants. Higher LoRA rank provides minimal benefit (+0.004 BPB)
+**Key finding:** Removing Q and V LoRA targets (v7) — keeping only K+MLP+O+lm_head —
+gives the best BPB (1.03387) with 4.2 GiB less peak memory (43.6 vs 47.8 GB). This
+suggests the Q/V pathway may introduce mild overfitting on prefix documents. A
+single-phase variant (v12) with only 1000 prefix docs also nearly matches the full
+3-phase 2000-prefix control (1.03421 vs 1.03471) in ~60% less global-SGD time.
+Higher LoRA rank provides minimal benefit (+0.004 BPB)
 while at rank 128, raising LR from 1e-4 to 3e-4 worsened BPB by ~0.052 (v1→v2).
 TTT adaptation is RAM-only at eval time and
 does not change the 16 MB artifact size.
@@ -66,7 +73,7 @@ does not change the 16 MB artifact size.
 
 1. **Does longer training (10 min to 6h) improve BPB?** YES — monotonically.
 2. **Does longer training reduce artifact size?** NO — compression is at entropy floor.
-3. **Can TTT/LoRA parameters be improved?** NO — control was best among tested variants.
+3. **Can TTT/LoRA parameters be improved?** YES — removing Q/V LoRA targets (v7) improves by 0.00084 BPB over the full-target control.
 
 ## Base Recipe
 
