@@ -1,0 +1,1153 @@
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_target_bytes: 16000000
+  attn_clip_sigmas: 13.0
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gated_attn_enabled: True
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: True
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  lact_base_ttt: True
+  lact_batch_seqs: 16
+  lact_chunk_tokens: 32768
+  lact_epochs: 1
+  lact_fast_weight: swiglu
+  lact_grad_clip: 1.0
+  lact_init_std: 0.02
+  lact_lr: 0.02
+  lact_momentum: 0.9
+  lact_normalize: True
+  lact_scale: 0.08
+  lact_state_dim: 128
+  lact_ttt_enabled: False
+  lact_update: muon
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/6a41b3a3-cc08-44af-af5b-d750e88c404a.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 2
+  lqer_top_k: 2
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_clip_sigmas: 12.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  phased_ttt_enabled: True
+  phased_ttt_num_phases: 4
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: 6a41b3a3-cc08-44af-af5b-d750e88c404a
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_batch_size: 64
+  ttt_lora_beta1: 0.0
+  ttt_lora_beta2: 0.999
+  ttt_lora_enabled: False
+  ttt_lora_lr: 0.0001
+  ttt_lora_optimizer: adam
+  ttt_lora_rank: 96
+  ttt_lr: 0.005
+  ttt_mlp_lora: True
+  ttt_momentum: 0.9
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_doc_fraction: 1.0
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.10.12 (main, Mar  3 2026, 11:56:32) [GCC 11.4.0]
+Running PyTorch 2.9.1+cu128
+Fri May  1 00:24:29 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.195.03             Driver Version: 570.195.03     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:05:00.0 Off |                    0 |
+| N/A   34C    P0            117W /  700W |    1519MiB /  81559MiB |      3%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:06:00.0 Off |                    0 |
+| N/A   29C    P0            114W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:07:00.0 Off |                    0 |
+| N/A   30C    P0            115W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:08:00.0 Off |                    0 |
+| N/A   50C    P0            129W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:09:00.0 Off |                    0 |
+| N/A   34C    P0            116W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:0A:00.0 Off |                    0 |
+| N/A   31C    P0            113W /  700W |    1519MiB /  81559MiB |      1%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:0B:00.0 Off |                    0 |
+| N/A   30C    P0            117W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:0C:00.0 Off |                    0 |
+| N/A   34C    P0            115W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            2918      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    1   N/A  N/A            2919      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    2   N/A  N/A            2920      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    3   N/A  N/A            2921      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    4   N/A  N/A            2922      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    5   N/A  N/A            2923      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    6   N/A  N/A            2924      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    7   N/A  N/A            2925      C   /parameter-golf/.venv/bin/python       1510MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+(.venv) root@a10693ea4762:/parameter-golf/records/track_10min_16mb/2026-04-29_SP8192_AttnGate_PhasedTTT_LoRA_LaCT/logs# ls
+3cd4b24d-de89-43c8-9ef7-0ac5cbf38b1b.txt  6a41b3a3-cc08-44af-af5b-d750e88c404a.txt  f9c55cc3-8ad2-40da-8de0-110d6f5c37a8.txt
+5ded0a18-4798-4060-bec0-57111be7d280.txt  efd74065-f4cf-4774-bbb9-b9179f2fe391.txt
+(.venv) root@a10693ea4762:/parameter-golf/records/track_10min_16mb/2026-04-29_SP8192_AttnGate_PhasedTTT_LoRA_LaCT/logs# cat f9c55cc3-8ad2-40da-8de0-110d6f5c37a8.txt
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_target_bytes: 16000000
+  attn_clip_sigmas: 13.0
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /parameter-golf/data
+  datasets_dir: /parameter-golf/data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gated_attn_enabled: True
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: True
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  lact_base_ttt: True
+  lact_batch_seqs: 16
+  lact_chunk_tokens: 32768
+  lact_epochs: 1
+  lact_fast_weight: swiglu
+  lact_grad_clip: 1.0
+  lact_init_std: 0.02
+  lact_lr: 0.02
+  lact_momentum: 0.9
+  lact_normalize: True
+  lact_scale: 0.08
+  lact_state_dim: 128
+  lact_ttt_enabled: False
+  lact_update: muon
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/f9c55cc3-8ad2-40da-8de0-110d6f5c37a8.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 2
+  lqer_top_k: 2
+  matrix_bits: 5
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_clip_sigmas: 12.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  phased_ttt_enabled: True
+  phased_ttt_num_phases: 4
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.25
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: f9c55cc3-8ad2-40da-8de0-110d6f5c37a8
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /parameter-golf/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: /parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_batch_size: 64
+  ttt_lora_beta1: 0.0
+  ttt_lora_beta2: 0.999
+  ttt_lora_enabled: False
+  ttt_lora_lr: 0.0001
+  ttt_lora_optimizer: adam
+  ttt_lora_rank: 96
+  ttt_lr: 0.005
+  ttt_mlp_lora: True
+  ttt_momentum: 0.9
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_doc_fraction: 1.0
+  val_files: /parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.10.12 (main, Mar  3 2026, 11:56:32) [GCC 11.4.0]
+Running PyTorch 2.9.1+cu128
+Fri May  1 01:23:34 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.195.03             Driver Version: 570.195.03     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:05:00.0 Off |                    0 |
+| N/A   34C    P0            116W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:06:00.0 Off |                    0 |
+| N/A   29C    P0            113W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:07:00.0 Off |                    0 |
+| N/A   30C    P0            115W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:08:00.0 Off |                    0 |
+| N/A   50C    P0            131W /  700W |    1519MiB /  81559MiB |      5%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:09:00.0 Off |                    0 |
+| N/A   34C    P0            115W /  700W |    1519MiB /  81559MiB |      2%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:0A:00.0 Off |                    0 |
+| N/A   31C    P0            112W /  700W |    1519MiB /  81559MiB |      5%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:0B:00.0 Off |                    0 |
+| N/A   29C    P0            114W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:0C:00.0 Off |                    0 |
+| N/A   34C    P0            115W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A           33722      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    1   N/A  N/A           33723      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    2   N/A  N/A           33724      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    3   N/A  N/A           33725      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    4   N/A  N/A           33726      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    5   N/A  N/A           33727      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    6   N/A  N/A           33728      C   /parameter-golf/.venv/bin/python       1510MiB |
+|    7   N/A  N/A           33729      C   /parameter-golf/.venv/bin/python       1510MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+train_shards:128
+val_tokens:40540160
+model_params:35989592
+gptq:reserving 12s, effective=588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0045 val_bpb: 3.4859
+1/20000 train_loss:9.0064 train_time:0.0m tok/s:7974088
+2/20000 train_loss:12.3236 train_time:0.0m tok/s:7896901
+3/20000 train_loss:11.1023 train_time:0.0m tok/s:7815679
+4/20000 train_loss:9.3850 train_time:0.0m tok/s:7776735
+5/20000 train_loss:8.3022 train_time:0.0m tok/s:7753554
+500/20000 train_loss:3.3539 train_time:0.9m tok/s:7485725
+1000/20000 train_loss:3.1990 train_time:1.7m tok/s:7524482
+1500/20000 train_loss:3.1030 train_time:2.6m tok/s:7529136
+layer_loop:enabled step:1970 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2000/20000 train_loss:3.1122 train_time:3.5m tok/s:7472947
+2500/20000 train_loss:3.0641 train_time:4.8m tok/s:6844188
+3000/20000 train_loss:2.9407 train_time:6.1m tok/s:6480297
+3500/20000 train_loss:2.9612 train_time:7.3m tok/s:6243521
+4000/20000 train_loss:2.9037 train_time:8.7m tok/s:6058156
+4000/20000 val_loss: 2.8617 val_bpb: 1.1078
+4449/20000 val_loss: 2.8128 val_bpb: 1.0889
+stopping_early: wallclock_cap train_time:588003ms step:4449/20000
+peak memory allocated:39064 MiB reserved:39090 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.80994352 val_bpb:1.08781670 eval_time:6990ms
+Serialized model: 135524687 bytes
+Code size source: 117374 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 13.0s
+Quantized weights:
+  gate_int8_row: blocks.attn.attn_gate_w
+  gptq (int5): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int5)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 12275561 bytes  raw_torch:36205019
+Code size selected: 117374 bytes
+Total submission size quantized+brotli: 12392935 bytes
+quantized val_loss:2.93277988 val_bpb:1.13537049 eval_time:2467ms
+quantized_sliding_window val_loss:2.88970390 val_bpb:1.11869443 eval_time:122666ms
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (381.8s)
+
+beginning TTT eval timer
+ttt_phased: total_docs:50000 prefix_docs:2000 suffix_docs:48000 num_phases:4 boundaries:[500, 1000, 1500, 2000]
+ttp: b775/782 bl:2.7913 bb:1.1050 rl:2.7913 rb:1.1050 dl:5853-6355 gd:0
+ttp: b774/782 bl:2.8284 bb:1.1170 rl:2.8092 rb:1.1108 dl:5552-5852 gd:0
+ttp: b769/782 bl:2.8718 bb:1.1365 rl:2.8262 rb:1.1178 dl:4307-4479 gd:0
+ttpp: phase:1/4 pd:912 gd:500 t:334.6s
+tttg: c1/77 lr:0.001000 t:0.3s
+tttg: c2/77 lr:0.001000 t:0.3s
+tttg: c3/77 lr:0.000998 t:0.5s
+tttg: c4/77 lr:0.000996 t:0.6s
+tttg: c5/77 lr:0.000993 t:0.7s
+tttg: c6/77 lr:0.000989 t:0.7s
+tttg: c7/77 lr:0.000985 t:0.8s
+tttg: c8/77 lr:0.000979 t:0.9s
+tttg: c9/77 lr:0.000973 t:1.0s
+tttg: c10/77 lr:0.000966 t:1.1s
+tttg: c11/77 lr:0.000958 t:1.2s
+tttg: c12/77 lr:0.000949 t:1.3s
+tttg: c13/77 lr:0.000940 t:1.4s
+tttg: c14/77 lr:0.000930 t:1.5s
+tttg: c15/77 lr:0.000919 t:1.6s
+tttg: c16/77 lr:0.000907 t:1.7s
+tttg: c17/77 lr:0.000895 t:1.8s
+tttg: c18/77 lr:0.000882 t:1.9s
+tttg: c19/77 lr:0.000868 t:2.0s
+tttg: c20/77 lr:0.000854 t:2.1s
+tttg: c21/77 lr:0.000839 t:2.2s
+tttg: c22/77 lr:0.000823 t:2.3s
+tttg: c23/77 lr:0.000807 t:2.4s
+tttg: c24/77 lr:0.000791 t:2.5s
+tttg: c25/77 lr:0.000773 t:2.6s
+tttg: c26/77 lr:0.000756 t:2.7s
+tttg: c27/77 lr:0.000738 t:2.8s
+tttg: c28/77 lr:0.000720 t:2.9s
+tttg: c29/77 lr:0.000701 t:3.0s
+tttg: c30/77 lr:0.000682 t:3.1s
+tttg: c31/77 lr:0.000662 t:3.1s
+tttg: c32/77 lr:0.000643 t:3.2s
+tttg: c33/77 lr:0.000623 t:3.3s
+tttg: c34/77 lr:0.000603 t:3.4s
+tttg: c35/77 lr:0.000582 t:3.5s
+tttg: c36/77 lr:0.000562 t:3.6s
+tttg: c37/77 lr:0.000541 t:3.7s
+tttg: c38/77 lr:0.000521 t:3.8s
+tttg: c39/77 lr:0.000500 t:3.9s
+tttg: c40/77 lr:0.000479 t:4.0s
+tttg: c41/77 lr:0.000459 t:4.1s
+tttg: c42/77 lr:0.000438 t:4.2s
+tttg: c43/77 lr:0.000418 t:4.3s
+tttg: c44/77 lr:0.000397 t:4.4s
+tttg: c45/77 lr:0.000377 t:4.5s
+tttg: c46/77 lr:0.000357 t:4.6s
+tttg: c47/77 lr:0.000338 t:4.7s
+tttg: c48/77 lr:0.000318 t:4.8s
+tttg: c49/77 lr:0.000299 t:4.9s
+tttg: c50/77 lr:0.000280 t:5.0s
+tttg: c51/77 lr:0.000262 t:5.1s
+tttg: c52/77 lr:0.000244 t:5.2s
+tttg: c53/77 lr:0.000227 t:5.3s
+tttg: c54/77 lr:0.000209 t:5.4s
+tttg: c55/77 lr:0.000193 t:5.5s
+tttg: c56/77 lr:0.000177 t:5.6s
+tttg: c57/77 lr:0.000161 t:5.7s
+tttg: c58/77 lr:0.000146 t:5.8s
+tttg: c59/77 lr:0.000132 t:5.8s
+tttg: c60/77 lr:0.000118 t:5.9s
+tttg: c61/77 lr:0.000105 t:6.0s
+tttg: c62/77 lr:0.000093 t:6.1s
+tttg: c63/77 lr:0.000081 t:6.2s
+tttg: c64/77 lr:0.000070 t:6.3s
+tttg: c65/77 lr:0.000060 t:6.4s
+tttg: c66/77 lr:0.000051 t:6.5s
+tttg: c67/77 lr:0.000042 t:6.6s
+tttg: c68/77 lr:0.000034 t:6.7s
+tttg: c69/77 lr:0.000027 t:6.8s
+tttg: c70/77 lr:0.000021 t:6.9s
+tttg: c71/77 lr:0.000015 t:7.0s
+tttg: c72/77 lr:0.000011 t:7.1s
+tttg: c73/77 lr:0.000007 t:7.2s
+tttg: c74/77 lr:0.000004 t:7.3s
+tttg: c75/77 lr:0.000002 t:7.4s
+tttg: c76/77 lr:0.000000 t:7.5s
+ttpr: phase:1/4 t:343.5s
+ttp: b764/782 bl:2.8692 bb:1.1400 rl:2.8342 rb:1.1219 dl:3639-3742 gd:0
+ttpp: phase:2/4 pd:1488 gd:1000 t:366.2s
+tttg: c1/126 lr:0.001000 t:0.1s
+tttg: c2/126 lr:0.001000 t:0.2s
+tttg: c3/126 lr:0.000999 t:0.3s
+tttg: c4/126 lr:0.000999 t:0.4s
+tttg: c5/126 lr:0.000997 t:0.5s
+tttg: c6/126 lr:0.000996 t:0.6s
+tttg: c7/126 lr:0.000994 t:0.7s
+tttg: c8/126 lr:0.000992 t:0.8s
+tttg: c9/126 lr:0.000990 t:0.9s
+tttg: c10/126 lr:0.000987 t:1.0s
+tttg: c11/126 lr:0.000984 t:1.1s
+tttg: c12/126 lr:0.000981 t:1.2s
+tttg: c13/126 lr:0.000977 t:1.3s
+tttg: c14/126 lr:0.000974 t:1.4s
+tttg: c15/126 lr:0.000969 t:1.5s
+tttg: c16/126 lr:0.000965 t:1.6s
+tttg: c17/126 lr:0.000960 t:1.7s
+tttg: c18/126 lr:0.000955 t:1.8s
+tttg: c19/126 lr:0.000950 t:1.8s
+tttg: c20/126 lr:0.000944 t:1.9s
+tttg: c21/126 lr:0.000938 t:2.0s
+tttg: c22/126 lr:0.000932 t:2.1s
+tttg: c23/126 lr:0.000925 t:2.2s
+tttg: c24/126 lr:0.000919 t:2.3s
+tttg: c25/126 lr:0.000912 t:2.4s
+tttg: c26/126 lr:0.000905 t:2.5s
+tttg: c27/126 lr:0.000897 t:2.6s
+tttg: c28/126 lr:0.000889 t:2.7s
+tttg: c29/126 lr:0.000881 t:2.8s
+tttg: c30/126 lr:0.000873 t:2.9s
+tttg: c31/126 lr:0.000864 t:3.0s
+tttg: c32/126 lr:0.000856 t:3.1s
+tttg: c33/126 lr:0.000847 t:3.2s
+tttg: c34/126 lr:0.000838 t:3.3s
+tttg: c35/126 lr:0.000828 t:3.4s
+tttg: c36/126 lr:0.000819 t:3.5s
+tttg: c37/126 lr:0.000809 t:3.6s
+tttg: c38/126 lr:0.000799 t:3.7s
+tttg: c39/126 lr:0.000789 t:3.8s
+tttg: c40/126 lr:0.000778 t:3.9s
+tttg: c41/126 lr:0.000768 t:4.0s
+tttg: c42/126 lr:0.000757 t:4.1s
+tttg: c43/126 lr:0.000746 t:4.2s
+tttg: c44/126 lr:0.000735 t:4.3s
+tttg: c45/126 lr:0.000724 t:4.4s
+tttg: c46/126 lr:0.000713 t:4.5s
+tttg: c47/126 lr:0.000701 t:4.6s
+tttg: c48/126 lr:0.000690 t:4.7s
+tttg: c49/126 lr:0.000678 t:4.8s
+tttg: c50/126 lr:0.000666 t:4.9s
+tttg: c51/126 lr:0.000655 t:5.0s
+tttg: c52/126 lr:0.000643 t:5.1s
+tttg: c53/126 lr:0.000630 t:5.2s
+tttg: c54/126 lr:0.000618 t:5.3s
+tttg: c55/126 lr:0.000606 t:5.4s
+tttg: c56/126 lr:0.000594 t:5.5s
+tttg: c57/126 lr:0.000581 t:5.7s
+tttg: c58/126 lr:0.000569 t:5.8s
+tttg: c59/126 lr:0.000556 t:5.9s
+tttg: c60/126 lr:0.000544 t:6.0s
+tttg: c61/126 lr:0.000531 t:6.1s
+tttg: c62/126 lr:0.000519 t:6.2s
+tttg: c63/126 lr:0.000506 t:6.3s
+tttg: c64/126 lr:0.000494 t:6.4s
+tttg: c65/126 lr:0.000481 t:6.5s
+tttg: c66/126 lr:0.000469 t:6.6s
+tttg: c67/126 lr:0.000456 t:6.7s
+tttg: c68/126 lr:0.000444 t:6.8s
+tttg: c69/126 lr:0.000431 t:6.9s
+tttg: c70/126 lr:0.000419 t:7.0s
+tttg: c71/126 lr:0.000406 t:7.1s
+tttg: c72/126 lr:0.000394 t:7.2s
+tttg: c73/126 lr:0.000382 t:7.4s
+tttg: c74/126 lr:0.000370 t:7.5s
+tttg: c75/126 lr:0.000357 t:7.6s
+tttg: c76/126 lr:0.000345 t:7.7s
+tttg: c77/126 lr:0.000334 t:7.8s
+tttg: c78/126 lr:0.000322 t:7.9s
+tttg: c79/126 lr:0.000310 t:8.0s
+tttg: c80/126 lr:0.000299 t:8.1s
+tttg: c81/126 lr:0.000287 t:8.2s
+tttg: c82/126 lr:0.000276 t:8.3s
+tttg: c83/126 lr:0.000265 t:8.4s
+tttg: c84/126 lr:0.000254 t:8.5s
+tttg: c85/126 lr:0.000243 t:8.6s
+tttg: c86/126 lr:0.000232 t:8.7s
+tttg: c87/126 lr:0.000222 t:8.8s
+tttg: c88/126 lr:0.000211 t:8.9s
+tttg: c89/126 lr:0.000201 t:9.1s
+tttg: c90/126 lr:0.000191 t:9.2s
+tttg: c91/126 lr:0.000181 t:9.3s
+tttg: c92/126 lr:0.000172 t:9.4s
+tttg: c93/126 lr:0.000162 t:9.5s
+tttg: c94/126 lr:0.000153 t:9.6s
+tttg: c95/126 lr:0.000144 t:9.7s
+tttg: c96/126 lr:0.000136 t:9.8s
+tttg: c97/126 lr:0.000127 t:9.9s
+tttg: c98/126 lr:0.000119 t:10.0s
+tttg: c99/126 lr:0.000111 t:10.1s
+tttg: c100/126 lr:0.000103 t:10.2s
+tttg: c101/126 lr:0.000095 t:10.3s
+tttg: c102/126 lr:0.000088 t:10.4s
+tttg: c103/126 lr:0.000081 t:10.5s
+tttg: c104/126 lr:0.000075 t:10.6s
+tttg: c105/126 lr:0.000068 t:10.7s
+tttg: c106/126 lr:0.000062 t:10.8s
+tttg: c107/126 lr:0.000056 t:10.9s
+tttg: c108/126 lr:0.000050 t:11.0s
+tttg: c109/126 lr:0.000045 t:11.2s
+tttg: c110/126 lr:0.000040 t:11.3s
+tttg: c111/126 lr:0.000035 t:11.4s
+tttg: c112/126 lr:0.000031 t:11.5s
+tttg: c113/126 lr:0.000026 t:11.6s
+tttg: c114/126 lr:0.000023 t:11.7s
+tttg: c115/126 lr:0.000019 t:11.8s
+tttg: c116/126 lr:0.000016 t:11.9s
+tttg: c117/126 lr:0.000013 t:12.0s
+tttg: c118/126 lr:0.000010 t:12.1s
+tttg: c119/126 lr:0.000008 t:12.2s
+tttg: c120/126 lr:0.000006 t:12.3s
+tttg: c121/126 lr:0.000004 t:12.4s
+tttg: c122/126 lr:0.000003 t:12.5s
+tttg: c123/126 lr:0.000001 t:12.6s
+tttg: c124/126 lr:0.000001 t:12.7s
+tttg: c125/126 lr:0.000000 t:12.8s
+ttpr: phase:2/4 t:380.9s
+ttp: b755/782 bl:2.7919 bb:1.0817 rl:2.8287 rb:1.1166 dl:2899-2972 gd:0
+ttpp: phase:3/4 pd:2000 gd:1500 t:391.8s
+tttg: c1/170 lr:0.001000 t:0.1s
+tttg: c2/170 lr:0.001000 t:0.2s
+tttg: c3/170 lr:0.001000 t:0.3s
+tttg: c4/170 lr:0.000999 t:0.4s
+tttg: c5/170 lr:0.000999 t:0.5s
+tttg: c6/170 lr:0.000998 t:0.6s
+tttg: c7/170 lr:0.000997 t:0.7s
+tttg: c8/170 lr:0.000996 t:0.8s
+tttg: c9/170 lr:0.000994 t:0.9s
+tttg: c10/170 lr:0.000993 t:1.0s
+tttg: c11/170 lr:0.000991 t:1.1s
+tttg: c12/170 lr:0.000990 t:1.2s
+tttg: c13/170 lr:0.000988 t:1.3s
+tttg: c14/170 lr:0.000985 t:1.4s
+tttg: c15/170 lr:0.000983 t:1.5s
+tttg: c16/170 lr:0.000981 t:1.6s
+tttg: c17/170 lr:0.000978 t:1.6s
+tttg: c18/170 lr:0.000975 t:1.7s
+tttg: c19/170 lr:0.000972 t:1.8s
+tttg: c20/170 lr:0.000969 t:1.9s
+tttg: c21/170 lr:0.000966 t:2.0s
+tttg: c22/170 lr:0.000962 t:2.1s
+tttg: c23/170 lr:0.000959 t:2.2s
+tttg: c24/170 lr:0.000955 t:2.3s
+tttg: c25/170 lr:0.000951 t:2.4s
+tttg: c26/170 lr:0.000947 t:2.5s
+tttg: c27/170 lr:0.000943 t:2.6s
+tttg: c28/170 lr:0.000938 t:2.7s
+tttg: c29/170 lr:0.000934 t:2.8s
+tttg: c30/170 lr:0.000929 t:2.9s
+tttg: c31/170 lr:0.000924 t:3.0s
+tttg: c32/170 lr:0.000919 t:3.1s
+tttg: c33/170 lr:0.000914 t:3.2s
+tttg: c34/170 lr:0.000909 t:3.3s
+tttg: c35/170 lr:0.000903 t:3.4s
+tttg: c36/170 lr:0.000898 t:3.5s
+tttg: c37/170 lr:0.000892 t:3.6s
+tttg: c38/170 lr:0.000886 t:3.7s
+tttg: c39/170 lr:0.000880 t:3.8s
+tttg: c40/170 lr:0.000874 t:3.9s
+tttg: c41/170 lr:0.000868 t:4.0s
+tttg: c42/170 lr:0.000862 t:4.1s
+tttg: c43/170 lr:0.000855 t:4.2s
+tttg: c44/170 lr:0.000849 t:4.3s
+tttg: c45/170 lr:0.000842 t:4.4s
+tttg: c46/170 lr:0.000835 t:4.4s
+tttg: c47/170 lr:0.000828 t:4.5s
+tttg: c48/170 lr:0.000821 t:4.6s
+tttg: c49/170 lr:0.000814 t:4.7s
+tttg: c50/170 lr:0.000807 t:4.8s
+tttg: c51/170 lr:0.000799 t:4.9s
+tttg: c52/170 lr:0.000792 t:5.1s
+tttg: c53/170 lr:0.000784 t:5.2s
+tttg: c54/170 lr:0.000776 t:5.3s
+tttg: c55/170 lr:0.000769 t:5.4s
+tttg: c56/170 lr:0.000761 t:5.5s
+tttg: c57/170 lr:0.000753 t:5.6s
+tttg: c58/170 lr:0.000745 t:5.7s
+tttg: c59/170 lr:0.000736 t:5.8s
+tttg: c60/170 lr:0.000728 t:5.9s
+tttg: c61/170 lr:0.000720 t:6.0s
+tttg: c62/170 lr:0.000712 t:6.1s
+tttg: c63/170 lr:0.000703 t:6.2s
+tttg: c64/170 lr:0.000695 t:6.3s
+tttg: c65/170 lr:0.000686 t:6.4s
+tttg: c66/170 lr:0.000677 t:6.5s
+tttg: c67/170 lr:0.000669 t:6.6s
+tttg: c68/170 lr:0.000660 t:6.7s
+tttg: c69/170 lr:0.000651 t:6.8s
+tttg: c70/170 lr:0.000642 t:6.9s
+tttg: c71/170 lr:0.000633 t:7.0s
+tttg: c72/170 lr:0.000624 t:7.1s
+tttg: c73/170 lr:0.000615 t:7.3s
+tttg: c74/170 lr:0.000606 t:7.4s
+tttg: c75/170 lr:0.000597 t:7.5s
+tttg: c76/170 lr:0.000588 t:7.6s
+tttg: c77/170 lr:0.000579 t:7.7s
+tttg: c78/170 lr:0.000569 t:7.8s
+tttg: c79/170 lr:0.000560 t:7.9s
+tttg: c80/170 lr:0.000551 t:8.0s
+tttg: c81/170 lr:0.000542 t:8.1s
+tttg: c82/170 lr:0.000533 t:8.2s
+tttg: c83/170 lr:0.000523 t:8.3s
+tttg: c84/170 lr:0.000514 t:8.4s
+tttg: c85/170 lr:0.000505 t:8.5s
+tttg: c86/170 lr:0.000495 t:8.6s
+tttg: c87/170 lr:0.000486 t:8.7s
+tttg: c88/170 lr:0.000477 t:8.8s
+tttg: c89/170 lr:0.000467 t:8.9s
+tttg: c90/170 lr:0.000458 t:9.0s
+tttg: c91/170 lr:0.000449 t:9.1s
+tttg: c92/170 lr:0.000440 t:9.3s
+tttg: c93/170 lr:0.000431 t:9.4s
+tttg: c94/170 lr:0.000421 t:9.5s
+tttg: c95/170 lr:0.000412 t:9.6s
+tttg: c96/170 lr:0.000403 t:9.7s
+tttg: c97/170 lr:0.000394 t:9.8s
+tttg: c98/170 lr:0.000385 t:9.9s
+tttg: c99/170 lr:0.000376 t:10.0s
+tttg: c100/170 lr:0.000367 t:10.1s
+tttg: c101/170 lr:0.000358 t:10.2s
+tttg: c102/170 lr:0.000349 t:10.3s
+tttg: c103/170 lr:0.000340 t:10.4s
+tttg: c104/170 lr:0.000331 t:10.5s
+tttg: c105/170 lr:0.000323 t:10.6s
+tttg: c106/170 lr:0.000314 t:10.7s
+tttg: c107/170 lr:0.000305 t:10.8s
+tttg: c108/170 lr:0.000297 t:10.9s
+tttg: c109/170 lr:0.000288 t:11.0s
+tttg: c110/170 lr:0.000280 t:11.1s
+tttg: c111/170 lr:0.000272 t:11.2s
+tttg: c112/170 lr:0.000264 t:11.3s
+tttg: c113/170 lr:0.000255 t:11.4s
+tttg: c114/170 lr:0.000247 t:11.6s
+tttg: c115/170 lr:0.000239 t:11.7s
+tttg: c116/170 lr:0.000231 t:11.8s
+tttg: c117/170 lr:0.000224 t:11.9s
+tttg: c118/170 lr:0.000216 t:12.0s
+tttg: c119/170 lr:0.000208 t:12.1s
+tttg: c120/170 lr:0.000201 t:12.2s
+tttg: c121/170 lr:0.000193 t:12.3s
+tttg: c122/170 lr:0.000186 t:12.4s
+tttg: c123/170 lr:0.000179 t:12.5s
+tttg: c124/170 lr:0.000172 t:12.6s
+tttg: c125/170 lr:0.000165 t:12.7s
+tttg: c126/170 lr:0.000158 t:12.8s
+tttg: c127/170 lr:0.000151 t:12.9s
+tttg: c128/170 lr:0.000145 t:13.0s
+tttg: c129/170 lr:0.000138 t:13.1s
+tttg: c130/170 lr:0.000132 t:13.2s
+tttg: c131/170 lr:0.000126 t:13.3s
+tttg: c132/170 lr:0.000120 t:13.4s
+tttg: c133/170 lr:0.000114 t:13.5s
+tttg: c134/170 lr:0.000108 t:13.6s
+tttg: c135/170 lr:0.000102 t:13.7s
+tttg: c136/170 lr:0.000097 t:13.9s
+tttg: c137/170 lr:0.000091 t:14.0s
+tttg: c138/170 lr:0.000086 t:14.1s
+tttg: c139/170 lr:0.000081 t:14.2s
+tttg: c140/170 lr:0.000076 t:14.3s
+tttg: c141/170 lr:0.000071 t:14.4s
+tttg: c142/170 lr:0.000066 t:14.5s
+tttg: c143/170 lr:0.000062 t:14.6s
+tttg: c144/170 lr:0.000057 t:14.7s
+tttg: c145/170 lr:0.000053 t:14.8s
+tttg: c146/170 lr:0.000049 t:14.9s
+tttg: c147/170 lr:0.000045 t:15.0s
+tttg: c148/170 lr:0.000041 t:15.1s
+tttg: c149/170 lr:0.000038 t:15.2s
+tttg: c150/170 lr:0.000034 t:15.3s
+tttg: c151/170 lr:0.000031 t:15.4s
+tttg: c152/170 lr:0.000028 t:15.5s
+tttg: c153/170 lr:0.000025 t:15.6s
+tttg: c154/170 lr:0.000022 t:15.7s
+tttg: c155/170 lr:0.000019 t:15.8s
+tttg: c156/170 lr:0.000017 t:16.0s
+tttg: c157/170 lr:0.000015 t:16.1s
+tttg: c158/170 lr:0.000012 t:16.2s
+tttg: c159/170 lr:0.000010 t:16.3s
+tttg: c160/170 lr:0.000009 t:16.4s
+tttg: c161/170 lr:0.000007 t:16.5s
+tttg: c162/170 lr:0.000006 t:16.6s
+tttg: c163/170 lr:0.000004 t:16.7s
+tttg: c164/170 lr:0.000003 t:16.8s
+tttg: c165/170 lr:0.000002 t:16.9s
+tttg: c166/170 lr:0.000001 t:17.0s
+tttg: c167/170 lr:0.000001 t:17.1s
+tttg: c168/170 lr:0.000000 t:17.2s
+tttg: c169/170 lr:0.000000 t:17.3s
+ttpr: phase:3/4 t:411.0s
+ttp: b748/782 bl:2.9025 bb:1.1114 rl:2.8362 rb:1.1161 dl:2539-2578 gd:0
+ttpp: phase:4/4 pd:2512 gd:2000 t:419.4s
+tttg: c1/207 lr:0.001000 t:0.1s
+tttg: c2/207 lr:0.001000 t:0.2s
+tttg: c3/207 lr:0.001000 t:0.3s
+tttg: c4/207 lr:0.000999 t:0.4s
+tttg: c5/207 lr:0.000999 t:0.5s
+tttg: c6/207 lr:0.000999 t:0.6s
+tttg: c7/207 lr:0.000998 t:0.7s
+tttg: c8/207 lr:0.000997 t:0.9s
+tttg: c9/207 lr:0.000996 t:1.0s
+tttg: c10/207 lr:0.000995 t:1.1s
+tttg: c11/207 lr:0.000994 t:1.2s
+tttg: c12/207 lr:0.000993 t:1.3s
+tttg: c13/207 lr:0.000992 t:1.4s
+tttg: c14/207 lr:0.000990 t:1.5s
+tttg: c15/207 lr:0.000989 t:1.6s
+tttg: c16/207 lr:0.000987 t:1.7s
+tttg: c17/207 lr:0.000985 t:1.8s
+tttg: c18/207 lr:0.000983 t:1.9s
+tttg: c19/207 lr:0.000981 t:2.0s
+tttg: c20/207 lr:0.000979 t:2.1s
+tttg: c21/207 lr:0.000977 t:2.2s
+tttg: c22/207 lr:0.000975 t:2.3s
+tttg: c23/207 lr:0.000972 t:2.4s
+tttg: c24/207 lr:0.000970 t:2.5s
+tttg: c25/207 lr:0.000967 t:2.6s
+tttg: c26/207 lr:0.000964 t:2.8s
+tttg: c27/207 lr:0.000961 t:2.9s
+tttg: c28/207 lr:0.000958 t:3.0s
+tttg: c29/207 lr:0.000955 t:3.1s
+tttg: c30/207 lr:0.000952 t:3.2s
+tttg: c31/207 lr:0.000949 t:3.3s
+tttg: c32/207 lr:0.000945 t:3.4s
+tttg: c33/207 lr:0.000942 t:3.5s
+tttg: c34/207 lr:0.000938 t:3.6s
+tttg: c35/207 lr:0.000934 t:3.7s
+tttg: c36/207 lr:0.000930 t:3.8s
+tttg: c37/207 lr:0.000927 t:3.9s
+tttg: c38/207 lr:0.000922 t:4.0s
+tttg: c39/207 lr:0.000918 t:4.1s
+tttg: c40/207 lr:0.000914 t:4.2s
+tttg: c41/207 lr:0.000910 t:4.3s
+tttg: c42/207 lr:0.000905 t:4.4s
+tttg: c43/207 lr:0.000901 t:4.5s
+tttg: c44/207 lr:0.000896 t:4.6s
+tttg: c45/207 lr:0.000892 t:4.8s
+tttg: c46/207 lr:0.000887 t:4.9s
+tttg: c47/207 lr:0.000882 t:5.0s
+tttg: c48/207 lr:0.000877 t:5.1s
+tttg: c49/207 lr:0.000872 t:5.2s
+tttg: c50/207 lr:0.000867 t:5.3s
+tttg: c51/207 lr:0.000862 t:5.4s
+tttg: c52/207 lr:0.000856 t:5.5s
+tttg: c53/207 lr:0.000851 t:5.6s
+tttg: c54/207 lr:0.000845 t:5.7s
+tttg: c55/207 lr:0.000840 t:5.8s
+tttg: c56/207 lr:0.000834 t:5.9s
+tttg: c57/207 lr:0.000828 t:6.0s
+tttg: c58/207 lr:0.000823 t:6.1s
+tttg: c59/207 lr:0.000817 t:6.2s
+tttg: c60/207 lr:0.000811 t:6.3s
+tttg: c61/207 lr:0.000805 t:6.4s
+tttg: c62/207 lr:0.000799 t:6.5s
+tttg: c63/207 lr:0.000793 t:6.6s
+tttg: c64/207 lr:0.000786 t:6.8s
+tttg: c65/207 lr:0.000780 t:6.9s
+tttg: c66/207 lr:0.000774 t:7.0s
+tttg: c67/207 lr:0.000767 t:7.1s
+tttg: c68/207 lr:0.000761 t:7.2s
+tttg: c69/207 lr:0.000754 t:7.3s
+tttg: c70/207 lr:0.000748 t:7.4s
+tttg: c71/207 lr:0.000741 t:7.5s
+tttg: c72/207 lr:0.000734 t:7.6s
+tttg: c73/207 lr:0.000728 t:7.7s
+tttg: c74/207 lr:0.000721 t:7.8s
+tttg: c75/207 lr:0.000714 t:7.9s
+tttg: c76/207 lr:0.000707 t:8.0s
+tttg: c77/207 lr:0.000700 t:8.1s
+tttg: c78/207 lr:0.000693 t:8.2s
+tttg: c79/207 lr:0.000686 t:8.3s
+tttg: c80/207 lr:0.000679 t:8.4s
+tttg: c81/207 lr:0.000672 t:8.5s
+tttg: c82/207 lr:0.000665 t:8.7s
+tttg: c83/207 lr:0.000657 t:8.8s
+tttg: c84/207 lr:0.000650 t:8.9s
+tttg: c85/207 lr:0.000643 t:9.0s
+tttg: c86/207 lr:0.000636 t:9.1s
+tttg: c87/207 lr:0.000628 t:9.2s
+tttg: c88/207 lr:0.000621 t:9.3s
+tttg: c89/207 lr:0.000613 t:9.4s
+tttg: c90/207 lr:0.000606 t:9.5s
+tttg: c91/207 lr:0.000598 t:9.6s
+tttg: c92/207 lr:0.000591 t:9.7s
+tttg: c93/207 lr:0.000583 t:9.8s
+tttg: c94/207 lr:0.000576 t:9.9s
+tttg: c95/207 lr:0.000568 t:10.0s
+tttg: c96/207 lr:0.000561 t:10.1s
+tttg: c97/207 lr:0.000553 t:10.3s
+tttg: c98/207 lr:0.000546 t:10.4s
+tttg: c99/207 lr:0.000538 t:10.5s
+tttg: c100/207 lr:0.000530 t:10.6s
+tttg: c101/207 lr:0.000523 t:10.7s
+tttg: c102/207 lr:0.000515 t:10.8s
+tttg: c103/207 lr:0.000508 t:10.9s
+tttg: c104/207 lr:0.000500 t:11.1s
+tttg: c105/207 lr:0.000492 t:11.2s
+tttg: c106/207 lr:0.000485 t:11.3s
+tttg: c107/207 lr:0.000477 t:11.4s
+tttg: c108/207 lr:0.000470 t:11.5s
+tttg: c109/207 lr:0.000462 t:11.6s
+tttg: c110/207 lr:0.000454 t:11.7s
+tttg: c111/207 lr:0.000447 t:11.8s
+tttg: c112/207 lr:0.000439 t:11.9s
+tttg: c113/207 lr:0.000432 t:12.0s
+tttg: c114/207 lr:0.000424 t:12.1s
+tttg: c115/207 lr:0.000417 t:12.2s
+tttg: c116/207 lr:0.000409 t:12.4s
+tttg: c117/207 lr:0.000402 t:12.5s
+tttg: c118/207 lr:0.000394 t:12.6s
+tttg: c119/207 lr:0.000387 t:12.7s
+tttg: c120/207 lr:0.000379 t:12.8s
+tttg: c121/207 lr:0.000372 t:12.9s
+tttg: c122/207 lr:0.000364 t:13.0s
+tttg: c123/207 lr:0.000357 t:13.1s
+tttg: c124/207 lr:0.000350 t:13.2s
+tttg: c125/207 lr:0.000343 t:13.3s
+tttg: c126/207 lr:0.000335 t:13.4s
+tttg: c127/207 lr:0.000328 t:13.5s
+tttg: c128/207 lr:0.000321 t:13.6s
+tttg: c129/207 lr:0.000314 t:13.7s
+tttg: c130/207 lr:0.000307 t:13.8s
+tttg: c131/207 lr:0.000300 t:14.0s
+tttg: c132/207 lr:0.000293 t:14.1s
+tttg: c133/207 lr:0.000286 t:14.2s
+tttg: c134/207 lr:0.000279 t:14.3s
+tttg: c135/207 lr:0.000272 t:14.4s
+tttg: c136/207 lr:0.000266 t:14.5s
+tttg: c137/207 lr:0.000259 t:14.6s
+tttg: c138/207 lr:0.000252 t:14.7s
+tttg: c139/207 lr:0.000246 t:14.8s
+tttg: c140/207 lr:0.000239 t:14.9s
+tttg: c141/207 lr:0.000233 t:15.0s
+tttg: c142/207 lr:0.000226 t:15.1s
+tttg: c143/207 lr:0.000220 t:15.3s
+tttg: c144/207 lr:0.000214 t:15.4s
+tttg: c145/207 lr:0.000207 t:15.5s
+tttg: c146/207 lr:0.000201 t:15.6s
+tttg: c147/207 lr:0.000195 t:15.7s
+tttg: c148/207 lr:0.000189 t:15.8s
+tttg: c149/207 lr:0.000183 t:15.9s
+tttg: c150/207 lr:0.000177 t:16.0s
+tttg: c151/207 lr:0.000172 t:16.1s
+tttg: c152/207 lr:0.000166 t:16.2s
+tttg: c153/207 lr:0.000160 t:16.3s
+tttg: c154/207 lr:0.000155 t:16.4s
+tttg: c155/207 lr:0.000149 t:16.5s
+tttg: c156/207 lr:0.000144 t:16.6s
+tttg: c157/207 lr:0.000138 t:16.8s
+tttg: c158/207 lr:0.000133 t:16.9s
+tttg: c159/207 lr:0.000128 t:17.0s
+tttg: c160/207 lr:0.000123 t:17.1s
+tttg: c161/207 lr:0.000118 t:17.2s
+tttg: c162/207 lr:0.000113 t:17.3s
+tttg: c163/207 lr:0.000108 t:17.4s
+tttg: c164/207 lr:0.000104 t:17.5s
+tttg: c165/207 lr:0.000099 t:17.6s
+tttg: c166/207 lr:0.000095 t:17.7s
+tttg: c167/207 lr:0.000090 t:17.8s
+tttg: c168/207 lr:0.000086 t:17.9s
+tttg: c169/207 lr:0.000082 t:18.1s
+tttg: c170/207 lr:0.000078 t:18.2s
+tttg: c171/207 lr:0.000073 t:18.3s
+tttg: c172/207 lr:0.000070 t:18.4s
+tttg: c173/207 lr:0.000066 t:18.5s
+tttg: c174/207 lr:0.000062 t:18.6s
+tttg: c175/207 lr:0.000058 t:18.7s
+tttg: c176/207 lr:0.000055 t:18.8s
+tttg: c177/207 lr:0.000051 t:18.9s
+tttg: c178/207 lr:0.000048 t:19.0s
+tttg: c179/207 lr:0.000045 t:19.1s
+tttg: c180/207 lr:0.000042 t:19.2s
+tttg: c181/207 lr:0.000039 t:19.3s
+tttg: c182/207 lr:0.000036 t:19.4s
+tttg: c183/207 lr:0.000033 t:19.6s
+tttg: c184/207 lr:0.000030 t:19.7s
+tttg: c185/207 lr:0.000028 t:19.8s
+tttg: c186/207 lr:0.000025 t:19.9s
+tttg: c187/207 lr:0.000023 t:20.0s
+tttg: c188/207 lr:0.000021 t:20.1s
+tttg: c189/207 lr:0.000019 t:20.2s
+tttg: c190/207 lr:0.000017 t:20.3s
+tttg: c191/207 lr:0.000015 t:20.4s
+tttg: c192/207 lr:0.000013 t:20.5s
+tttg: c193/207 lr:0.000011 t:20.6s
+tttg: c194/207 lr:0.000010 t:20.8s
+tttg: c195/207 lr:0.000008 t:20.9s
+tttg: c196/207 lr:0.000007 t:21.0s
+tttg: c197/207 lr:0.000006 t:21.1s
+tttg: c198/207 lr:0.000005 t:21.2s
+tttg: c199/207 lr:0.000004 t:21.3s
+tttg: c200/207 lr:0.000003 t:21.4s
+tttg: c201/207 lr:0.000002 t:21.5s
+tttg: c202/207 lr:0.000001 t:21.6s
+tttg: c203/207 lr:0.000001 t:21.7s
+tttg: c204/207 lr:0.000001 t:21.8s
+tttg: c205/207 lr:0.000000 t:21.9s
+tttg: c206/207 lr:0.000000 t:22.1s
+ttpr: phase:4/4 t:443.5s
+ttp: b737/782 bl:2.8942 bb:1.1036 rl:2.8408 rb:1.1151 dl:2165-2193 gd:1
+ttp: b733/782 bl:2.8560 bb:1.0898 rl:2.8418 rb:1.1133 dl:2062-2090 gd:1
+ttp: b722/782 bl:2.8662 bb:1.0959 rl:2.8433 rb:1.1122 dl:1846-1861 gd:1
+ttp: b718/782 bl:2.8773 bb:1.1091 rl:2.8451 rb:1.1120 dl:1773-1792 gd:1
+ttp: b704/782 bl:2.8431 bb:1.0603 rl:2.8450 rb:1.1096 dl:1595-1606 gd:1
+ttp: b696/782 bl:2.9073 bb:1.1113 rl:2.8476 rb:1.1096 dl:1513-1522 gd:1
+ttp: b691/782 bl:2.7957 bb:1.0795 rl:2.8456 rb:1.1084 dl:1467-1476 gd:1
+ttp: b684/782 bl:2.8944 bb:1.1127 rl:2.8473 rb:1.1086 dl:1407-1414 gd:1
+ttp: b674/782 bl:2.8863 bb:1.0952 rl:2.8486 rb:1.1082 dl:1334-1341 gd:1
+ttp: b668/782 bl:2.8925 bb:1.0963 rl:2.8500 rb:1.1078 dl:1295-1301 gd:1
+ttp: b656/782 bl:2.8451 bb:1.0741 rl:2.8498 rb:1.1068 dl:1220-1227 gd:1
+ttp: b650/782 bl:2.8896 bb:1.1126 rl:2.8509 rb:1.1070 dl:1188-1193 gd:1
+ttp: b644/782 bl:2.8300 bb:1.0678 rl:2.8504 rb:1.1059 dl:1155-1160 gd:1
+ttp: b632/782 bl:2.8356 bb:1.0651 rl:2.8500 rb:1.1049 dl:1096-1101 gd:1
+ttp: b629/782 bl:2.8234 bb:1.0817 rl:2.8494 rb:1.1044 dl:1082-1086 gd:1
+ttp: b621/782 bl:2.9381 bb:1.1253 rl:2.8513 rb:1.1049 dl:1046-1050 gd:1
+ttp: b613/782 bl:2.9177 bb:1.0982 rl:2.8527 rb:1.1047 dl:1012-1016 gd:1
+ttp: b601/782 bl:2.8601 bb:1.0991 rl:2.8528 rb:1.1046 dl:963-966 gd:1
+ttp: b592/782 bl:2.8781 bb:1.0836 rl:2.8533 rb:1.1042 dl:930-933 gd:1
+ttp: b584/782 bl:2.8566 bb:1.0733 rl:2.8533 rb:1.1037 dl:904-907 gd:1
+ttp: b580/782 bl:2.8265 bb:1.0739 rl:2.8529 rb:1.1032 dl:891-894 gd:1
+ttp: b572/782 bl:3.0327 bb:1.1541 rl:2.8557 rb:1.1040 dl:865-868 gd:1
+ttp: b564/782 bl:2.9635 bb:1.1466 rl:2.8574 rb:1.1046 dl:840-843 gd:1
+ttp: b556/782 bl:2.9221 bb:1.1172 rl:2.8583 rb:1.1048 dl:815-818 gd:1
+ttp: b544/782 bl:2.8602 bb:1.0832 rl:2.8584 rb:1.1045 dl:782-785 gd:1
+ttp: b536/782 bl:2.8830 bb:1.1120 rl:2.8587 rb:1.1046 dl:762-764 gd:1
+ttp: b531/782 bl:2.8654 bb:1.0868 rl:2.8588 rb:1.1044 dl:750-752 gd:1
+ttp: b523/782 bl:2.9116 bb:1.0934 rl:2.8594 rb:1.1042 dl:730-732 gd:1
+ttp: b515/782 bl:2.8801 bb:1.1101 rl:2.8597 rb:1.1043 dl:710-713 gd:1
+ttp: b507/782 bl:2.8607 bb:1.0799 rl:2.8597 rb:1.1040 dl:690-693 gd:1
+ttp: b499/782 bl:2.8790 bb:1.0865 rl:2.8599 rb:1.1038 dl:673-675 gd:1
+ttp: b488/782 bl:2.9097 bb:1.0844 rl:2.8604 rb:1.1036 dl:649-651 gd:1
+ttp: b480/782 bl:2.8945 bb:1.0927 rl:2.8608 rb:1.1035 dl:632-635 gd:1
+ttp: b472/782 bl:2.9010 bb:1.1090 rl:2.8612 rb:1.1036 dl:616-618 gd:1
+ttp: b466/782 bl:2.9059 bb:1.1048 rl:2.8616 rb:1.1036 dl:604-606 gd:1
+ttp: b458/782 bl:2.9108 bb:1.1034 rl:2.8620 rb:1.1036 dl:589-591 gd:1
+ttp: b450/782 bl:2.8597 bb:1.0673 rl:2.8620 rb:1.1032 dl:575-576 gd:1
+ttp: b445/782 bl:2.8715 bb:1.1040 rl:2.8621 rb:1.1032 dl:566-568 gd:1
+ttp: b437/782 bl:2.9791 bb:1.0993 rl:2.8631 rb:1.1032 dl:551-553 gd:1
+ttp: b429/782 bl:2.8545 bb:1.1202 rl:2.8630 rb:1.1033 dl:537-539 gd:1
+ttp: b421/782 bl:2.8933 bb:1.0914 rl:2.8632 rb:1.1033 dl:523-524 gd:1
+ttp: b413/782 bl:2.7481 bb:1.0362 rl:2.8624 rb:1.1027 dl:510-511 gd:1
+ttp: b405/782 bl:2.9297 bb:1.1073 rl:2.8629 rb:1.1028 dl:497-498 gd:1
+ttp: b397/782 bl:2.9931 bb:1.1371 rl:2.8638 rb:1.1030 dl:484-486 gd:1
+ttp: b387/782 bl:2.9338 bb:1.1106 rl:2.8643 rb:1.1031 dl:468-470 gd:1
+ttp: b379/782 bl:2.8737 bb:1.1004 rl:2.8643 rb:1.1030 dl:457-459 gd:1
+ttp: b371/782 bl:2.9001 bb:1.1085 rl:2.8646 rb:1.1031 dl:446-447 gd:1
+ttp: b363/782 bl:2.8365 bb:1.1311 rl:2.8644 rb:1.1033 dl:434-436 gd:1
+ttp: b353/782 bl:2.9020 bb:1.1372 rl:2.8646 rb:1.1034 dl:420-422 gd:1
+ttp: b344/782 bl:2.9938 bb:1.1476 rl:2.8653 rb:1.1037 dl:408-410 gd:1
+ttp: b336/782 bl:3.0511 bb:1.2057 rl:2.8664 rb:1.1043 dl:398-399 gd:1
+ttp: b328/782 bl:2.8957 bb:1.1228 rl:2.8665 rb:1.1044 dl:388-389 gd:1
+ttp: b320/782 bl:2.8639 bb:1.1172 rl:2.8665 rb:1.1044 dl:377-378 gd:1
+ttp: b313/782 bl:2.9275 bb:1.1275 rl:2.8668 rb:1.1045 dl:368-369 gd:1
+ttp: b305/782 bl:2.9664 bb:1.1254 rl:2.8673 rb:1.1046 dl:358-359 gd:1
+ttp: b297/782 bl:2.8992 bb:1.0984 rl:2.8675 rb:1.1046 dl:348-349 gd:1
+ttp: b289/782 bl:2.9427 bb:1.1649 rl:2.8678 rb:1.1049 dl:339-340 gd:1
+ttp: b282/782 bl:2.9329 bb:1.1679 rl:2.8681 rb:1.1052 dl:331-332 gd:1
+ttp: b274/782 bl:2.9201 bb:1.1337 rl:2.8683 rb:1.1053 dl:322-323 gd:1
+ttp: b266/782 bl:2.9454 bb:1.1327 rl:2.8687 rb:1.1054 dl:313-314 gd:1
+ttp: b258/782 bl:3.0500 bb:1.2027 rl:2.8694 rb:1.1058 dl:304-305 gd:1
+ttp: b250/782 bl:2.9809 bb:1.1845 rl:2.8698 rb:1.1061 dl:295-296 gd:1
+ttp: b242/782 bl:3.0027 bb:1.1481 rl:2.8703 rb:1.1062 dl:287-288 gd:1
+ttp: b235/782 bl:3.0195 bb:1.1477 rl:2.8709 rb:1.1064 dl:280-281 gd:1
+ttp: b227/782 bl:2.9146 bb:1.1303 rl:2.8710 rb:1.1065 dl:272-273 gd:1
+ttp: b219/782 bl:3.0090 bb:1.1740 rl:2.8715 rb:1.1067 dl:264-265 gd:1
+ttp: b212/782 bl:3.0420 bb:1.1906 rl:2.8721 rb:1.1070 dl:257-258 gd:1
+ttp: b205/782 bl:2.9477 bb:1.1501 rl:2.8723 rb:1.1071 dl:251-252 gd:1
+ttp: b198/782 bl:3.0753 bb:1.1894 rl:2.8730 rb:1.1074 dl:245-246 gd:1
+ttp: b192/782 bl:3.0221 bb:1.1912 rl:2.8734 rb:1.1076 dl:239-240 gd:1
+ttp: b185/782 bl:2.9888 bb:1.1732 rl:2.8738 rb:1.1078 dl:233-234 gd:1
+ttp: b178/782 bl:2.9731 bb:1.1858 rl:2.8741 rb:1.1081 dl:227-228 gd:1
+ttp: b172/782 bl:3.1125 bb:1.2241 rl:2.8748 rb:1.1084 dl:222-223 gd:1
+ttp: b167/782 bl:3.0782 bb:1.2305 rl:2.8753 rb:1.1087 dl:218-218 gd:1
+ttp: b160/782 bl:2.9941 bb:1.1767 rl:2.8756 rb:1.1089 dl:212-212 gd:1
+ttp: b152/782 bl:3.0104 bb:1.1746 rl:2.8760 rb:1.1091 dl:205-206 gd:1
+ttp: b144/782 bl:2.9433 bb:1.1707 rl:2.8762 rb:1.1092 dl:199-200 gd:1
+ttp: b139/782 bl:3.1026 bb:1.2008 rl:2.8767 rb:1.1094 dl:195-195 gd:1
+ttp: b130/782 bl:3.2378 bb:1.2727 rl:2.8776 rb:1.1098 dl:187-188 gd:1
+ttp: b123/782 bl:3.0555 bb:1.2207 rl:2.8780 rb:1.1101 dl:182-183 gd:1
+ttp: b117/782 bl:2.9753 bb:1.1925 rl:2.8782 rb:1.1102 dl:178-178 gd:1
+ttp: b108/782 bl:2.9945 bb:1.1500 rl:2.8784 rb:1.1103 dl:171-172 gd:1
+ttp: b99/782 bl:3.1073 bb:1.2355 rl:2.8789 rb:1.1106 dl:164-165 gd:1
+ttp: b91/782 bl:3.1293 bb:1.2524 rl:2.8794 rb:1.1108 dl:158-159 gd:1
+ttp: b82/782 bl:3.0980 bb:1.2471 rl:2.8798 rb:1.1111 dl:151-152 gd:1
+ttp: b74/782 bl:3.2398 bb:1.3243 rl:2.8805 rb:1.1114 dl:145-146 gd:1
+ttp: b65/782 bl:3.1691 bb:1.2724 rl:2.8810 rb:1.1117 dl:139-139 gd:1
+ttp: b55/782 bl:3.1964 bb:1.2837 rl:2.8815 rb:1.1120 dl:130-131 gd:1
+ttp: b47/782 bl:3.0528 bb:1.2200 rl:2.8817 rb:1.1121 dl:124-125 gd:1
+ttp: b40/782 bl:3.1004 bb:1.2471 rl:2.8821 rb:1.1123 dl:119-119 gd:1
+ttp: b31/782 bl:3.3128 bb:1.3128 rl:2.8826 rb:1.1126 dl:111-112 gd:1
+ttp: b23/782 bl:3.2623 bb:1.3003 rl:2.8831 rb:1.1128 dl:104-105 gd:1
+ttp: b15/782 bl:3.3543 bb:1.2832 rl:2.8837 rb:1.1130 dl:95-97 gd:1
+ttp: b11/782 bl:3.3524 bb:1.3101 rl:2.8842 rb:1.1132 dl:90-92 gd:1
+ttp: b3/782 bl:3.4408 bb:1.3049 rl:2.8847 rb:1.1134 dl:75-78 gd:1
+quantized_ttt_phased val_loss:2.87228572 val_bpb:1.11195131 eval_time:539370ms
+total_eval_time:539.4s

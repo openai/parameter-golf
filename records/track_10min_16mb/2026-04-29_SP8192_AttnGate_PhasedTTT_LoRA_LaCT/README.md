@@ -3,6 +3,7 @@
 **Track:** 10-min / 16 MB  
 **Primary eval path:** `quantized_ttt_phased`  
 **Hardware target:** 8 × H100 SXM5 (RunPod)  
+**Current accepted SOTA to beat:** `2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611` at `1.06108` BPB  
 
 ---
 
@@ -140,6 +141,7 @@ These are the record defaults currently wired into `train_gpt.py`, `run.sh`, and
 | `GLOBAL_TTT_WARMUP_CHUNKS` | `0` | Exact PR `#1727` run value |
 | `GLOBAL_TTT_GRAD_CLIP` | `1.0` | Exact PR `#1727` run value |
 | `GLOBAL_TTT_RESPECT_DOC_BOUNDARIES` | `1` | Exact PR `#1727` run value |
+| `GPTQ_CALIBRATION_BATCHES` | `64` | Full record-profile Hessian calibration count |
 | `TTT_LORA_ENABLED` | `0` | Standalone LoRA-only eval is intentionally unsupported |
 
 ### LaCT
@@ -312,7 +314,7 @@ Notes:
 
 ### Full manual 8×H100 run
 
-For the actual full run on an 8-GPU pod, `run.sh` is the intended launcher:
+For the actual full run on an 8-GPU pod, `run.sh` is the intended launcher. It now pins the same profile documented above, including `LQER_RANK=4`, `LQER_TOP_K=3`, and `GPTQ_CALIBRATION_BATCHES=64`:
 
 ```bash
 cd /parameter-golf/records/track_10min_16mb/2026-04-29_SP8192_AttnGate_PhasedTTT_LoRA_LaCT

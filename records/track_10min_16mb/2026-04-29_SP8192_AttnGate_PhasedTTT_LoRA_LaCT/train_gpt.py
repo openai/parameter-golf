@@ -13,10 +13,36 @@ from flash_attn_interface import (
     flash_attn_varlen_func,
 )
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]
+
+
+def resolve_repo_path(path_str: str) -> str:
+    path = Path(path_str).expanduser()
+    if path.is_absolute():
+        return str(path)
+    return str((REPO_ROOT / path).resolve())
+
+
+def describe_path_context() -> str:
+    return f"cwd={Path.cwd()} script_dir={SCRIPT_DIR} repo_root={REPO_ROOT}"
+
+
+def require_existing_file(path_str: str, label: str) -> None:
+    path = Path(path_str)
+    if not path.is_file():
+        raise FileNotFoundError(f"{label} not found at {path} ({describe_path_context()})")
+
+
+def require_glob_matches(pattern: str, label: str) -> None:
+    matches = glob.glob(pattern)
+    if not matches:
+        raise FileNotFoundError(f"{label} matched no files for pattern {pattern} ({describe_path_context()})")
+
 
 class Hyperparameters:
     # ── data ──────────────────────────────────────────────────────────────
-    data_dir                    = os.environ.get('DATA_DIR', './data/')
+    data_dir                    = resolve_repo_path(os.environ.get('DATA_DIR', 'data'))
     seed                        = int(os.environ.get('SEED', 1337))
     run_id                      = os.environ.get('RUN_ID', str(uuid.uuid4()))
 
@@ -107,6 +133,8 @@ class Hyperparameters:
     ttt_lora_beta1              = ttt_beta1
     ttt_beta2                   = float(os.environ.get('TTT_BETA2', 0.999))
     ttt_lora_beta2              = ttt_beta2
+    ttt_q_lora                  = bool(int(os.environ.get('TTT_Q_LORA', '0')))
+    ttt_v_lora                  = bool(int(os.environ.get('TTT_V_LORA', '0')))
     ttt_k_lora                  = bool(int(os.environ.get('TTT_K_LORA', '1')))
     ttt_mlp_lora                = bool(int(os.environ.get('TTT_MLP_LORA', '1')))
     ttt_o_lora                  = bool(int(os.environ.get('TTT_O_LORA', '1')))
@@ -124,6 +152,8 @@ class Hyperparameters:
     global_ttt_warmup_start_lr  = float(os.environ.get('GLOBAL_TTT_WARMUP_START_LR', 0.0))
     global_ttt_warmup_chunks    = int(os.environ.get('GLOBAL_TTT_WARMUP_CHUNKS', 0))
     global_ttt_grad_clip        = float(os.environ.get('GLOBAL_TTT_GRAD_CLIP', 1.0))
+    global_ttt_optimizer         = os.environ.get('GLOBAL_TTT_OPTIMIZER', 'sgd')
+    global_ttt_weight_decay      = float(os.environ.get('GLOBAL_TTT_WEIGHT_DECAY', '0.01'))
     global_ttt_respect_doc_boundaries = bool(
         int(os.environ.get('GLOBAL_TTT_RESPECT_DOC_BOUNDARIES', '1'))
     )
@@ -236,6 +266,7 @@ def log(msg, console=True):
 
 class ValidationData:
     def __init__(self, h, device):
+        require_existing_file(h.tokenizer_path, 'Tokenizer model')
         self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
         if int(self.sp.vocab_size()) != h.vocab_size:
             raise ValueError(f'VOCAB_SIZE={h.vocab_size} does not match tokenizer vocab_size={int(self.sp.vocab_size())}')
@@ -272,6 +303,7 @@ def build_sentencepiece_luts(sp, vocab_size, device):
 
 
 def load_validation_tokens(pattern, seq_len):
+    require_glob_matches(pattern, 'Validation shards')
     files = [Path(p) for p in sorted(glob.glob(pattern))]
     if not files:
         raise FileNotFoundError(f'No files found for pattern: {pattern}')
@@ -327,6 +359,7 @@ class ShuffledSequenceLoader:
         self.world_size = h.world_size
         self.seq_len    = h.train_seq_len
         self.device     = device
+        require_glob_matches(h.train_files, 'Training shards')
         all_files = [Path(p) for p in sorted(glob.glob(h.train_files))]
         if not all_files:
             raise FileNotFoundError(f'No files found for pattern: {h.train_files}')
@@ -565,7 +598,7 @@ class BatchedLinearLoRA(nn.Module):
 
 class BatchedTTTLoRA(nn.Module):
     """Batched LoRA adapter container (PR #1727) — bsz document slots per layer."""
-    def __init__(self, bsz, base_model, rank, k_lora=True, mlp_lora=True, o_lora=True):
+    def __init__(self, bsz, base_model, rank, q_lora=False, v_lora=False, k_lora=True, mlp_lora=True, o_lora=True):
         super().__init__()
         dim = base_model.tok_emb.embedding_dim
         n_layers = len(base_model.blocks)
@@ -575,8 +608,10 @@ class BatchedTTTLoRA(nn.Module):
         mlp_hidden = base_model.blocks[0].mlp.fc.weight.shape[0]
         vocab_size = base_model.tok_emb.num_embeddings
         self.bsz = bsz
-        self.q_loras   = nn.ModuleList([BatchedLinearLoRA(bsz, dim, dim,         rank) for _ in range(n_layers)])
-        self.v_loras   = nn.ModuleList([BatchedLinearLoRA(bsz, dim, kv_dim,      rank) for _ in range(n_layers)])
+        self.q_loras   = (nn.ModuleList([BatchedLinearLoRA(bsz, dim, dim,         rank) for _ in range(n_layers)])
+                          if q_lora else None)
+        self.v_loras   = (nn.ModuleList([BatchedLinearLoRA(bsz, dim, kv_dim,      rank) for _ in range(n_layers)])
+                          if v_lora else None)
         self.k_loras   = (nn.ModuleList([BatchedLinearLoRA(bsz, dim, kv_dim,     rank) for _ in range(n_layers)])
                           if k_lora else None)
         self.o_loras   = (nn.ModuleList([BatchedLinearLoRA(bsz, dim, dim,        rank) for _ in range(n_layers)])
@@ -586,8 +621,10 @@ class BatchedTTTLoRA(nn.Module):
         self.lm_head_lora = BatchedLinearLoRA(bsz, dim, vocab_size, rank)
 
     def reset(self):
-        for l in self.q_loras:  l.reset()
-        for l in self.v_loras:  l.reset()
+        if self.q_loras:
+            for l in self.q_loras:  l.reset()
+        if self.v_loras:
+            for l in self.v_loras:  l.reset()
         if self.k_loras:
             for l in self.k_loras:  l.reset()
         if self.o_loras:
@@ -623,9 +660,9 @@ class Block(nn.Module):
         if ttt_lora is not None:
             attn_out = self.attn(
                 norm_in,
-                q_lora=ttt_lora.q_loras[layer_idx],
+                q_lora=ttt_lora.q_loras[layer_idx] if ttt_lora.q_loras is not None else None,
                 k_lora=ttt_lora.k_loras[layer_idx] if ttt_lora.k_loras is not None else None,
-                v_lora=ttt_lora.v_loras[layer_idx],
+                v_lora=ttt_lora.v_loras[layer_idx] if ttt_lora.v_loras is not None else None,
                 o_lora=ttt_lora.o_loras[layer_idx] if ttt_lora.o_loras is not None else None,
                 cu_seqlens=cu_seqlens,
                 max_seqlen=max_seqlen,
@@ -1628,9 +1665,14 @@ def train_val_ttt_global_sgd_distributed(h, device, val_data, base_model, val_to
     ttt_params = [p for p in base_model.parameters()]
     for p in ttt_params:
         p.requires_grad_(True)
-    optimizer = torch.optim.SGD(
-        ttt_params, lr=h.global_ttt_lr, momentum=h.global_ttt_momentum
-    )
+    if h.global_ttt_optimizer == 'adamw':
+        optimizer = torch.optim.AdamW(
+            ttt_params, lr=h.global_ttt_lr, weight_decay=h.global_ttt_weight_decay
+        )
+    else:
+        optimizer = torch.optim.SGD(
+            ttt_params, lr=h.global_ttt_lr, momentum=h.global_ttt_momentum
+        )
     t_start = time.perf_counter()
     for ci in range(num_chunks):
         chunk_start = ci * ttt_chunk
@@ -1765,7 +1807,7 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
     t_start = time.perf_counter()
     reusable_lora = BatchedTTTLoRA(
         h.ttt_batch_size, base_model, h.ttt_lora_rank,
-        k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
+        q_lora=h.ttt_q_lora, v_lora=h.ttt_v_lora, k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
     ).to(device)
 
     def _build_opt(lora):
@@ -1807,7 +1849,7 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
             else:
                 cur_lora = BatchedTTTLoRA(
                     bsz, base_model, h.ttt_lora_rank,
-                    k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
+                    q_lora=h.ttt_q_lora, v_lora=h.ttt_v_lora, k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
                 ).to(device)
                 cur_opt = _build_opt(cur_lora)
             pred_lens = [doc_len - 1 for _, doc_len in batch]
@@ -1958,7 +2000,7 @@ def eval_val_ttt_phased(h, base_model, device, val_data, forward_ttt_train):
                         p.requires_grad_(False)
                     reusable_lora = BatchedTTTLoRA(
                         h.ttt_batch_size, base_model, h.ttt_lora_rank,
-                        k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
+                        q_lora=h.ttt_q_lora, v_lora=h.ttt_v_lora, k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
                     ).to(device)
                     reusable_opt = _build_opt(reusable_lora)
                     current_phase += 1
@@ -2363,7 +2405,7 @@ def train_and_eval(h, device):
         for bsz in warmup_bszes:
             wl = BatchedTTTLoRA(
                 bsz, ttt_model, h.ttt_lora_rank,
-                k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
+                q_lora=h.ttt_q_lora, v_lora=h.ttt_v_lora, k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
             ).to(device)
             wo = torch.optim.AdamW(
                 wl.parameters(),
@@ -2440,6 +2482,9 @@ def main():
     enable_math_sdp(False)
     torch._dynamo.config.optimize_ddp = False
     h = Hyperparameters()
+    require_existing_file(h.tokenizer_path, 'Tokenizer model')
+    require_glob_matches(h.train_files, 'Training shards')
+    require_glob_matches(h.val_files, 'Validation shards')
     set_logging_hparams(h)
     if h.is_main_process:
         os.makedirs('logs', exist_ok=True)

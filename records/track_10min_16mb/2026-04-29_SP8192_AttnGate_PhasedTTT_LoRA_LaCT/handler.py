@@ -40,11 +40,11 @@ DEFAULT_GPU_COUNT = int(os.environ.get("RUNPOD_GPU_COUNT_REQUIRED", "8"))
 DEFAULT_PER_SEED_OVERHEAD_SECONDS = int(os.environ.get("RUNPOD_PER_SEED_OVERHEAD_SECONDS", "180"))
 PRIMARY_EVAL_LABEL = "quantized_ttt_phased"
 LATEST_VALID_RECORD = {
-    "name": "2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT",
-    "date": "2026-04-09",
-    "ttt_bpb": 1.0810,
-    "sliding_bpb": 1.0827,
-    "artifact_bytes_mean": 15992694,
+    "name": "2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611",
+    "date": "2026-04-27",
+    "ttt_bpb": 1.06108,
+    "sliding_bpb": None,
+    "artifact_bytes_mean": None,
 }
 COMPETITION_SEEDS = (42, 314, 999)
 EVAL_RE = re.compile(
@@ -107,6 +107,7 @@ RECORD_PROFILE_ENV = {
     "LQER_FACTOR_BITS": "4",
     "LQER_ASYM_ENABLED": "1",
     "LQER_ASYM_GROUP": "64",
+    "GPTQ_CALIBRATION_BATCHES": "64",
     "ITERATIONS": "20000",
     "WARMDOWN_FRAC": "0.72",
     "TRAIN_BATCH_TOKENS": "786432",
@@ -360,7 +361,7 @@ def parse_metrics(log_lines: list[str]) -> dict[str, object]:
         "artifact_total_bytes": artifact_total_bytes,
         "artifact_delta_vs_latest_valid_record_mean": (
             None
-            if artifact_total_bytes is None
+            if artifact_total_bytes is None or LATEST_VALID_RECORD["artifact_bytes_mean"] is None
             else artifact_total_bytes - LATEST_VALID_RECORD["artifact_bytes_mean"]
         ),
         "latest_valid_record": LATEST_VALID_RECORD,
