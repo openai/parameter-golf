@@ -11,7 +11,7 @@ I do not explore whether progression of various hyperparameters within each laye
 
 ## Correcting ZerO
 Previously, I had generative AI try to implement the [ZerO](https://arxiv.org/pdf/2110.12661) initialization function. However, due to issues in prompting and visibility of the document (a URL was sent instead of the underlying PDF document), the model most likely hallucinated the implementation.
-- It did take inspiration from the usage of Hadamard matrices, though this could also have been a hallucination or perhaps was not fully memorized from the training corpus that the prompted LLM went through.
+- It did take inspiration from the usage of Hadamard matrices, though this could also have been a hallucination or perhaps was not fully memorized from the training corpus that the LLM I prompted went through.
 - However, due to various other ideas being tested concurrently, validation of this implementation was largely overlooked during the challenge.
 	- Admittedly, it isn't a really good idea to test too many things at once.
 
