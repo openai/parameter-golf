@@ -44,6 +44,8 @@ byte input (vocab=260)
 - Dynamic routing convergence is challenging with byte-level input: `boundary_mean` stabilized at ~0.31 instead of the target 0.125 (1/8). The encoder (2 Mamba layers) may be too shallow to build semantic representations sufficient for reliable boundary detection before routing.
 - Increasing `ROUTING_LOSS_WEIGHT` from 1.0 to 3.0 made training worse, suggesting the load-balancing loss fights the LM objective at high weights.
 - A fixed-stride variant (selecting every 8th byte deterministically) achieved 1.9733 bpb with the same architecture, suggesting the dynamic routing is the bottleneck rather than the hierarchical structure itself.
+- **Extended run (1-stage, m4-T4-m2, 2 hours):** Deepening the encoder to 4 Mamba layers allowed `boundary_mean` to converge to ~0.125. After 2 hours on 1×H100 (≈8×H100 for 600s), val_bpb reached **2.8475** (18.69MB, over 16MB limit). Routing convergence is achievable with a deeper encoder, but bpb remains significantly worse than fixed stride.
+- **2-stage run (m2-[T1m2-T4-m2T1]-m2, 2 hours):** 3-level nested H-net with two routing layers. val_bpb **3.2606**, 26.57MB (over limit). Two-layer routing adds training difficulty without clear benefit at this scale.
 
 ## Training
 
