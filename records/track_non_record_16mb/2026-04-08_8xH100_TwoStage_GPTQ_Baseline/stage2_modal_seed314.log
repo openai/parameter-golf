@@ -1,0 +1,86 @@
+[modal] record_dir=records/track_10min_16mb/2026-04-05_RecordCampaign_ARSelfGen_XSAall_Bigram3072
+[modal] env_file=records/track_10min_16mb/2026-04-05_RecordCampaign_ARSelfGen_XSAall_Bigram3072/stock.env
+[modal] seed=314
+[modal] requested_gpu=H100:1
+[modal] resolved_gpu=H100:1
+[modal] requested_nproc_per_node=1
+[modal] resolved_nproc_per_node=1
+[modal] app_runtime_preset=torch291-cu128
+[modal] runtime_preset=torch291-cu128
+[modal] torch_package=torch==2.9.1+cu128
+[modal] flash_attn_source=https://windreamer.github.io/flash-attention3-wheels/cu128_torch291
+[modal] benchmark_only=0
+[modal] cmd=torchrun --standalone --nproc_per_node=1 /root/repo/records/track_10min_16mb/2026-04-05_RecordCampaign_ARSelfGen_XSAall_Bigram3072/run_gptq.py
+[modal] torchrun_start=1
+gptq_stage2:val_tokens=62021632
+gptq_stage2:loading checkpoint from /data/parameter-golf/checkpoints/record_seed314/final_model.pt
+gptq_stage2:checkpoint loaded
+phase_start:gptq_build_model
+gptq:building non-banked model for Hessian collection...
+phase_complete:gptq_build_model elapsed_s:0.3
+phase_start:gptq_generate_autoregressive_data
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:0 pos:675/2047 elapsed_s:15.0
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:0 pos:1496/2047 elapsed_s:30.0
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:8 pos:375/2047 elapsed_s:45.0
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:8 pos:1427/2047 elapsed_s:60.0
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:16 pos:432/2047 elapsed_s:75.0
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:16 pos:1561/2047 elapsed_s:90.0
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:24 pos:610/2047 elapsed_s:105.0
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:24 pos:1681/2047 elapsed_s:120.1
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:32 pos:758/2047 elapsed_s:135.1
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:32 pos:1723/2047 elapsed_s:150.1
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:40 pos:757/2047 elapsed_s:165.1
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:40 pos:1791/2047 elapsed_s:180.1
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:48 pos:887/2047 elapsed_s:195.1
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:48 pos:1898/2047 elapsed_s:210.1
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:56 pos:923/2047 elapsed_s:225.1
+phase_heartbeat:gptq_generate_autoregressive_data batch_start:56 pos:1967/2047 elapsed_s:240.1
+gptq:generated 64 sequences in 241.3s
+phase_complete:gptq_generate_autoregressive_data elapsed_s:241.3
+phase_start:gptq_collect_hessians
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+phase_complete:gptq_collect_hessians elapsed_s:3.0
+phase_start:selective_prune
+selective_prune: 4389165 +/-1 candidates, unpruned=14.93MB target=15.9MB
+selective_prune: already fits, no pruning needed
+phase_complete:selective_prune elapsed_s:26.8
+Serialized model int6+lzma: 15544992 bytes
+Total submission size int6+lzma: 15651808 bytes
+phase_start:quantized_roundtrip_eval
+phase_heartbeat:quantized_roundtrip_eval batches:1/947 elapsed_s:100.8
+phase_heartbeat:quantized_roundtrip_eval batches:2/947 elapsed_s:182.8
+phase_heartbeat:quantized_roundtrip_eval batches:947/947 elapsed_s:281.9
+final_int6_roundtrip val_loss:1.9492 val_bpb:1.1544 eval_time:281910ms
+final_int6_roundtrip_exact val_loss:1.94920379 val_bpb:1.15442828
+phase_complete:quantized_roundtrip_eval elapsed_s:281.9
+phase_start:submission_sliding_eval
+phase_heartbeat:submission_sliding_eval batches:1/30284 elapsed_s:37.6
+phase_heartbeat:submission_sliding_eval batches:1517/30284 elapsed_s:67.6
+phase_heartbeat:submission_sliding_eval batches:3032/30284 elapsed_s:97.6
+phase_heartbeat:submission_sliding_eval batches:4546/30284 elapsed_s:127.6
+phase_heartbeat:submission_sliding_eval batches:6064/30284 elapsed_s:157.6
+phase_heartbeat:submission_sliding_eval batches:7581/30284 elapsed_s:187.6
+phase_heartbeat:submission_sliding_eval batches:9099/30284 elapsed_s:217.6
+phase_heartbeat:submission_sliding_eval batches:10607/30284 elapsed_s:247.6
+phase_heartbeat:submission_sliding_eval batches:12111/30284 elapsed_s:277.6
+phase_heartbeat:submission_sliding_eval batches:13629/30284 elapsed_s:307.6
+phase_heartbeat:submission_sliding_eval batches:15138/30284 elapsed_s:337.7
+phase_heartbeat:submission_sliding_eval batches:16644/30284 elapsed_s:367.7
+phase_heartbeat:submission_sliding_eval batches:18162/30284 elapsed_s:397.7
+phase_heartbeat:submission_sliding_eval batches:19670/30284 elapsed_s:427.7
+phase_heartbeat:submission_sliding_eval batches:21175/30284 elapsed_s:457.7
+phase_heartbeat:submission_sliding_eval batches:22683/30284 elapsed_s:487.7
+phase_heartbeat:submission_sliding_eval batches:24194/30284 elapsed_s:517.7
+phase_heartbeat:submission_sliding_eval batches:25707/30284 elapsed_s:547.7
+phase_heartbeat:submission_sliding_eval batches:27234/30284 elapsed_s:577.8
+phase_heartbeat:submission_sliding_eval batches:28776/30284 elapsed_s:607.8
+final_int6_sliding_window val_loss:1.9092 val_bpb:1.1307 stride:64 eval_time:637334ms
+final_int6_sliding_window_exact val_loss:1.90916473 val_bpb:1.13071788
+final_int8_zlib_roundtrip_exact val_loss:1.90916473 val_bpb:1.13071788
+phase_complete:submission_sliding_eval elapsed_s:637.3
+[summary] final_roundtrip_val_bpb=1.15442828
+[summary] final_sliding_val_bpb=1.13071788
+[summary] artifact_bytes=15651808
+[modal] exit_code=0

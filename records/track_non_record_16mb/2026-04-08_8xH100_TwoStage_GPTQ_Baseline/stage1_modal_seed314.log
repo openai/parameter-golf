@@ -1,0 +1,86 @@
+[modal] record_dir=records/track_10min_16mb/2026-04-05_RecordCampaign_ARSelfGen_XSAall_Bigram3072
+[modal] env_file=records/track_10min_16mb/2026-04-05_RecordCampaign_ARSelfGen_XSAall_Bigram3072/stock.env
+[modal] seed=314
+[modal] requested_gpu=H100:8
+[modal] resolved_gpu=H100:8
+[modal] requested_nproc_per_node=8
+[modal] resolved_nproc_per_node=8
+[modal] app_runtime_preset=torch291-cu128
+[modal] runtime_preset=torch291-cu128
+[modal] torch_package=torch==2.9.1+cu128
+[modal] flash_attn_source=https://windreamer.github.io/flash-attention3-wheels/cu128_torch291
+[modal] benchmark_only=0
+[modal] cmd=torchrun --standalone --nproc_per_node=8 /root/repo/records/track_10min_16mb/2026-04-05_RecordCampaign_ARSelfGen_XSAall_Bigram3072/train_gpt.py
+[modal] torchrun_start=1
+logs/record_campaign_stock_sp1024.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/data/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27067484
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:314
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9271 val_bpb:4.1026 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9298 train_time:207ms step_avg:206.88ms
+step:2/20000 train_loss:8.6136 train_time:275ms step_avg:137.33ms
+step:3/20000 train_loss:7.7136 train_time:398ms step_avg:132.65ms
+step:4/20000 train_loss:7.0181 train_time:528ms step_avg:131.88ms
+step:5/20000 train_loss:7.0855 train_time:647ms step_avg:129.35ms
+step:6/20000 train_loss:7.1394 train_time:775ms step_avg:129.23ms
+step:7/20000 train_loss:7.0853 train_time:902ms step_avg:128.88ms
+step:8/20000 train_loss:6.9821 train_time:1015ms step_avg:126.89ms
+step:9/20000 train_loss:6.5859 train_time:1142ms step_avg:126.88ms
+step:10/20000 train_loss:6.1915 train_time:1261ms step_avg:126.06ms
+step:500/20000 train_loss:2.3876 train_time:62005ms step_avg:124.01ms
+step:1000/20000 train_loss:2.2497 train_time:124038ms step_avg:124.04ms
+step:1500/20000 train_loss:2.1859 train_time:186137ms step_avg:124.09ms
+step:2000/20000 train_loss:2.0294 train_time:248193ms step_avg:124.10ms
+step:2500/20000 train_loss:2.1249 train_time:310459ms step_avg:124.18ms
+step:3000/20000 train_loss:2.1059 train_time:372712ms step_avg:124.24ms
+step:3500/20000 train_loss:2.1066 train_time:434704ms step_avg:124.20ms
+step:4000/20000 train_loss:1.8930 train_time:496958ms step_avg:124.24ms
+step:4000/20000 val_loss:1.9810 val_bpb:1.1733 train_time:497023ms step_avg:124.26ms
+swa:start step:4050
+late_qat:enabled step:4214 scale:0.1499
+step:4500/20000 train_loss:2.0311 train_time:562674ms step_avg:125.04ms
+step:4783/20000 val_loss:1.9428 val_bpb:1.1506 train_time:600045ms step_avg:125.45ms
+stopping_early: wallclock_cap train_time:600045ms step:4783/20000
+peak memory allocated: 22858 MiB reserved: 22926 MiB
+ema:applying EMA weights
+phase_start:post_ema_eval
+DIAGNOSTIC post_ema val_loss:1.9419 val_bpb:1.1501 eval_time:2091ms
+phase_complete:post_ema_eval elapsed_s:2.1
+Serialized model: 106289590 bytes
+Code size: 106816 bytes
+checkpoint_saved:/data/parameter-golf/checkpoints/record_seed314/final_model.pt
+skip_quantize:skipping GPTQ pipeline (SKIP_QUANTIZE=1)
+[summary] diagnostic_val_bpb=1.1501
+[summary] latest_step=4783/20000
+[summary] latest_step_avg_ms=125.45
+[summary] latest_checkpoint_val_bpb=1.1506
+[modal] exit_code=0
