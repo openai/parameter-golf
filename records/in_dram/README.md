@@ -8,6 +8,9 @@ Based on the results published in [^1], I demonstrate the viability of training 
 
 An important implementation note is that a dot product can only be computed full in-DRAM if the matrix row can be stored in one DRAM subarray column, where a subarray is the internal unit of the memory array over which RowCopies and MAJ operations can be done. Typical subarray sizes are 512-1024, so with a few bits per element we can only compute the dot product in-DRAM in batches of 128 or 256 or so. Finally, the actual integer arithmetic is implemented bit-by-bit, so the runtime for a b1-bit integer multiplied by a b2-bit integer is O(b1 b2). Thus, lower bit is better. This is demonstrated in Figures 12 and 14 of [^1], which compare the latency and energy consumption, respectively, of matrix vector operations in DRAM. Noteably, for 2-bit matrix elements and 4-bit vector elements, the latency is far lower with DRAM than with comparable (comparisons are made to systems with equivalent memory bandwidth) CPU and GPU implementations. Furthermore, the energy consumption with in-DRAM compute is significantly lower (by almost 75% compared to the GPU). For 4-bit matrix elements and 4-bit vector elements, DRAM still matches the latency of the GPU and still beats the CPU.
 
+![Figure 12](img/Fig_12.png)
+![Figure 14](img/Fig_14.png)
+
 Another important implementation detail is that the different bits of the matrix elements are computed as partial sums in parallal across different columns of the DRAM memory arrays. Then, the partial sums are recombined outside of the DRAM. This allows for arbitrary scaling of each of the n levels represented by an n-bit matrix element. So for example, whereas a 2-bit value could have a fixed representation as either -1 or 1, with this strategy one could assign two arbitrary floats alpha and beta to the two values.
 
 Given this, my quantization strategy is:
