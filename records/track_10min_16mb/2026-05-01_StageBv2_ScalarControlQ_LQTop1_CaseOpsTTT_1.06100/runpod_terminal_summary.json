@@ -1,10 +1,23 @@
 {
-  "run_id": "runpod_8xh100_stageb_v2_forced_seed_confirm_20260501",
+  "run_id": "runpod_8xh100_stageb_v2_seed42_rank128_final_20260502",
   "flywheel_node_id": "1450c4a2-7893-4a09-ab33-c5b4bee7e380",
-  "flywheel_execution_id": "02221723-3999-4255-8d08-9ced71d8d206",
-  "pod_id": "3v1j7hvmx1k618",
-  "status": "completed_pod_deleted_top2_3seed_miss",
+  "flywheel_execution_id": "18ec3489-c592-46eb-a2c2-6fe3648e83f8",
+  "pod_id": "9ibapw15ldaq8h",
+  "status": "completed_pod_deleted_final_single_seed_score",
   "best_single_seed": {
+    "seed": 42,
+    "val_loss": 2.32177184,
+    "val_bpb": 1.06095913,
+    "artifact_bytes": 15995233,
+    "counted_submission_bytes": 15995233,
+    "eval_time_ms": 546432,
+    "process_real_wall_s": 733.28,
+    "ttt_profile": "rank128_p2000_beta999_wd1",
+    "artifact_sha256": "fbbc5068de300ce573634d135e6314cb90ba18feedb1d2396e23611b3643f580",
+    "internal_eval_run_id": "stageb_v2_seed42_ttt_rank128_p2000_beta999_wd1_final",
+    "evidence_path": "runs/stageb_v2_final_eval_20260502/remote_pull"
+  },
+  "previous_seed42_rank80_p2500": {
     "seed": 42,
     "val_bpb": 1.06099764,
     "artifact_bytes": 15995233,
@@ -55,25 +68,33 @@
   "three_seed_means": {
     "rank80_p2500": 1.06149165,
     "rank96_p2000_beta999_wd1_v2": 1.0614833733333333,
-    "rank128_p2000_beta999_wd1": 1.06147953
+    "rank128_p2000_beta999_wd1": 1.06147953,
+    "best_available_mixed_final_seed42_rank128_seed999_rank128": 1.06146669,
+    "official_reference_42_0_1234_with_final_seed42": 1.06159742
   },
   "accepted_board_context": {
     "accepted_pr_1855_bpb": 1.06108,
     "accepted_top2_threshold_bpb": 1.06141,
-    "single_seed_position_if_accepted": "beats accepted #1",
-    "three_seed_mean_position_if_required": "misses accepted #2 by about 0.00007 BPB"
+    "single_seed_position_if_accepted": "beats accepted #1 row",
+    "three_seed_mean_position_if_required": "misses accepted #2 by about 0.0000567 BPB using the best available mixed profile mean"
   },
-  "legality_family": "accepted-precedent clean neural CaseOps plus phased score-first TTT; no casefold, no byte PPM, NGRAM_MIX_ALPHA=0",
+  "legality_family": "accepted-precedent clean neural CaseOps plus phased score-first TTT; no casefold, no byte PPM, NGRAM_MIX_ALPHA=0; strict original-order TTT variant was not rerun on 8xH100",
   "known_risks": [
     "Process wall for the best seed42 and seed314 TTT passes exceeds 600s, while reported eval timers are under 600s.",
     "The 3-seed mean misses the accepted top2 target, driven by seed999 variance.",
+    "The scored TTT path uses a length-sorted global work queue and phase-prefix global updates; disclose this as an unverified strict-order caveat.",
     "Final PR still needs a concise lineage/similarity disclosure and dependency disclosure for brotli/python-minifier/FA3."
   ],
   "runpod": {
     "balance_before_usd": 298.6121817053,
-    "balance_after_delete_usd": 256.3201836019,
-    "estimated_cost_usd": 42.292,
-    "current_spend_after_usd_per_hr": 0.033,
+    "balance_after_final_delete_usd": 150.1488402795,
+    "estimated_cost_usd_since_forced_seed_confirm": 148.463,
+    "current_spend_after_usd_per_hr": 0.0,
     "pod_list_after_delete": []
+  },
+  "final_run_evidence_hashes": {
+    "final_rank128_outer_log_sha256": "0cf3454988594d2257d7a8433a209a2458576534072a8c5c288b7219f1069045",
+    "ttt_seed42_rank128_final_log_sha256": "8c3083e261935c6e64f72ddec8a264af22b9a195a499eda287cc936af514bcde",
+    "summary_jsonl_sha256": "caba66b58d7fe21b8632eb94d3dd76f717637f89b2931c60b96e0581e4b3cd6c"
   }
 }

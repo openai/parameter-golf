@@ -6,7 +6,8 @@
   "package_path": "runs/stageb_v2_seed_forced_20260501/package",
   "remote_path": "/workspace/pg_stageb_v2_seed0_1234",
   "local_result_dir": "runs/stageb_v2_seed0_1234_confirm_20260501/remote_pull",
-  "known_seed42_bpb": 1.06099764,
+  "known_seed42_bpb": 1.06095913,
+  "known_seed42_original_rank80_bpb": 1.06099764,
   "seed0": {
     "val_bpb": 1.06162560,
     "val_loss_nats": 2.32323033,
@@ -30,14 +31,15 @@
     "outer_log_path": "runs/stageb_v2_seed0_1234_confirm_20260501/remote_pull/seed1234_forced_outer.log"
   },
   "means": {
-    "seed42_0_1234_mean_bpb": 1.06161026,
-    "seed42_314_999best_mean_bpb": 1.06147953,
+    "seed42_0_1234_mean_bpb": 1.06159742,
+    "seed42_0_1234_original_seed42_mean_bpb": 1.06161026,
+    "seed42_314_999best_mean_bpb": 1.06146669,
     "accepted_top1_mean_bpb": 1.06107587,
     "accepted_top2_mean_bpb": 1.06141,
-    "seed42_0_1234_top2_gap_bpb": 0.00020026,
-    "best_available_three_seed_top2_gap_bpb": 0.00006953
+    "seed42_0_1234_top2_gap_bpb": 0.00018742,
+    "best_available_three_seed_top2_gap_bpb": 0.00005669
   },
-  "decision": "official-reference seeds 0/42/1234 do not reach accepted top2; best available 42/314/999 mean also misses accepted top2. Keep PR #2121 as transparent single-run/top1-mean posture unless revised.",
+  "decision": "official-reference seeds 0/42/1234 do not reach accepted top2 even with the final rank128 seed42 score; best available 42/314/999 mean also misses accepted top2. Keep PR #2121 as transparent single-run/top1-mean posture unless revised.",
   "runpod_balance_before_usd": 256.1873607575,
   "runpod_balance_after_delete_usd": 229.9918752835,
   "estimated_runpod_cost_usd": 26.195485474,
