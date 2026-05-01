@@ -135,9 +135,7 @@ SEED=42 ./run.sh
 - `requirements.txt`: Python dependencies beyond the base environment.
 - `tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model`: tokenizer used by the CaseOps dataset.
 - `lossless_caps.py` and `prepare_caseops_data.py`: CaseOps transform and dataset-prep helpers.
-- `train_seed42.log`, `train_seed0.log`: claimed final g32/top4 reproduction logs.
-- `train_seed1234.log`: closely related seed-1234 run included in the results table; it used the earlier LQER top1/rank4/group64 settings.
-
+- `train_seed42.log`, `train_seed0.log`, `train_seed1234.log`
 ## Lineage and Credits
 
 This submission combines public Parameter Golf components into a single final recipe:
