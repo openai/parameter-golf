@@ -60,7 +60,7 @@ scale_parameters = batch_scale * gpu_scale
 
 max_steps = 340000
 
-add_weight_decay = 0.075
+add_weight_decay = 0.077
 conf = {
 #-------------------------------------------------
     "data_path" : data_path , 
@@ -78,7 +78,7 @@ conf = {
     "num_heads" : num_heads,
     "head_dim" : head_dim,
     "max_context" : max_context,
-    "mlp_dim" : [4*emb_dim] + [4*emb_dim]*(num_layers-2) + [4*emb_dim],
+    "mlp_dim" : [4*emb_dim] + [int(3.5*emb_dim)]*(num_layers-2) + [4*emb_dim],
     "vocab_size" : 1024,
     "batch_size" : 16,
 #-----------------------------------------------------
@@ -180,7 +180,7 @@ conf = {
 #----------------Validation parameters----------------------------
     "val_batch_size" : 32,
     "seq_len" : max_context,
-    "eval_stride" : 128,
+    "eval_stride" : 256,
 } 
 
 def print_init_data(model):
