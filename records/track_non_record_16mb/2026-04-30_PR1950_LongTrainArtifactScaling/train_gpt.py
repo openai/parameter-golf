@@ -4104,12 +4104,13 @@ def train_and_eval(h, device):
     eval_model = deserialize(h, device)
     if h.num_loops > 0:
         eval_model.looping_active = True
-    if not ttt_eval_only:
+    sliding_eval = os.environ.get("SLIDING_EVAL", "0") == "1"
+    if not ttt_eval_only or sliding_eval:
         compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
         compiled_forward_logits = torch.compile(
             eval_model.forward_logits, dynamic=False, fullgraph=True
         )
-        timed_eval(
+        _quant_loss, _quant_bpb = timed_eval(
             "diagnostic quantized",
             eval_val,
             h,
@@ -4118,7 +4119,48 @@ def train_and_eval(h, device):
             compiled_model,
             compiled_forward_logits,
         )
-        del eval_model
+        # Write machine-readable sliding eval summary when SLIDING_EVAL=1
+        if sliding_eval and h.is_main_process:
+            import json as _json
+            _sliding_output = os.environ.get("SLIDING_EVAL_OUTPUT_JSON", "")
+            if not _sliding_output:
+                _out_dir = os.environ.get("OUTPUT_DIR", "") or h.artifact_dir
+                if _out_dir:
+                    _sliding_output = os.path.join(_out_dir, "sliding_eval_summary.json")
+            if _sliding_output:
+                _sliding_summary = {
+                    "eval_type": "sliding_window_quantized",
+                    "quantized_bpb": round(_quant_bpb, 8),
+                    "quantized_loss": round(_quant_loss, 8),
+                    "peak_memory_mib": torch.cuda.max_memory_allocated() // (1024 * 1024),
+                    "status": "success",
+                }
+                os.makedirs(os.path.dirname(_sliding_output), exist_ok=True)
+                with open(_sliding_output, "w") as _f:
+                    _json.dump(_sliding_summary, _f, indent=2)
+                log(f"Sliding eval summary written to: {_sliding_output}")
+            # Also write as ttt_eval_summary.json for sweep infrastructure compat
+            _ttt_compat_dir = os.environ.get("OUTPUT_DIR", "") or h.artifact_dir
+            if _ttt_compat_dir:
+                _ttt_compat = os.path.join(_ttt_compat_dir, "ttt_eval_summary.json")
+                _compat_data = {
+                    "variant_id": os.environ.get("TTT_VARIANT_ID", "sliding_window_control"),
+                    "quantized_bpb_fixed": round(_quant_bpb, 8),
+                    "post_ttt_bpb": round(_quant_bpb, 8),
+                    "ttt_gain_bpb": 0.0,
+                    "eval_seconds": None,
+                    "total_wallclock_seconds": None,
+                    "peak_memory_mib": torch.cuda.max_memory_allocated() // (1024 * 1024),
+                    "status": "success",
+                    "error": None,
+                }
+                os.makedirs(os.path.dirname(_ttt_compat), exist_ok=True)
+                with open(_ttt_compat, "w") as _f:
+                    _json.dump(_compat_data, _f, indent=2)
+        if not ttt_eval_only:
+            del eval_model
+        else:
+            del compiled_model, compiled_forward_logits
     if h.ttt_enabled:
         if not ttt_eval_only:
             del compiled_model

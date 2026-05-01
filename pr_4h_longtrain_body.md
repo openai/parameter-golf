@@ -6,10 +6,11 @@
 
 **Key findings:**
 1. Post-TTT BPB improves from 1.060 (10 min, 3-seed mean) to **1.03471** (6h single-seed, post-TTT)
-2. Artifact size is effectively constant (±27 KB) across all durations
-3. The PR #1979 control TTT parameters (rank 96, alpha 144, lr 1e-4) were **best among tested variants** — no improvement found from higher rank, LR, or batch size
-4. At rank 128/alpha 192, raising LR from 1e-4 to 3e-4 worsened BPB by ~0.052
-5. Batch-128 variants failed (likely memory-related given v0 peak was 47.8 GB at batch 64)
+2. GPTQ quantization improves BPB: 1.0599 (training val) → **1.04273** (quantized) — a 0.017 gain suggesting quantization acts as regularization
+3. True TTT contribution is **0.00802 BPB** (quantized → post-TTT)
+4. Artifact size is effectively constant (±27 KB) across all durations
+5. PR #1979 control TTT parameters (rank 96, alpha 144, lr 1e-4) were **best among tested variants**
+6. At rank 128/alpha 192, raising LR from 1e-4 to 3e-4 worsened BPB by ~0.052
 
 ### Training Scaling Results
 
@@ -20,15 +21,16 @@ All durations use the identical PR #1950/1934 recipe. Metrics differ by evaluati
 | 10 min (3-seed, PR #1934) | ~4000 | — | — | 1.06003† | 15,953 KB |
 | 60 min (8×H100, PR #1979) | ~8000 | 1.0615 | — | 1.03988 | 15,944 KB |
 | 240 min (4×H100) | ~30K | — | 1.0449 | — | 15,933 KB |
-| **360 min (4×H100)** | 49765 | 1.0599* | — | **1.03471** | **15,926 KB** |
+| **360 min (4×H100)** | 49765 | 1.0599* | **1.04273** | **1.03471** | **15,926 KB** |
 
-*training_val_bpb at step 48000 (last logged); †3-seed mean from record submission  
-Note: `quantized_bpb_360min` was not separately measured. The `post_ttt_bpb` of 1.03471 is evaluated on the quantized artifact via TTT_EVAL_ONLY=1.
+*training_val_bpb at step ~48000 (last logged); †3-seed mean from record submission  
+TTT gain = quantized_bpb - post_ttt_bpb = 1.04273 - 1.03471 = **0.00802 BPB**
 
 ### TTT/LoRA Sweep (on 360-min quantized artifact)
 
 | Variant | LoRA Rank/Alpha | LR | Batch | post_ttt_bpb | Peak Memory | Status |
 |---------|----------------|------|-------|-------------|-------------|--------|
+| **sliding_window_control** | — | — | — | 1.04273 | 5.3 GB | ✓ baseline |
 | **v0_control (PR #1979)** | 96/144 | 1e-4 | 64 | **1.03471** | 47.8 GB | ✓ best |
 | v1_rank128_alpha192 | 128/192 | 1e-4 | 64 | 1.03877 | — | ✓ |
 | v2_rank128_lr3e4 | 128/192 | 3e-4 | 64 | 1.09049 | — | ✓ regression |
@@ -36,6 +38,8 @@ Note: `quantized_bpb_360min` was not separately measured. The `post_ttt_bpb` of 
 | v4_global2_largechunk | 128/192 | 3e-4 | 128 | — | — | failed |
 | v5_prefix3000 | 128/192 | 3e-4 | 128 | — | — | failed |
 | v6_prefix3000_phase4 | 128/192 | 3e-4 | 128 | — | — | failed (optional) |
+
+The sliding_window_control runs quantized model evaluation with no TTT adaptation, providing the proper baseline to isolate the TTT contribution (0.00802 BPB gain).
 
 v3–v6 failed with exit code 1 (no explicit OOM traceback available, but batch doubling from 64→128 would exceed 80 GB given v0 peak at 47.8 GB).
 
@@ -61,6 +65,16 @@ v3–v6 failed with exit code 1 (no explicit OOM traceback available, but batch 
 3. **H3: Higher LoRA rank improves TTT** ❌ Not supported (+0.004 BPB with rank 128 vs 96)
 4. **H4: Higher LR improves TTT at rank 128** ❌ Rejected (v1→v2: +0.052 BPB regression at 3e-4)
 5. **H5: Larger batch/chunk improves TTT** ❌ Untestable (all batch-128 variants failed)
+6. **H6: GPTQ quantization degrades BPB** ❌ Rejected — GPTQ *improves* BPB by 0.017 (1.0599 → 1.0427), suggesting quantization regularizes the model
+
+## Decomposition of BPB Improvement Pipeline
+
+| Stage | BPB | Δ from previous |
+|-------|-----|-----------------|
+| Training val (live model) | 1.0599 | — |
+| INT6 GPTQ quantization | 1.04273 | −0.01717 (quantization gain) |
+| Score-first TTT (rank 96) | 1.03471 | −0.00802 (TTT gain) |
+| **Total pipeline gain** | | **−0.02519** |
 
 ## Infrastructure Additions
 

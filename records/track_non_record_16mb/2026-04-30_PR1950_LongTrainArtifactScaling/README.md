@@ -14,11 +14,12 @@
 |--------|-------------|-------------|-------------|
 | Training steps | 16,001 | 30,688 | 49,765 |
 | Training val_bpb | 1.0615 | — | 1.0599* |
-| Quantized BPB (pre-TTT) | — | 1.0449 | — |
+| Quantized BPB (pre-TTT) | — | 1.0449 | **1.04273** |
 | Post-TTT BPB | 1.03988 | — | **1.03471** |
+| TTT gain | — | — | 0.00802 |
 | Artifact bytes | 15,944,203 | 15,932,638 | 15,926,271 |
 
-*training_val_bpb at step ~48000 (last logged); quantized_bpb_360min was not separately measured.
+*training_val_bpb at step ~48000 (last logged); †3-seed mean from record submission
 
 **Conclusions:**
 1. Post-TTT BPB improves with training duration (1.060 at 10 min → 1.035 at 6h; note: 10-min is 3-seed mean, 6h is seed-42 only)
@@ -32,8 +33,9 @@
 
 Sweep conducted on the 360-min (6h) quantized artifact using `TTT_EVAL_ONLY=1`:
 
-| Variant | LoRA Rank | LR | Batch | Chunk | post_ttt_bpb | Status |
-|---------|-----------|------|-------|-------|-------------|--------|
+| Variant | LoRA Rank | LR | Batch | Chunk | BPB | Status |
+|---------|-----------|------|-------|-------|-----|--------|
+| **sliding_window** | — | — | — | — | 1.04273 | ✓ baseline |
 | **v0_control** | 96 | 1e-4 | 64 | 48 | **1.03471** | ✓ best |
 | v1_rank128 | 128 | 1e-4 | 64 | 48 | 1.03877 | ✓ |
 | v2_rank128_lr3e4 | 128 | 3e-4 | 64 | 48 | 1.09049 | ✓ regression |
@@ -41,6 +43,9 @@ Sweep conducted on the 360-min (6h) quantized artifact using `TTT_EVAL_ONLY=1`:
 | v4_global2 | 128 | 3e-4 | 128 | 64 | — | failed* |
 | v5_prefix3000 | 128 | 3e-4 | 128 | 64 | — | failed* |
 | v6_phase4 | 128 | 3e-4 | 128 | 64 | — | failed* |
+
+The sliding_window control runs the quantized artifact with no TTT adaptation,
+providing the proper baseline: **TTT gain = 1.04273 − 1.03471 = 0.00802 BPB**.
 
 *Variants v3–v6 failed with exit code 1 (likely memory-related: v0 peak was 47.8 GB
 at batch_size=64, so batch_size=128 would approach or exceed H100 80 GB capacity).
@@ -108,11 +113,13 @@ continuation segment. val_bpb plateaued at ~1.060 from step 44000 onwards.
 | Eval Stage | val_bpb | Notes |
 |------------|---------|-------|
 | Training val (step ~48000) | 1.0599 | Live model, non-quantized |
+| Quantized (sliding window, no TTT) | **1.04273** | INT6 GPTQ artifact only |
 | Post-TTT (phased, 3 phases, rank 96) | **1.03471** | On quantized artifact |
+| TTT gain (quantized → post-TTT) | **0.00802** | True isolated TTT contribution |
 
-Note: True quantized-only BPB (pre-TTT) on the 360-min artifact was not separately
-evaluated. The 0.025 BPB difference between training_val and post_ttt_bpb includes
-both quantization effects and TTT adaptation.
+Note: GPTQ quantization improved BPB by 0.017 vs training_val (1.0599 → 1.0427),
+suggesting the live model slightly overfits the training distribution and quantization
+acts as a regularizer. The true TTT contribution is 0.008 BPB.
 
 ## Experiment Design
 

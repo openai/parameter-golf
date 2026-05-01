@@ -1,0 +1,7 @@
+{
+  "eval_type": "sliding_window_quantized",
+  "quantized_bpb": 1.04273086,
+  "quantized_loss": 2.28200632,
+  "peak_memory_mib": 5328,
+  "status": "success"
+}

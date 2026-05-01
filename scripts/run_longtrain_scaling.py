@@ -923,6 +923,7 @@ def main():
         cmd = build_sweep_only_cmd(args)
         # Build comprehensive download list for sweep results
         variant_ids = [
+            "v_sliding_window_control",
             "v0_control_pr1979", "v1_rank128_alpha192", "v2_rank128_lr3e4",
             "v3_local_batch_chunk", "v4_global2_largechunk", "v5_prefix3000",
             "v6_prefix3000_phase4_optional",
@@ -936,6 +937,7 @@ def main():
         for vid in variant_ids:
             download_files.append(f"ttt_sweep/{vid}/variant_result.json")
             download_files.append(f"ttt_sweep/{vid}/eval.log")
+            download_files.append(f"ttt_sweep/{vid}/sliding_eval_summary.json")
 
         if args.dry_run:
             print("=== SWEEP-ONLY MODE ===")

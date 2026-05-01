@@ -25,9 +25,11 @@
   "final_training_wallclock_seconds": 21600,
   "final_val_bpb_training": 1.0599,
   "final_val_bpb_training_note": "training_val at step ~48000 (last logged before 360-min export at step 49765)",
-  "final_post_ttt_bpb": 1.03471322,
+  "final_post_ttt_bpb": 1.03470849,
+  "ttt_gain_bpb": 0.00802237,
+  "ttt_gain_note": "quantized_bpb_360min - post_ttt_bpb = 1.04273086 - 1.03470849",
   "ttt_sweep_best_variant": "v0_control_pr1979",
-  "ttt_sweep_best_bpb": 1.03471322,
+  "ttt_sweep_best_bpb": 1.03470849,
   "ttt_sweep_variants_tested": 7,
   "ttt_sweep_variants_successful": 3,
   "ttt_parameters": {
@@ -43,7 +45,7 @@
     "PHASED_TTT_NUM_PHASES": 3
   },
   "artifact_bytes_360min": 15926271,
-  "quantized_bpb_360min": null,
+  "quantized_bpb_360min": 1.04273086,
   "pre_quant_bpb_240min": 1.0355,
   "quantized_bpb_240min": 1.0449,
   "post_ttt_bpb_60min": 1.03988,

@@ -70,6 +70,26 @@ FIXED_TTT_ENV = {
 # Sweep variants — per-variant overrides layered on top of FIXED_TTT_ENV
 # ---------------------------------------------------------------------------
 VARIANTS = {
+    "v_sliding_window_control": {
+        "description": "Sliding-window eval only (no TTT) — quantized BPB baseline",
+        "env": {
+            "TTT_ENABLED": "0",
+            "SLIDING_EVAL": "1",
+            "TTT_LORA_RANK": "96",
+            "TTT_LORA_ALPHA": "144",
+            "TTT_LORA_LR": "0.0001",
+            "TTT_BATCH_SIZE": "64",
+            "TTT_CHUNK_SIZE": "48",
+            "GLOBAL_TTT_EPOCHS": "1",
+            "GLOBAL_TTT_CHUNK_TOKENS": "32768",
+            "GLOBAL_TTT_BATCH_SEQS": "32",
+            "GLOBAL_TTT_WARMUP_START_LR": "0.0",
+            "GLOBAL_TTT_WARMUP_CHUNKS": "0",
+            "PHASED_TTT_PREFIX_DOCS": "2000",
+            "PHASED_TTT_NUM_PHASES": "3",
+            "TTT_WARM_START_A": "1",
+        },
+    },
     "v0_control_pr1979": {
         "description": "PR #1950/1979 baseline control",
         "env": {
