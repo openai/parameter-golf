@@ -1,0 +1,23 @@
+{
+  "author": "Himanshu Dongre",
+  "github_id": "himanshudongre",
+  "name": "Causal N-gram Logit Blend \u2014 Legal, Bug-Free, Null Result at Scale",
+  "blurb": "Non-record research submission. Builds the legal reference implementation of an eval-time causal n-gram additive-logit blend (verified against valerio-oai closures #993/#1185/#959 with an 8-probe automated legality harness), then demonstrates across 6 model configurations (2L/4L, 128d/256d, 800\u20134000 steps, sp1024/sp8192) that the peak BPB improvement collapses from 0.0515 on a very weak baseline to 0.00018 on the strongest model tested \u2014 well below the 0.0072 BPB record threshold. Includes a localized delta decomposition showing 100% of the gain comes from context lookups whose first observation is outside the 2048-token attention window, and explains why that architectural floor does not save the approach at scale on larger tokenizers.",
+  "date": "2026-04-15",
+  "track": "non_record_16mb",
+  "result_type": "negative",
+  "scaling_runs": [
+    {"tokenizer": "sp1024", "model": "2L 128d", "steps": 800,  "baseline_bpt_nats": 4.665, "peak_delta_bpb": 0.0515,  "peak_alpha": 0.5},
+    {"tokenizer": "sp1024", "model": "2L 128d", "steps": 2500, "baseline_bpt_nats": 4.145, "peak_delta_bpb": 0.0224,  "peak_alpha": 0.3},
+    {"tokenizer": "sp1024", "model": "4L 256d", "steps": 2000, "baseline_bpt_nats": 3.811, "peak_delta_bpb": 0.0079,  "peak_alpha": 0.2},
+    {"tokenizer": "sp1024", "model": "4L 256d", "steps": 4000, "baseline_bpt_nats": 3.640, "peak_delta_bpb": 0.00341, "peak_alpha": 0.15},
+    {"tokenizer": "sp8192", "model": "4L 256d", "steps": 2000, "baseline_bpt_nats": 5.625, "peak_delta_bpb": 0.00223, "peak_alpha": 0.10},
+    {"tokenizer": "sp8192", "model": "4L 256d", "steps": 4000, "baseline_bpt_nats": 5.114, "peak_delta_bpb": 0.00018, "peak_alpha": 0.05}
+  ],
+  "legality_tests_passed": "8/8",
+  "integration_tests_passed": "4/4",
+  "integration_target": "PR #1493 eval_val_ttt path",
+  "rulings_cross_checked": ["#993", "#1185", "#959", "#1017"],
+  "hardware": ["1x Mac M4 (MPS, runs 1-4)", "1x NVIDIA A40 48GB (runs 5-6)"],
+  "total_compute_cost_usd": "~0.15"
+}
