@@ -9,3 +9,15 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+# Infrastructure/experimental scripts (not needed for submission)
+azure_*.sh
+run_h100.sh
+runpod_*.sh
+modal_train*.py
+parameter_golf_modal.py
+train_t4_modal.py
+upload_data_modal.py
+train_gpt_mlx_kl.py
+Parameter-Golf-OmniVersion/
+kaggle/
+*.ipynb
