@@ -22,7 +22,7 @@ This lets the recurrent core behave less like “run the same block again” and
 
 ## Full Attention Residuals
 
-I originally wanted to ablate full attention residuals against block attention residuals, but I was not able to do that cleanly in time. So I should be careful here: I do not know whether full attention residuals were strictly better than block attention residuals in this setting.
+I originally wanted to ablate full attention residuals against block attention residuals, but I was not able to do that in my limited time. So I should be careful here: I do not know whether full attention residuals were strictly better than block attention residuals in this setting.
 
 My reason for trying full attention residuals was that they seemed like a natural fit for the recurrent structure. They let the model choose across a richer set of previous states. Instead of every loop pass being forced to continue from only the latest hidden representation, the model can learn a weighted mixture of previous representations.
 
@@ -32,9 +32,7 @@ I am still not sure whether the full version was actually worth the extra comple
 
 Because the model is recurrent, I was worried that it might copy or reinforce a token’s own representation more than intended. That seemed especially plausible when the same core is applied multiple times.
 
-So I applied exclusive self-attention.
-
-Technically, this is not just “masking out the diagonal” in the usual attention sense. The implementation removes the self-aligned component from the attention output, which helps free the token from relying too heavily on its own value direction. My intuition was that this would make the recurrent passes spend less capacity on self-copying and more capacity on useful cross-token processing.
+So I applied exclusive self-attention because it removes the self-aligned component from the attention output, which helps free the token from relying too heavily on its own value direction. My intuition was that this would make the recurrent passes spend less capacity on self-copying and more capacity on useful cross-token processing.
 
 That felt in line with my intentions when using recurrence: if I am going to reuse the same weights, I want each pass to do something meaningfully different.
 
@@ -56,7 +54,7 @@ This is similar to the PARCAE paper. Funny enough, that paper came out after I'd
 
 I threw these ideas together into an actual training script over the last three days, but it was a very good experience to work with larger amounts of compute and not just small-scale replications on my laptop.
 
-This was also my first real time pre-training models from scratch. Most of what I had done before was fine-tuning models or following fairly clear recipes. I have spent a lot of time thinking about architectures and how models should work, but this was the first time I really went off on my own and said: here is an architecture idea, now let me actually implement it and see what happens. I am still learning, so that part felt important to me.
+This was also my first real time pre-training models from scratch. I am fully self-taught, and most of what I had done before was fine-tuning models or following fairly clear recipes. I have spent a lot of time thinking about architectures and how models should work, but this was the first time I really went off on my own and said: here is an architecture idea, now let me actually implement it and see what happens. I am still learning, so that part felt important to me.
 
 I had never really scaled up an experiment before, so this was a wonderful learning experience. It was also very helpful to look at other people’s submissions. I initially treated the last week as a challenge to think through how I would approach this without leaning too much on existing submissions. But later it was very interesting to see how people were using different paradigms, especially test-time compute, test-time training, and more aggressive quantization.
 
