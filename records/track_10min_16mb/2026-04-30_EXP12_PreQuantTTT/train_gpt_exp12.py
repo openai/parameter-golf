@@ -263,7 +263,7 @@ def gptq_mixed_quantize(state_dict,hessians,h):
 	categories=collections.defaultdict(set)
 	for(name,cat)in meta.items():short=re.sub('\\.\\d+$','',re.sub('blocks\\.\\d+','blocks',name));categories[cat].add(short)
 	log('Quantized weights:')
-	for cat in sorted(categories):log(f"  {cat}: {", ".join(sorted(categories[cat]))}")
+	for cat in sorted(categories):log(f"  {cat}: {', '.join(sorted(categories[cat]))}")
 	return result,meta
 def dequantize_mixed(result,meta,template_sd):
 	out={}
