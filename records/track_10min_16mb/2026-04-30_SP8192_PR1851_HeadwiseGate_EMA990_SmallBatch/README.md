@@ -173,9 +173,9 @@ Repeat with `SEED=1337` and `SEED=2025` for 3-seed verification.
 - **RunPod** — for compute credits supporting our 2×H100 and 8×H100 experiments
 - **Georgia Tech PACE** — for supplementary compute resources
 - **CS 7643 Deep Learning** at Georgia Tech, taught by Dr. Zsolt Kira
-- **@sranganath2** (Sid Ranganathan) — CS 7643 team member, contributed to tokenizer investigation, nanochat research, and fused CE kernel insights
-- **@Ashray14** — CS 7643 team member
-- **@ialeksic3** — CS 7643 team member
+- **@sranganath2** (Sid Ranganathan) — contributed to discussion about tokenizer investigation, nanochat research, fused CE kernel insights, and research papers
+- **@Ashray14** — contributed to discussion about research papers
+- **@ialeksic3** — contributed to discussion about research papers
 
 Total personal compute cost: ~$1,165 ($640 out-of-pocket + $525 OpenAI development grant) across 130+ experiments on RunPod.
 
