@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "Mamba2 SSM + Attention Hybrid (SP8192, Single-Attention, QK-Gain 5.25, Aggressive LZMA Quant)",
+  "author": "Saroosh Khan",
+  "github_id": "SarooshKhan897",
+  "val_bpb": 1.2938,
+  "val_loss": 3.3421,
+  "bytes_total": 16094692,
+  "_notes": "Single-run, post-quantization sliding val_bpb=1.2938 from the moderate quant run (int4 FFN gate, int4 FFN down, int5 Mamba/attn, int6 embed). Pre-quant sliding val_bpb=1.1005, demonstrating architectural potential. Artifact size 16,094,692 bytes is ~95KB over the 16,000,000 byte cap before code bytes - submitted as a non-record research contribution documenting SSM/Mamba2 + attention hybrid behavior under the parameter golf constraints. A more aggressive quant (run #1 in train.log) fit at 10.9 MB but quality collapsed to 2.12 BPB."
+}
