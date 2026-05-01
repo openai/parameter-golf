@@ -1,0 +1,13 @@
+{
+  "dataset": "V6 Privacy-Web-Filtering only",
+  "source": "8Planetterraforming/Parameter-Golf-V6-Privacy-Web-Filtering",
+  "method": "tiny sparse train-only micro injection",
+  "base_fineweb": "/workspace/final_pr1991_v6/parameter-golf/data/datasets/fineweb10B_sp8192_ORIG_OFFICIAL",
+  "output_dataset": "/workspace/final_pr1991_v6/parameter-golf/data/datasets/fineweb10B_sp8192_V6MICRO",
+  "fineweb_validation": "untouched official fineweb_val symlinks",
+  "texts": 3,
+  "inject_tokens_requested": 8192,
+  "inject_tokens_written": 8192,
+  "sha256_plain": "9e9ef5026372cac74f1557c5fdec2efa24b32178e93a4d463f17811d9b59805f",
+  "legal_boundary": "V6 is train-only; not used for validation; not hidden eval data"
+}
