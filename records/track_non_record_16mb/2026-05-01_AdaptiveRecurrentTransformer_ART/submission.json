@@ -1,0 +1,97 @@
+{
+  "author": "Kashi Tuteja",
+  "github_id": 122947991,
+  "name": "Adaptive Recurrent Transformer (ART)",
+  "blurb": "Non-record research package for learned recurrent-depth control, based on the philosophy that not all tokens deserve equal compute.",
+  "date": "2026-05-01",
+  "track": "non_record_16mb",
+  "submission_type": "non-record research contribution",
+  "core_example": "PR1855-family + Simple ART",
+  "val_loss": 2.62586001,
+  "val_bpb": 1.19991555,
+  "bytes_total": 17032456,
+  "bytes_code": null,
+  "artifact_bytes": 17032456,
+  "training_hardware": "1xH100",
+  "training_time_seconds": 596.418,
+  "evaluation_time_seconds": 2834.007,
+  "non_record_reason": "Research submission emphasizing Adaptive Recurrent Transformer architecture novelty.",
+  "results": [
+    {
+      "variation": "PR1855 + Soft ART",
+      "val_bpb": 1.06425679,
+      "hardware": "8xH100",
+      "script": "training_files/pr1855_soft_art.py",
+      "log": "logs/pr1855_soft_art_dashboard_20260430_204203_abf0ec8e.stdout.log"
+    },
+    {
+      "variation": "PR1812 + ART",
+      "val_bpb": 1.11827658,
+      "hardware": "8xH100",
+      "script": "training_files/pr1812_art.py",
+      "log": "logs/pr1812_art_dashboard_20260429_224456_a9eaabed.stdout.log"
+    },
+    {
+      "variation": "PR1855 + Simple ART",
+      "val_bpb": 1.19991555,
+      "hardware": "1xH100",
+      "script": "training_files/pr1855_simple_art.py",
+      "log": "logs/pr1855_simple_art_dashboard_20260430_224429_ad4a36d5.stdout.log"
+    },
+    {
+      "variation": "Triple-ART Small Batch",
+      "val_bpb": 1.24097028,
+      "hardware": "1xH100",
+      "script": "training_files/triple_art_small_batch.py",
+      "log": "logs/triple_art_small_batch_dashboard_20260429_192817_de3b33e8.stdout.log"
+    },
+    {
+      "variation": "ART Saved-RoPE + TTT",
+      "val_bpb": 1.24134639,
+      "hardware": "1xH100",
+      "script": "training_files/art_saved_rope_ttt.py",
+      "log": "logs/art_saved_rope_ttt_dashboard_20260429_162729_57cac6b0.stdout.log"
+    },
+    {
+      "variation": "Adaptive Recurrent Transformer 1",
+      "val_bpb": 1.316838,
+      "hardware": "1xH100",
+      "script": "training_files/art_1.py",
+      "log": "logs/art_1_dashboard_20260417_013525_a3d8aea8.stdout.log"
+    },
+    {
+      "variation": "ART-2",
+      "val_bpb": 1.32066497,
+      "hardware": "1xH100",
+      "script": "training_files/art_2.py",
+      "log": "logs/art_2_dashboard_20260419_161439_9b946387.stdout.log"
+    },
+    {
+      "variation": "ART-3",
+      "val_bpb": 1.48486805,
+      "hardware": "1xH100",
+      "script": "training_files/art_3.py",
+      "log": "logs/art_3_dashboard_20260419_225908_cf9443b3.stdout.log"
+    },
+    {
+      "variation": "ART-2.5",
+      "val_bpb": 1.52850374,
+      "hardware": "1xH100",
+      "script": "training_files/art_2_5.py",
+      "log": "logs/art_2_5_dashboard_20260420_004715_e49b5f70.stdout.log"
+    }
+  ],
+  "provenance": {
+    "core_stack_readme": "records/track_10min_16mb/2026-04-29_SmearGateBOSFix_3Seed_1.06141/README.md",
+    "core_stack": "SmearGateBOSFix / LQER / CaseOps / phased-TTT record-family stack",
+    "credited_lineage": [
+      "PR #1851 by @aquariouseworkman",
+      "PR #1787 by @nprime06",
+      "PR #1797 by @dexhunter",
+      "PR #1729 by @romeerp",
+      "PR #1394 by @clarkkev",
+      "PR #549 by @abaybektursun",
+      "BOS bug identification by @cocohearts"
+    ]
+  }
+}
