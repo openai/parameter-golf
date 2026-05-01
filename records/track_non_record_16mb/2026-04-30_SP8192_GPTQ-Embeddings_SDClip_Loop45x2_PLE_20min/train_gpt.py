@@ -70,8 +70,6 @@ class Hyperparameters:
     vocab_size = int(os.environ.get("VOCAB_SIZE", 8192))
     num_layers = int(os.environ.get("NUM_LAYERS", 11))
     xsa_last_n = int(os.environ.get("XSA_LAST_N", 11))
-    local_attention_window = int(os.environ.get("LOCAL_ATTENTION_WINDOW", 512))
-    local_attention_layers_per_global = int(os.environ.get("LOCAL_ATTENTION_LAYERS_PER_GLOBAL", 4))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     embedding_dim = int(os.environ.get("EMBEDDING_DIM", 512))
@@ -125,11 +123,6 @@ class Hyperparameters:
     embed_clip_sigmas = float(os.environ.get("EMBED_CLIP_SIGMAS", 20.0))
     model_path = os.environ.get("MODEL_PATH", "final_model.pt")
     quantized_model_path = os.environ.get("QUANTIZED_MODEL_PATH", "final_model.int6.ptz")
-
-
-def is_global_attention_layer(layer_idx: int, num_layers: int, local_layers_per_global: int) -> bool:
-    return layer_idx == num_layers - 1 or (layer_idx + 1) % (local_layers_per_global + 1) == 0
-
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -1034,8 +1027,6 @@ class CausalSelfAttention(nn.Module):
         qk_gain_init: float,
         train_seq_len: int,
         rope_dims: int,
-        local_attention_window: int,
-        attention_is_global: bool,
     ):
         super().__init__()
         if dim % num_heads != 0:
@@ -1050,18 +1041,12 @@ class CausalSelfAttention(nn.Module):
         kv_dim = self.num_kv_heads * self.head_dim
         self.c_q = CastedLinear(dim, dim, bias=False)
         self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = None if attention_is_global else CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = CastedLinear(dim, kv_dim, bias=False)
         self.proj = CastedLinear(dim, dim, bias=False)
         self.proj._zero_init = True
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rope_dims = rope_dims if attention_is_global else 0
-        self.rotary = (
-            Rotary(self.head_dim, base=rope_base, train_seq_len=train_seq_len, rope_dims=self.rope_dims)
-            if self.rope_dims > 0
-            else None
-        )
-        self.local_attention_window = local_attention_window
-        self.attention_is_global = attention_is_global
+        self.rope_dims = rope_dims
+        self.rotary = Rotary(self.head_dim, base=rope_base, train_seq_len=train_seq_len, rope_dims=rope_dims)
         self.use_xsa = False
 
     def _xsa_efficient(self, y: Tensor, v: Tensor) -> Tensor:
@@ -1077,19 +1062,14 @@ class CausalSelfAttention(nn.Module):
         bsz, seqlen, dim = x.shape
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-        v = None if self.c_v is None else self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
-        if self.rotary is not None:
-            cos, sin = self.rotary(seqlen, x.device, q.dtype)
-            q = apply_rotary_emb(q, cos, sin, self.rope_dims)
-            k = apply_rotary_emb(k, cos, sin, self.rope_dims)
-        v = k if v is None else v
+        cos, sin = self.rotary(seqlen, x.device, q.dtype)
+        q = apply_rotary_emb(q, cos, sin, self.rope_dims)
+        k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        if self.attention_is_global:
-            y = flash_attn_3_func(q, k, v, causal=True)
-        else:
-            y = flash_attn_3_func(q, k, v, causal=True, window_size=(self.local_attention_window - 1, 0))
+        y = flash_attn_3_func(q, k, v, causal=True)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         y = y.reshape(bsz, seqlen, dim)
@@ -1123,23 +1103,11 @@ class Block(nn.Module):
         layer_idx: int,
         ln_scale: bool,
         per_layer_embed_dim: int,
-        local_attention_window: int,
-        attention_is_global: bool,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
         self.mlp_norm = RMSNorm()
-        self.attn = CausalSelfAttention(
-            dim,
-            num_heads,
-            num_kv_heads,
-            rope_base,
-            qk_gain_init,
-            train_seq_len,
-            rope_dims,
-            local_attention_window,
-            attention_is_global,
-        )
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init, train_seq_len, rope_dims)
         self.mlp = MLP(dim, mlp_mult)
         self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
         self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
@@ -1212,11 +1180,6 @@ class GPT(nn.Module):
             self.per_layer_projection_norm = None
         self.num_encoder_layers = args.num_layers // 2
         self.num_decoder_layers = args.num_layers - self.num_encoder_layers
-        self.global_attention_layers = [
-            i
-            for i in range(args.num_layers)
-            if is_global_attention_layer(i, args.num_layers, args.local_attention_layers_per_global)
-        ]
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -1231,8 +1194,6 @@ class GPT(nn.Module):
                     layer_idx=i,
                     ln_scale=args.ln_scale,
                     per_layer_embed_dim=args.per_layer_embed_dim,
-                    local_attention_window=args.local_attention_window,
-                    attention_is_global=i in self.global_attention_layers,
                 )
                 for i in range(args.num_layers)
             ]
@@ -1382,15 +1343,6 @@ def main() -> None:
     args = Hyperparameters()
     if args.mtp < 1:
         raise ValueError(f"MTP must be >= 1, got {args.mtp}")
-    if args.num_layers < 1:
-        raise ValueError(f"NUM_LAYERS must be >= 1, got {args.num_layers}")
-    if args.local_attention_window < 1:
-        raise ValueError(f"LOCAL_ATTENTION_WINDOW must be >= 1, got {args.local_attention_window}")
-    if args.local_attention_layers_per_global < 1:
-        raise ValueError(
-            "LOCAL_ATTENTION_LAYERS_PER_GLOBAL must be >= 1, "
-            f"got {args.local_attention_layers_per_global}"
-        )
     if args.layer_freeze_per_step < 0:
         raise ValueError(f"LAYER_FREEZE_PER_STEP must be >= 0, got {args.layer_freeze_per_step}")
     if args.per_layer_embed_dim < 0:
@@ -1658,11 +1610,6 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
-    log0(
-        f"attention_interleave:local_window:{args.local_attention_window} "
-        f"local_layers_per_global:{args.local_attention_layers_per_global} "
-        f"global_layers:{base_model.global_attention_layers}"
-    )
     log0(
         f"ple:enabled:{args.per_layer_embed_dim > 0} dim:{args.per_layer_embed_dim} "
         f"init_std:{args.per_layer_embed_init_std}"
