@@ -1,0 +1,66 @@
+logs/hopper_regen_1h100_native_10m.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:524288 eval_max_tokens:524288
+model_params:17059966
+world_size:1 grad_accum_steps:8
+compile_model:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:0 max_wallclock_seconds:600.000
+seed:1337
+regen_adapter:1 regen_rank:16 hopper_regen_gemm:native regen_alpha_init:0.125 regen_master_seed:0xa5a5a5a5a5a5a5a5 regen_layers:54 plain_casted_layers:0
+[rank0]:W0429 05:40:20.521000 8588 torch/_dynamo/convert_frame.py:1358] [3/8] torch._dynamo hit config.recompile_limit (8)
+[rank0]:W0429 05:40:20.521000 8588 torch/_dynamo/convert_frame.py:1358] [3/8]    function: 'forward' (/workspace/parameter-golf/records/track_non_record_16mb/2026-04-28_HopperRegenAdapterB2B/train_gpt.py:749)
+[rank0]:W0429 05:40:20.521000 8588 torch/_dynamo/convert_frame.py:1358] [3/8]    last reason: 3/7: self._regen_seed_a == 9193431029668833573                # return regen_b2b_gemm(x, self.weight, self.regen_A, self.regen_B,  # orkspace/parameter-golf/records/track_non_record_16mb/2026-04-28_HopperRegenAdapterB2B/train_gpt.py:752 in forward (HINT: torch.compile considers integer attributes of the nn.Module to be static. If you are observing recompilation, you might want to make this integer dynamic using torch._dynamo.config.allow_unspec_int_on_nn_module = True, or convert this integer into a tensor.)
+[rank0]:W0429 05:40:20.521000 8588 torch/_dynamo/convert_frame.py:1358] [3/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+[rank0]:W0429 05:40:20.521000 8588 torch/_dynamo/convert_frame.py:1358] [3/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html
+step:1/20000 train_loss:6.9367 train_time:60047ms step_avg:60047.13ms
+step:2/20000 train_loss:8.9296 train_time:61861ms step_avg:30930.68ms
+step:3/20000 train_loss:8.7661 train_time:63685ms step_avg:21228.28ms
+step:4/20000 train_loss:8.3043 train_time:65509ms step_avg:16377.35ms
+step:5/20000 train_loss:7.8088 train_time:67322ms step_avg:13464.35ms
+step:6/20000 train_loss:7.3361 train_time:69143ms step_avg:11523.86ms
+step:7/20000 train_loss:6.8971 train_time:70966ms step_avg:10138.03ms
+step:8/20000 train_loss:6.6568 train_time:72792ms step_avg:9098.94ms
+step:9/20000 train_loss:6.4569 train_time:74611ms step_avg:8290.15ms
+step:10/20000 train_loss:6.3518 train_time:76429ms step_avg:7642.87ms
+step:20/20000 train_loss:6.2542 train_time:94678ms step_avg:4733.91ms
+step:30/20000 train_loss:6.0568 train_time:113331ms step_avg:3777.69ms
+step:40/20000 train_loss:5.8504 train_time:131438ms step_avg:3285.94ms
+step:50/20000 train_loss:5.4726 train_time:149536ms step_avg:2990.72ms
+step:60/20000 train_loss:5.1487 train_time:167632ms step_avg:2793.87ms
+step:70/20000 train_loss:4.9057 train_time:185568ms step_avg:2650.98ms
+step:80/20000 train_loss:4.8146 train_time:203869ms step_avg:2548.37ms
+step:90/20000 train_loss:4.7152 train_time:221854ms step_avg:2465.05ms
+step:100/20000 train_loss:4.6441 train_time:239763ms step_avg:2397.63ms
+step:110/20000 train_loss:4.6065 train_time:257761ms step_avg:2343.29ms
+step:120/20000 train_loss:4.6225 train_time:276135ms step_avg:2301.13ms
+step:130/20000 train_loss:4.5469 train_time:293981ms step_avg:2261.39ms
+step:140/20000 train_loss:4.4787 train_time:311878ms step_avg:2227.70ms
+step:150/20000 train_loss:4.4520 train_time:329887ms step_avg:2199.25ms
+step:160/20000 train_loss:4.3502 train_time:348957ms step_avg:2180.98ms
+step:170/20000 train_loss:4.3288 train_time:367694ms step_avg:2162.91ms
+step:180/20000 train_loss:4.2413 train_time:385864ms step_avg:2143.69ms
+step:190/20000 train_loss:4.1697 train_time:404251ms step_avg:2127.64ms
+step:200/20000 train_loss:4.0882 train_time:422388ms step_avg:2111.94ms
+step:210/20000 train_loss:4.0469 train_time:440780ms step_avg:2098.95ms
+step:220/20000 train_loss:3.9983 train_time:459451ms step_avg:2088.42ms
+step:230/20000 train_loss:3.9202 train_time:477569ms step_avg:2076.39ms
+step:240/20000 train_loss:3.9458 train_time:496119ms step_avg:2067.16ms
+step:250/20000 train_loss:3.8365 train_time:514355ms step_avg:2057.42ms
+step:260/20000 train_loss:3.8842 train_time:532474ms step_avg:2047.98ms
+step:270/20000 train_loss:3.8276 train_time:550767ms step_avg:2039.88ms
+step:280/20000 train_loss:3.8000 train_time:569360ms step_avg:2033.43ms
+step:290/20000 train_loss:3.8124 train_time:588347ms step_avg:2028.78ms
+step:297/20000 val_loss:3.7660 val_bpb:2.2667 train_time:601473ms step_avg:2025.16ms
+stopping_early: wallclock_cap train_time:601473ms step:297/20000
+peak memory allocated: 23418 MiB reserved: 23678 MiB
+Serialized model: 67241467 bytes
+Code size: 60603 bytes
+Total submission size: 67302070 bytes
+Serialized model int8+zlib: 7378473 bytes (payload:17179128 raw_torch:17239661 payload_ratio:3.91x)
+Total submission size int8+zlib: 7439076 bytes
+final_int8_zlib_roundtrip val_loss:3.7895 val_bpb:2.2808 eval_time:1112ms
+final_int8_zlib_roundtrip_exact val_loss:3.78946736 val_bpb:2.28083634
