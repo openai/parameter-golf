@@ -1,0 +1,45 @@
+{
+  "author": "Rustam Eynaliyev",
+  "github_id": "tenet-diver",
+  "name": "8xH100 QK5.25 TTT-disabled PR2069 rerun",
+  "blurb": "4xH100 promotion of the best 1xH100 TTT-disabled QK5.25 control",
+  "date": "2026-05-01T15:51:08Z",
+  "track": "10min_16mb",
+  "candidate_id": "best4x_ttt_disabled_qk525",
+  "val_bpb": 1.23485583,
+  "seeds": [
+    "1337"
+  ],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.23485583,
+      "val_loss": 2.08500235,
+      "artifact_bytes": 15843310,
+      "model_bytes": 15738419,
+      "code_bytes": 104891,
+      "train_time_s": 702.656,
+      "run_dir": "/workspace/parameter-golf/records/pr2069_best_8xh100/20260501T153233Z/runs/01_best4x_ttt_disabled_qk525"
+    }
+  },
+  "hardware": "8xNVIDIA H100 80GB HBM3",
+  "technique_summary": "4xH100 promotion of the best 1xH100 TTT-disabled QK5.25 control",
+  "bytes_code": 104891,
+  "compliance": {
+    "train_under_600s": false,
+    "artifact_under_16mb": true,
+    "three_seeds": false,
+    "generated_from_h100_batch": true
+  },
+  "provenance": {
+    "candidate_id": "best4x_ttt_disabled_qk525",
+    "batch_dirs": [
+      "records/pr2069_best_8xh100/20260501T153233Z"
+    ],
+    "source_git_commit": "162d5785ae57027138d95e5cbde145a8cd55c22c",
+    "generated_by": "fastest/scripts/package_competition_submission.py"
+  },
+  "val_loss": 2.08500235,
+  "bytes_model_int8_zlib": 15738419,
+  "bytes_total": 15843310,
+  "train_time_seconds": 702.656
+}
