@@ -1,0 +1,142 @@
+{
+  "name": "Gated XSA + CaseOps + LQER g32/top4 + In-Timer N-gram Tilt",
+  "author": "vaibhavmishra1",
+  "github_id": "vaibhavmishra1",
+  "track": "track_10min_16mb",
+  "date": "2026-05-01",
+  "status": "two_seed_verified_record_candidate",
+  "val_bpb": 1.05953936,
+  "val_loss": 2.31866485,
+  "n_seeds_run": 2,
+  "seed_results": [
+    {
+      "seed": 42,
+      "post_ema_val_bpb": 1.06357301,
+      "quantized_val_bpb": 1.07110057,
+      "ttt_val_bpb": 1.05872644,
+      "ttt_val_loss": 2.31688588,
+      "train_time_seconds": 596.047,
+      "ttt_eval_time_seconds": 521.127,
+      "submission_size_bytes": 15984321,
+      "log": "train_seed42.log"
+    },
+    {
+      "seed": 0,
+      "post_ema_val_bpb": 1.06531335,
+      "quantized_val_bpb": 1.07291783,
+      "ttt_val_bpb": 1.06035228,
+      "ttt_val_loss": 2.32044383,
+      "train_time_seconds": 596.146,
+      "ttt_eval_time_seconds": 475.6,
+      "submission_size_bytes": 15987537,
+      "log": "train_seed0.log"
+    }
+  ],
+  "reference_logs": [
+    {
+      "log": "train_seed1234.log",
+      "note": "Reference run only; uses LQER_TOP_K=1, LQER_RANK=4, LQER_ASYM_GROUP=64, MATRIX_LR=0.026, PHASED_TTT_PREFIX_DOCS=1250. Not included in claimed mean."
+    }
+  ],
+  "artifact_size_cap_bytes": 16000000,
+  "max_observed_submission_size_bytes": 15987537,
+  "train_wallclock_seconds_cap": 600,
+  "eval_wallclock_seconds_cap": 600,
+  "lineage": {
+    "primary_codebase": "PR #2018 (simon-marcus): Gated XSA + token-only in-timer n-gram tilt + PR #1967/V21 lineage",
+    "quant_tuning": "PR #2060 (S0urC10ud): portable LQER/GPTQ knobs, specifically rank=2, asym_group=32, top_k=4, MATRIX_LR=0.028",
+    "caseops": "CaseOps SP8192 lossless-caps tokenizer and byte sidecar dataset lineage"
+  },
+  "key_settings": {
+    "MATRIX_LR": 0.028,
+    "LQER_RANK": 2,
+    "LQER_ASYM_GROUP": 32,
+    "LQER_TOP_K": 4,
+    "GATED_XSA": 1,
+    "SKYLIGHT_MUON": 0,
+    "NGRAM_TILT_ENABLED": 1,
+    "NGRAM_HINT_PRECOMPUTE_OUTSIDE": 0,
+    "TOKEN_ORDER": 16,
+    "TOKEN_THRESHOLD": 0.8,
+    "TOKEN_BOOST": 2.625,
+    "WITHIN_BOOST": 0,
+    "WORD_BOOST": 0,
+    "PHASED_TTT_NUM_PHASES": 1,
+    "PHASED_TTT_PREFIX_DOCS": 1000,
+    "TTT_LORA_RANK": 80,
+    "TTT_CHUNK_SIZE": 48,
+    "EVAL_SEQ_LEN": 2560,
+    "TTT_EVAL_SEQ_LEN": 2560,
+    "QK_GAIN_INIT": 5.25,
+    "MIN_LR": 0.1,
+    "EMBED_BITS": 7,
+    "COMPRESSOR": "pergroup",
+    "CASEOPS_ENABLED": 1,
+    "VOCAB_SIZE": 8192
+  },
+  "credits": [
+    {
+      "pr": 2018,
+      "author": "simon-marcus",
+      "contribution": "Primary codebase, Gated XSA, token-only in-timer n-gram tilt, PR #1967/V21 lineage"
+    },
+    {
+      "pr": 2060,
+      "author": "S0urC10ud",
+      "contribution": "Portable LQER/GPTQ retune: rank=2, group=32, top_k=4, MATRIX_LR=0.028"
+    },
+    {
+      "pr": 2007,
+      "author": "Elubrazione",
+      "contribution": "Long-context/QK/AsymLogit lineage"
+    },
+    {
+      "pr": 1967,
+      "author": "ndokutovich",
+      "contribution": "V21 + n-gram tilt + LeakyReLU base lineage"
+    },
+    {
+      "pr": 1948,
+      "author": "TimS-ml",
+      "contribution": "LeakyReLU squared slope sweep"
+    },
+    {
+      "pr": 1953,
+      "author": "andrewbaggio1",
+      "contribution": "TTT/QK tuning lineage"
+    },
+    {
+      "pr": 1923,
+      "author": "jorge-asenjo",
+      "contribution": "Asymmetric logit rescale"
+    },
+    {
+      "pr": 1908,
+      "author": "romeerp",
+      "contribution": "AWQ-lite mixed precision"
+    },
+    {
+      "pr": 1855,
+      "author": "codemath3000",
+      "contribution": "Per-group compression and strong SP8192 stack"
+    },
+    {
+      "pr": 1514,
+      "author": "codemath3000",
+      "contribution": "Strict token-only n-gram precedent"
+    },
+    {
+      "pr": 1145,
+      "author": "AnirudhRahul",
+      "contribution": "N-gram tilt with closed-form probability renormalization"
+    }
+  ],
+  "all_included_logs_summary": {
+    "n_logs": 3,
+    "mean_ttt_val_bpb": 1.05933439,
+    "sample_std_ttt_val_bpb": 0.00088706,
+    "mean_ttt_val_loss": 2.3182163,
+    "sample_std_ttt_val_loss": 0.00194123,
+    "note": "Includes train_seed1234.log, which is numerically close but used earlier LQER top1/rank4/group64 and prefix1250 settings."
+  }
+}
