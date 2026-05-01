@@ -1,0 +1,20 @@
+# shortchunk16_t2048_local0875 multiseed summary
+
+| seed | steps | train_time_s | quant_bpb | ttt_bpb | ttt_eval_s | total_size | artifact |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 42 | 4918 | 599.5 | 1.07315022 | 1.05942388 | 590.9 | 15909199 | 15869183 |
+| 0 | 5042 | 599.5 |  | 1.05895134 | 526.4 | 15904411 | 15864395 |
+| 1234 | 5039 | 599.6 | 1.07314675 | 1.05936318 | 559.5 | 15915804 | 15875788 |
+
+mean_ttt_val_bpb: 1.05924613
+std_ttt_val_bpb: 0.00025710
+mean_ttt_val_loss: 2.31802318
+std_ttt_val_loss: 0.00056262
+max_train_time_s: 599.6
+max_eval_time_s: 590.9
+max_total_submission_size: 15915804
+
+seed0 artifact/total size note: inferred before cleanup from final_model.int6.ptz
+size plus logged compressed code size; train log lacks final quantized diagnostic
+lines because the wrapper was interrupted after per-group compression during a
+cancelled rerun.
