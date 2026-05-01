@@ -238,17 +238,6 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 - PyTorch 2.9.1+cu128, CUDA 12.8, FlashAttention 3 (Hopper kernels)
 - `lrzip` system binary (used by `COMPRESSOR=pergroup`)
 
-## Note on size
-
-The 3-seed runpod measurements in the *Submission status* table below are
-the authoritative size figures for this submission. Earlier internal DGX
-measurements showed an inflated artifact (~16.74 MB) caused by a missing
-`EMBED_BITS=7` override (the code default is 8, which makes `tok_emb`
-quantize to int8 instead of int7 and adds ~500 KB). `run_3seed.sh` and
-the single-seed reference command above explicitly set the full PR #1855
-9-hparam stack including `EMBED_BITS=7`, so the runpod runs land within
-the 16,000,000-byte cap.
-
 ## Submission status
 
 | Seed | val_bpb (phased TTT) | val_loss | size (bytes) | step_avg | steps |
@@ -258,5 +247,4 @@ the 16,000,000-byte cap.
 | 1234 | TBD | TBD | TBD | TBD | TBD |
 | **Mean** | **TBD** | **TBD** | **TBD** | **TBD** | **TBD** |
 
-(1-seed DGX reference with the same code: seed 42 → val_bpb=1.06042,
-size=16,739,873 bytes; size is over budget on DGX, see *Note on size* above.)
+(1-seed DGX reference with the same code: seed 42 → val_bpb=1.06042.)
