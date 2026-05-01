@@ -1,6 +1,6 @@
 # Hybrid nGPT / GPT / Mamba Submission
 
-3-seed mean val_bpb = 1.162
+3-seed mean val_bpb = 1.1726
 
 This submission is a hybrid model mixing nGPT transformer layers, standard GPT layers, and Mamba2 layers.
 
@@ -126,3 +126,19 @@ I think the model could get lower loss by making it narrower and adding another 
 I think this hybrid construction is promising. The nGPT layers at the start and end are especially useful for stability.
 
 One thing: the second run may be faster than the first one because `torch.compile` cache is already saved. Delete cache for fair timing.
+
+
+## Results
+
+Final results over 3 independent runs:
+
+| Seed | val_bpb | Artifact size, bytes |
+|---:|---:|---:|
+| 42  | 1.1729 | 15,532,451 |
+| 147 | 1.1728 | 15,432,316 |
+| 582 | 1.1722 | 15,492,162 |
+
+The 3-seed mean is:
+
+```text
+val_bpb = 1.1726
