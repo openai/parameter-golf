@@ -448,12 +448,10 @@ def pre_quant_adamw_ttt(h, device, val_data, base_model):
 	base_model.train()
 	seq_len = h.eval_seq_len; total_tokens = val_data.val_tokens.numel() - 1
 	total_seqs = total_tokens // seq_len; batch_seqs = 32
-	# Shard sequences across ranks for 8x speedup
-	my_seq_start = total_seqs * h.rank // h.world_size
-	my_seq_end = total_seqs * (h.rank + 1) // h.world_size
+	# All ranks process identical data -> identical gradients -> no allreduce needed
 	for epoch in range(epochs):
-		for bs in range(my_seq_start, my_seq_end, batch_seqs):
-			be = min(bs + batch_seqs, my_seq_end); start_tok = bs * seq_len; end_tok = be * seq_len + 1
+		for bs in range(0, total_seqs, batch_seqs):
+			be = min(bs + batch_seqs, total_seqs); start_tok = bs * seq_len; end_tok = be * seq_len + 1
 			if end_tok > total_tokens: continue
 			local = val_data.val_tokens[start_tok:end_tok].to(device=device, dtype=torch.int64)
 			x = local[:-1].reshape(-1, seq_len); y = local[1:].reshape(-1, seq_len)
@@ -461,9 +459,6 @@ def pre_quant_adamw_ttt(h, device, val_data, base_model):
 			with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
 				loss = base_model(x, y)
 			loss.backward()
-			if dist.is_available() and dist.is_initialized():
-				for p in ttt_params:
-					if p.grad is not None: dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
 			torch.nn.utils.clip_grad_norm_(ttt_params, 1.0)
 			optimizer.step()
 	for p in base_model.parameters(): p.requires_grad_(True)
