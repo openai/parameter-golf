@@ -57,7 +57,7 @@ Within run_logs/3c25e790-2f8a-4c36-881c-67066cf1e465.txt, although the model con
 
 Adding one more layer (so that the model has 10 layers, 8 query heads, 4 kv heads, and a dim of 512 with mlp_mult of 2), and running it for the full 20,000 steps (see run_logs/24d3334a-0ddf-45ca-8be8-9dbd470f8866.txt), we get a final bpb of ~1.2494 with the submission size still only taking up 15,221,665 despite a parameter count of 18,897,488.
 
-I initially thought that ZerO would at least yield better loss. Although it didn't, the improvements in compression were very surprising, and I'm interesting in further increasing parameter efficiency with ZerO.
+I initially thought that ZerO would at least yield better loss. Although it didn't, the improvements in compression were very surprising, and I'm interested in further increasing parameter efficiency with ZerO.
 
 ## Future Work
 My plans for this consist of the following:
