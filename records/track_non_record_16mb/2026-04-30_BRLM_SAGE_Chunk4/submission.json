@@ -1,0 +1,19 @@
+{
+  "author": "",
+  "github_id": "",
+  "name": "BRLM SAGE Chunk4 (causal gate)",
+  "blurb": "Non-record SP1024 1xH100 10-minute submission for a bifurcated recurrent LM with SAGE-bus chunk-causal gating (cummax within chunk). Original prototype used a non-causal within-chunk gate; this submission promotes the chassis with the gate fixed for legality before measurement.",
+  "date": "2026-04-30T00:00:00Z",
+  "track": "non-record-10min-16mb",
+  "val_bpb": 1.26460519,
+  "step_stop": null,
+  "wallclock_seconds": 600.396,
+  "bytes_total": 13181861,
+  "artifact_under_16mb": true,
+  "total_tokens_seen": 702578688,
+  "gpu": "1xH100",
+  "tokenizer": "sentencepiece_sp1024",
+  "package": "2026-04-30_BRLM_SAGE_Chunk4",
+  "source_train_file": "train_gpt.py",
+  "primary_log": "train.log"
+}
