@@ -16,9 +16,9 @@ There were many (frankly) strange implementations that I tried experimenting wit
 Although this probably isn't going to shatter any records (at all), I do hope that this at least shines an interesting light at some potential ideas that may be integrated into future GPT training/speedruns.
 - Even if this ultimately doesn't go very far alone, it would be nice if some of the ideas in this implementation were explored. Perhaps there's too much going on in this implementation, and that together they're conflicting each other. Or perhaps's it's merely a hyperparameter configuration away from getting solid results.
 
-My focus is not on Test-Time Training (TTT) or any significant implementation-specifc optimizations (e.g. fp8 training). Rather, my focus was on the underlying architecture itself, and really (trying towards) pushing the limits of what a conventional transformer can do.
+My focus ended up not being on Test-Time Training (TTT) or any significant implementation-specifc optimizations (e.g. fp8 training). Rather, my focus was on the underlying architecture itself, and really (trying towards) pushing the limits of what a conventional transformer can do.
 - I may continue experiments even after this competition, since research isn't just one and done! I may take some ideas from my implementation and iteratively add it to new language models I may train in the future as I both learn more about LLMs and advanced deep learning in general.
-- Some commits may show some significant implementation-specific optimizations (e.g. my attempt at fp8 training), but these usually either failed or lead to training instability during experimentation.
+- Some commits may show attempts implementation-specific optimizations (e.g. my attempt at fp8 training), but these usually either failed or led to training instability during experimentation.
 
 ## ZerO initalization
 I was intersted in this paper: https://arxiv.org/pdf/2110.12661
