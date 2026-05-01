@@ -1,0 +1,37 @@
+{
+  "author": "Christopher-Lee-McClendon",
+  "github_id": "Christopher-Lee-McClendon",
+  "name": "Polar Express NS Coefficient Ablation on SP8192 3-Layer Recurrence (PR #1809)",
+  "blurb": "Ablation testing Polar Express per-iteration Newton-Schulz coefficients on PR #1809's architecture. PE5 yields val_bpb 1.08154 vs baseline 1.08130 — a regression of +0.00024 BPB. Fixed coefficients (3.4445, -4.775, 2.0315) outperform PE for this setup.",
+  "date": "2026-04-26",
+  "track": "non_record_16mb",
+  "base_pr": 1809,
+  "base_pr_author": "PranavViswanath",
+  "upstream_fork_pr": 1493,
+  "upstream_fork_author": "bigbag",
+  "variants": {
+    "baseline_fixed_ns": {
+      "val_bpb": 1.08130,
+      "val_bpb_sliding": 1.08262,
+      "val_bpb_quantized": 1.09922,
+      "val_loss_ttt": 2.79310,
+      "artifact_bytes": 15989814,
+      "steps": 4542,
+      "train_time_seconds": 588
+    },
+    "polar_express_5step": {
+      "val_bpb": 1.08154,
+      "val_bpb_sliding": 1.08303,
+      "val_bpb_quantized": 1.09974,
+      "val_loss_ttt": 2.79372,
+      "artifact_bytes": 15974228,
+      "steps": 4547,
+      "train_time_seconds": 588
+    }
+  },
+  "val_bpb": 1.08154,
+  "artifact_bytes": 15974228,
+  "seeds": [42],
+  "hardware": "8xH100 80GB SXM",
+  "finding": "negative — Polar Express NS coefficients do not improve PR #1809 architecture"
+}
