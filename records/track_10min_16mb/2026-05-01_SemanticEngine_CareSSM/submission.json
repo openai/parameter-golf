@@ -1,0 +1,68 @@
+{
+  "track": "track_10min_16mb",
+  "submission_name": "SemanticEngine_CareSSM",
+  "name": "SemanticEngine CareSSM + Live Episodic Memory",
+  "blurb": "Pure SSM trunk with a live episodic memory substrate active during training and legal prequential eval. On 8xH100, ranks 0-5 train the CareSSM trunk, rank 6 serves low-latency episodic residual packets, and rank 7 runs memory maintenance. Eval scores each chunk before committing its evidence to the cache for future chunks.",
+  "date": "2026-05-01",
+  "val_loss": 4.07530019,
+  "val_bpb": 1.64286828,
+  "val_loss_std": 0.05789620,
+  "val_bpb_std": 0.02333959,
+  "seeds": [42, 1337, 294924],
+  "seed_results": {
+    "42": {
+      "val_loss": 4.07007627,
+      "val_bpb": 1.64076237,
+      "steps": 1692,
+      "train_time_s": 595.97,
+      "eval_time_s": 347.0,
+      "docs_scored": 50000,
+      "tokens_scored": 42216034,
+      "episodic_reads": 3348,
+      "episodic_writes": 3348,
+      "slot_count_initial": 93346,
+      "slot_count_final": 139998
+    },
+    "1337": {
+      "val_loss": 4.13563133,
+      "val_bpb": 1.66718946,
+      "steps": 1692,
+      "train_time_s": 594.15,
+      "eval_time_s": 349.5,
+      "docs_scored": 50000,
+      "tokens_scored": 42216034,
+      "episodic_reads": 3348,
+      "episodic_writes": 3348,
+      "slot_count_initial": 89776,
+      "slot_count_final": 136428
+    },
+    "294924": {
+      "val_loss": 4.02019298,
+      "val_bpb": 1.62065301,
+      "steps": 1688,
+      "train_time_s": 594.27,
+      "eval_time_s": 364.8,
+      "docs_scored": 50000,
+      "tokens_scored": 42216034,
+      "episodic_reads": 3348,
+      "episodic_writes": 3348,
+      "slot_count_initial": 93091,
+      "slot_count_final": 139743
+    }
+  },
+  "train_steps_mean": 1690.67,
+  "train_time_s_mean": 594.78,
+  "eval_time_s_mean": 353.77,
+  "artifact_bytes_estimate": 44600064,
+  "artifact_submit_valid": true,
+  "hardware": "8xH100 80GB",
+  "eval_method": "packet_online_cache_prequential_full_50k",
+  "compliance": {
+    "three_seeds": true,
+    "training_under_600s": true,
+    "eval_under_600s": true,
+    "score_before_write": true,
+    "full_50k_validation_docs": true,
+    "validation_tokens_scored_before_memory_update": true
+  }
+}

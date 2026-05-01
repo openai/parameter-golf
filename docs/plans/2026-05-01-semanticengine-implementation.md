@@ -226,9 +226,9 @@ git commit -m "feat: implement init_arm_topology() with 6+2 / 3+1 / 1-gpu routin
 
 | Key | Value | Rationale |
 |---|---|---|
-| `crct_memory_write_tokens_per_step` | 192 | Up from 128/32; per-step cap headroom |
+| `crct_memory_write_tokens_per_step` | 256 | Up from 128/32; per-step cap headroom |
 | `online_episodic_write_tokens_per_chunk` | 64 | Up from 16; first meaningful step without being reckless |
-| `crct_target_write_rate` | 0.20 | Matches observed adaptive smoke ~0.219 |
+| `crct_target_write_rate` | 0.25 | Slightly above observed adaptive smoke ~0.219; round number |
 | `async_teacher_max_lag_steps` | leave at current | Lag is 3–4 steps; pipe not bottleneck |
 | `crct_async_teacher_pending_batches` | leave at current | No ring drops observed |
 
@@ -271,9 +271,9 @@ def test_build_arm_config_required_keys():
 
 def test_build_arm_config_telemetry_tuned_defaults():
     cfg = build_arm_config(_FakeHyperparams())
-    assert cfg["crct_memory_write_tokens_per_step"] == 192
+    assert cfg["crct_memory_write_tokens_per_step"] == 256
     assert cfg["online_episodic_write_tokens_per_chunk"] == 64
-    assert abs(cfg["crct_target_write_rate"] - 0.20) < 1e-6
+    assert abs(cfg["crct_target_write_rate"] - 0.25) < 1e-6
     assert cfg["model_dim"] == 384
     assert cfg["optimizer"] == "muon"
     assert cfg["optimizer_log_a_beta_coupling"] is True
@@ -342,9 +342,9 @@ def build_arm_config(hp: Any) -> dict[str, Any]:
     cfg.update(locks)
     # Apply telemetry-tuned overrides (supersede lock defaults)
     cfg.update({
-        "crct_memory_write_tokens_per_step": int(getattr(hp, "crct_memory_write_tokens_per_step", 192)),
+        "crct_memory_write_tokens_per_step": int(getattr(hp, "crct_memory_write_tokens_per_step", 256)),
         "online_episodic_write_tokens_per_chunk": int(getattr(hp, "online_episodic_write_tokens_per_chunk", 64)),
-        "crct_target_write_rate": float(getattr(hp, "crct_target_write_rate", 0.20)),
+        "crct_target_write_rate": float(getattr(hp, "crct_target_write_rate", 0.25)),
         "lm_head_tile_size": int(getattr(hp, "lm_head_tile_size", 4096)),
     })
     return cfg
@@ -604,20 +604,20 @@ class Hyperparameters:
     # -------------------------------------------------------------------------
     # CRCT evidence substrate (telemetry-tuned from profiling on 4×H100)
     # -------------------------------------------------------------------------
-    # Per-step write cap. 192 gives the per-step cap meaningful headroom above
+    # Per-step write cap. 256 gives the per-step cap meaningful headroom above
     # 128 without entering noisy territory. (exp26 default was 32.)
     crct_memory_write_tokens_per_step: int = int(
-        os.environ.get("CRCT_MEMORY_WRITE_TOKENS_PER_STEP", 192)
+        os.environ.get("CRCT_MEMORY_WRITE_TOKENS_PER_STEP", 256)
     )
     # Per-chunk write budget for the online episodic cache. 64 is the first real
     # step up from the profiled 16 without being reckless.
     online_episodic_write_tokens_per_chunk: int = int(
         os.environ.get("ONLINE_EPISODIC_WRITE_TOKENS_PER_CHUNK", 64)
     )
-    # Target write rate. 0.20 matches observed adaptive smoke behavior
-    # (payload rate ~14/64 = 0.219); previous lock value was 0.10.
+    # Target write rate. 0.25 is slightly above the observed adaptive smoke
+    # behavior (~0.219) and is a clean round number. Previous lock was 0.10.
     crct_target_write_rate: float = float(
-        os.environ.get("CRCT_TARGET_WRITE_RATE", 0.20)
+        os.environ.get("CRCT_TARGET_WRITE_RATE", 0.25)
     )
     # Async teacher lag and pending-batch limits are left at exp26 defaults.
     # Profiling shows max lag 3–4 steps and no ring drops — the pipe is not
