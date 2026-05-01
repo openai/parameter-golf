@@ -1,0 +1,10 @@
+{
+  "artifact_bytes": null,
+  "final_bpb": null,
+  "log": "/workspace/move39_outputs/move39_planB_2018_native_ngram_gate32_seed1337_20260501_055911/move39_planB_2018_native_ngram_gate32_seed1337_20260501_055911.txt",
+  "prequant_bpb": 1.06434971,
+  "quant_bpb": null,
+  "train_ms": 596116,
+  "ttt_eval_ms": null
+}
+DECISION=NO_FINAL_BPB

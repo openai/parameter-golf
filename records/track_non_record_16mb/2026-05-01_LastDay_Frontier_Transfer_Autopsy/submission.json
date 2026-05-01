@@ -1,0 +1,61 @@
+{
+  "kind": "non_record",
+  "title": "Last-Day Frontier Transfer Autopsy",
+  "author": "Himanshu Dongre",
+  "track": "track_non_record_16mb",
+  "leaderboard_claim": false,
+  "summary": "Negative-results and methodology package for final-day transfer attempts on the PR #2018 frontier.",
+  "primary_target": "PR #2018 strict token-only n-gram / Gated XSA frontier",
+  "results": {
+    "plan_a": {
+      "base": "PR #2018",
+      "seed": 1337,
+      "change": "GATE_WINDOW=32, SMEAR_GATE_WINDOW=12, q-aware token-only n-gram patch",
+      "prequant_bpb": 1.06385301,
+      "quant_bpb": 1.07199665,
+      "final_bpb": 1.06057508,
+      "artifact_bytes": 15972854,
+      "train_ms": 595974,
+      "ttt_eval_ms": 515283,
+      "verdict": "NO_GO"
+    },
+    "plan_b": {
+      "base": "PR #2018",
+      "seed": 1337,
+      "change": "GATE_WINDOW=32, SMEAR_GATE_WINDOW=12, native #2018 n-gram",
+      "prequant_bpb": 1.06434971,
+      "quant_bpb": null,
+      "final_bpb": null,
+      "train_ms": 596116,
+      "ttt_eval_ms": null,
+      "verdict": "KILLED_AT_PREQUANT"
+    },
+    "plan_c": {
+      "base": "PR #2018",
+      "seed": 1337,
+      "change": "GATE_WINDOW=12, SMEAR_GATE_WINDOW=12, BigramHash 512x4, Path-A-v3 small tensor routing",
+      "prequant_bpb": 1.06471733,
+      "quant_bpb": null,
+      "final_bpb": null,
+      "train_ms": 596111,
+      "ttt_eval_ms": null,
+      "verdict": "KILLED_AT_PREQUANT_TERMINAL_OBSERVED"
+    }
+  },
+  "reference": {
+    "pr": 2018,
+    "seed": 1337,
+    "prequant_bpb": 1.05124428,
+    "quant_bpb": 1.05990331,
+    "final_bpb": 1.04826351
+  },
+  "compliance_summary": {
+    "c1_strict_causal_dependence": "yes for executed runs",
+    "c2_full_normalized_distribution": "yes for executed runs",
+    "c3_score_before_update": "yes, inherited score-first TTT",
+    "c4_single_pass": "yes",
+    "caseops_byte_sidecar": "active in Plan A and Plan B logs",
+    "validation_prequant_ttt": "not used",
+    "byte_ppm_scoring": "not used"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "kind": "non_record",
+  "title": "Parameter Golf Closing Synthesis",
+  "author": "Himanshu Dongre",
+  "track": "track_non_record_16mb",
+  "leaderboard_claim": false,
+  "summary": "A methodology synthesis of the 10min/16MB track: what worked, what failed, and which legality/byte-accounting questions shaped the frontier.",
+  "scope": {
+    "latest_public_pr_seen": 2103,
+    "snapshot_date": "2026-05-01",
+    "includes_own_experiments": true,
+    "includes_public_pr_issue_synthesis": true
+  },
+  "major_topics": [
+    "clean neural and quantization frontier",
+    "tokenizer and text representation",
+    "eval-time n-gram and byte/PPM methods",
+    "validation adaptation and PreQuantTTT",
+    "byte accounting and denominator bugs",
+    "review checklist for future record PRs",
+    "generalizable small-model research lessons",
+    "participant research arc and updated beliefs"
+  ]
+}
