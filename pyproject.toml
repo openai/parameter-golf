@@ -1,0 +1,27 @@
+[project]
+name = "parameter-golf"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "datasets>=4.8.4",
+    "huggingface-hub>=1.8.0",
+    "ipykernel>=6.31.0",
+    "kernels>=0.12.3",
+    "numpy>=2.0.2",
+    "sentencepiece>=0.2.1",
+    "setuptools>=81.0.0",
+    "tiktoken>=0.12.0",
+    "torch==2.6.0",
+    "tqdm>=4.67.3",
+    "typing-extensions==4.15.0",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true

@@ -9,3 +9,6 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+AGENTS.md
+OPTIM_PLAN.md
+.mcp.json

@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import glob
 import io
+import lzma
 import math
 import os
 import random
@@ -50,6 +51,20 @@ def env_flag(name: str, default: bool) -> bool:
 
 def parse_compute_dtype(name: str) -> torch.dtype:
     value = os.environ.get(name, "bfloat16").strip().lower()
+    if value in {"bf16", "bfloat16"}:
+        return torch.bfloat16
+    if value in {"fp16", "float16", "half"}:
+        return torch.float16
+    if value in {"fp32", "float32"}:
+        return torch.float32
+    raise ValueError(f"{name} must be one of bf16/fp16/fp32, got {value!r}")
+
+
+def parse_optional_dtype(name: str, default: torch.dtype) -> torch.dtype:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    value = value.strip().lower()
     if value in {"bf16", "bfloat16"}:
         return torch.bfloat16
     if value in {"fp16", "float16", "half"}:
@@ -350,11 +365,35 @@ INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
     ).split(",")
     if pattern
 )
-INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
-INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
-INT8_PER_ROW_SCALE_DTYPE = torch.float16
-INT8_CLIP_PERCENTILE = 99.99984
+INT8_KEEP_FLOAT_MAX_NUMEL = int(os.environ.get("INT8_KEEP_FLOAT_MAX_NUMEL", 65_536))
+INT8_KEEP_FLOAT_STORE_DTYPE = parse_optional_dtype("INT8_KEEP_FLOAT_STORE_DTYPE", torch.float16)
+INT8_PER_ROW_SCALE_DTYPE = parse_optional_dtype("INT8_PER_ROW_SCALE_DTYPE", torch.float16)
+INT8_CLIP_PERCENTILE = float(os.environ.get("INT8_CLIP_PERCENTILE", 99.99984))
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+SELF_CALIB_VARIANTS = tuple(
+    variant.strip()
+    for variant in os.environ.get("SELF_CALIB_VARIANTS", "").split(",")
+    if variant.strip()
+)
+SELF_CALIB_NUM_SEQS = int(os.environ.get("SELF_CALIB_NUM_SEQS", 0))
+SELF_CALIB_SEQ_LEN = int(os.environ.get("SELF_CALIB_SEQ_LEN", 256))
+SELF_CALIB_BATCH_SIZE = int(os.environ.get("SELF_CALIB_BATCH_SIZE", 4))
+SELF_CALIB_TEMPERATURE = float(os.environ.get("SELF_CALIB_TEMPERATURE", 0.8))
+SELF_CALIB_TOPK = int(os.environ.get("SELF_CALIB_TOPK", 32))
+SELF_CALIB_CANDIDATE_PERCENTILES = tuple(
+    float(value.strip())
+    for value in os.environ.get("SELF_CALIB_CANDIDATE_PERCENTILES", str(INT8_CLIP_PERCENTILE)).split(",")
+    if value.strip()
+)
+EXPORT_COMPRESSOR = os.environ.get("EXPORT_COMPRESSOR", "zlib").strip().lower()
+if EXPORT_COMPRESSOR not in {"zlib", "lzma"}:
+    raise ValueError(f"EXPORT_COMPRESSOR must be one of zlib/lzma, got {EXPORT_COMPRESSOR!r}")
+EXPORT_COMPRESSION_LEVEL = int(os.environ.get("EXPORT_COMPRESSION_LEVEL", 9))
+EXPORT_ARTIFACT_NAME = os.environ.get(
+    "EXPORT_ARTIFACT_NAME",
+    "final_model.int8.ptz" if EXPORT_COMPRESSOR == "zlib" else "final_model.int8.ptx",
+)
+ROUNDTRIP_METRIC_PREFIX = f"final_int8_{EXPORT_COMPRESSOR}_roundtrip"
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -367,13 +406,14 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def quantize_float_tensor(t: Tensor, clip_percentile: float = INT8_CLIP_PERCENTILE) -> tuple[Tensor, Tensor]:
     t32 = t.float()
+    clip_q = clip_percentile / 100.0
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
         # ranges much better than a single tensor-wide scale.
         clip_abs = (
-            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            torch.quantile(t32.abs(), clip_q, dim=1)
             if t32.numel()
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
@@ -383,12 +423,12 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
-    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    clip_abs = float(torch.quantile(t32.abs().flatten(), clip_q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
     q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
     return q, scale
 
-def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+def quantize_state_dict_int8(state_dict: dict[str, Tensor], clip_percentile: float = INT8_CLIP_PERCENTILE):
     # Single supported clean-script export format:
     # - per-row int8 for 2D float tensors
     # - per-tensor int8 for other float tensors
@@ -426,7 +466,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        q, s = quantize_float_tensor(t, clip_percentile=clip_percentile)
         if s.ndim > 0:
             qmeta[name] = {"scheme": "per_row", "axis": 0}
         quantized[name] = q
@@ -446,6 +486,24 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     if passthrough_orig_dtypes:
         obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
     return obj, stats
+
+
+def compress_export_blob(data: bytes) -> bytes:
+    if EXPORT_COMPRESSOR == "zlib":
+        return zlib.compress(data, level=EXPORT_COMPRESSION_LEVEL)
+    return lzma.compress(data, preset=EXPORT_COMPRESSION_LEVEL)
+
+
+def decompress_export_blob(data: bytes) -> bytes:
+    if EXPORT_COMPRESSOR == "zlib":
+        return zlib.decompress(data)
+    return lzma.decompress(data)
+
+def serialize_quantized_export(quant_obj: dict[str, object]) -> tuple[bytes, bytes]:
+    quant_buf = io.BytesIO()
+    torch.save(quant_obj, quant_buf)
+    quant_raw = quant_buf.getvalue()
+    return quant_raw, compress_export_blob(quant_raw)
 
 def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
     out: dict[str, Tensor] = {}
@@ -772,6 +830,198 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+
+        x = self.final_norm(x)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(x)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
+
+def _sample_from_logits(
+    logits: Tensor,
+    *,
+    variant: str,
+    temperature: float,
+    topk: int,
+    generator: torch.Generator | None,
+) -> Tensor:
+    if variant == "ar_greedy":
+        return torch.argmax(logits, dim=-1, keepdim=True)
+    temp = max(temperature, 1e-5)
+    work = logits / temp
+    if variant == "ar_topk" and topk > 0 and topk < work.size(-1):
+        topk_vals, topk_idx = torch.topk(work, k=topk, dim=-1)
+        probs = torch.softmax(topk_vals, dim=-1)
+        picked = torch.multinomial(probs, 1, generator=generator)
+        return torch.gather(topk_idx, -1, picked)
+    if variant == "ar_mixed":
+        work = 0.5 * work + 0.5 * logits
+    probs = torch.softmax(work, dim=-1)
+    return torch.multinomial(probs, 1, generator=generator)
+
+
+def generate_self_calibration_sequences(
+    model: nn.Module,
+    device: torch.device,
+    *,
+    vocab_size: int,
+    num_seqs: int,
+    seq_len: int,
+    batch_size: int,
+    seed: int,
+    variants: tuple[str, ...],
+    temperature: float,
+    topk: int,
+    compute_dtype: torch.dtype,
+) -> tuple[list[Tensor], dict[str, int]]:
+    if num_seqs <= 0 or seq_len < 2 or not variants:
+        return [], {}
+    supported_variants = {"ar_sample", "ar_greedy", "ar_topk", "ar_mixed"}
+    unknown_variants = sorted(set(variants) - supported_variants)
+    if unknown_variants:
+        raise ValueError(
+            f"Unsupported SELF_CALIB_VARIANTS: {unknown_variants}. "
+            f"Supported values: {sorted(supported_variants)}"
+        )
+    variant_counts = {variant: 0 for variant in variants}
+    variant_plan = [variants[i % len(variants)] for i in range(num_seqs)]
+    for variant in variant_plan:
+        variant_counts[variant] += 1
+    rng = torch.Generator(device=device)
+    rng.manual_seed(seed)
+    all_tokens: list[Tensor] = []
+    model.eval()
+    with torch.inference_mode(), torch.autocast(
+        device_type="cuda",
+        dtype=compute_dtype,
+        enabled=compute_dtype != torch.float32,
+    ):
+        cursor = 0
+        while cursor < len(variant_plan):
+            batch_variants = variant_plan[cursor : cursor + batch_size]
+            bs = len(batch_variants)
+            tokens = torch.randint(0, vocab_size, (bs, 1), device=device, generator=rng)
+            for _ in range(seq_len - 1):
+                logits = model.forward_logits(tokens)[:, -1, :]
+                next_tokens = [
+                    _sample_from_logits(
+                        logits[i : i + 1],
+                        variant=batch_variants[i],
+                        temperature=temperature,
+                        topk=topk,
+                        generator=rng,
+                    )
+                    for i in range(bs)
+                ]
+                tokens = torch.cat([tokens, torch.cat(next_tokens, dim=0)], dim=1)
+            for i in range(bs):
+                all_tokens.append(tokens[i : i + 1].detach().cpu())
+            cursor += bs
+    model.train()
+    return all_tokens, variant_counts
+
+
+def eval_token_sequences(
+    model: nn.Module,
+    token_seqs: list[Tensor],
+    device: torch.device,
+    compute_dtype: torch.dtype,
+) -> float:
+    if not token_seqs:
+        return float("inf")
+    loss_sum = 0.0
+    model.eval()
+    with torch.inference_mode(), torch.autocast(
+        device_type="cuda",
+        dtype=compute_dtype,
+        enabled=compute_dtype != torch.float32,
+    ):
+        for seq in token_seqs:
+            local = seq.to(device=device, dtype=torch.int64, non_blocking=True)
+            loss_sum += float(model(local[:, :-1], local[:, 1:]).item())
+    model.train()
+    return loss_sum / len(token_seqs)
+
+
+def search_self_calibrated_quantization(
+    model: GPT,
+    state_dict: dict[str, Tensor],
+    device: torch.device,
+    compute_dtype: torch.dtype,
+    *,
+    vocab_size: int,
+    seed: int,
+    log0,
+) -> tuple[dict[str, object], dict[str, int | float], float | None]:
+    if not SELF_CALIB_VARIANTS or SELF_CALIB_NUM_SEQS <= 0:
+        quant_obj, quant_stats = quantize_state_dict_int8(state_dict)
+        return quant_obj, quant_stats, None
+    calib_tokens, variant_counts = generate_self_calibration_sequences(
+        model,
+        device,
+        vocab_size=vocab_size,
+        num_seqs=SELF_CALIB_NUM_SEQS,
+        seq_len=SELF_CALIB_SEQ_LEN,
+        batch_size=SELF_CALIB_BATCH_SIZE,
+        seed=seed,
+        variants=SELF_CALIB_VARIANTS,
+        temperature=SELF_CALIB_TEMPERATURE,
+        topk=SELF_CALIB_TOPK,
+        compute_dtype=compute_dtype,
+    )
+    if not calib_tokens:
+        quant_obj, quant_stats = quantize_state_dict_int8(state_dict)
+        return quant_obj, quant_stats, None
+    baseline_loss = eval_token_sequences(model, calib_tokens, device, compute_dtype)
+    log0(
+        "self_calib:"
+        f" variants={','.join(SELF_CALIB_VARIANTS)}"
+        f" counts={variant_counts}"
+        f" seqs={len(calib_tokens)} seq_len={SELF_CALIB_SEQ_LEN}"
+        f" baseline_loss={baseline_loss:.6f}"
+    )
+    best: tuple[float, int, float, dict[str, object], dict[str, int | float]] | None = None
+    for clip_percentile in SELF_CALIB_CANDIDATE_PERCENTILES:
+        quant_obj, quant_stats = quantize_state_dict_int8(state_dict, clip_percentile=clip_percentile)
+        quant_raw, quant_blob = serialize_quantized_export(quant_obj)
+        model.load_state_dict(dequantize_state_dict_int8(quant_obj), strict=True)
+        calib_loss = eval_token_sequences(model, calib_tokens, device, compute_dtype)
+        quant_stats["raw_torch_bytes"] = len(quant_raw)
+        quant_stats["compressed_bytes"] = len(quant_blob)
+        delta = calib_loss - baseline_loss
+        log0(
+            f"self_calib_candidate clip_pct:{clip_percentile:.5f}"
+            f" calib_loss:{calib_loss:.6f} delta:{delta:+.6f}"
+            f" compressed_bytes:{len(quant_blob)}"
+        )
+        candidate = (calib_loss, len(quant_blob), clip_percentile, quant_obj, quant_stats)
+        if best is None or candidate[:2] < best[:2]:
+            best = candidate
+    model.load_state_dict(state_dict, strict=True)
+    if best is None:
+        quant_obj, quant_stats = quantize_state_dict_int8(state_dict)
+        return quant_obj, quant_stats, None
+    _, _, chosen_clip, quant_obj, quant_stats = best
+    log0(f"self_calib_selected clip_pct:{chosen_clip:.5f}")
+    return quant_obj, quant_stats, chosen_clip
+
 
 # -----------------------------
 # TRAINING
@@ -978,6 +1228,20 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
+    log0(
+        f"export_config compressor:{EXPORT_COMPRESSOR} compression_level:{EXPORT_COMPRESSION_LEVEL} "
+        f"artifact:{EXPORT_ARTIFACT_NAME} int8_clip_percentile:{INT8_CLIP_PERCENTILE:.5f} "
+        f"keep_float_max_numel:{INT8_KEEP_FLOAT_MAX_NUMEL} "
+        f"keep_float_store_dtype:{str(INT8_KEEP_FLOAT_STORE_DTYPE).removeprefix('torch.')} "
+        f"per_row_scale_dtype:{str(INT8_PER_ROW_SCALE_DTYPE).removeprefix('torch.')}"
+    )
+    log0(
+        "self_calib_config "
+        f"variants:{','.join(SELF_CALIB_VARIANTS) if SELF_CALIB_VARIANTS else 'off'} "
+        f"num_seqs:{SELF_CALIB_NUM_SEQS} seq_len:{SELF_CALIB_SEQ_LEN} "
+        f"batch_size:{SELF_CALIB_BATCH_SIZE} temp:{SELF_CALIB_TEMPERATURE} topk:{SELF_CALIB_TOPK} "
+        f"clip_candidates:{','.join(f'{x:.5f}' for x in SELF_CALIB_CANDIDATE_PERCENTILES)}"
+    )
     log0(f"seed:{args.seed}")
 
     # -----------------------------
@@ -1112,7 +1376,7 @@ def main() -> None:
         )
         if should_log_train:
             log0(
-                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+                f"training_step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
 
@@ -1144,29 +1408,37 @@ def main() -> None:
         log0(f"Code size: {code_bytes} bytes")
         log0(f"Total submission size: {model_bytes + code_bytes} bytes")
 
-    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
-    quant_buf = io.BytesIO()
-    torch.save(quant_obj, quant_buf)
-    quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    export_state_dict = {k: v.detach().cpu() for k, v in base_model.state_dict().items()}
+    quant_obj, quant_stats, chosen_clip_percentile = search_self_calibrated_quantization(
+        base_model,
+        export_state_dict,
+        device,
+        args.compute_dtype,
+        vocab_size=args.vocab_size,
+        seed=args.seed,
+        log0=log0,
+    )
+    quant_raw, quant_blob = serialize_quantized_export(quant_obj)
     quant_raw_bytes = len(quant_raw)
     if master_process:
-        with open("final_model.int8.ptz", "wb") as f:
+        with open(EXPORT_ARTIFACT_NAME, "wb") as f:
             f.write(quant_blob)
-        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        quant_file_bytes = os.path.getsize(EXPORT_ARTIFACT_NAME)
         code_bytes = len(code.encode("utf-8"))
         ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+        clip_label = chosen_clip_percentile if chosen_clip_percentile is not None else INT8_CLIP_PERCENTILE
         log0(
-            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
-            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+            f"Serialized model int8+{EXPORT_COMPRESSOR}: {quant_file_bytes} bytes "
+            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} "
+            f"payload_ratio:{ratio:.2f}x clip_pct:{clip_label:.5f})"
         )
-        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+        log0(f"Total submission size int8+{EXPORT_COMPRESSOR}: {quant_file_bytes + code_bytes} bytes")
 
     if distributed:
         dist.barrier()
-    with open("final_model.int8.ptz", "rb") as f:
+    with open(EXPORT_ARTIFACT_NAME, "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(decompress_export_blob(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
@@ -1184,10 +1456,10 @@ def main() -> None:
     )
     torch.cuda.synchronize()
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"{ROUNDTRIP_METRIC_PREFIX} val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(f"{ROUNDTRIP_METRIC_PREFIX}_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
 
     if distributed:
         dist.destroy_process_group()
