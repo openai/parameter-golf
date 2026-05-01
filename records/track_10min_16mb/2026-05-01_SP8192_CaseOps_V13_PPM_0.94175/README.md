@@ -67,17 +67,25 @@ The included `train_seed*.log` files are the full source training logs for the t
 
 A fresh end-to-end v13 rerun with these defaults was started on the 8xH100 box while this PR was prepared; these logs can replace the paired evidence as soon as they finish.
 
-Update: the fresh seed-42 rerun finished cleanly as `fresh_seed42_v13_submit.log`:
+Update: fresh seed-42 and seed-314 reruns finished cleanly as `fresh_seed42_v13_submit.log` and `fresh_seed314_v13_submit.log`:
 
 ```text
+seed 42:
 stopping_early: wallclock_cap train_time: 599686ms step: 4773/20000
 Total submission size quantized+pergroup: 15987305 bytes
 diagnostic quantized val_loss:2.35586432 val_bpb:1.07646816 eval_time:10407ms
 ppm_mixer val_bpb:0.94182660 eval_time:462353ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
 ppm_sliding val_loss:2.36677335 val_bpb:0.94182660 eval_time:507652ms
+
+seed 314:
+stopping_early: wallclock_cap train_time: 599628ms step: 4770/20000
+Total submission size quantized+pergroup: 15983753 bytes
+diagnostic quantized val_loss:2.35632034 val_bpb:1.07667653 eval_time:9243ms
+ppm_mixer val_bpb:0.94146034 eval_time:471320ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
+ppm_sliding val_loss:2.36627199 val_bpb:0.94146034 eval_time:516897ms
 ```
 
-That fresh end-to-end score is slightly worse than the original seed-42 eval-only evidence, so the headline 3-seed mean is left unchanged until the queued fresh seed-314 run also finishes.
+Fresh seed 42 is slightly worse than the original seed-42 eval-only evidence; fresh seed 314 is better than the original seed-314 eval-only evidence. The headline 3-seed mean is left unchanged until the queued fresh seed-999 run finishes.
 
 ## Exact final lines
 
@@ -108,6 +116,7 @@ ppm_sliding val_loss:2.36740764 val_bpb:0.94192810 eval_time:497643ms
 - `train_seed42.log`, `train_seed314.log`, `train_seed999.log` - source training logs for the three artifacts
 - `eval_seed42_v13_ppm.log`, `eval_seed314_v13_ppm.log`, `eval_seed999_v13_ppm.log` - exact v13 PPM score logs
 - `fresh_seed42_v13_submit.log` - fresh end-to-end v13 seed-42 rerun with the submitted defaults
+- `fresh_seed314_v13_submit.log` - fresh end-to-end v13 seed-314 rerun with the submitted defaults
 - `submission.json` - leaderboard metadata
 - `LEGALITY_AUDIT.md` - compliance audit
 - `REFERENCES.md` - public PR and component lineage notes
