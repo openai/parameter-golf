@@ -1,0 +1,31 @@
+{
+  "name": "LongCtx No-QV QK5.25 + AsymLogit + LQER g32/top4 + TTT-local 0.80 + Prefix3500 GlobalTTT LR 0.0008",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "status": "non_record_followup",
+  "base_pr": "#2060",
+  "base_record": "2026-05-01_LongCtx_NoQV_QK525_AsymLogit_LQERg32top4_TTTlocal080_1.0579",
+  "seed": 42,
+  "val_bpb": 1.05807364,
+  "base_seed42_bpb": 1.05781454,
+  "delta_vs_base_seed42_bpb": 0.00025910,
+  "change_vs_base": {
+    "PHASED_TTT_PREFIX_DOCS": {
+      "base": 3000,
+      "this": 3500
+    },
+    "GLOBAL_TTT_LR": {
+      "base": 0.001,
+      "this": 0.0008
+    }
+  },
+  "unchanged": [
+    "MATRIX_LR=0.028",
+    "LQER_RANK=2",
+    "LQER_ASYM_GROUP=32",
+    "LQER_TOP_K=4",
+    "TTT_LOCAL_LR_MULT=0.80",
+    "TTT_MASK=no_qv"
+  ],
+  "log": "train_seed42_prefix3500_global0008.log"
+}

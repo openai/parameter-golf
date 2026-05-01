@@ -1,0 +1,103 @@
+{
+  "author": "Martin Dallinger",
+  "github_id": "S0urC10ud",
+  "name": "LongCtx No-QV QK5.25 + AsymLogit + LQER g32/top4 + TTT-local 0.80 + MatrixLR 0.028",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "status": "complete_3seed_clean_rerun",
+  "forked_from": {
+    "record": "2026-04-30_LongCtx_NoQV_QK525_AsymLogit_1.0590",
+    "pr": "#2007",
+    "parent_3seed_mean_bpb": 1.05899193,
+    "parent_seed42_bpb": 1.05857451
+  },
+  "deltas_vs_parent": {
+    "MATRIX_LR": {"parent": 0.026, "this": 0.028},
+    "LQER_RANK": {"parent": 4, "this": 2},
+    "LQER_ASYM_GROUP": {"parent": 64, "this": 32},
+    "LQER_TOP_K": {"parent": 3, "this": 4},
+    "TTT_LOCAL_LR_MULT": {"parent": 0.75, "this": 0.80}
+  },
+  "code_changes_vs_parent": "none (env-var-only retune; train_gpt.py byte-identical to parent, md5 2a7e36e29aa5b5811abb6170059aa8d1)",
+  "val_loss": 2.31504310,
+  "val_bpb": 1.05792053,
+  "val_bpb_std": 0.00007528,
+  "seeds": [
+    42,
+    0,
+    1234
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31481102,
+      "val_bpb": 1.05781454,
+      "artifact_bytes": 15971753,
+      "model_ptz_bytes": 15928981,
+      "code_compressed_bytes": 42772,
+      "steps": 4868,
+      "train_wallclock_s": 596.142,
+      "prequant_bpb": 1.05972472,
+      "quantized_bpb": 1.06790517,
+      "ttt_eval_time_s": 397.125,
+      "total_eval_time_s": 417.801,
+      "log": "train_seed42.log"
+    },
+    "0": {
+      "val_loss": 2.31517794,
+      "val_bpb": 1.05798212,
+      "artifact_bytes": 15971492,
+      "model_ptz_bytes": 15928720,
+      "code_compressed_bytes": 42772,
+      "steps": 4861,
+      "train_wallclock_s": 595.821,
+      "prequant_bpb": 1.06048352,
+      "quantized_bpb": 1.06872963,
+      "ttt_eval_time_s": 397.575,
+      "total_eval_time_s": 418.313,
+      "log": "train_seed0.log"
+    },
+    "1234": {
+      "val_loss": 2.31514034,
+      "val_bpb": 1.05796494,
+      "artifact_bytes": 15971748,
+      "model_ptz_bytes": 15928976,
+      "code_compressed_bytes": 42772,
+      "steps": 4873,
+      "train_wallclock_s": 595.991,
+      "prequant_bpb": 1.06052013,
+      "quantized_bpb": 1.06872931,
+      "ttt_eval_time_s": 395.401,
+      "total_eval_time_s": 416.077,
+      "log": "train_seed1234.log"
+    }
+  },
+  "artifact_bytes_max": 15971753,
+  "bytes_total": 15971753,
+  "model_ptz_bytes_max": 15928981,
+  "code_compressed_bytes": 42772,
+  "slack_to_16M_min": 28247,
+  "hardware": "8x NVIDIA H100 80GB HBM3 SXM (Runpod)",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "comparison_pr1493_merged_sota": {
+    "baseline_pr": "#1493",
+    "baseline_3seed_mean_bpb": 1.0810,
+    "delta_mean_bpb": -0.02308,
+    "delta_mean_nats_approx": -0.0505,
+    "notes": "well above 0.005-nat record threshold; matched-seed paired t-test not possible because #1493 used different seed pool"
+  },
+  "comparison_pr2007_pending_parent": {
+    "baseline_pr": "#2007",
+    "baseline_3seed_mean_bpb": 1.05899193,
+    "baseline_seed_results": {"42": 1.05857451, "0": 1.05915199, "1234": 1.05924929},
+    "delta_seed42_bpb": -0.00075997,
+    "delta_seed0_bpb": -0.00116987,
+    "delta_seed1234_bpb": -0.00128435,
+    "delta_mean_bpb": -0.00107140,
+    "delta_mean_nats_via_val_loss": -0.00234453,
+    "paired_one_sided_t_test_val_loss": {"t": -6.73, "df": 2, "p_value": 0.01069, "test": "H0: mean_delta_loss >= 0 vs H1: < 0"},
+    "paired_one_sided_t_test_005nat_threshold": {"reject_005_nat_improvement_at_p_lt_0_01": false, "notes": "0.00234-nat improvement is below 0.005-nat margin; cannot claim record against #2007 by strict criterion"}
+  },
+  "record_threshold_assessment": "Vs currently merged SOTA PR #1493 (1.0810): improvement ~0.0231 BPB / ~0.051 nats, signal-to-noise ~50; strict record threshold (>=0.005 nats at p<0.01) is satisfied with very wide margin even though seed pools differ. Vs PR #2007 (still under review): paired 3-seed improvement is only ~0.00234 nats, p=0.011 — does NOT meet p<0.01 and does NOT meet the 0.005-nat magnitude bar. If #2007 is merged before this PR is reviewed, this submission is offered as a non-record tuning improvement on top of #2007, not a record claim against #2007.",
+  "technique_summary": "Forks PR #2007 (LongCtx No-QV QK5.25 + AsymLogit, 1.0590). Five env-only knob retunes: MATRIX_LR=0.028, LQER_RANK=2, LQER_TOP_K=4, LQER_ASYM_GROUP=32, TTT_LOCAL_LR_MULT=0.80. No code changes; train_gpt.py is byte-identical to parent. Same CaseOps/SP8192 stack, 2560-token eval/TTT, no-QV LoRA TTT, prefix-3000 phased TTT, eval-only asymmetric logit rescale, AWQ-lite mixed-precision GPTQ, per-group lrzip compression."
+}
