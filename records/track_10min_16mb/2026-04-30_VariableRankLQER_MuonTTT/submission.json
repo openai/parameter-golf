@@ -1,0 +1,48 @@
+{
+  "author": "Rahim Mirani",
+  "github_id": "RahimMirani",
+  "name": "Non-record: Variable-Rank LQER + Muon-TTT experiment",
+  "status": "non_record_negative_result",
+  "blurb": "Experimental non-record submission testing Hessian-allocated variable-rank LQER plus Muon-style LoRA TTT and a longer phased-TTT prefix on a strong CaseOps/LQER/SparseGate baseline. Seed 42 baseline reproduction passed at 1.06005735 BPB, but the full stack regressed to 1.06203230 BPB and exceeded the 600s eval limit at 627.3s.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "record_claim": false,
+  "leaderboard_eligible": false,
+  "reason_not_leaderboard_eligible": "The attempted stack was worse than the seed 42 reproduction and exceeded the 600s evaluation limit.",
+  "val_loss": 2.32412035,
+  "val_bpb": 1.06203230,
+  "val_loss_std": null,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42_reproduction": {
+      "config": "baseline reproduction with LQER_VARIABLE_RANK=0, TTT_OPTIMIZER=adam, PHASED_TTT_PREFIX_DOCS=2500",
+      "val_bpb": 1.06005735,
+      "artifact_bytes": 15907913,
+      "train_time_s": 599.601,
+      "eval_time_s": 527.2,
+      "valid_under_time_limits": true
+    },
+    "42_stack": {
+      "config": "LQER_VARIABLE_RANK=1, LQER_VARIABLE_RANK_CAP=8, TTT_OPTIMIZER=muon, TTT_MUON_NS_STEPS=3, PHASED_TTT_PREFIX_DOCS=3000",
+      "val_loss": 2.32412035,
+      "val_bpb": 1.06203230,
+      "pre_quant_val_bpb": 1.06436919,
+      "diagnostic_quantized_val_bpb": 1.07326567,
+      "artifact_bytes": 15922566,
+      "train_time_s": 599.546,
+      "eval_time_s": 627.3,
+      "valid_under_time_limits": false
+    }
+  },
+  "reference_seed42_bpb": 1.05989454,
+  "reproduction_delta_bpb": 0.00016281,
+  "stack_delta_vs_reproduction_bpb": 0.00197495,
+  "artifact_bytes_max": 15922566,
+  "bytes_total": 15922566,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "technique_summary": "Env-gated byte accounting audit, Hessian-trace variable-rank LQER allocation, Muon-style TTT optimizer, and PHASED_TTT_PREFIX_DOCS=3000. Negative seed-42 result: regressed BPB and over-budget eval time."
+}
