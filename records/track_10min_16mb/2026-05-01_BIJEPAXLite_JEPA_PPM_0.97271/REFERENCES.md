@@ -29,11 +29,20 @@ The BIJEPAX-lite submission is not a from-scratch stack. It layers a JEPA-style 
 
 Important inherited components to acknowledge:
 
-- SP8192 / CaseOps tokenizer lane.
-- Per-group compression with `lrzip`.
-- GPTQ mixed quantization and LQER/AWQ settings.
-- SmearGate cross-document leak fix.
-- PPM sliding byte mixer.
+- PR #1394 by @clarkkev: SP8192, GPTQ embeddings, depth recurrence, MuonEq-R, and related compact GPT training lineage.
+- PR #1493 by @bigbag: SP8192 plus 3-layer recurrence, parallel residuals, QK gain 5.25, and the stronger recurrent base used by later SP8192 submissions.
+- PR #1855 by @codemath3000: SP8192 plus LQER, sparse attention gate, BOS-fixed SmearGate, and the greedy hyperparameter stack.
+- PR #1795 by @OE-GOD: strict-legal causal byte-level PPM adaptive-lambda mixer.
+- PR #1959 by @remg1997: SP8192 plus byte-PPM mixer.
+- PR #1991 by @joshuaswanson: SP8192 + byte-PPM tuned order/gate, including the order-5 PPM direction used here.
+- modded-nanogpt @classiclarryd and PR #1667 by @MarioPaerle: SmearGate / attention-output-gate lineage.
+- PR #1797 by @dexhunter and PR #2014 by @simonbissonnette: SmearGate packed-document BOS masking issue and fix lineage.
+- PR #1586 by @dexhunter, PR #1667 by @MarioPaerle, and PR #1729 by @romeerp: per-group `lrzip` / grouped serialization lineage.
+- PR #1530 by @samacqua, PR #1886 by @renqianluo, PR #1923 by @jorge-asenjo, and PR #1344 by @Omrigotlieb: LQER/AWQ/asymmetric-rescale/optimizer lineage reflected in the inherited stack.
+- PR #1145 by @AnirudhRahul and PR #1967 by @ndokutovich: online n-gram tilt / scoring overlay ideas present in the broader code lineage.
+- PR #2027 by @H1cSuNtDr4C0n3S: JEPA-Lite competition-local precedent. BIJEPAX-lite is a separate Claude-designed bidirectional/hop-4 variant, but this PR should be credited as prior JEPA-style work in the competition.
+
+Our new contribution in this branch is the BIJEPAX-lite training-only auxiliary objective and the run package around it. The base GPT, tokenizer, compression, and PPM evaluator are inherited/adapted from the public lines above.
 
 ## Claims to avoid unless sourced
 

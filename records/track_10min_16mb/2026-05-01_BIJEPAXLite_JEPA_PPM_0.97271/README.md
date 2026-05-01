@@ -4,7 +4,7 @@ This record captures a Claude-designed, JEPA-inspired training regularizer layer
 
 The key idea is deliberately narrow: add a small bidirectional hidden-state prediction objective during training, then remove it entirely from the artifact. The final submitted model is still the quantized base GPT, scored causally by the PPM sliding evaluator.
 
-Thanks to Claude for designing the BIJEPAX-lite auxiliary objective and helping shape the experiment, to Codex for implementation, auditing, packaging, and run coordination, and to the Parameter Golf community for the public ideas this stack builds on.
+Thanks to Claude for designing the BIJEPAX-lite auxiliary objective and helping shape the experiment, to Codex for implementation, auditing, packaging, and run coordination, and to the Parameter Golf community for the public ideas this stack builds on. The inherited stack uses public Parameter Golf work by @clarkkev, @bigbag, @codemath3000, @OE-GOD, @remg1997, @joshuaswanson, @MarioPaerle, @classiclarryd, @simonbissonnette, @dexhunter, @romeerp, @samacqua, @renqianluo, @jorge-asenjo, @Omrigotlieb, @AnirudhRahul, @ndokutovich, and @H1cSuNtDr4C0n3S. See `REFERENCES.md` for the detailed lineage.
 
 ## Score
 
@@ -40,6 +40,20 @@ BIJEPAX-lite adds a training-only auxiliary module:
 - active from `35%` to `80%` of the wallclock training schedule
 - separate optimizer for the auxiliary predictor
 - predictor heads are never serialized into the artifact
+
+## Lineage and attribution
+
+The submitted JEPA branch is a custom training-objective experiment on top of an inherited Parameter Golf stack:
+
+- SP8192 tokenizer, recurrence, QK gain, and compact GPT training lineage from PR #1394, PR #1493, and PR #1855.
+- Causal byte-PPM mixer lineage from PR #1795, PR #1959, and PR #1991.
+- SmearGate / attention output gate lineage from modded-nanogpt @classiclarryd and PR #1667, plus the BOS cross-document leak fix discussed in PR #2014 / the PR #1797 base audit.
+- Per-group `lrzip` compression lineage from PR #1586 through PR #1667 / PR #1729-style grouped serialization work.
+- LQER/AWQ/asymmetric-rescale and related quantization/optimization pieces from PR #1530, PR #1797, PR #1886, PR #1923, and PR #1855.
+- JEPA-Lite local-competition precedent from PR #2027.
+- Online n-gram tilt / scoring overlay ideas from PR #1145 and PR #1967, although the submitted score uses the PPM path with TTT disabled.
+
+Our specific addition is the Claude-designed BIJEPAX-lite training-only auxiliary objective: bidirectional hop-4 hidden-state prediction with cosine loss and LayerNorm-stabilized predictor heads, removed from the serialized artifact.
 
 Submitted config:
 
