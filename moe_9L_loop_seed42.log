@@ -1,0 +1,90 @@
+logs/9188ac40-ddbd-42b3-8bd8-47538890494d.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192_bpe.model
+train_loader:dataset:fineweb10B_sp8192 train_shards:5
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40540160
+model_params:30500020
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.022 scalar_lr:0.02
+train_batch_tokens:524288 train_seq_len:2048 iterations:5000 warmup_steps:20 max_wallclock_seconds:0.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+bigram_blend:enabled lambda=0.03
+step:0/5000 val_loss:7.9749 val_bpb:3.0873 train_time:0ms step_avg:0.02ms
+step:1/5000 train_loss:9.0055 train_time:2227ms step_avg:2227.42ms
+step:2/5000 train_loss:12.0595 train_time:2698ms step_avg:1348.95ms
+step:3/5000 train_loss:8.9047 train_time:3175ms step_avg:1058.38ms
+step:4/5000 train_loss:8.2363 train_time:3652ms step_avg:912.91ms
+step:5/5000 train_loss:8.3311 train_time:4127ms step_avg:825.33ms
+step:6/5000 train_loss:8.5817 train_time:4602ms step_avg:767.06ms
+step:7/5000 train_loss:8.3936 train_time:5081ms step_avg:725.83ms
+step:8/5000 train_loss:7.8929 train_time:5559ms step_avg:694.90ms
+step:9/5000 train_loss:7.4203 train_time:6037ms step_avg:670.74ms
+step:10/5000 train_loss:7.1254 train_time:6514ms step_avg:651.41ms
+step:500/5000 train_loss:3.4080 train_time:240909ms step_avg:481.82ms
+step:1000/5000 train_loss:3.3411 train_time:480513ms step_avg:480.51ms
+step:1500/5000 train_loss:3.3344 train_time:719894ms step_avg:479.93ms
+moe:upcycled frac:0.300 layers:[4, 5] experts:2
+/data/users/maxiv25/parameter-golf/.venv/lib/python3.11/site-packages/torch/_inductor/lowering.py:7836: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+loop:activated frac:0.350 enc:[0, 1, 2, 3, 4, 5, 3] dec:[4, 5, 3, 4, 5, 6, 7, 8]
+/data/users/maxiv25/parameter-golf/.venv/lib/python3.11/site-packages/torch/_inductor/lowering.py:7836: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+step:2000/5000 train_loss:3.2514 train_time:1148214ms step_avg:574.11ms
+step:2500/5000 train_loss:3.1740 train_time:1601844ms step_avg:640.74ms
+step:3000/5000 train_loss:3.1046 train_time:2054922ms step_avg:684.97ms
+step:3500/5000 train_loss:3.0186 train_time:2508431ms step_avg:716.69ms
+step:4000/5000 train_loss:2.9809 train_time:2961344ms step_avg:740.34ms
+/data/users/maxiv25/parameter-golf/.venv/lib/python3.11/site-packages/torch/_inductor/lowering.py:7836: UserWarning: 
+Online softmax is disabled on the fly since Inductor decides to
+split the reduction. Cut an issue to PyTorch if this is an
+important use case and you want to speed it up with online
+softmax.
+
+  warnings.warn(
+step:4500/5000 train_loss:3.0072 train_time:3471175ms step_avg:771.37ms
+step:5000/5000 train_loss:2.9481 train_time:3924179ms step_avg:784.84ms
+bigram_blend:enabled lambda=0.03
+step:5000/5000 val_loss:2.8651 val_bpb:1.1092 train_time:3924180ms step_avg:784.84ms
+peak memory allocated: 28135 MiB reserved: 34924 MiB
+Serialized model: 129901107 bytes
+Code size: 75236 bytes
+Total submission size: 129976343 bytes
+Applying EMA weights.
+gptq:collecting Hessians from 16 calibration batches...
+gptq:collected 58 Hessians in 2.9s
+Serialized model int6+lzma: 14893968 bytes (payload:34938360 raw_torch:34990635 payload_ratio:3.72x)
+Total submission size int6+lzma: 14969204 bytes
+bigram_blend:enabled lambda=0.03
+final_int6_lzma_roundtrip val_loss:3.4529 val_bpb:1.3367 eval_time:70248ms
+final_int6_lzma_roundtrip_exact val_loss:3.45288030 val_bpb:1.33671757
