@@ -1,0 +1,11 @@
+{
+  "author": "777-cloud-boy",
+  "github_id": "777-cloud-boy",
+  "name": "Inhibitory Layers on PR #1851 Stack",
+  "blurb": "Non-record submission adding rank-22 low-rank inhibitory gates to attention and MLP residual paths on the PR #1851 SmearGate+LQER+TTT stack. Sigmoid-init at ~0.95 for gradient flow. SpellingBee disabled. Inhibitor weights serialized as row-int8. Single-seed post-TTT val_bpb 1.06438, ~0.003 above current SOTA 3-seed mean (1.06108).",
+  "date": "2026-05-01T07:00:00Z",
+  "val_loss": 2.32926,
+  "val_bpb": 1.06438,
+  "bytes_total": 15996198,
+  "bytes_code": 159766
+}
