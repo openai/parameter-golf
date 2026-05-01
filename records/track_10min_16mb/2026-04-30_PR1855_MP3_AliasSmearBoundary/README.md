@@ -1,8 +1,8 @@
 # Record candidate: PR #1855 stack + MP3 marker-pair fusion + alias smear boundary
 
-**val_bpb: TBD** (3-seed mean on runpod; 1-seed DGX reference 1.06042) | size: TBD (3-seed runpod; expected ~15.9 MB based on PR #1855 baseline) | 8×H100 SXM, 600 s wallclock | TTT (phased)
+**val_bpb: 1.05889** (seed 42 phased TTT on runpod) | size: 15,899,656 bytes (15.16 MiB) | 8×H100 SXM, 600 s wallclock | TTT (phased)
 
-3-seed verification on runpod (SEEDS=42, 0, 1234) — see `train_seed*.log` after the run.
+Beats PR #1855's 3-seed mean **1.06108** by **−0.00219 BPB** on a single seed (42). Seeds 0 and 1234 not run due to deadline.
 
 ## Base record extended by this submission
 
@@ -240,11 +240,12 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Submission status
 
-| Seed | val_bpb (phased TTT) | val_loss | size (bytes) | step_avg | steps |
+| Seed | val_bpb (phased TTT) | val_loss | size (bytes) | step_avg (ms) | steps |
 |---|---|---|---|---|---|
-| 42   | TBD | TBD | TBD | TBD | TBD |
-| 0    | TBD | TBD | TBD | TBD | TBD |
-| 1234 | TBD | TBD | TBD | TBD | TBD |
-| **Mean** | **TBD** | **TBD** | **TBD** | **TBD** | **TBD** |
+| 42   | **1.05889359** | 2.52537040 | 15,899,656 | 120.08 | 4993 |
+| 0    | not run (deadline) | — | — | — | — |
+| 1234 | not run (deadline) | — | — | — | — |
 
-(1-seed DGX reference with the same code: seed 42 → val_bpb=1.06042.)
+Single-seed result on the canonical runpod environment. Eval time 691.3s (compile warmup 102.8s + 3-phase TTT 588.5s).
+
+Note: phased TTT eval initially OOMed at the phase 1→2 boundary on runpod (ran fine through training, GPTQ, post-quant eval, and phase 1; crashed in `dist.all_reduce` during phase 2 setup). Re-ran the eval pass (`TTT_EVAL_ONLY=1`) with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` to avoid memory fragmentation across phase boundaries — completed cleanly. The merged log shows training + the successful eval re-run.

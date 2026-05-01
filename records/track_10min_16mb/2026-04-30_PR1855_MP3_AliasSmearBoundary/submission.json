@@ -1,0 +1,37 @@
+{
+  "author": "JungyupLee",
+  "github_id": "izlley",
+  "name": "PR #1855 stack + MP3 marker-pair fusion + alias smear boundary",
+  "blurb": "Built on PR #1855 (11L XSA + LQER asym int4 + SparseAttnGate + BOS-fixed SmearGate + Polar-Express MuonEqR + fused softcapped CE + GPTQ int6 + int7 embed + per-row int8 attn-gate + per-group lrzip+brotli + phased TTT + 9-hparam stack). Two orthogonal additions: (1) MP3 marker-pair fusion — 3 alias donor tokens for [SPACE,TITLE]/[SPACE,ALLCAPS]/[SPACE,CAPNEXT], 8.47% train-token saving, word X preserved (no d=1 collapse); (2) alias smear boundary — SmearGate fully disabled (ALIAS_PREV_SMEAR_SCALE=0.0) at positions immediately following an alias token, since alias donors already encode dense (SPACE + marker) signal at one position. Code patch: +62/-2 lines vs PR #1855's train_gpt.py. Single-seed (42) phased TTT val_bpb 1.05889 beats PR #1855 author's 3-seed mean 1.06108 by 0.00219 BPB.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 2.52537040,
+  "val_bpb": 1.05889359,
+  "val_loss_std": "single-seed",
+  "val_bpb_std": "single-seed",
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.52537040,
+      "val_bpb": 1.05889359,
+      "artifact_bytes": 15899656,
+      "steps": 4993,
+      "step_avg_ms": 120.08
+    }
+  },
+  "comparison_baseline_pr": 1855,
+  "implementation_lineage_pr": 1855,
+  "delta_vs_pr1855_bpb": -0.00219,
+  "artifact_bytes_max": 15899656,
+  "bytes_total": 15899656,
+  "train_steps_mean": 4993,
+  "step_avg_ms_mean": 120.08,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "flash_attn_3 (Hopper)",
+  "compressor": "per-group lrzip(ZPAQ) + brotli",
+  "calibration": "GPTQ int6 (16 calibration batches, 0.5s reserve)",
+  "eval": "phased TTT (3 cumulative phases at doc-boundaries 833/1666/2500, LoRA rank=80, eval_time 691.3s)",
+  "technique_summary": "PR #1855 stack + MP3 marker-pair fusion (3 alias donors, 8.47% token saving) + alias smear boundary (ALIAS_PREV_SMEAR_SCALE=0.0)"
+}
