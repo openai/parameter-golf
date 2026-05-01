@@ -497,6 +497,148 @@ class DistributedTokenLoader:
 # TRANSFORMER MODULES
 # -----------------------------
 
+def apply_zero_init(model: nn.Module) -> nn.Module:
+    """
+    Applies ZerO initialization to a given PyTorch nn.Module in-place.
+    
+    This function implements:
+      - Algorithm 1 (Linear/FFN Layers)
+      - Algorithm 2 (Convolution Layers)
+      - Section 4.1 Transformer specific initialization (W_Q=Identity, W_K/W_V=Zeros)
+      
+    Args:
+        model (nn.Module): The PyTorch model to initialize.
+        
+    Returns:
+        nn.Module: The model with initialized weights.
+    """
+
+    @torch.no_grad()
+    def _zero_init_tensor(tensor: torch.Tensor, out_f: int, in_f: int):
+        """Core logic corresponding to Algorithm 1 in the paper."""
+        tensor.zero_()
+        
+        if out_f <= in_f:
+            # P_l == Q_l: Identity mapping
+            # P_l < Q_l:  Partial identity (Propagates first P_l dimensions)
+            # torch.eye intrinsically handles rectangular partial-identities.
+            tensor.copy_(torch.eye(out_f, in_f, dtype=tensor.dtype, device=tensor.device))
+        else:
+            # P_l > Q_l: Hadamard mapping
+            m = math.ceil(math.log2(out_f))
+            m = max(m, 1)  # Ensure at least m=1 
+            
+            # Recursively generate Hadamard matrix H_m
+            H = torch.tensor([[1.0]], dtype=tensor.dtype, device=tensor.device)
+            for _ in range(m):
+                H1 = torch.cat([H, H], dim=1)
+                H2 = torch.cat([H, -H], dim=1)
+                H = torch.cat([H1, H2], dim=0)
+            
+            # Normalization factor defined in the paper: c = 2^{-(m-1)/2}
+            c = 2.0 ** (-(m - 1) / 2.0)
+            
+            # Apply scaled Hadamard top-left submatrix (I* H_m I*)
+            tensor.copy_(c * H[:out_f, :in_f])
+
+    @torch.no_grad()
+    def _init_mha_zero(module: nn.MultiheadAttention):
+        """Initializes PyTorch's native MultiheadAttention according to Sec 4.1"""
+        embed_dim = module.embed_dim
+        
+        # in_proj_weight groups Q, K, and V
+        if module.in_proj_weight is not None:
+            module.in_proj_weight.zero_()
+            # W_Q is identity
+            module.in_proj_weight[:embed_dim, :].copy_(
+                torch.eye(embed_dim, dtype=module.in_proj_weight.dtype, device=module.in_proj_weight.device)
+            )
+            # W_K, W_V remain zero (as handled by .zero_())
+        else:
+            # If instantiated with separate weights
+            if getattr(module, 'q_proj_weight', None) is not None:
+                module.q_proj_weight.copy_(
+                    torch.eye(embed_dim, dtype=module.q_proj_weight.dtype, device=module.q_proj_weight.device)
+                )
+            if getattr(module, 'k_proj_weight', None) is not None:
+                module.k_proj_weight.zero_()
+            if getattr(module, 'v_proj_weight', None) is not None:
+                module.v_proj_weight.zero_()
+                
+        if getattr(module, 'in_proj_bias', None) is not None:
+            module.in_proj_bias.zero_()
+            
+        # The output projection relies on the standard algorithm (P_l = Q_l) -> Identity
+        if getattr(module, 'out_proj', None) is not None and getattr(module.out_proj, 'weight', None) is not None:
+            _zero_init_tensor(module.out_proj.weight, module.out_proj.out_features, module.out_proj.in_features)
+            if getattr(module.out_proj, 'bias', None) is not None:
+                module.out_proj.bias.zero_()
+
+    @torch.no_grad()
+    def _init_conv_zero(module):
+        """Initializes Convolutions according to Algorithm 2"""
+        out_c, in_c = module.out_channels, module.in_channels
+        module.weight.zero_()
+        
+        # Find center index, taking n <- floor(k / 2) for each dimension
+        centers = tuple(k // 2 for k in module.kernel_size)
+        
+        # Create an out_c x in_c block utilizing the base ZerO logic
+        block = torch.zeros(out_c, in_c, dtype=module.weight.dtype, device=module.weight.device)
+        _zero_init_tensor(block, out_c, in_c)
+        
+        # Place block in the center slice of the kernel
+        if len(centers) == 1:   # Conv1D
+            module.weight[:, :, centers[0]] = block
+        elif len(centers) == 2: # Conv2D
+            module.weight[:, :, centers[0], centers[1]] = block
+        elif len(centers) == 3: # Conv3D
+            module.weight[:, :, centers[0], centers[1], centers[2]] = block
+            
+        if getattr(module, 'bias', None) is not None:
+            module.bias.zero_()
+
+    # Iterate through and parse all network submodules
+    for name, module in model.named_modules():
+        
+        # 1. Transformers MultiheadAttention (PyTorch Native MHA)
+        if isinstance(module, nn.MultiheadAttention):
+            _init_mha_zero(module)
+            
+        # 2. Linear Layers (Applies to Feed-Forward Networks or HuggingFace Custom QKV Projections)
+        elif isinstance(module, nn.Linear):
+            name_lower = name.split('.')[-1].lower()
+            
+            # W_K, W_V at zero (Fallback heuristics for custom attention modules)
+            if any(k in name_lower for k in ['k_proj', 'v_proj', 'key', 'value']):
+                module.weight.data.zero_()
+                
+            # W_Q as identity (Fallback heuristics for custom attention modules)
+            elif any(q in name_lower for q in ['q_proj', 'query']):
+                module.weight.data.copy_(
+                    torch.eye(module.out_features, module.in_features, dtype=module.weight.dtype, device=module.weight.device)
+                )
+                
+            # Generic linear layer (e.g., Dimension expanding/shrinking FFN)
+            else:
+                _zero_init_tensor(module.weight, module.out_features, module.in_features)
+                
+            if getattr(module, 'bias', None) is not None:
+                module.bias.data.zero_()
+
+        # 3. Convolutional Layers
+        elif isinstance(module, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+            _init_conv_zero(module)
+            
+        # 4. Normalization Layers (Standard practice is Scale=1, Bias=0)
+        elif isinstance(module, (nn.LayerNorm, nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.GroupNorm)):
+            if getattr(module, 'weight', None) is not None:
+                module.weight.data.fill_(1.0)
+            if getattr(module, 'bias', None) is not None:
+                module.bias.data.zero_()
+
+    return model
+
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
         super().__init__()
@@ -836,6 +978,7 @@ def main() -> None:
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
     ).to(device).bfloat16()
+    base_model = apply_zero_init(base_model)
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
