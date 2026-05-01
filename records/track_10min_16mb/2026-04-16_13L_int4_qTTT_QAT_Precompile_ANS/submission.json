@@ -1,0 +1,17 @@
+{
+  "author": "Andrey Yunoshev",
+  "github_id": "ayunoshev",
+  "name": "13L int4 MLP + qTTT + QAT Precompile + ANS Hybrid Compression",
+  "blurb": "13-layer int4 MLP + int5 attn with adaptive Hessian GPTQ clip, qTTT (Q-only test-time AdamW), QAT-precompile warmup (eliminates ~120s mid-training torch.compile stall), per-tensor hybrid ANS+brotli compression, document-boundary VARLEN training attention. Funded by RunPod credits grant. val_bpb 1.1280 at 600s eval, 5076 train steps in 600s.",
+  "date": "2026-04-16T22:30:00Z",
+  "track": "10min-16mb",
+  "val_loss": 1.902981,
+  "val_bpb": 1.1280,
+  "pre_quant_val_loss": 2.2456,
+  "pre_quant_val_bpb": 1.3300,
+  "step_stop": 5076,
+  "wallclock_seconds": 600.109,
+  "bytes_total": 15345993,
+  "bytes_model_int8_zlib": 15213727,
+  "bytes_code": 132266
+}
