@@ -34,6 +34,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from hnet.models.config_hnet import AttnConfig, HNetConfig, SSMConfig
 from hnet.models.mixer_seq import HNetForCausalLM
+from hnet.modules.utils import apply_optimization_params
+from hnet.utils.train import group_params as paper_group_params
 from hnet.utils.train import load_balancing_loss as paper_load_balancing_loss
 
 try:
@@ -86,10 +88,13 @@ class Hyperparameters:
     encoder_layers = int(os.environ.get("ENCODER_LAYERS", 0))
     chunk_layers = int(os.environ.get("CHUNK_LAYERS", 0))
     decoder_layers = int(os.environ.get("DECODER_LAYERS", 0))
+    encoder_arch = os.environ.get("ENCODER_ARCH", "")   # e.g. "m2T1", overrides encoder_layers
+    decoder_arch = os.environ.get("DECODER_ARCH", "")   # e.g. "m2T1", overrides decoder_layers
     num_heads = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     mlp_mult = int(os.environ.get("MLP_MULT", 2))
     tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "0")))
+    two_stage = bool(int(os.environ.get("TWO_STAGE", "0")))
     routing_downsample = float(os.environ.get("ROUTING_DOWNSAMPLE", 8.0))
     routing_loss_weight = float(os.environ.get("ROUTING_LOSS_WEIGHT", 1.0))
     use_dechunk_kernel = bool(int(os.environ.get("USE_DECHUNK_KERNEL", "1")))
@@ -99,6 +104,12 @@ class Hyperparameters:
     mamba_chunk_size = int(os.environ.get("MAMBA_CHUNK_SIZE", 256))
     rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    middle_model_dim = int(os.environ.get("MIDDLE_MODEL_DIM", 0))
+    middle_ffn_dim = int(os.environ.get("MIDDLE_FFN_DIM", 0))
+    middle_encoder_arch = os.environ.get("MIDDLE_ENCODER_ARCH", "")
+    middle_decoder_arch = os.environ.get("MIDDLE_DECODER_ARCH", "")
+    middle_rotary_dim = int(os.environ.get("MIDDLE_ROTARY_DIM", 32))
+    middle_window_size = int(os.environ.get("MIDDLE_WINDOW_SIZE", 1023))
     chunk_rotary_dim = int(os.environ.get("CHUNK_ROTARY_DIM", 32))
     chunk_window_size = int(os.environ.get("CHUNK_WINDOW_SIZE", -1))
     use_compile = bool(int(os.environ.get("USE_COMPILE", "0")))
@@ -111,6 +122,9 @@ class Hyperparameters:
     tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
     scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
+    outer_lr_mult = float(os.environ.get("OUTER_LR_MULT", 1.0))
+    middle_lr_mult = float(os.environ.get("MIDDLE_LR_MULT", 1.0))
+    inner_lr_mult = float(os.environ.get("INNER_LR_MULT", 1.0))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
@@ -841,11 +855,16 @@ class RepoPaperHNetLM(nn.Module):
         self,
         vocab_size: int,
         model_dim: int,
+        two_stage: bool,
+        middle_model_dim: int,
         chunk_model_dim: int,
+        middle_ffn_dim: int,
         chunk_ffn_dim: int,
-        encoder_layers: int,
+        encoder_arch: str,
+        middle_encoder_arch: str,
         chunk_layers: int,
-        decoder_layers: int,
+        middle_decoder_arch: str,
+        decoder_arch: str,
         num_heads: int,
         tie_embeddings: bool,
         routing_downsample: float,
@@ -854,7 +873,9 @@ class RepoPaperHNetLM(nn.Module):
         d_conv: int,
         expand: int,
         rope_base: float,
+        middle_rotary_dim: int,
         chunk_rotary_dim: int,
+        middle_window_size: int,
         chunk_window_size: int,
         mamba_chunk_size: int,
         device: torch.device,
@@ -863,27 +884,51 @@ class RepoPaperHNetLM(nn.Module):
         super().__init__()
         self.routing_downsample = routing_downsample
         self.routing_loss_weight = routing_loss_weight
-        config = HNetConfig(
-            arch_layout=[f"m{encoder_layers}", [f"T{chunk_layers}"], f"m{decoder_layers}"],
-            d_model=[model_dim, chunk_model_dim],
-            d_intermediate=[0, chunk_ffn_dim],
-            vocab_size=vocab_size,
-            ssm_cfg=SSMConfig(d_conv=d_conv, expand=expand, d_state=d_state, chunk_size=mamba_chunk_size),
-            attn_cfg=AttnConfig(
-                num_heads=[num_heads, num_heads],
-                rotary_emb_dim=[0, chunk_rotary_dim],
-                window_size=[-1, chunk_window_size],
-            ),
-            tie_embeddings=tie_embeddings,
-        )
+        if two_stage:
+            middle_model_dim = middle_model_dim if middle_model_dim > 0 else model_dim
+            middle_ffn_dim = middle_ffn_dim if middle_ffn_dim > 0 else max(4 * middle_model_dim, chunk_ffn_dim)
+            middle_encoder_arch = middle_encoder_arch or "T1m1"
+            middle_decoder_arch = middle_decoder_arch or "m1T1"
+            config = HNetConfig(
+                arch_layout=[
+                    encoder_arch,
+                    [middle_encoder_arch, [f"T{chunk_layers}"], middle_decoder_arch],
+                    decoder_arch,
+                ],
+                d_model=[model_dim, middle_model_dim, chunk_model_dim],
+                d_intermediate=[0, middle_ffn_dim, chunk_ffn_dim],
+                vocab_size=vocab_size,
+                ssm_cfg=SSMConfig(d_conv=d_conv, expand=expand, d_state=d_state, chunk_size=mamba_chunk_size),
+                attn_cfg=AttnConfig(
+                    num_heads=[num_heads, num_heads, num_heads],
+                    rotary_emb_dim=[0, middle_rotary_dim, chunk_rotary_dim],
+                    window_size=[-1, middle_window_size, chunk_window_size],
+                ),
+                tie_embeddings=tie_embeddings,
+            )
+        else:
+            config = HNetConfig(
+                arch_layout=[encoder_arch, [f"T{chunk_layers}"], decoder_arch],
+                d_model=[model_dim, chunk_model_dim],
+                d_intermediate=[0, chunk_ffn_dim],
+                vocab_size=vocab_size,
+                ssm_cfg=SSMConfig(d_conv=d_conv, expand=expand, d_state=d_state, chunk_size=mamba_chunk_size),
+                attn_cfg=AttnConfig(
+                    num_heads=[num_heads, num_heads],
+                    rotary_emb_dim=[0, chunk_rotary_dim],
+                    window_size=[-1, chunk_window_size],
+                ),
+                tie_embeddings=tie_embeddings,
+            )
         self.model = HNetForCausalLM(config=config, device=device, dtype=dtype)
         self.model.init_weights()
         self.last_boundary_stats: tuple[float, float] = (math.nan, math.nan)
         self.last_aux_loss = math.nan
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
-        mask = torch.ones_like(input_ids, dtype=torch.bool, device=input_ids.device)
-        output = self.model(input_ids, mask=mask)
+        # Follow the repo paper path: omit mask so HNetForCausalLM takes the
+        # packed/varlen branch internally instead of the padded batch path.
+        output = self.model(input_ids, mask=None)
         x = output.logits.reshape(-1, output.logits.size(-1))
         targets = target_ids.reshape(-1)
         if output.bpred_output:
@@ -1011,16 +1056,25 @@ def main() -> None:
     encoder_layers = args.encoder_layers if args.encoder_layers > 0 else max(1, args.num_layers // 4)
     decoder_layers = args.decoder_layers if args.decoder_layers > 0 else max(1, args.num_layers // 4)
     chunk_layers = args.chunk_layers if args.chunk_layers > 0 else max(1, args.num_layers - encoder_layers - decoder_layers)
+    middle_model_dim = args.middle_model_dim if args.middle_model_dim > 0 else args.model_dim
     chunk_model_dim = args.chunk_model_dim if args.chunk_model_dim > 0 else max(args.model_dim, (3 * args.model_dim) // 2)
+    middle_ffn_dim = args.middle_ffn_dim if args.middle_ffn_dim > 0 else 4 * middle_model_dim
     chunk_ffn_dim = args.chunk_ffn_dim if args.chunk_ffn_dim > 0 else 4 * chunk_model_dim
+    encoder_arch = args.encoder_arch if args.encoder_arch else f"m{encoder_layers}"
+    decoder_arch = args.decoder_arch if args.decoder_arch else f"m{decoder_layers}"
     base_model = RepoPaperHNetLM(
         vocab_size=args.vocab_size,
         model_dim=args.model_dim,
+        two_stage=args.two_stage,
+        middle_model_dim=middle_model_dim,
         chunk_model_dim=chunk_model_dim,
+        middle_ffn_dim=middle_ffn_dim,
         chunk_ffn_dim=chunk_ffn_dim,
-        encoder_layers=encoder_layers,
+        encoder_arch=encoder_arch,
+        middle_encoder_arch=args.middle_encoder_arch,
         chunk_layers=chunk_layers,
-        decoder_layers=decoder_layers,
+        middle_decoder_arch=args.middle_decoder_arch,
+        decoder_arch=decoder_arch,
         num_heads=args.num_heads,
         tie_embeddings=args.tie_embeddings,
         routing_downsample=args.routing_downsample,
@@ -1029,7 +1083,9 @@ def main() -> None:
         d_conv=args.mamba_conv,
         expand=args.mamba_expand,
         rope_base=args.rope_base,
+        middle_rotary_dim=args.middle_rotary_dim,
         chunk_rotary_dim=args.chunk_rotary_dim,
+        middle_window_size=args.middle_window_size,
         chunk_window_size=args.chunk_window_size,
         mamba_chunk_size=args.mamba_chunk_size,
         device=device,
@@ -1039,18 +1095,31 @@ def main() -> None:
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
-    named_params = list(base_model.named_parameters())
-    emb_params = [p for name, p in named_params if name == "model.embeddings.weight"]
-    head_params = [p for name, p in named_params if name == "model.lm_head.weight"]
-    other_matrix_params = [p for name, p in named_params if name not in {"model.embeddings.weight", "model.lm_head.weight"} and p.ndim >= 2]
-    other_scalar_params = [p for name, p in named_params if name not in {"model.embeddings.weight", "model.lm_head.weight"} and p.ndim < 2]
-    optimizer_groups = [
-        {"params": emb_params, "lr": token_lr, "base_lr": token_lr, "weight_decay": 0.0},
-        {"params": other_matrix_params, "lr": args.matrix_lr, "base_lr": args.matrix_lr, "weight_decay": 0.0},
-        {"params": other_scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr, "weight_decay": 0.0},
-    ]
-    if head_params:
-        optimizer_groups.append({"params": head_params, "lr": args.head_lr, "base_lr": args.head_lr, "weight_decay": 0.0})
+    paper_model = base_model.model
+    # Match the paper repo more closely: annotate the hierarchy with stage-wise
+    # multipliers, then let the paper utility derive parameter groups from the
+    # per-parameter optimization metadata.
+    lr_mults = [args.outer_lr_mult, args.middle_lr_mult, args.inner_lr_mult] if args.two_stage else [args.outer_lr_mult, args.inner_lr_mult]
+    paper_model.apply_lr_multiplier(lr_mults)
+    for name, param in paper_model.named_parameters():
+        if name == "embeddings.weight":
+            apply_optimization_params(param, lr=token_lr)
+        elif name == "lm_head.weight":
+            apply_optimization_params(param, lr=args.head_lr)
+        elif param.ndim >= 2:
+            apply_optimization_params(param, lr=args.matrix_lr)
+        else:
+            apply_optimization_params(param, lr=args.scalar_lr)
+
+    optimizer_groups = []
+    for group in paper_group_params(paper_model):
+        lr_mult = float(group.pop("lr_multiplier", 1.0))
+        group.setdefault("weight_decay", 0.0)
+        base_lr = float(group.get("lr", args.matrix_lr))
+        group["base_lr"] = base_lr
+        group["lr"] = base_lr * lr_mult
+        optimizer_groups.append(group)
+
     optimizers: list[torch.optim.Optimizer] = [
         torch.optim.AdamW(
             [group for group in optimizer_groups if group["params"]],
@@ -1065,17 +1134,32 @@ def main() -> None:
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
     log0(
         f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
-        f"head_lr:{args.head_lr if base_model.model.lm_head is not None else 0.0} "
-        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+        f"head_lr:{args.head_lr if paper_model.lm_head is not None else 0.0} "
+        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr} "
+        f"outer_lr_mult:{args.outer_lr_mult} middle_lr_mult:{args.middle_lr_mult} inner_lr_mult:{args.inner_lr_mult}"
     )
-    log0(
-        f"hnet_repo_pg:enabled arch:m{encoder_layers}-T{chunk_layers}-m{decoder_layers} "
-        f"routing_downsample:{args.routing_downsample} routing_loss:{args.routing_loss_weight} "
-        f"chunk_dim:{chunk_model_dim} chunk_ffn:{chunk_ffn_dim} "
-        f"mamba_state:{args.mamba_state} mamba_conv:{args.mamba_conv} mamba_chunk_size:{args.mamba_chunk_size} "
-        f"mamba_expand:{args.mamba_expand} num_heads:{args.num_heads} chunk_rotary_dim:{args.chunk_rotary_dim} "
-        f"chunk_window:{args.chunk_window_size} compile:{args.use_compile}"
-    )
+    if args.two_stage:
+        middle_encoder_arch = args.middle_encoder_arch or "T1m1"
+        middle_decoder_arch = args.middle_decoder_arch or "m1T1"
+        log0(
+            f"hnet_repo_pg_2stage:enabled arch:{encoder_arch}-[{middle_encoder_arch}-T{chunk_layers}-{middle_decoder_arch}]-{decoder_arch} "
+            f"routing_downsample:{args.routing_downsample} routing_loss:{args.routing_loss_weight} "
+            f"middle_dim:{middle_model_dim} middle_ffn:{middle_ffn_dim} "
+            f"inner_dim:{chunk_model_dim} inner_ffn:{chunk_ffn_dim} "
+            f"mamba_state:{args.mamba_state} mamba_conv:{args.mamba_conv} mamba_chunk_size:{args.mamba_chunk_size} "
+            f"mamba_expand:{args.mamba_expand} num_heads:{args.num_heads} middle_rotary_dim:{args.middle_rotary_dim} "
+            f"inner_rotary_dim:{args.chunk_rotary_dim} middle_window:{args.middle_window_size} "
+            f"inner_window:{args.chunk_window_size} compile:{args.use_compile}"
+        )
+    else:
+        log0(
+            f"hnet_repo_pg:enabled arch:{encoder_arch}-T{chunk_layers}-{decoder_arch} "
+            f"routing_downsample:{args.routing_downsample} routing_loss:{args.routing_loss_weight} "
+            f"chunk_dim:{chunk_model_dim} chunk_ffn:{chunk_ffn_dim} "
+            f"mamba_state:{args.mamba_state} mamba_conv:{args.mamba_conv} mamba_chunk_size:{args.mamba_chunk_size} "
+            f"mamba_expand:{args.mamba_expand} num_heads:{args.num_heads} chunk_rotary_dim:{args.chunk_rotary_dim} "
+            f"chunk_window:{args.chunk_window_size} compile:{args.use_compile}"
+        )
     log0(
         f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
