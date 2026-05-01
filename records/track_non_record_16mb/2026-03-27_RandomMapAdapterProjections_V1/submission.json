@@ -1,0 +1,29 @@
+{
+    "name": "RandomMapAdapterProjections_V2b",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "date": "2026-03-27",
+    "track": "non_record_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "val_bpb": 1.6542,
+    "seed_results": {
+        "1337": {
+            "val_loss": 2.79300422,
+            "val_bpb": 1.65417880,
+            "steps": 5625,
+            "ms_per_step": 106.67,
+            "variant": "V1 (rank-8, MLP random enabled)"
+        }
+    },
+    "ablation_results": {
+        "V1_rank8_mlp_random":  {"val_bpb": 1.6542, "artifact_mb": 1.2},
+        "V2b_rank128_no_mlp":   {"val_bpb": 1.2615, "artifact_mb": 11.6},
+        "V2c_rank128_compiled": {"val_bpb": 1.4324, "artifact_mb": 11.6},
+        "baseline_no_random":   {"val_bpb": 1.1227, "artifact_mb": 15.9}
+    },
+    "bytes_total": 11640674,
+    "bytes_code": 68859,
+    "blurb": "Random Linear Map Adapters: seed-regenerated frozen Rademacher projections in attention + learned rank-128 LoRA adapters. 11.6MB artifact. Structurally related to VeRA (ICLR 2024). Includes ablations across rank, MLP scope, and torch.compile."
+}
