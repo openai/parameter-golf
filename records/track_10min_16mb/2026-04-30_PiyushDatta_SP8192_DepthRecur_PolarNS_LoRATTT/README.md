@@ -51,10 +51,10 @@
 ```bash
 # On 8xH100:
 cd /workspace/parameter-golf
-bash records/track_10min_16mb/2026-04-30_PiyushDatta_SP8192_DepthRecur_PolarNS_LoRATTT/run_final_submission.sh
+bash records/track_10min_16mb/2026-04-30_PiyushDatta_SP8192_DepthRecur_PolarNS_LoRATTT/run_final_submission.sh --nproc 8
 
 # On 4xA100 (local testing, TTT will be slow):
-NPROC=4 bash records/track_10min_16mb/2026-04-30_PiyushDatta_SP8192_DepthRecur_PolarNS_LoRATTT/run_final_submission.sh
+bash records/track_10min_16mb/2026-04-30_PiyushDatta_SP8192_DepthRecur_PolarNS_LoRATTT/run_final_submission.sh --nproc 4
 ```
 
 ## Attribution
