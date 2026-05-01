@@ -134,10 +134,10 @@ The final candidate had to be made self-contained and fast enough.
 
 Package state:
 
-- compressed model: 15,872,234 bytes
-- counted `train_gpt.py` wrapper: 57,161 bytes
-- total counted bytes: 15,929,395 bytes
-- margin under 16,000,000 bytes: 70,605 bytes
+- max compressed model: 15,874,515 bytes
+- counted `train_gpt.py` wrapper: 57,552 bytes
+- max total counted bytes: 15,932,067 bytes
+- margin under 16,000,000 bytes: 67,933 bytes
 - n-gram Python helper and C helper source embedded in counted wrapper
 - no uncounted helper files required
 
@@ -172,8 +172,18 @@ Selected proof:
 - scored bytes: 151,074,499
 - doc-order hash: 33236cc6bd19fa6b89e06d441d3fcd8eb37dc8540f6a4f2b627b20af10894a41
 
-## Open Follow-Up Evidence
+## Three-Seed Runtime Evidence
 
-Seed0 and seed1234 optimized package runs were launched in parallel after the seed42 proof. They are not required for the seed42 package proof, but they should be appended if available before review.
+After the seed42 proof, two additional seeds were run through the optimized final package path. All three seed runs finished under a 600 second wrapper wallclock.
+
+| Seed | BPB | Inner TTT eval | Total eval wallclock | Wrapper wallclock | Note |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 42 | 1.06082922 | 544.1s | 566.3s | 585s | paired control/fixed/adaptive proof |
+| 0 | 1.06158291 | 546.7s | 568.5s | 587s | paired control/fixed/adaptive proof |
+| 1234 | 1.06232130 | 545.6s | 568.1s | 586s | selected Adaptive Hedge runtime proof |
+
+The 3-seed mean is 1.06157781 BPB. The headline claim remains the seed42 record-track proof; the mean is included for transparency and is not claimed to beat the displayed leaderboard mean.
+
+For seed1234, paired control/fixed diagnostics were bypassed in the final timing proof to keep the wrapper runtime below 600 seconds. Earlier paired evidence establishes the selected scorer behavior; the seed1234 log should be read as the selected Adaptive Hedge runtime proof.
 
 This submission should be read as a focused, legally constrained follow-up: the previously submitted record stack remains frozen, the selected mechanism is measured with exact official accounting, and the final score improvement comes from a targeted eval-time trajectory plus a normalized causal token-level scoring overlay.
