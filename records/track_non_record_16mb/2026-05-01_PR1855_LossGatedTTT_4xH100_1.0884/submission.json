@@ -1,0 +1,86 @@
+{
+  "author": "Sanil Baweja",
+  "github_id": "sanilbaweja",
+  "name": "PR #1855 + Loss-Gated Score-First TTT (4xH100)",
+  "blurb": "Non-record 4xH100 submission built on PR #1855. Adds adaptive loss-gated weighting to legal score-first phased TTT. The 4xH100 seed-42 run produced val_bpb 1.08838847 with a 15,916,403-byte artifact; it is non-record because it used 4xH100 and TTT eval took 901.3s.",
+  "date": "2026-05-01",
+  "track": "non-record-16mb",
+  "submission_type": "non_record",
+  "status": "completed",
+  "val_loss": 2.38179742,
+  "val_bpb": 1.08838847,
+  "seed_results": {
+    "42": {
+      "gpu": "4xH100 80GB HBM3 SXM",
+      "steps": 2532,
+      "pre_quant_val_loss": 2.39664192,
+      "pre_quant_val_bpb": 1.09511199,
+      "quantized_val_loss": 2.41166965,
+      "quantized_val_bpb": 1.1019787,
+      "ttt_val_loss": 2.38179742,
+      "ttt_val_bpb": 1.08838847,
+      "artifact_bytes": 15916403,
+      "model_artifact_bytes": 15883801,
+      "code_compressed_bytes": 32602,
+      "train_time_ms": 590894,
+      "ttt_eval_time_s": 901.3,
+      "gptq_hessian_time_s": 5.4,
+      "pergroup_compression_time_s": 101.3,
+      "peak_memory_allocated_mib": 41897,
+      "peak_memory_reserved_mib": 47176
+    }
+  },
+  "hardware": "RunPod 4x NVIDIA H100 80GB HBM3 SXM, US-MO-1",
+  "image": "runpod/parameter-golf:latest",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8 runtime image",
+  "flash_attention": "FA3 cu128/torch291 wheel via flash_attn_interface",
+  "python_deps": {
+    "sentencepiece": "0.2.1",
+    "triton": "3.5.1",
+    "brotli": "installed",
+    "python-minifier": "installed"
+  },
+  "system_deps": {
+    "lrzip": "0.651"
+  },
+  "technique_summary": "Builds on PR #1855's BOS-fixed SmearGate + LQER + SparseAttnGate + per-group compression + 9-hparam stack. Adds eval-time loss-gated score-first TTT: after each validation chunk is scored, already-scored per-document losses are compared to an EMA to weight that chunk's subsequent LoRA objective.",
+  "new_env": {
+    "ADAPTIVE_TTT_ENABLED": "1",
+    "ADAPTIVE_TTT_EMA": "0.02",
+    "ADAPTIVE_TTT_WARMUP_CHUNKS": "32",
+    "ADAPTIVE_TTT_MARGIN_NATS": "0.03",
+    "ADAPTIVE_TTT_LOW_MULT": "0.5",
+    "ADAPTIVE_TTT_MID_MULT": "1.0",
+    "ADAPTIVE_TTT_HIGH_MULT": "1.25"
+  },
+  "compliance": {
+    "artifact_under_16mb": true,
+    "train_under_600s": true,
+    "eval_under_600s": false,
+    "score_first_ttt": true,
+    "non_record_reason": "Run used 4xH100 instead of 8xH100 and TTT evaluation took 901.3 seconds."
+  },
+  "attribution": {
+    "base": "PR #1855 by @codemath3000",
+    "lineage": [
+      "PR #1851 by @aquariouseworkman",
+      "PR #1797 by @dexhunter",
+      "PR #1787 by @nprime06",
+      "PR #1736",
+      "PR #1729 by @romeerp",
+      "PR #1667 by @MarioPaerle",
+      "PR #1626 by @dexhunter",
+      "PR #1610",
+      "PR #1586",
+      "PR #1530 by @samacqua",
+      "PR #1394 by @clarkkev",
+      "PR #1344",
+      "PR #549 by @abaybektursun",
+      "PR #493",
+      "PR #478 by @gowtham0992",
+      "PR #315",
+      "PR #289"
+    ]
+  }
+}
