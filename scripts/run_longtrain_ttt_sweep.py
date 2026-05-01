@@ -64,7 +64,6 @@ FIXED_TTT_ENV = {
     "LQER_ASYM_ENABLED": "1",
     "LQER_ASYM_GROUP": "64",
     "EMBED_BITS": "7",
-    "NCCL_NET": "Socket",
 }
 
 # ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 import unittest
+from pathlib import Path
 
 # Ensure scripts/ is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
@@ -41,6 +42,10 @@ _rs.wait_runtime = lambda pid: {"uptimeInSeconds": 0}
 _rs.terminate_and_wait = lambda pid: None
 
 import run_longtrain_scaling as launcher
+
+# Real snapshot directory for integration-style tests
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SNAPSHOT_DIR = REPO_ROOT / "results" / "8h_longtrain_final" / "resume_snapshot_step_36452"
 
 
 class TestParseExportMinutes(unittest.TestCase):
@@ -247,6 +252,324 @@ class TestDefaultConstants(unittest.TestCase):
         self.assertEqual(launcher.DEFAULT_4H_EXPORT_MINUTES, "60,120,180,240")
         self.assertEqual(launcher.DEFAULT_4H_RESUME_SAVE_MINUTES, "30,60,90,120,150,180,210,240")
         self.assertEqual(launcher.DEFAULT_4H_ITERATIONS, 100000)
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Resumed 6h-horizon continuation — 4-GPU-only safety + labeling
+# ---------------------------------------------------------------------------
+
+class TestContinuationGPUControl(unittest.TestCase):
+    """--continuation-label forces --num-gpus=4 and rejects other GPU counts."""
+
+    def _parse(self, *extra_args):
+        old_argv = sys.argv
+        try:
+            sys.argv = ["prog", "--dry-run"] + list(extra_args)
+            # Use the launcher's own parser builder
+            args = launcher.build_arg_parser().parse_args()
+            launcher.apply_post_parse_defaults(args)
+            return args
+        finally:
+            sys.argv = old_argv
+
+    def test_num_gpus_default_is_8(self):
+        args = self._parse()
+        self.assertEqual(args.num_gpus, 8)
+
+    def test_num_gpus_explicit_4(self):
+        args = self._parse("--num-gpus", "4")
+        self.assertEqual(args.num_gpus, 4)
+
+    def test_continuation_label_forces_4_gpus(self):
+        args = self._parse(
+            "--continuation-label", "resumed_6h_horizon",
+            "--resume-from", "/some/path",
+        )
+        self.assertEqual(args.num_gpus, 4)
+
+    def test_continuation_label_rejects_8_gpus(self):
+        """Explicitly requesting 8 GPUs with a continuation label should error."""
+        with self.assertRaises(SystemExit):
+            self._parse(
+                "--continuation-label", "resumed_6h_horizon",
+                "--num-gpus", "8",
+                "--resume-from", "/some/path",
+            )
+
+    def test_continuation_label_rejects_8_gpus_equals_form(self):
+        """--num-gpus=8 (equals form) must also be rejected."""
+        with self.assertRaises(SystemExit):
+            self._parse(
+                "--continuation-label", "resumed_6h_horizon",
+                "--num-gpus=8",
+                "--resume-from", "/some/path",
+            )
+
+    def test_continuation_label_allows_4_gpus_explicit(self):
+        args = self._parse(
+            "--continuation-label", "resumed_6h_horizon",
+            "--num-gpus", "4",
+            "--resume-from", "/some/path",
+        )
+        self.assertEqual(args.num_gpus, 4)
+
+
+class TestContinuationResumePathWiring(unittest.TestCase):
+    """Resume path from captured snapshot flows into the seed command with on-pod rewrite."""
+
+    def _make_args(self, **overrides):
+        defaults = dict(
+            seed=42, export_minutes="60,120,180,240", max_wallclock=21600,
+            export_mode="light", enable_resume=True,
+            resume_save_minutes="30,60,90,120,150,180,210,240,270,300,330,360",
+            resume_keep_last=3,
+            resume_from=str(SNAPSHOT_DIR),
+            iterations=100000,
+            run_ttt_sweep_after_train=False,
+            ttt_sweep_variants=None, ttt_max_minutes_per_variant=20,
+            num_gpus=4,
+            continuation_label="resumed_6h_horizon",
+        )
+        defaults.update(overrides)
+        return argparse.Namespace(**defaults)
+
+    def test_resume_from_rewritten_to_onpod_manifest(self):
+        """When resume_from is a local dir with continuation_label, RESUME_FROM uses on-pod path."""
+        args = self._make_args()
+        cmd = launcher.build_seed_cmd(args)
+        expected = "RESUME_FROM={}/resume_manifest.json".format(
+            launcher.ONPOD_RESUME_SNAPSHOT_PATH)
+        self.assertIn(expected, cmd)
+
+    def test_resume_from_not_rewritten_without_label(self):
+        """Without continuation_label, RESUME_FROM passes through as-is."""
+        args = self._make_args(continuation_label=None)
+        cmd = launcher.build_seed_cmd(args)
+        # Local dir path passes through (non-continuation legacy behavior)
+        self.assertIn("RESUME_FROM={}".format(SNAPSHOT_DIR), cmd)
+
+    def test_resume_enabled_in_seed_cmd(self):
+        args = self._make_args()
+        cmd = launcher.build_seed_cmd(args)
+        self.assertIn("RESUME_ENABLED=1", cmd)
+
+
+class TestContinuationLabelInDryRun(unittest.TestCase):
+    """Dry-run output should reflect 4 GPUs and the continuation label."""
+
+    def _parse(self, *extra_args):
+        old_argv = sys.argv
+        try:
+            sys.argv = ["prog", "--dry-run"] + list(extra_args)
+            args = launcher.build_arg_parser().parse_args()
+            launcher.apply_post_parse_defaults(args)
+            return args
+        finally:
+            sys.argv = old_argv
+
+    def test_dry_run_shows_4_gpus(self):
+        import io
+        from contextlib import redirect_stdout
+        args = self._parse(
+            "--continuation-label", "resumed_6h_horizon",
+            "--num-gpus", "4",
+            "--resume-from", "/some/path",
+        )
+        # build_dry_run_summary should show 4 GPUs
+        summary = launcher.build_dry_run_summary(args)
+        self.assertIn("GPUs: 4", summary)
+        self.assertNotIn("GPUs: 8", summary)
+
+    def test_dry_run_shows_continuation_label(self):
+        args = self._parse(
+            "--continuation-label", "resumed_6h_horizon",
+            "--num-gpus", "4",
+            "--resume-from", "/some/path",
+        )
+        summary = launcher.build_dry_run_summary(args)
+        self.assertIn("resumed_6h_horizon", summary)
+
+    def test_dry_run_cost_uses_actual_gpu_count(self):
+        args = self._parse(
+            "--continuation-label", "resumed_6h_horizon",
+            "--num-gpus", "4",
+            "--resume-from", "/some/path",
+            "--max-minutes", "420",
+        )
+        summary = launcher.build_dry_run_summary(args)
+        # Cost for 4 GPUs × $3.50/hr × 7h = $98.00
+        expected_cost = 4 * launcher.H100_COST_PER_GPU_HR * (420 / 60.0)
+        self.assertIn("Est cost: ${:.2f}".format(expected_cost), summary)
+
+
+class TestContinuationPodNaming(unittest.TestCase):
+    """Pod name should include continuation label when set."""
+
+    def _parse(self, *extra_args):
+        old_argv = sys.argv
+        try:
+            sys.argv = ["prog", "--dry-run"] + list(extra_args)
+            args = launcher.build_arg_parser().parse_args()
+            launcher.apply_post_parse_defaults(args)
+            return args
+        finally:
+            sys.argv = old_argv
+
+    def test_pod_name_includes_label(self):
+        args = self._parse(
+            "--continuation-label", "resumed_6h_horizon",
+            "--num-gpus", "4",
+            "--resume-from", "/some/path",
+        )
+        pod_name = launcher.build_pod_name(args)
+        self.assertIn("resumed-6h-horizon", pod_name)
+
+    def test_pod_name_default(self):
+        args = self._parse()
+        pod_name = launcher.build_pod_name(args)
+        self.assertEqual(pod_name, "pgolf-longtrain-scaling")
+
+
+class TestScheduleHorizon(unittest.TestCase):
+    """--schedule-horizon passes SCHEDULE_HORIZON_SECONDS into the seed command."""
+
+    def _parse(self, *extra_args):
+        old_argv = sys.argv
+        try:
+            sys.argv = ["prog", "--dry-run"] + list(extra_args)
+            args = launcher.build_arg_parser().parse_args()
+            launcher.apply_post_parse_defaults(args)
+            return args
+        finally:
+            sys.argv = old_argv
+
+    def _make_args(self, **overrides):
+        defaults = dict(
+            seed=42, export_minutes="60,120,180,240", max_wallclock=21600,
+            export_mode="light", enable_resume=True,
+            resume_save_minutes="30,60,90,120,150,180,210,240,270,300,330,360",
+            resume_keep_last=3, resume_from="/some/path",
+            iterations=100000,
+            run_ttt_sweep_after_train=False,
+            ttt_sweep_variants=None, ttt_max_minutes_per_variant=20,
+            num_gpus=4, continuation_label="resumed_6h_horizon",
+            schedule_horizon=None,
+        )
+        defaults.update(overrides)
+        return argparse.Namespace(**defaults)
+
+    def test_arg_default_is_none(self):
+        args = self._parse()
+        self.assertIsNone(args.schedule_horizon)
+
+    def test_arg_parses_value(self):
+        args = self._parse("--schedule-horizon", "21600")
+        self.assertEqual(args.schedule_horizon, 21600)
+
+    def test_env_emitted_in_seed_cmd(self):
+        args = self._make_args(schedule_horizon=21600)
+        cmd = launcher.build_seed_cmd(args)
+        self.assertIn("SCHEDULE_HORIZON_SECONDS=21600", cmd)
+
+    def test_env_not_emitted_when_none(self):
+        args = self._make_args(schedule_horizon=None)
+        cmd = launcher.build_seed_cmd(args)
+        self.assertNotIn("SCHEDULE_HORIZON_SECONDS", cmd)
+
+    def test_dry_run_summary_includes_horizon(self):
+        args = self._parse(
+            "--schedule-horizon", "21600",
+            "--continuation-label", "resumed_6h_horizon",
+            "--resume-from", "/some/path",
+        )
+        summary = launcher.build_dry_run_summary(args)
+        self.assertIn("Schedule horizon: 21600s", summary)
+
+    def test_dry_run_summary_omits_when_unset(self):
+        args = self._parse()
+        summary = launcher.build_dry_run_summary(args)
+        self.assertNotIn("Schedule horizon", summary)
+
+
+class TestContinuationSSHUploadWiring(unittest.TestCase):
+    """SSH upload specs are built from the real local snapshot directory."""
+
+    def test_build_resume_ssh_uploads_real_snapshot(self):
+        """Verifies SSH upload specs for the actual captured snapshot."""
+        if not SNAPSHOT_DIR.exists():
+            self.skipTest("Snapshot directory not available")
+        specs = launcher.build_resume_ssh_uploads(str(SNAPSHOT_DIR))
+        # Should have manifest + 4 rank files + stdout_tail.txt = 6 files
+        self.assertGreaterEqual(len(specs), 5)
+        # Each spec is "local_path:arcname"
+        arc_names = [s.split(":", 1)[1] for s in specs]
+        self.assertIn("resume_snapshot/resume_manifest.json", arc_names)
+        self.assertIn("resume_snapshot/resume_rank0_step36452.pt", arc_names)
+        self.assertIn("resume_snapshot/resume_rank3_step36452.pt", arc_names)
+
+    def test_build_resume_ssh_uploads_missing_dir(self):
+        """Non-existent directory raises SystemExit."""
+        with self.assertRaises(SystemExit):
+            launcher.build_resume_ssh_uploads("/nonexistent/path/xyz")
+
+    def test_run_standard_wires_ssh_upload_for_continuation(self):
+        """run_standard appends --ssh-upload args for continuation with local snapshot."""
+        if not SNAPSHOT_DIR.exists():
+            self.skipTest("Snapshot directory not available")
+        args = argparse.Namespace(
+            seed=42, num_gpus=4, max_minutes=420,
+            continuation_label="resumed_6h_horizon",
+            resume_from=str(SNAPSHOT_DIR),
+            export_minutes="60,120,180,240,300,360",
+            run_ttt_sweep_after_train=False,
+        )
+        # Capture sys.argv as set by run_standard (http_main is stubbed)
+        captured_argv = []
+        original_http_main = launcher.http_main
+        def capture_main():
+            captured_argv.extend(sys.argv)
+        launcher.http_main = capture_main
+        try:
+            launcher.run_standard(args, "echo test", ["status.txt"], "train_gpt.py")
+        finally:
+            launcher.http_main = original_http_main
+        # Verify SSH upload flags present
+        self.assertIn("--ssh-upload", captured_argv)
+        # Find all ssh-upload values
+        ssh_uploads = []
+        for i, v in enumerate(captured_argv):
+            if v == "--ssh-upload" and i + 1 < len(captured_argv):
+                ssh_uploads.append(captured_argv[i + 1])
+        # Must include the manifest
+        arcs = [s.split(":", 1)[1] for s in ssh_uploads]
+        self.assertIn("resume_snapshot/resume_manifest.json", arcs)
+        # Must include rank files
+        self.assertTrue(any("resume_rank0" in a for a in arcs))
+
+    def test_seed_cmd_resume_from_rewritten_for_real_snapshot(self):
+        """build_seed_cmd rewrites RESUME_FROM to on-pod manifest path for real snapshot."""
+        if not SNAPSHOT_DIR.exists():
+            self.skipTest("Snapshot directory not available")
+        args = argparse.Namespace(
+            seed=42, export_minutes="60,120,180,240,300,360",
+            max_wallclock=21600, export_mode="light",
+            enable_resume=True,
+            resume_save_minutes="30,60,90,120,150,180,210,240,270,300,330,360",
+            resume_keep_last=3,
+            resume_from=str(SNAPSHOT_DIR),
+            iterations=100000,
+            run_ttt_sweep_after_train=False,
+            ttt_sweep_variants=None, ttt_max_minutes_per_variant=20,
+            num_gpus=4,
+            continuation_label="resumed_6h_horizon",
+        )
+        cmd = launcher.build_seed_cmd(args)
+        # Should point to the on-pod manifest, not the local path
+        self.assertIn(
+            "RESUME_FROM=/root/rehearsal_src/resume_snapshot/resume_manifest.json",
+            cmd,
+        )
+        self.assertNotIn(str(SNAPSHOT_DIR), cmd)
 
 
 if __name__ == "__main__":

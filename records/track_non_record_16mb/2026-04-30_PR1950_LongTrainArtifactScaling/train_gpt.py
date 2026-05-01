@@ -238,6 +238,7 @@ class Hyperparameters:
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 2048))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 500))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 6e2))
+    schedule_horizon_seconds = float(os.environ.get("SCHEDULE_HORIZON_SECONDS", 0))
     val_batch_tokens = int(os.environ.get("VAL_BATCH_TOKENS", 524288))
     eval_seq_len = int(os.environ.get("EVAL_SEQ_LEN", 2048))
     val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 4000))
@@ -3599,7 +3600,7 @@ def load_resume_checkpoint(h, resume_from, device):
     if not os.path.exists(rank_path):
         raise FileNotFoundError(f"Resume rank file not found: {rank_path}")
 
-    ckpt = torch.load(rank_path, map_location="cpu")
+    ckpt = torch.load(rank_path, map_location="cpu", weights_only=False)
     return ckpt
 
 
@@ -3623,10 +3624,18 @@ def train_model(h, device, val_data):
             f"gptq:reserving {h.gptq_reserve_seconds:.1f}s, effective={max_wallclock_ms:.0f}ms"
         )
 
+    # Schedule horizon: controls training_frac, LR warmdown, and loop activation.
+    # If SCHEDULE_HORIZON_SECONDS > 0, use it; otherwise fall back to max_wallclock_ms.
+    if h.schedule_horizon_seconds > 0:
+        schedule_horizon_ms = 1e3 * h.schedule_horizon_seconds - h.gptq_reserve_seconds * 1e3
+        log(f"schedule_horizon: {schedule_horizon_ms:.0f}ms (from SCHEDULE_HORIZON_SECONDS={h.schedule_horizon_seconds})")
+    else:
+        schedule_horizon_ms = max_wallclock_ms
+
     def training_frac(step, elapsed_ms):
-        if max_wallclock_ms is None:
+        if schedule_horizon_ms is None:
             return step / max(h.iterations, 1)
-        return elapsed_ms / max(max_wallclock_ms, 1e-09)
+        return elapsed_ms / max(schedule_horizon_ms, 1e-09)
 
     def lr_mul(frac):
         if h.warmdown_frac <= 0:
