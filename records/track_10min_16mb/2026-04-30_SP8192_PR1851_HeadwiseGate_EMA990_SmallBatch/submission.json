@@ -1,0 +1,41 @@
+{
+  "author": "James Vo",
+  "github_id": "jamesEmerson112",
+  "name": "SP8192 + PR#1851 Fork + Headwise Gate + EMA 0.990 + Small Batch + Emb6",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.0066,
+  "val_bpb_std": 0.0009,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42":   {"val_bpb": 1.0069, "artifact_bytes": 15975827},
+    "1337": {"val_bpb": 1.0057, "artifact_bytes": 15973108},
+    "2025": {"val_bpb": 1.0073, "artifact_bytes": 15973714}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "PR #1851 fork (@aquariouseworkman) + 4 novel contributions: headwise gated attention, EMA=0.990, small batch (ga=1, 196K tokens), 6-bit embedding quantization. Base includes LQER (asymmetric int4), phased TTT, fused CE kernel, XSA, depth recurrence, parallel residuals, QK-Gain 5.0, GPTQ int6+brotli. CaseOps/SmearGate/SparseGate disabled.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_stack_upstream": "@bigbag (PR #1493)",
+    "base_stack_fork": "@aquariouseworkman (PR #1851)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "headwise_gated_attention": "James Vo (novel contribution)",
+    "ema_decay_0990": "James Vo (novel finding)",
+    "small_batch_196k": "James Vo (novel finding)",
+    "embed_bits_6": "James Vo (novel contribution)"
+  }
+}
