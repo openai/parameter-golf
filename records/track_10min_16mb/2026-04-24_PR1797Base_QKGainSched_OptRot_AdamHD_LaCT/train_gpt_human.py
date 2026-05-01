@@ -314,12 +314,16 @@ class Hyperparameters:
     token_order = int(os.environ.get("TOKEN_ORDER", "16"))
     token_threshold = float(os.environ.get("TOKEN_THRESHOLD", "0.800"))
     token_boost = float(os.environ.get("TOKEN_BOOST", "2.625"))
-    within_tau = float(os.environ.get("WITHIN_TAU", "0.450"))
-    within_boost = float(os.environ.get("WITHIN_BOOST", "0.750"))
+    # within-doc and word-start experts gate on target_i properties (is_new_word,
+    # is_boundary applied to the token being SCORED), which violates C1 causality.
+    # Defaults 99.0 ensure their gates never fire. Token-only is the legal subset
+    # (confirmed by PR #1514 merge precedent).
+    within_tau = float(os.environ.get("WITHIN_TAU", "99.0"))
+    within_boost = float(os.environ.get("WITHIN_BOOST", "0.0"))
     word_order = int(os.environ.get("WORD_ORDER", "4"))
     word_normalize = os.environ.get("WORD_NORMALIZE", "strip_punct_lower")
-    word_tau = float(os.environ.get("WORD_TAU", "0.650"))
-    word_boost = float(os.environ.get("WORD_BOOST", "0.750"))
+    word_tau = float(os.environ.get("WORD_TAU", "99.0"))
+    word_boost = float(os.environ.get("WORD_BOOST", "0.0"))
     agree_add_boost = float(os.environ.get("AGREE_ADD_BOOST", "0.500"))
     ngram_hint_precompute_outside = bool(int(os.environ.get("NGRAM_HINT_PRECOMPUTE_OUTSIDE", "1")))
     ttt_weight_decay = float(os.environ.get("TTT_WEIGHT_DECAY", 1.0))
