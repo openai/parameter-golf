@@ -1,0 +1,57 @@
+{
+  "author": "okezue",
+  "github_id": "okezue",
+  "name": "Non-record: Confidence-Adaptive N-gram Boost on PR #2018 stack, val_bpb=1.05874 (seed 42)",
+  "blurb": "Two-line novel addition to the strict token-only n-gram tilt of PR #2018: scale the per-position boost beta by (1 - q_hint)^gamma, where q_hint is the prefix-only NN distribution at the scored position evaluated on the hinted token. The closed-form Z preserves normalization, so all four legal-TTT conditions are satisfied. ADAPTIVE_BOOST_GAMMA=1 yields a small but consistent improvement over the gamma=0 baseline reproduction.",
+  "date": "2026-05-01T15:25:00Z",
+  "track": "10min_16mb",
+  "val_bpb": 1.05873717,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31690937,
+      "val_bpb": 1.05873717,
+      "post_ema_bpb": 1.06345317,
+      "quantized_bpb": 1.07118211,
+      "artifact_bytes": 15990227,
+      "train_ms": 596039,
+      "eval_ms": 449899,
+      "stop_step": 4928
+    }
+  },
+  "ablation": {
+    "gamma_0_baseline": {"val_bpb": 1.05899612, "eval_ms": 479477},
+    "gamma_1_this_submission": {"val_bpb": 1.05873717, "eval_ms": 449899},
+    "gamma_2_overshoot": {"val_bpb": 1.05878246, "eval_ms": 450385}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu129",
+  "compressor": "pergroup_lrzip_L9",
+  "non_record": true,
+  "novelty_summary": "Confidence-adaptive boost: beta_t = TOKEN_BOOST * (1 - q_hint_t)^gamma where q_hint_t is the prefix-only NN distribution evaluated on the hinted token. Down-weights the n-gram tilt when NN already agrees, up-weights when NN disagrees.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb_decimal": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_etlb": true,
+    "score_first_on_val": true,
+    "c1_causal": true,
+    "c2_normalized": true,
+    "c3_score_before_update": true,
+    "c4_single_pass": true,
+    "8xh100_sxm": true,
+    "token_only_ngram_path": true,
+    "within_gate": 0,
+    "word_gate": 0,
+    "agree2plus_gate": 0
+  },
+  "attribution": {
+    "pr2018_base_stack": "@simon-marcus (PR #2018)",
+    "ngram_tilt_origin": "@AnirudhRahul (PR #1145)",
+    "token_only_legality_precedent": "PR #1514",
+    "pr1855_architecture_base": "@codemath3000 (PR #1855)",
+    "lqer": "Yao et al. 2024",
+    "gptq": "Frantar et al. 2023"
+  }
+}
