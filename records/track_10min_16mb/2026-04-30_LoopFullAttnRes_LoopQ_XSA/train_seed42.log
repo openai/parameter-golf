@@ -1,0 +1,91 @@
+NCCL version 2.27.5+cuda12.9
+/workspace/loopres_xsa_train_gpt_1f0a0c3_3seed_20260501_0108/artifacts/loopres-xsa-seed42/loopres-xsa-seed42.txt
+run_id:loopres-xsa-seed42
+arch:loop_fullattnres_loopq_xsa kind:looped
+model_params:15231152 matrix_params:11023488 scalar_params:13360
+world_size:8 grad_accum_steps:1 source_grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+train_loader:dataset:fineweb10B_sp8192 train_shards:80/128
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40540160
+tokenizer_path:./data/tokenizers/fineweb_8192_bpe.model
+vocab_size:8192 layers:9 dim:512 heads:8 kv_heads:4 seq_len:2048 tie_embeddings:True
+iterations:1000000 train_batch_tokens:524288 val_batch_size:1048576 warmup_steps:20 max_wallclock_seconds:600.000
+looped:True prelude:2 core:2 coda:2 loops:3 stable_recurrence:True xsa:True attnres:True mode:full
+optimizer:muon+adam embed_lr:0.05 matrix_lr:0.04 scalar_lr:0.04 muon_momentum:0.95 muon_steps:5
+torch_compile:True fullgraph:False compute_dtype:torch.bfloat16
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/1000000 train_loss:9.0059 train_time:144ms step_avg:143.79ms
+step:2/1000000 train_loss:17.9594 train_time:262ms step_avg:130.78ms
+step:3/1000000 train_loss:12.4339 train_time:373ms step_avg:124.18ms
+step:4/1000000 train_loss:9.0682 train_time:485ms step_avg:121.36ms
+step:5/1000000 train_loss:8.4345 train_time:597ms step_avg:119.30ms
+step:6/1000000 train_loss:8.0266 train_time:708ms step_avg:117.94ms
+step:7/1000000 train_loss:7.5993 train_time:820ms step_avg:117.12ms
+step:8/1000000 train_loss:7.4719 train_time:934ms step_avg:116.72ms
+step:9/1000000 train_loss:7.1338 train_time:1044ms step_avg:116.02ms
+step:10/1000000 train_loss:7.0571 train_time:1155ms step_avg:115.50ms
+step:200/1000000 train_loss:3.8579 train_time:21655ms step_avg:108.27ms
+step:400/1000000 train_loss:3.5921 train_time:43191ms step_avg:107.98ms
+step:600/1000000 train_loss:3.4415 train_time:64762ms step_avg:107.94ms
+step:800/1000000 train_loss:3.3543 train_time:86382ms step_avg:107.98ms
+step:1000/1000000 train_loss:3.0828 train_time:108086ms step_avg:108.09ms
+step:1200/1000000 train_loss:3.2904 train_time:129762ms step_avg:108.14ms
+step:1400/1000000 train_loss:3.3963 train_time:151451ms step_avg:108.18ms
+step:1600/1000000 train_loss:3.4605 train_time:173196ms step_avg:108.25ms
+step:1800/1000000 train_loss:3.1852 train_time:194912ms step_avg:108.28ms
+step:2000/1000000 train_loss:3.1994 train_time:216587ms step_avg:108.29ms
+step:2200/1000000 train_loss:3.2429 train_time:238283ms step_avg:108.31ms
+step:2400/1000000 train_loss:3.2179 train_time:261714ms step_avg:109.05ms
+step:2600/1000000 train_loss:3.1904 train_time:283443ms step_avg:109.02ms
+step:2800/1000000 train_loss:3.3527 train_time:305805ms step_avg:109.22ms
+step:3000/1000000 train_loss:3.2744 train_time:327512ms step_avg:109.17ms
+step:3200/1000000 train_loss:3.3833 train_time:349233ms step_avg:109.14ms
+step:3400/1000000 train_loss:3.3007 train_time:370967ms step_avg:109.11ms
+step:3600/1000000 train_loss:3.0970 train_time:392667ms step_avg:109.07ms
+step:3800/1000000 train_loss:3.0896 train_time:414409ms step_avg:109.06ms
+step:4000/1000000 train_loss:3.2113 train_time:436141ms step_avg:109.04ms
+step:4200/1000000 train_loss:3.0547 train_time:457955ms step_avg:109.04ms
+step:4400/1000000 train_loss:3.0297 train_time:479667ms step_avg:109.02ms
+step:4600/1000000 train_loss:3.0556 train_time:501392ms step_avg:109.00ms
+step:4800/1000000 train_loss:3.1684 train_time:523122ms step_avg:108.98ms
+step:5000/1000000 train_loss:3.1820 train_time:544872ms step_avg:108.97ms
+step:5200/1000000 train_loss:3.1543 train_time:566620ms step_avg:108.97ms
+step:5400/1000000 train_loss:3.0553 train_time:588434ms step_avg:108.97ms
+step:5507/1000000 val_loss:3.0562 val_bpb:1.1832 train_time:600020ms step_avg:108.96ms
+stopping_early: wallclock_cap train_time:600020ms step:5507/1000000
+peak memory allocated: 14806 MiB reserved: 14922 MiB
+saved_model:/workspace/loopres_xsa_train_gpt_1f0a0c3_3seed_20260501_0108/artifacts/loopres-xsa-seed42/loopres-xsa-seed42_model.pt bytes:52569703
+code_size:56228 bytes total_submission_size:52625931 bytes
+serialized_model_int8_zlib:14179856 bytes (payload:15335872 raw_torch:15375235 payload_ratio:3.43x)
+total_submission_size_int8_zlib:14236084 bytes
+final_int8_zlib_roundtrip val_loss:3.0707 val_bpb:1.1888 eval_time:2101ms
+final_int8_zlib_roundtrip_exact val_loss:3.07067205 val_bpb:1.18875284
+[W501 01:20:48.406222017 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 01:20:48.426874499 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 01:20:48.451419713 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 01:20:48.479883462 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 01:20:48.513871755 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 01:20:48.597808272 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 01:20:49.767341933 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 01:20:49.969813401 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 01:20:50.536720302 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
