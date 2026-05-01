@@ -31,7 +31,7 @@ All runs used 8xH100 SXM, 600s train budget, 600s eval budget, CaseOps data, and
 | **Mean** | - | **1.06176791** | **1.06979806** | **1.05857803** | **2.31656272** | **405.322s** | **15,980,355** |
 | **Std** | - | **0.00095480** | **0.00090998** | **0.00092460** | **0.00202338** | **25.601s** | **2,651** |
 
-Maximum artifact size was `15,983,413` bytes, leaving `16,587` bytes of headroom under the 16,000,000-byte cap. Maximum TTT eval time was `434.877s`.
+Maximum artifact size was `15,983,413` bytes, leaving `16,587` bytes of headroom under the 16,000,000-byte cap. Maximum final TTT eval time was `434.877s`; the strict verifier's summed diagnostic+TTT eval-time fields max at `455.926s`.
 
 ## Interpretation
 

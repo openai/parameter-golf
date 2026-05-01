@@ -22,6 +22,7 @@
       "train_step": 4927,
       "train_time_s": 596.120,
       "eval_time_s": 434.877,
+      "summed_eval_time_s": 455.926,
       "artifact_bytes": 15978954,
       "code_uncompressed_bytes": 159688,
       "code_compressed_bytes": 34125
@@ -34,6 +35,7 @@
       "train_step": 4927,
       "train_time_s": 596.119,
       "eval_time_s": 390.025,
+      "summed_eval_time_s": 410.787,
       "artifact_bytes": 15983413,
       "code_uncompressed_bytes": 159688,
       "code_compressed_bytes": 34125
@@ -46,6 +48,7 @@
       "train_step": 4900,
       "train_time_s": 596.073,
       "eval_time_s": 391.064,
+      "summed_eval_time_s": 414.558,
       "artifact_bytes": 15978698,
       "code_uncompressed_bytes": 159688,
       "code_compressed_bytes": 34125
@@ -54,7 +57,8 @@
   "hardware": "8xH100 80GB SXM",
   "wallclock_seconds": 600,
   "train_time_s_max": 596.120,
-  "total_eval_time_s_max": 434.877,
+  "ttt_eval_time_s_max": 434.877,
+  "total_eval_time_s_max": 455.926,
   "bytes_total": 15983413,
   "max_artifact_bytes": 15983413,
   "artifact_headroom_bytes": 16587,
