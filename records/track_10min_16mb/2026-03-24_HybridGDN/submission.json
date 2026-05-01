@@ -1,0 +1,11 @@
+{
+	"author": "Patrick Hulin",
+	"github_id": "phulin",
+	"name": "Hybrid Transformer/Gated DeltaNet",
+	"blurb": "SP-1024 8x512, alternating 3 GDN/1 Transformer. Cosine LR decay, otherwise same as baseline",
+	"date": "2026-03-24T22:05:00Z",
+	"val_loss": 2.04190386,
+	"val_bpb": 1.20933048,
+	"bytes_total": 22936647,
+	"bytes_code": 68236
+}
