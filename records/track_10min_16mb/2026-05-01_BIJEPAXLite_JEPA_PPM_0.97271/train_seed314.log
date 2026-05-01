@@ -1,0 +1,244 @@
+W0501 02:52:10.323000 979375 torch/distributed/run.py:803] 
+W0501 02:52:10.323000 979375 torch/distributed/run.py:803] *****************************************
+W0501 02:52:10.323000 979375 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0501 02:52:10.323000 979375 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  agree_add_boost: 0.5
+  artifact_dir: /workspace/parameter-golf/our_submission/1000/runs/v15_bijepaxlite_lqer1_nocompile_s314_20260501_025209
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  awq_lite_bits: 8
+  awq_lite_enabled: True
+  awq_lite_group_size: 64
+  awq_lite_group_top_k: 1
+  beta1: 0.9
+  beta2: 0.99
+  bijepa_backward_weight: 1.0
+  bijepa_enabled: False
+  bijepax_bwd_hops: (4,)
+  bijepax_cycle: False
+  bijepax_enabled: True
+  bijepax_end_frac: 0.8
+  bijepax_fwd_hops: (4,)
+  bijepax_head_dim: 32
+  bijepax_lr: 0.001
+  bijepax_start_frac: 0.35
+  bijepax_stride: 64
+  bijepax_weight: 0.01
+  caseops_enabled: True
+  compressor: pergroup
+  data_dir: ./data/
+  datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 14.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 512
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: True
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 0.5
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  jepa_lite_enabled: False
+  jepa_lite_end_frac: 0.85
+  jepa_lite_frequency: 8
+  jepa_lite_hidden: 128
+  jepa_lite_horizon: 4
+  jepa_lite_lr: 0.01
+  jepa_lite_start_frac: 0.35
+  jepa_lite_stride: 16
+  jepa_lite_weight: 0.03
+  ln_scale: True
+  local_rank: 0
+  logfile: /workspace/parameter-golf/our_submission/1000/runs/v15_bijepaxlite_lqer1_nocompile_s314_20260501_025209/v15_bijepaxlite_lqer1_nocompile_s314_20260501_025209.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_gain_select: False
+  lqer_rank: 4
+  lqer_scope: all
+  lqer_top_k: 1
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 11.5
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /workspace/parameter-golf/our_submission/1000/runs/v15_bijepaxlite_lqer1_nocompile_s314_20260501_025209/final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  ngram_hint_precompute_outside: True
+  ngram_tilt_enabled: True
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 3
+  phased_ttt_prefix_docs: 2500
+  ppm_dump_inputs: False
+  ppm_h: 0.999
+  ppm_l: 0.18
+  ppm_mixer_enabled: True
+  ppm_order: 5
+  ppm_t: 0.8
+  qk_gain_init: 5.25
+  quantized_model_path: /workspace/parameter-golf/our_submission/1000/runs/v15_bijepaxlite_lqer1_nocompile_s314_20260501_025209/final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: v15_bijepaxlite_lqer1_nocompile_s314_20260501_025209
+  scalar_lr: 0.02
+  seed: 314
+  skip_gates_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 0.5
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  token_boost: 2.625
+  token_order: 16
+  token_threshold: 0.8
+  tokenizer_path: /workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 250
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.99
+  ttt_chunk_size: 48
+  ttt_enabled: False
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_local_lr_mult: 0.75
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 80
+  ttt_mask: no_qv
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_q_lora: False
+  ttt_train_window_tokens: 0
+  ttt_v_lora: False
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_bytes_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.85
+  warmup_steps: 20
+  within_boost: 0.75
+  within_tau: 0.45
+  word_boost: 0.75
+  word_normalize: strip_punct_lower
+  word_order: 4
+  word_tau: 0.65
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 47851520
+compile:disabled_by_env
+model_params:35945673
+bijepax_config: weight=0.01 start=0.35 end=0.8 fwd=(4,) bwd=(4,) cycle=False head_dim=32 stride=64 lr=0.001 training_only=true
+gptq:reserving 0s, effective=599500ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 8.9980 val_bpb: 4.1115
+1/20000 train_loss: 8.9988 train_time: 0.0m tok/s: 4316911
+2/20000 train_loss: 12.8490 train_time: 0.0m tok/s: 3773018
+3/20000 train_loss: 10.2358 train_time: 0.0m tok/s: 3620744
+4/20000 train_loss: 8.6660 train_time: 0.0m tok/s: 3552879
+5/20000 train_loss: 7.9135 train_time: 0.0m tok/s: 3514777
+250/20000 train_loss: 2.9125 train_time: 1.0m tok/s: 3364437
+500/20000 train_loss: 2.5540 train_time: 1.9m tok/s: 3366468
+750/20000 train_loss: 2.6987 train_time: 2.9m tok/s: 3367170
+layer_loop:enabled step:899 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+1000/20000 train_loss: 2.7476 train_time: 4.1m tok/s: 3205099
+1250/20000 train_loss: 2.5457 train_time: 5.5m tok/s: 2953029
+1500/20000 train_loss: 2.5150 train_time: 7.0m tok/s: 2805985
+1750/20000 train_loss: 2.5345 train_time: 8.5m tok/s: 2709881
+2000/20000 train_loss: 2.4815 train_time: 9.9m tok/s: 2642045
+2012/20000 val_loss: 2.4311 val_bpb: 1.1108
+stopping_early: wallclock_cap train_time: 599586ms step: 2012/20000
+peak memory allocated: 46676 MiB reserved: 52266 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.42899363 val_bpb:1.10988323 eval_time:9910ms
+Serialized model: 135418111 bytes
+Code size (uncompressed): 213292 bytes
+Code size (compressed): 41999 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 4.0s
+Quantized weights:
+  gate_int8_row: blocks.attn.attn_gate_w
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int7)+awqgrpint8+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda, softcap_neg, softcap_pos
+Serialize: per-group lrzip compression...
+Serialize: per-group compression done in 105.0s
+Serialized model quantized+pergroup: 15957540 bytes
+Total submission size quantized+pergroup: 15999539 bytes
+Deserialize: per-group lrzip decompression...
+Deserialize: decompression done in 17.7s
+eval_compile:disabled_by_env
+diagnostic quantized val_loss:2.44155528 val_bpb:1.11562304 eval_time:9926ms
+beginning PPM sliding eval
+ppm_mixer val_bpb:0.97206308 eval_time:453715ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
+ppm_sliding val_loss:2.45044876 val_bpb:0.97206308 eval_time:499038ms
