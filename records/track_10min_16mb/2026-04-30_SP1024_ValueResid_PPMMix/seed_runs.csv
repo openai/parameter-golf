@@ -1,0 +1,2 @@
+run_name,seed,tokenizer,model_dim,mlp_mult,num_layers,num_heads,num_kv_heads,value_residual_last_n_layers,ppm_order,ppm_conf_threshold,lambda_lo,lambda_hi,max_train_steps,world_size,grad_accum_steps,last_val_bpb,roundtrip_exact_val_bpb,ppm_mix_bpb,compressed_model_bytes,code_bytes,total_submission_bytes,fits_16mb,notes
+record_try_sp1024_512d_mlp2_value_resid_last2_ppm_hi075_steps2200,1337,sp1024,512,2,9,8,4,2,5,0.9,0.10,0.75,2200,1,4,1.2894,1.29339954,0.829467,15650103,156032,15806135,true,"Best included single-H100 non-record run; artifact fits under 16MB"
