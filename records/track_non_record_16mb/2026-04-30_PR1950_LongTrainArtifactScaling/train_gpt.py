@@ -2911,6 +2911,126 @@ def eval_val(h, device, val_data, model, forward_logits_fn=None):
     return _loss_bpb(val_loss_sum, val_token_count, val_byte_count)
 
 
+def eval_val_with_trace(
+    h,
+    device,
+    val_data,
+    model,
+    forward_logits_fn=None,
+    trace_path=None,
+    stage=None,
+):
+    """eval_val variant that also writes rank-0 local batch traces to JSONL."""
+    import json
+
+    seq_len = h.eval_seq_len
+    local_batch_tokens = h.val_batch_tokens // (h.world_size * h.grad_accum_steps)
+    if local_batch_tokens < seq_len:
+        raise ValueError(
+            f"VAL_BATCH_SIZE must provide at least one sequence per rank; got VAL_BATCH_SIZE={h.val_batch_tokens}, WORLD_SIZE={h.world_size}, GRAD_ACCUM_STEPS={h.grad_accum_steps}, seq_len={seq_len}"
+        )
+    local_batch_seqs = local_batch_tokens // seq_len
+    total_seqs = (val_data.val_tokens.numel() - 1) // seq_len
+    seq_start = total_seqs * h.rank // h.world_size
+    seq_end = total_seqs * (h.rank + 1) // h.world_size
+
+    seq_end = seq_start + ((seq_end - seq_start) // local_batch_seqs) * local_batch_seqs
+
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    run_forward_logits = (
+        (model.module.forward_logits if hasattr(model, "module") else model.forward_logits)
+        if forward_logits_fn is None
+        else forward_logits_fn
+    )
+    model.eval()
+    global BOS_ID
+    if BOS_ID is None:
+        BOS_ID = 1
+
+    trace_file = None
+    if trace_path and h.is_main_process:
+        trace_dir = os.path.dirname(trace_path)
+        if trace_dir:
+            os.makedirs(trace_dir, exist_ok=True)
+        trace_file = open(trace_path, "w", encoding="utf-8")
+
+    try:
+        with torch.no_grad():
+            batch_idx = 0
+            for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+                batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+                raw_start = batch_seq_start * seq_len
+                raw_end = batch_seq_end * seq_len + 1
+                local = val_data.val_tokens[raw_start:raw_end].to(
+                    device=device, dtype=torch.int64, non_blocking=True
+                )
+                x = local[:-1]
+                y = local[1:]
+                bos_pos = (x == BOS_ID).nonzero(as_tuple=True)[0].tolist()
+                cu_seqlens, max_seqlen = _build_cu_seqlens(
+                    bos_pos, x.numel(), x.device, h.eval_seq_len, 64
+                )
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    logits = run_forward_logits(
+                        x[None], cu_seqlens=cu_seqlens, max_seqlen=max_seqlen
+                    ).detach()
+                per_token_loss = F.cross_entropy(
+                    logits.reshape(-1, logits.size(-1)).float(),
+                    y.reshape(-1),
+                    reduction="none",
+                )
+                batch_loss_sum = per_token_loss.to(torch.float64).sum()
+                batch_token_count = torch.tensor(float(y.numel()), device=device, dtype=torch.float64)
+                if val_data.caseops_enabled and val_data.val_bytes is not None:
+                    sidecar_slice = val_data.val_bytes[raw_start + 1 : raw_end].to(
+                        device=device, dtype=torch.int32, non_blocking=True
+                    )
+                    batch_byte_count = sidecar_slice.to(torch.float64).sum()
+                else:
+                    token_bytes = val_data.base_bytes_lut[y].to(dtype=torch.int16)
+                    token_bytes += (
+                        val_data.has_leading_space_lut[y]
+                        & ~val_data.is_boundary_token_lut[x]
+                    ).to(dtype=torch.int16)
+                    batch_byte_count = token_bytes.to(torch.float64).sum()
+
+                val_loss_sum += batch_loss_sum
+                val_token_count += batch_token_count
+                val_byte_count += batch_byte_count
+
+                if trace_file is not None:
+                    batch_loss = (batch_loss_sum / batch_token_count).item()
+                    batch_bpb = batch_loss / math.log(2.0) * (
+                        batch_token_count.item() / batch_byte_count.item()
+                    )
+                    trace_record = {
+                        "stage": stage,
+                        "rank": int(h.rank),
+                        "batch_index": batch_idx,
+                        "seq_start": int(batch_seq_start),
+                        "seq_end": int(batch_seq_end),
+                        "tokens": int(batch_token_count.item()),
+                        "bytes": float(batch_byte_count.item()),
+                        "loss_sum": float(batch_loss_sum.item()),
+                        "val_loss": round(batch_loss, 8),
+                        "val_bpb": round(batch_bpb, 8),
+                    }
+                    trace_file.write(json.dumps(trace_record) + "\n")
+                batch_idx += 1
+    finally:
+        if trace_file is not None:
+            trace_file.close()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+    model.train()
+    return _loss_bpb(val_loss_sum, val_token_count, val_byte_count)
+
+
 def _find_docs(all_tokens):
     bos_positions = (all_tokens == BOS_ID).nonzero(as_tuple=True)[0].numpy()
     docs = []
@@ -3442,6 +3562,362 @@ def timed_eval(label, fn, *args, **kwargs):
         f"{label} val_loss:{val_loss:.8f} val_bpb:{val_bpb:.8f} eval_time:{elapsed_ms:.0f}ms"
     )
     return val_loss, val_bpb
+
+
+def _resolve_output_path(h, env_key, default_name):
+    path = os.environ.get(env_key, "")
+    if not path:
+        out_dir = os.environ.get("OUTPUT_DIR", "") or h.artifact_dir
+        if out_dir:
+            path = os.path.join(out_dir, default_name)
+    return path
+
+
+def _write_json_output(h, path, data, label=None):
+    if not path or not h.is_main_process:
+        return
+    import json
+
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    if label:
+        log(f"{label} written to: {path}")
+
+
+def write_prequant_eval_summary(h, val_loss, val_bpb):
+    path = _resolve_output_path(h, "PREQUANT_EVAL_OUTPUT_JSON", "prequant_eval_summary.json")
+    if not path:
+        return
+    summary = {
+        "eval_type": "prequant_ema",
+        "pre_quant_bpb": round(val_bpb, 8),
+        "pre_quant_loss": round(val_loss, 8),
+        "peak_memory_mib": torch.cuda.max_memory_allocated() // (1024 * 1024),
+        "status": "success",
+    }
+    _write_json_output(h, path, summary, "Pre-quant eval summary")
+
+
+def _merge_stage_trace_files(h, stage_paths, output_path):
+    if not output_path or not h.is_main_process:
+        return
+    import json
+
+    stage_records = {}
+    for stage, path in stage_paths.items():
+        if not path or not os.path.exists(path):
+            continue
+        records = {}
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                records[int(record["batch_index"])] = record
+        if records:
+            stage_records[stage] = records
+    if not stage_records:
+        return
+
+    common_indices = None
+    for records in stage_records.values():
+        keys = set(records.keys())
+        common_indices = keys if common_indices is None else (common_indices & keys)
+    if not common_indices:
+        return
+
+    parent = os.path.dirname(output_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as out_f:
+        sample_stage = next(iter(stage_records.values()))
+        for batch_index in sorted(common_indices):
+            sample = sample_stage[batch_index]
+            merged = {
+                "trace_scope": "rank0_local_validation_shard",
+                "batch_index": int(batch_index),
+                "seq_start": int(sample["seq_start"]),
+                "seq_end": int(sample["seq_end"]),
+                "tokens": int(sample["tokens"]),
+                "bytes": float(sample["bytes"]),
+            }
+            for stage, records in stage_records.items():
+                rec = records[batch_index]
+                merged[f"{stage}_val_loss"] = rec["val_loss"]
+                merged[f"{stage}_val_bpb"] = rec["val_bpb"]
+            if "live" in stage_records and "ema" in stage_records:
+                merged["delta_live_to_ema_bpb"] = round(
+                    merged["ema_val_bpb"] - merged["live_val_bpb"], 8
+                )
+            if "ema" in stage_records and "quantized" in stage_records:
+                merged["delta_ema_to_quantized_bpb"] = round(
+                    merged["quantized_val_bpb"] - merged["ema_val_bpb"], 8
+                )
+            out_f.write(json.dumps(merged) + "\n")
+    log(f"Resume stage batch deltas written to: {output_path}")
+
+
+def run_ttt_eval_stage(h, device, val_data, t_total_start=None, ttt_eval_only=False):
+    ttt_model = deserialize(h, device)
+    if h.num_loops > 0:
+        ttt_model.looping_active = True
+    for p in ttt_model.parameters():
+        p.requires_grad_(False)
+
+    if h.rope_yarn:
+        _yarn_seqlen = h.train_batch_tokens // h.grad_accum_steps
+        for block in ttt_model.blocks:
+            block.attn.rotary(_yarn_seqlen, device, torch.bfloat16)
+    else:
+        for block in ttt_model.blocks:
+            block.attn.rotary._cos_cached = None
+            block.attn.rotary._sin_cached = None
+            block.attn.rotary._seq_len_cached = 0
+            block.attn.rotary(h.ttt_eval_seq_len, device, torch.bfloat16)
+
+    def _fwd_ttt_inner(input_ids, target_ids, lora):
+        return ttt_model.forward_ttt(input_ids, target_ids, lora=lora)
+
+    _fwd_ttt_compiled_inner = None
+
+    def _fwd_ttt(input_ids, target_ids, lora):
+        nonlocal _fwd_ttt_compiled_inner
+        if _fwd_ttt_compiled_inner is None:
+            _fwd_ttt_compiled_inner = torch.compile(_fwd_ttt_inner, dynamic=True)
+        return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
+
+    fwd_ttt_compiled = _fwd_ttt
+    log("ttt_lora:warming up compile (random tokens, no val data)")
+    global BOS_ID
+    if BOS_ID is None:
+        BOS_ID = 1
+    t_warmup = time.perf_counter()
+    warmup_bszes = [h.ttt_batch_size]
+    for bsz in warmup_bszes:
+        wl = BatchedTTTLoRA(
+            bsz,
+            ttt_model,
+            h.ttt_lora_rank,
+            k_lora=h.ttt_k_lora,
+            mlp_lora=h.ttt_mlp_lora,
+            o_lora=h.ttt_o_lora,
+        ).to(device)
+        wo = torch.optim.AdamW(
+            wl.parameters(),
+            lr=h.ttt_lora_lr,
+            betas=(h.ttt_beta1, h.ttt_beta2),
+            eps=1e-10,
+            weight_decay=h.ttt_weight_decay,
+            fused=True,
+        )
+        for ctx_len in (h.ttt_chunk_size, h.ttt_eval_seq_len):
+            xw = torch.randint(
+                0, h.vocab_size, (bsz, ctx_len), device=device, dtype=torch.int64
+            )
+            yw = torch.randint(
+                0, h.vocab_size, (bsz, ctx_len), device=device, dtype=torch.int64
+            )
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                ptl = fwd_ttt_compiled(xw, yw, lora=wl)
+            ptl[:, : min(h.ttt_chunk_size, ctx_len)].mean(dim=-1).sum().backward()
+            wo.step()
+            wo.zero_grad(set_to_none=True)
+        del wl, wo
+    torch.cuda.empty_cache()
+    compile_elapsed = time.perf_counter() - t_warmup
+    log(f"ttt_lora:compile warmup done ({compile_elapsed:.1f}s)")
+    log("\nbeginning TTT eval timer")
+    torch.cuda.synchronize()
+    t_ttt = time.perf_counter()
+    ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+        h, ttt_model, device, val_data, forward_ttt_train=fwd_ttt_compiled
+    )
+    torch.cuda.synchronize()
+    ttt_eval_elapsed = time.perf_counter() - t_ttt
+    log(
+        "quantized_ttt_phased "
+        f"val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f} "
+        f"eval_time:{1e3*ttt_eval_elapsed:.0f}ms"
+    )
+    log(f"total_eval_time:{ttt_eval_elapsed:.1f}s")
+
+    total_wallclock = (
+        time.perf_counter() - t_total_start if t_total_start is not None else ttt_eval_elapsed
+    )
+    ttt_summary = {
+        "variant_id": os.environ.get("TTT_VARIANT_ID", "default"),
+        "quantized_bpb_fixed": None,
+        "post_ttt_bpb": round(ttt_val_bpb, 8),
+        "ttt_gain_bpb": None,
+        "eval_seconds": round(ttt_eval_elapsed, 2),
+        "total_wallclock_seconds": round(total_wallclock, 2),
+        "prefix_docs": h.phased_ttt_prefix_docs,
+        "phases": h.phased_ttt_num_phases,
+        "ttt_lora_rank": h.ttt_lora_rank,
+        "ttt_lora_alpha": BatchedLinearLoRA._ALPHA,
+        "ttt_lora_lr": h.ttt_lora_lr,
+        "ttt_batch_size": h.ttt_batch_size,
+        "ttt_chunk_size": h.ttt_chunk_size,
+        "global_ttt_epochs": h.global_ttt_epochs,
+        "global_ttt_chunk_tokens": h.global_ttt_chunk_tokens,
+        "global_ttt_batch_seqs": h.global_ttt_batch_seqs,
+        "peak_memory_mib": torch.cuda.max_memory_allocated() // (1024 * 1024),
+        "status": "success",
+        "error": None,
+    }
+    _ttt_output_json = os.environ.get("TTT_EVAL_OUTPUT_JSON", "")
+    if not _ttt_output_json and h.artifact_dir:
+        _ttt_output_json = os.path.join(h.artifact_dir, "ttt_eval_summary.json")
+    _write_json_output(h, _ttt_output_json, ttt_summary, "TTT eval summary")
+    del ttt_model
+    return ttt_summary
+
+
+def run_resume_decomposition(h, device, val_data):
+    resume_from = os.environ.get("RESUME_FROM", "")
+    if not resume_from:
+        raise ValueError("RESUME_DECOMPOSE_ONLY=1 requires RESUME_FROM")
+
+    log(f"RESUME_DECOMPOSE_ONLY=1 — loading {resume_from}")
+    ckpt = load_resume_checkpoint(h, resume_from, device)
+    base_model = GPT(h).to(device).bfloat16()
+    base_model.load_state_dict(ckpt["model_state_dict"], strict=True)
+    if h.num_loops > 0:
+        base_model.looping_active = bool(
+            ckpt.get("looping_active", getattr(base_model, "looping_active", False))
+        )
+
+    decomp_start = time.perf_counter()
+    live_trace = _resolve_output_path(
+        h, "RESUME_DECOMPOSE_LIVE_TRACE_JSONL", "resume_stage_live.jsonl"
+    )
+    compiled_live = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_live_fwd = torch.compile(
+        base_model.forward_logits, dynamic=False, fullgraph=True
+    )
+    live_loss, live_bpb = timed_eval(
+        "resume_decompose live",
+        eval_val_with_trace,
+        h,
+        device,
+        val_data,
+        compiled_live,
+        compiled_live_fwd,
+        live_trace,
+        "live",
+    )
+    del compiled_live, compiled_live_fwd
+    torch._dynamo.reset()
+    torch.cuda.empty_cache()
+
+    current_state = base_model.state_dict()
+    avg_state = {
+        name: t.to(dtype=current_state[name].dtype)
+        for (name, t) in ckpt["ema_state"].items()
+    }
+    base_model.load_state_dict(avg_state, strict=True)
+    ema_trace = _resolve_output_path(
+        h, "RESUME_DECOMPOSE_EMA_TRACE_JSONL", "resume_stage_ema.jsonl"
+    )
+    compiled_ema = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_ema_fwd = torch.compile(
+        base_model.forward_logits, dynamic=False, fullgraph=True
+    )
+    ema_loss, ema_bpb = timed_eval(
+        "resume_decompose ema_prequant",
+        eval_val_with_trace,
+        h,
+        device,
+        val_data,
+        compiled_ema,
+        compiled_ema_fwd,
+        ema_trace,
+        "ema",
+    )
+    del compiled_ema, compiled_ema_fwd
+    torch._dynamo.reset()
+    torch.cuda.empty_cache()
+
+    serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+    if h.distributed:
+        dist.barrier()
+    eval_model = deserialize(h, device)
+    if h.num_loops > 0:
+        eval_model.looping_active = True
+    quant_trace = _resolve_output_path(
+        h, "RESUME_DECOMPOSE_QUANT_TRACE_JSONL", "resume_stage_quantized.jsonl"
+    )
+    compiled_quant = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    compiled_quant_fwd = torch.compile(
+        eval_model.forward_logits, dynamic=False, fullgraph=True
+    )
+    quant_loss, quant_bpb = timed_eval(
+        "resume_decompose quantized",
+        eval_val_with_trace,
+        h,
+        device,
+        val_data,
+        compiled_quant,
+        compiled_quant_fwd,
+        quant_trace,
+        "quantized",
+    )
+    del compiled_quant, compiled_quant_fwd, eval_model
+    torch._dynamo.reset()
+    torch.cuda.empty_cache()
+
+    ttt_summary = None
+    if h.ttt_enabled and os.environ.get("RESUME_DECOMPOSE_SKIP_TTT", "0") != "1":
+        ttt_summary = run_ttt_eval_stage(
+            h, device, val_data, t_total_start=decomp_start, ttt_eval_only=True
+        )
+
+    summary = {
+        "mode": "resume_decompose_only",
+        "resume_from": resume_from,
+        "checkpoint_step": int(ckpt["step"]),
+        "training_time_seconds": round(ckpt["training_time_ms"] / 1000.0, 2),
+        "looping_active": bool(ckpt.get("looping_active", False)),
+        "exported_minutes": list(ckpt.get("exported_minutes", [])),
+        "trace_scope": "rank0_local_validation_shard",
+        "stages": {
+            "live": {
+                "val_loss": round(live_loss, 8),
+                "val_bpb": round(live_bpb, 8),
+            },
+            "ema_prequant": {
+                "val_loss": round(ema_loss, 8),
+                "val_bpb": round(ema_bpb, 8),
+            },
+            "quantized": {
+                "val_loss": round(quant_loss, 8),
+                "val_bpb": round(quant_bpb, 8),
+            },
+            "post_ttt": ttt_summary,
+        },
+        "delta_live_to_ema_bpb": round(ema_bpb - live_bpb, 8),
+        "delta_ema_to_quantized_bpb": round(quant_bpb - ema_bpb, 8),
+        "delta_quantized_to_post_ttt_bpb": (
+            round(ttt_summary["post_ttt_bpb"] - quant_bpb, 8)
+            if ttt_summary is not None
+            else None
+        ),
+    }
+    summary_path = _resolve_output_path(
+        h, "RESUME_DECOMPOSE_OUTPUT_JSON", "resume_stage_decomposition.json"
+    )
+    _write_json_output(h, summary_path, summary, "Resume stage decomposition")
+    delta_path = _resolve_output_path(
+        h, "RESUME_DECOMPOSE_BATCH_JSONL", "resume_stage_batch_deltas.jsonl"
+    )
+    _merge_stage_trace_files(
+        h,
+        {"live": live_trace, "ema": ema_trace, "quantized": quant_trace},
+        delta_path,
+    )
 
 
 # ========== RESUMABLE CHECKPOINT SUPPORT ==========
@@ -4055,6 +4531,9 @@ def train_and_eval(h, device):
         f"train_shards: {len(list(Path(h.datasets_dir).resolve().glob('fineweb_train_*.bin')))}"
     )
     log(f"val_tokens: {val_data.val_tokens.numel()-1}")
+    if os.environ.get("RESUME_DECOMPOSE_ONLY", "0") == "1":
+        run_resume_decomposition(h, device, val_data)
+        return
     # TTT_EVAL_ONLY: skip training + GPTQ, jump straight to TTT eval on a
     # pre-existing quantized artifact. Used to test TTT-only improvements
     # (e.g., PR-1767's alpha/warm-start/WD) without retraining.
@@ -4071,7 +4550,7 @@ def train_and_eval(h, device):
         )
         torch._dynamo.reset()
         if os.environ.get("PREQUANT_ONLY", "0") == "1":
-            timed_eval(
+            prequant_val_loss, prequant_val_bpb = timed_eval(
                 "diagnostic pre-quantization post-ema",
                 eval_val,
                 h,
@@ -4080,6 +4559,7 @@ def train_and_eval(h, device):
                 compiled_model,
                 compiled_forward_logits,
             )
+            write_prequant_eval_summary(h, prequant_val_loss, prequant_val_bpb)
             log("PREQUANT_ONLY=1 — skipping serialize/GPTQ/post-quant eval/TTT")
             return
         t_serialize_start = time.perf_counter()
@@ -4168,113 +4648,13 @@ def train_and_eval(h, device):
             del eval_model
         torch._dynamo.reset()
         torch.cuda.empty_cache()
-        ttt_model = deserialize(h, device)
-        if h.num_loops > 0:
-            ttt_model.looping_active = True
-        for p in ttt_model.parameters():
-            p.requires_grad_(False)
-
-        if h.rope_yarn:
-            _yarn_seqlen = h.train_batch_tokens // h.grad_accum_steps
-            for block in ttt_model.blocks:
-                block.attn.rotary(_yarn_seqlen, device, torch.bfloat16)
-        else:
-            for block in ttt_model.blocks:
-                block.attn.rotary._cos_cached = None
-                block.attn.rotary._sin_cached = None
-                block.attn.rotary._seq_len_cached = 0
-                block.attn.rotary(h.ttt_eval_seq_len, device, torch.bfloat16)
-
-        def _fwd_ttt_inner(input_ids, target_ids, lora):
-            return ttt_model.forward_ttt(input_ids, target_ids, lora=lora)
-
-        _fwd_ttt_compiled_inner = None
-
-        def _fwd_ttt(input_ids, target_ids, lora):
-            nonlocal _fwd_ttt_compiled_inner
-            if _fwd_ttt_compiled_inner is None:
-                _fwd_ttt_compiled_inner = torch.compile(_fwd_ttt_inner, dynamic=True)
-            return _fwd_ttt_compiled_inner(input_ids, target_ids, lora=lora)
-
-        fwd_ttt_compiled = _fwd_ttt
-        log(f"ttt_lora:warming up compile (random tokens, no val data)")
-        global BOS_ID
-        if BOS_ID is None:
-            BOS_ID = 1
-        t_warmup = time.perf_counter()
-        warmup_bszes = [h.ttt_batch_size]
-        for bsz in warmup_bszes:
-            wl = BatchedTTTLoRA(
-                bsz, ttt_model, h.ttt_lora_rank,
-                k_lora=h.ttt_k_lora, mlp_lora=h.ttt_mlp_lora, o_lora=h.ttt_o_lora,
-            ).to(device)
-            wo = torch.optim.AdamW(
-                wl.parameters(),
-                lr=h.ttt_lora_lr,
-                betas=(h.ttt_beta1, h.ttt_beta2),
-                eps=1e-10,
-                weight_decay=h.ttt_weight_decay,
-                fused=True,
-            )
-            for ctx_len in (h.ttt_chunk_size, h.ttt_eval_seq_len):
-                xw = torch.randint(0, h.vocab_size, (bsz, ctx_len), device=device, dtype=torch.int64)
-                yw = torch.randint(0, h.vocab_size, (bsz, ctx_len), device=device, dtype=torch.int64)
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    ptl = fwd_ttt_compiled(xw, yw, lora=wl)
-                ptl[:, : min(h.ttt_chunk_size, ctx_len)].mean(dim=-1).sum().backward()
-                wo.step()
-                wo.zero_grad(set_to_none=True)
-            del wl, wo
-        torch.cuda.empty_cache()
-        compile_elapsed = time.perf_counter() - t_warmup
-        log(f"ttt_lora:compile warmup done ({compile_elapsed:.1f}s)")
-        log("\nbeginning TTT eval timer")
-        torch.cuda.synchronize()
-        t_ttt = time.perf_counter()
-        ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
-            h, ttt_model, device, val_data, forward_ttt_train=fwd_ttt_compiled
+        run_ttt_eval_stage(
+            h,
+            device,
+            val_data,
+            t_total_start=t_total_start if not ttt_eval_only else None,
+            ttt_eval_only=ttt_eval_only,
         )
-        torch.cuda.synchronize()
-        ttt_eval_elapsed = time.perf_counter() - t_ttt
-        log(
-            "quantized_ttt_phased "
-            f"val_loss:{ttt_val_loss:.8f} val_bpb:{ttt_val_bpb:.8f} "
-            f"eval_time:{1e3*ttt_eval_elapsed:.0f}ms"
-        )
-        log(f"total_eval_time:{ttt_eval_elapsed:.1f}s")
-
-        # Write machine-readable TTT eval summary
-        _ttt_output_json = os.environ.get("TTT_EVAL_OUTPUT_JSON", "")
-        if not _ttt_output_json and h.artifact_dir:
-            _ttt_output_json = os.path.join(h.artifact_dir, "ttt_eval_summary.json")
-        if _ttt_output_json and h.is_main_process:
-            import json as _json
-            _ttt_summary = {
-                "variant_id": os.environ.get("TTT_VARIANT_ID", "default"),
-                "quantized_bpb_fixed": None,
-                "post_ttt_bpb": round(ttt_val_bpb, 8),
-                "ttt_gain_bpb": None,
-                "eval_seconds": round(ttt_eval_elapsed, 2),
-                "total_wallclock_seconds": round(time.perf_counter() - (t_total_start if not ttt_eval_only else t_ttt), 2),
-                "prefix_docs": h.phased_ttt_prefix_docs,
-                "phases": h.phased_ttt_num_phases,
-                "ttt_lora_rank": h.ttt_lora_rank,
-                "ttt_lora_alpha": BatchedLinearLoRA._ALPHA,
-                "ttt_lora_lr": h.ttt_lora_lr,
-                "ttt_batch_size": h.ttt_batch_size,
-                "ttt_chunk_size": h.ttt_chunk_size,
-                "global_ttt_epochs": h.global_ttt_epochs,
-                "global_ttt_chunk_tokens": h.global_ttt_chunk_tokens,
-                "global_ttt_batch_seqs": h.global_ttt_batch_seqs,
-                "peak_memory_mib": torch.cuda.max_memory_allocated() // (1024 * 1024),
-                "status": "success",
-                "error": None,
-            }
-            os.makedirs(os.path.dirname(_ttt_output_json), exist_ok=True)
-            with open(_ttt_output_json, "w") as _f:
-                _json.dump(_ttt_summary, _f, indent=2)
-            log(f"TTT eval summary written to: {_ttt_output_json}")
-        del ttt_model
 
 
 def main():

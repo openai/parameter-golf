@@ -1,0 +1,14 @@
+{
+  "control_id": "360min_prequant_followup",
+  "description": "Matched 360-minute pre-quant EMA follow-up from the resumed 6h continuation",
+  "pre_quant_bpb": 1.03340201,
+  "pre_quant_loss": 2.26159024,
+  "peak_memory_mib": 41908,
+  "quantized_bpb": 1.04273086,
+  "post_ttt_bpb": 1.03470849,
+  "quantization_tax_bpb": 0.00932885,
+  "ttt_gain_bpb": 0.00802237,
+  "post_ttt_minus_prequant_bpb": 0.00130648,
+  "ttt_recovery_fraction": 0.859953,
+  "status": "success"
+}

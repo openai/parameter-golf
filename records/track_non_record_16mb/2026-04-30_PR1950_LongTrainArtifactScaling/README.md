@@ -2,11 +2,9 @@
 
 **Non-record track** — training exceeds the 600s wallclock budget.
 
-> **No ML change on top of PR #1950.** This experiment uses the identical model
-> architecture, hyperparameters, and scoring pipeline from PR #1950 (our
-> compliance-audited reproduction of PR #1934). The only modification is removing
-> the 600s wallclock cap to study artifact quality vs. training duration, plus a
-> systematic TTT/LoRA hyperparameter sweep on the final 6h artifact.
+> **No training-side ML change on top of PR #1950.** This experiment keeps the
+> PR #1950 / PR #1934 training recipe fixed, extends wallclock for non-record
+> study, and adds an eval-only TTT/LoRA sweep around the PR #1979 control.
 
 ## Result Summary
 
@@ -19,15 +17,18 @@
 | TTT gain | — | — | 0.00802 |
 | Artifact bytes | 15,944,203 | 15,932,638 | 15,926,271 |
 
-*training_val_bpb at step ~48000 (last logged); †3-seed mean from record submission
+*training_val_bpb at step ~48000 (last logged, non-EMA, earlier step; not a like-for-like GPTQ comparator); †3-seed mean from record submission
 
 **Conclusions:**
 1. Post-TTT BPB improves with training duration (1.060 at 10 min → 1.035 at 6h; note: 10-min is 3-seed mean, 6h is seed-42 only)
-2. Artifact size is constant (±15 KB) — compression is at entropy floor
+2. Artifact size is effectively constant (within ~27 KB, 0.17%) — compression is at entropy floor
 3. The PR #1979 control TTT parameters (rank 96, alpha 144, lr 1e-4) were best
    among tested variants — no improvement found from higher rank, LR, or batch size
 4. At rank 128/alpha 192, raising LR from 1e-4 to 3e-4 worsened BPB by ~0.052
 5. Batch-128 variants failed (likely memory-related; peak was 47.8 GB at batch 64)
+6. Matched 240min, 300min, and 360min checkpoint controls all show GPTQ tax; at 6h
+   the tax is +0.00932885 BPB and TTT recovers ~86% of it, ending +0.00130648
+   above the matched pre-quant EMA
 
 ## TTT/LoRA Hyperparameter Sweep
 
@@ -113,13 +114,21 @@ continuation segment. val_bpb plateaued at ~1.060 from step 44000 onwards.
 | Eval Stage | val_bpb | Notes |
 |------------|---------|-------|
 | Training val (step ~48000) | 1.0599 | Live model, non-quantized |
+| Pre-quant EMA follow-up | **1.03340201** | Matched 360min EMA eval from resumed continuation |
 | Quantized (sliding window, no TTT) | **1.04273** | INT6 GPTQ artifact only |
 | Post-TTT (phased, 3 phases, rank 96) | **1.03471** | On quantized artifact |
 | TTT gain (quantized → post-TTT) | **0.00802** | True isolated TTT contribution |
 
-Note: GPTQ quantization improved BPB by 0.017 vs training_val (1.0599 → 1.0427),
-suggesting the live model slightly overfits the training distribution and quantization
-acts as a regularizer. The true TTT contribution is 0.008 BPB.
+The matched 360min comparator now resolves the main question directly:
+pre-quant EMA **1.03340201** -> quantized **1.04273086** (+0.00932885 tax) ->
+post-TTT **1.03470849** (recovering 0.00802237 of that tax, leaving +0.00130648
+vs pre-quant EMA). The matched 1h and 4h EMA→quantized comparisons in this repo
+already showed similar tax levels (+0.00975 at 1h, +0.00940 at 4h). The 240min
+TTT-only control likewise lands at 1.03539272 from the 240min quantized artifact
+(1.04485881), essentially matching the 240min pre-quant EMA measurement of
+1.03545673. A matched 300min decomposition gives live 1.08215117 -> EMA 1.04945326
+-> quantized 1.05603004 -> post-TTT 1.04210727, i.e. EMA provides the large gain,
+GPTQ adds +0.00657678 BPB tax, and TTT more than recovers that tax on that checkpoint.
 
 ## Experiment Design
 
@@ -189,7 +198,8 @@ The existing TTT parameters (from PR #1979 / PR #461 / PR #1767) were best among
 | 4h scaling | 4×H100 NVL | ~300 min | ~$60 |
 | 6h continuation | 4×H100 NVL | ~65 min | ~$13 |
 | TTT sweep | 4×H100 NVL | ~60 min | ~$12 |
-| **Total** | | | **~$121** |
+| Follow-up controls (240 TTT-only, 300 decompose, 360 pre-quant) | 4×H100 NVL | ~205 min | ~$41 |
+| **Total** | | | **~$160** |
 
 ## Files
 
@@ -200,6 +210,8 @@ The existing TTT parameters (from PR #1979 / PR #461 / PR #1767) were best among
 | `pgolf_stdout.txt` | Combined stdout (1h run) |
 | `submission.json` | Experiment metadata |
 | `results/checkpoint_*.json` | Per-milestone artifact size and step data |
+| `results/followups/*.json` | Matched 240/300/360 comparator follow-up summaries |
+| `results/followups/followup_controls_summary.csv` | Aggregated follow-up control table |
 | `results/ttt_sweep/ttt_sweep_results.csv` | TTT sweep results (all 7 variants) |
 | `results/ttt_sweep/ttt_sweep_summary.json` | Sweep summary with best variant |
 | `results/ttt_sweep/ttt_sweep_manifest.json` | Sweep configuration manifest |

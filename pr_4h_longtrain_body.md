@@ -6,11 +6,12 @@
 
 **Key findings:**
 1. Post-TTT BPB improves from 1.060 (10 min, 3-seed mean) to **1.03471** (6h single-seed, post-TTT)
-2. GPTQ quantization improves BPB: 1.0599 (training val) → **1.04273** (quantized) — a 0.017 gain suggesting quantization acts as regularization
-3. True TTT contribution is **0.00802 BPB** (quantized → post-TTT)
-4. Artifact size is effectively constant (±27 KB) across all durations
-5. PR #1979 control TTT parameters (rank 96, alpha 144, lr 1e-4) were **best among tested variants**
-6. At rank 128/alpha 192, raising LR from 1e-4 to 3e-4 worsened BPB by ~0.052
+2. A matched 360min comparator gives **pre-quant EMA 1.03340201 -> quantized 1.04273086 -> post-TTT 1.03470849**, so GPTQ adds **+0.00932885 BPB** at 6h and TTT recovers **0.00802237 BPB** of that tax
+3. The final 6h post-TTT result remains only **+0.00130648 BPB** above the matched 6h pre-quant EMA, i.e. TTT recovers about **86%** of the 6h quantization tax
+4. Additional matched 240min and 300min controls show the same causal structure: EMA helps, GPTQ adds a modest tax, and TTT often recovers most or all of it
+5. Artifact size is effectively constant (±27 KB) across all durations
+6. PR #1979 control TTT parameters (rank 96, alpha 144, lr 1e-4) were **best among tested variants**
+7. At rank 128/alpha 192, raising LR from 1e-4 to 3e-4 worsened BPB by ~0.052
 
 ### Training Scaling Results
 
@@ -45,9 +46,9 @@ v3–v6 failed with exit code 1 (no explicit OOM traceback available, but batch 
 
 ## ML Changes from Reference
 
-**Training:** No ML changes from PR #1950/1934. Identical architecture, hyperparameters, loss function, optimizer, and schedule. Only infrastructure additions (resumable checkpoints, periodic artifact export, wallclock extension).
+**Training:** No training-side ML change from PR #1950/1934. The resumed 6h run keeps the same architecture, optimizer, loss, tokenizer/data setup, and schedule semantics; the code additions are infrastructural (resume checkpoints, periodic exports, schedule-horizon continuation).
 
-**TTT/LoRA parameters (eval-only, RAM-only):** The TTT parameters used are identical to those established in PR #1979 (which inherited from PR #461 score-first framework + PR #1767 improvements + PR #1855 rank exploration). These parameters are applied only at eval time and do not affect the 16 MB artifact. The sweep tested variations but found the control best.
+**Eval-only adaptation changes:** Relative to the PR #1979 control, this submission also runs a RAM-only TTT/LoRA sweep over adaptation hyperparameters including LoRA rank/alpha, LoRA LR, local batch/chunk size, global TTT epochs/chunk tokens/batch seqs/warmup, and phased prefix/phase count. These changes affect only evaluation, never the serialized 16 MB artifact. The best result still came from the original PR #1979 control.
 
 ## Background & Related PRs
 
@@ -65,16 +66,28 @@ v3–v6 failed with exit code 1 (no explicit OOM traceback available, but batch 
 3. **H3: Higher LoRA rank improves TTT** ❌ Not supported (+0.004 BPB with rank 128 vs 96)
 4. **H4: Higher LR improves TTT at rank 128** ❌ Rejected (v1→v2: +0.052 BPB regression at 3e-4)
 5. **H5: Larger batch/chunk improves TTT** ❌ Untestable (all batch-128 variants failed)
-6. **H6: GPTQ quantization degrades BPB** ❌ Rejected — GPTQ *improves* BPB by 0.017 (1.0599 → 1.0427), suggesting quantization regularizes the model
+6. **H6: GPTQ quantization degrades BPB** ✅ Confirmed at matched 240min / 300min / 360min checkpoints (+0.00940208 / +0.00657678 / +0.00932885 BPB EMA->quantized)
 
 ## Decomposition of BPB Improvement Pipeline
 
 | Stage | BPB | Δ from previous |
 |-------|-----|-----------------|
-| Training val (live model) | 1.0599 | — |
-| INT6 GPTQ quantization | 1.04273 | −0.01717 (quantization gain) |
-| Score-first TTT (rank 96) | 1.03471 | −0.00802 (TTT gain) |
-| **Total pipeline gain** | | **−0.02519** |
+| Training val (live model, non-EMA, earlier step) | 1.0599 | — |
+| Matched 6h pre-quant EMA | 1.03340201 | not a like-for-like delta vs prior row |
+| Quantized 6h artifact (post-EMA serialize, sliding eval) | 1.04273086 | +0.00932885 vs matched pre-quant EMA |
+| Score-first TTT (rank 96) | 1.03470849 | −0.00802237 from quantized, +0.00130648 vs matched pre-quant EMA |
+
+Matched 240min control: pre-quant EMA **1.03545673** -> quantized **1.04485881**
+(+0.00940208 tax) -> post-TTT **1.03539272** (−0.00946609 from quantized, within
+0.00006401 of pre-quant EMA).
+
+Matched 300min decomposition on the same checkpoint: live **1.08215117** -> EMA
+**1.04945326** (−0.03269791) -> quantized **1.05603004** (+0.00657678 tax) ->
+post-TTT **1.04210727** (−0.01392277 from quantized, −0.00734599 vs EMA).
+
+Matched 360min follow-up: pre-quant EMA **1.03340201** -> quantized
+**1.04273086** (+0.00932885 tax) -> post-TTT **1.03470849**
+(−0.00802237 from quantized, +0.00130648 vs pre-quant EMA).
 
 ## Infrastructure Additions
 
@@ -94,7 +107,8 @@ v3–v6 failed with exit code 1 (no explicit OOM traceback available, but batch 
 
 ## Hardware & Cost
 
-- Phase 1 (1h): 8×H100 NVL ($7.48/hr) — 60 min
+- Phase 1 (1h): 8×H100 SXM ($7.48/hr) — 60 min
 - Phase 2 (4h): 4×H100 NVL ($5.98/hr × 2 pods) — ~4h + 6h resumed
 - TTT Sweep: 4×H100 NVL ($11.96/hr) — 90 min
-- Total estimated cost: ~$85
+- Follow-up controls (240min TTT-only, 300min decomposition, 360min pre-quant): 4×H100 NVL — ~3.5h
+- Total estimated cost: ~$160

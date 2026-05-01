@@ -148,6 +148,7 @@ class TestBuildSeedCmdResume(unittest.TestCase):
             resume_from=None, iterations=None,
             run_ttt_sweep_after_train=False,
             ttt_sweep_variants=None, ttt_max_minutes_per_variant=20,
+            prequant_only=False, resume_decompose_only=False,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
@@ -180,6 +181,54 @@ class TestBuildSeedCmdResume(unittest.TestCase):
         args = self._make_args()
         cmd = launcher.build_seed_cmd(args)
         self.assertNotIn("ITERATIONS=", cmd)
+
+    def test_prequant_only(self):
+        args = self._make_args(prequant_only=True)
+        cmd = launcher.build_seed_cmd(args)
+        self.assertIn("PREQUANT_ONLY=1", cmd)
+        self.assertIn(
+            "PREQUANT_EVAL_OUTPUT_JSON=/root/rehearsal_out/seed42/prequant_eval_summary.json",
+            cmd,
+        )
+        self.assertIn(
+            "cp /root/rehearsal_out/seed42/prequant_eval_summary.json "
+            "/root/rehearsal_out/prequant_eval_summary.json",
+            cmd,
+        )
+
+    def test_resume_decompose_only(self):
+        args = self._make_args(resume_decompose_only=True)
+        cmd = launcher.build_seed_cmd(args)
+        self.assertIn("RESUME_DECOMPOSE_ONLY=1", cmd)
+        self.assertIn(
+            "RESUME_DECOMPOSE_OUTPUT_JSON=/root/rehearsal_out/seed42/resume_stage_decomposition.json",
+            cmd,
+        )
+        self.assertIn(
+            "RESUME_DECOMPOSE_BATCH_JSONL=/root/rehearsal_out/seed42/resume_stage_batch_deltas.jsonl",
+            cmd,
+        )
+        self.assertIn(
+            "cp /root/rehearsal_out/seed42/resume_stage_decomposition.json "
+            "/root/rehearsal_out/resume_stage_decomposition.json",
+            cmd,
+        )
+        self.assertIn(
+            "cp /root/rehearsal_out/seed42/resume_stage_batch_deltas.jsonl "
+            "/root/rehearsal_out/resume_stage_batch_deltas.jsonl",
+            cmd,
+        )
+        self.assertIn(
+            "cp /root/rehearsal_out/seed42/ttt_eval_summary.json "
+            "/root/rehearsal_out/ttt_eval_summary.json",
+            cmd,
+        )
+
+    def test_resume_decompose_only_uses_eval_download_script(self):
+        args = self._make_args(resume_decompose_only=True)
+        cmd = launcher.build_seed_cmd(args)
+        self.assertIn("CaseOps eval data ready", cmd)
+        self.assertNotIn("Expected >=39 train shards", cmd)
 
 
 class TestBuildSeedCmdTTTSweep(unittest.TestCase):
@@ -222,6 +271,36 @@ class TestBuildSeedCmdTTTSweep(unittest.TestCase):
         self.assertIn("ttt_sweep_summary.json", cmd)
 
 
+class TestBuildSweepOnlyCmd(unittest.TestCase):
+    def test_uses_eval_download_script(self):
+        args = argparse.Namespace(
+            ttt_max_minutes_per_variant=20,
+            ttt_sweep_variants=None,
+        )
+        cmd = launcher.build_sweep_only_cmd(args)
+        self.assertIn("CaseOps eval data ready", cmd)
+        self.assertNotIn("Expected >=39 train shards", cmd)
+
+
+class TestBuildDownloadCaseOpsScript(unittest.TestCase):
+    def test_full_mode_downloads_train_and_val(self):
+        script = launcher.build_download_caseops_script("full")
+        self.assertIn(
+            "datasets/datasets/{}/".format(launcher.CASEOPS_DATASET_DIR),
+            script,
+        )
+        self.assertIn("Expected >=39 train shards", script)
+
+    def test_eval_mode_downloads_val_only(self):
+        script = launcher.build_download_caseops_script("eval")
+        self.assertIn(
+            "datasets/datasets/{}/fineweb_val_*".format(launcher.CASEOPS_DATASET_DIR),
+            script,
+        )
+        self.assertIn("CaseOps eval data ready", script)
+        self.assertNotIn("Expected >=39 train shards", script)
+
+
 class TestBuildDownloadList(unittest.TestCase):
     def test_no_sweep(self):
         files = launcher.build_download_list(42, "10,20")
@@ -241,6 +320,44 @@ class TestBuildDownloadList(unittest.TestCase):
         self.assertIn("scaling_results.csv", files)
         self.assertIn("checkpoint_10min.json", files)
         self.assertIn("final_model.int6.10min.ptz", files)
+
+    def test_prequant_only_downloads_summary_and_skips_final_artifact(self):
+        files = launcher.build_download_list(42, "360", prequant_only=True)
+        self.assertIn("prequant_eval_summary.json", files)
+        self.assertNotIn("final_model.int6.ptz", files)
+        self.assertNotIn("scaling_results.csv", files)
+
+    def test_resume_decompose_only_downloads_stage_outputs(self):
+        files = launcher.build_download_list(42, "360", resume_decompose_only=True)
+        self.assertIn("resume_stage_decomposition.json", files)
+        self.assertIn("resume_stage_batch_deltas.jsonl", files)
+        self.assertIn("ttt_eval_summary.json", files)
+        self.assertIn("final_model.int6.ptz", files)
+        self.assertNotIn("checkpoint_360min.json", files)
+
+
+class TestBuildSweepDownloadList(unittest.TestCase):
+    def test_default_excludes_optional_variant(self):
+        files = launcher.build_sweep_download_list()
+        self.assertNotIn(
+            "ttt_sweep/v6_prefix3000_phase4_optional/variant_result.json", files
+        )
+
+    def test_requested_variant_limits_downloads(self):
+        files = launcher.build_sweep_download_list("v0_control_pr1979")
+        self.assertIn("ttt_sweep/v0_control_pr1979/variant_result.json", files)
+        self.assertNotIn(
+            "ttt_sweep/v1_rank128_alpha192/variant_result.json", files
+        )
+        self.assertNotIn(
+            "ttt_sweep/v_sliding_window_control/sliding_eval_summary.json", files
+        )
+
+    def test_sliding_variant_downloads_summary(self):
+        files = launcher.build_sweep_download_list("v_sliding_window_control")
+        self.assertIn(
+            "ttt_sweep/v_sliding_window_control/sliding_eval_summary.json", files
+        )
 
 
 class TestDefaultConstants(unittest.TestCase):
@@ -522,6 +639,7 @@ class TestContinuationSSHUploadWiring(unittest.TestCase):
             resume_from=str(SNAPSHOT_DIR),
             export_minutes="60,120,180,240,300,360",
             run_ttt_sweep_after_train=False,
+            results_dir=None,
         )
         # Capture sys.argv as set by run_standard (http_main is stubbed)
         captured_argv = []

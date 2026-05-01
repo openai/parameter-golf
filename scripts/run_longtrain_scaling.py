@@ -68,6 +68,15 @@ DEFAULT_4H_ITERATIONS = 100000
 # On-pod directory where resume snapshot files land via SSH upload
 ONPOD_RESUME_SNAPSHOT_DIR = "resume_snapshot"
 ONPOD_RESUME_SNAPSHOT_PATH = "/root/rehearsal_src/" + ONPOD_RESUME_SNAPSHOT_DIR
+DEFAULT_SWEEP_VARIANTS = [
+    "v_sliding_window_control",
+    "v0_control_pr1979",
+    "v1_rank128_alpha192",
+    "v2_rank128_lr3e4",
+    "v3_local_batch_chunk",
+    "v4_global2_largechunk",
+    "v5_prefix3000",
+]
 
 
 def build_resume_ssh_uploads(local_snapshot_dir):
@@ -102,12 +111,43 @@ def parse_export_minutes(s):
     return sorted(int(x.strip()) for x in s.split(","))
 
 
+def parse_variant_ids(s):
+    """Parse comma-separated variant IDs, preserving input order."""
+    if not s:
+        return list(DEFAULT_SWEEP_VARIANTS)
+    return [x.strip() for x in s.split(",") if x.strip()]
+
+
 def _shell_quote(s):
     return "'" + s.replace("'", "'\\''") + "'"
 
 
-def build_download_caseops_script():
+def build_download_caseops_script(download_mode="full"):
     """Python script to download CaseOps data on-pod using snapshot_download."""
+    if download_mode == "eval":
+        allow_patterns = [
+            f"datasets/datasets/{CASEOPS_DATASET_DIR}/fineweb_val_*",
+            f"datasets/tokenizers/{CASEOPS_TOKENIZER}",
+        ]
+        post_checks = f"""
+n_val = len([f for f in os.listdir(data_dir) if f.startswith("fineweb_val_")])
+assert os.path.isfile(tok_path), f"Tokenizer not found: {{tok_path}}"
+assert n_val >= 1, f"Expected >=1 val shard, found {{n_val}}"
+print(f"CaseOps eval data ready: {{n_val}} val shards in {{elapsed:.0f}}s")
+"""
+    else:
+        allow_patterns = [
+            f"datasets/datasets/{CASEOPS_DATASET_DIR}/*",
+            f"datasets/tokenizers/{CASEOPS_TOKENIZER}",
+        ]
+        post_checks = f"""
+n_train = len([f for f in os.listdir(data_dir) if f.startswith("fineweb_train_")])
+n_val = len([f for f in os.listdir(data_dir) if f.startswith("fineweb_val_")])
+assert os.path.isfile(tok_path), f"Tokenizer not found: {{tok_path}}"
+assert n_train >= 39, f"Expected >=39 train shards, found {{n_train}}"
+assert n_val >= 1, f"Expected >=1 val shard, found {{n_val}}"
+print(f"CaseOps data ready: {{n_train}} train + {{n_val}} val shards in {{elapsed:.0f}}s")
+"""
     return f'''
 import os, time
 from huggingface_hub import snapshot_download
@@ -120,21 +160,13 @@ snapshot_download(
     repo_id=REPO,
     repo_type="dataset",
     local_dir=LOCAL_ROOT,
-    allow_patterns=[
-        "datasets/datasets/{CASEOPS_DATASET_DIR}/*",
-        "datasets/tokenizers/{CASEOPS_TOKENIZER}",
-    ],
+    allow_patterns={allow_patterns!r},
     max_workers=8,
 )
 elapsed = time.time() - t0
 data_dir = os.path.join(LOCAL_ROOT, "datasets", "datasets", "{CASEOPS_DATASET_DIR}")
 tok_path = os.path.join(LOCAL_ROOT, "datasets", "tokenizers", "{CASEOPS_TOKENIZER}")
-n_train = len([f for f in os.listdir(data_dir) if f.startswith("fineweb_train_")])
-n_val = len([f for f in os.listdir(data_dir) if f.startswith("fineweb_val_")])
-assert os.path.isfile(tok_path), f"Tokenizer not found: {{tok_path}}"
-assert n_train >= 39, f"Expected >=39 train shards, found {{n_train}}"
-assert n_val >= 1, f"Expected >=1 val shard, found {{n_val}}"
-print(f"CaseOps data ready: {{n_train}} train + {{n_val}} val shards in {{elapsed:.0f}}s")
+{post_checks.strip()}
 print(f"DATA_DIR: {{data_dir}}")
 print(f"TOK: {{tok_path}}")
 '''
@@ -147,7 +179,8 @@ def build_seed_cmd(args):
     max_wallclock = args.max_wallclock
     export_mode = args.export_mode
 
-    download_script = build_download_caseops_script()
+    download_mode = "eval" if getattr(args, "resume_decompose_only", False) else "full"
+    download_script = build_download_caseops_script(download_mode)
     data_path = f"/root/caseops_data/datasets/datasets/{CASEOPS_DATASET_DIR}"
     tok_path = f"/root/caseops_data/datasets/tokenizers/{CASEOPS_TOKENIZER}"
     artifact_dir = f"/root/rehearsal_out/seed{seed}"
@@ -234,6 +267,17 @@ def build_seed_cmd(args):
     # Schedule horizon for continuation runs (Phase 2 patch)
     if getattr(args, "schedule_horizon", None) is not None:
         env += f" SCHEDULE_HORIZON_SECONDS={args.schedule_horizon}"
+    if getattr(args, "prequant_only", False):
+        env += (
+            f" PREQUANT_ONLY=1"
+            f" PREQUANT_EVAL_OUTPUT_JSON={artifact_dir}/prequant_eval_summary.json"
+        )
+    if getattr(args, "resume_decompose_only", False):
+        env += (
+            f" RESUME_DECOMPOSE_ONLY=1"
+            f" RESUME_DECOMPOSE_OUTPUT_JSON={artifact_dir}/resume_stage_decomposition.json"
+            f" RESUME_DECOMPOSE_BATCH_JSONL={artifact_dir}/resume_stage_batch_deltas.jsonl"
+        )
 
     # Compute per-seed timeout from training wallclock + buffer for GPTQ/eval
     # Training itself: max_wallclock seconds
@@ -260,6 +304,26 @@ def build_seed_cmd(args):
         f"cp {artifact_dir}/train_seed{seed}.txt "
         f"/root/rehearsal_out/seed{seed}_log.txt 2>/dev/null || true"
     )
+
+    if getattr(args, "prequant_only", False):
+        parts.append(
+            f"cp {artifact_dir}/prequant_eval_summary.json "
+            f"/root/rehearsal_out/prequant_eval_summary.json 2>/dev/null || true"
+        )
+
+    if getattr(args, "resume_decompose_only", False):
+        parts.append(
+            f"cp {artifact_dir}/resume_stage_decomposition.json "
+            f"/root/rehearsal_out/resume_stage_decomposition.json 2>/dev/null || true"
+        )
+        parts.append(
+            f"cp {artifact_dir}/resume_stage_batch_deltas.jsonl "
+            f"/root/rehearsal_out/resume_stage_batch_deltas.jsonl 2>/dev/null || true"
+        )
+        parts.append(
+            f"cp {artifact_dir}/ttt_eval_summary.json "
+            f"/root/rehearsal_out/ttt_eval_summary.json 2>/dev/null || true"
+        )
 
     # TTT sweep after training (if enabled)
     if getattr(args, "run_ttt_sweep_after_train", False):
@@ -333,7 +397,7 @@ def build_sweep_only_cmd(args):
 
     The artifact is uploaded via HTTP to /root/rehearsal_src/artifact/final_model.int6.ptz.
     """
-    download_script = build_download_caseops_script()
+    download_script = build_download_caseops_script("eval")
     data_path = f"/root/caseops_data/datasets/datasets/{CASEOPS_DATASET_DIR}"
     tok_path = f"/root/caseops_data/datasets/tokenizers/{CASEOPS_TOKENIZER}"
     sweep_output = "/root/rehearsal_out/ttt_sweep"
@@ -397,15 +461,32 @@ def build_sweep_only_cmd(args):
     return " && ".join(parts)
 
 
-def build_download_list(seed, export_minutes_str, include_ttt_sweep=False):
+def build_download_list(
+    seed,
+    export_minutes_str,
+    include_ttt_sweep=False,
+    prequant_only=False,
+    resume_decompose_only=False,
+):
     """Build list of files to download from the pod after completion."""
     files = ["status.txt", "pgolf_exit_code.txt", "pgolf_stdout.txt"]
     files.append(f"seed{seed}_log.txt")
     files.append(f"seed{seed}_exit.txt")
 
+    if resume_decompose_only:
+        files.append("resume_stage_decomposition.json")
+        files.append("resume_stage_batch_deltas.jsonl")
+        files.append("ttt_eval_summary.json")
+        files.append("final_model.int6.ptz")
+        return files
+
     for m in parse_export_minutes(export_minutes_str):
         files.append(f"checkpoint_{m}min.json")
         files.append(f"final_model.int6.{m}min.ptz")
+
+    if prequant_only:
+        files.append("prequant_eval_summary.json")
+        return files
 
     files.append("final_model.int6.ptz")
     files.append("scaling_results.csv")
@@ -430,6 +511,25 @@ def build_monitor_file_list(seed, export_minutes_str):
     for m in parse_export_minutes(export_minutes_str):
         files.append(f"seed{seed}/checkpoint_{m}min.json")
         files.append(f"seed{seed}/ckpt_{m}min/final_model.int6.{m}min.ptz")
+    return files
+
+
+def build_sweep_download_list(variant_spec=None):
+    """Build list of sweep-only files to download from the pod."""
+    variant_ids = parse_variant_ids(variant_spec)
+    files = [
+        "status.txt",
+        "pgolf_exit_code.txt",
+        "pgolf_stdout.txt",
+        "ttt_sweep/ttt_sweep_manifest.json",
+        "ttt_sweep/ttt_sweep_results.csv",
+        "ttt_sweep/ttt_sweep_summary.json",
+    ]
+    for vid in variant_ids:
+        files.append(f"ttt_sweep/{vid}/variant_result.json")
+        files.append(f"ttt_sweep/{vid}/eval.log")
+        if vid == "v_sliding_window_control":
+            files.append(f"ttt_sweep/{vid}/sliding_eval_summary.json")
     return files
 
 
@@ -817,6 +917,15 @@ def build_arg_parser():
         help="Skip training; run TTT sweep only on this local .ptz artifact. "
              "Uploads artifact to pod via HTTP and runs the sweep.",
     )
+    parser.add_argument(
+        "--prequant-only", action="store_true",
+        help="Set PREQUANT_ONLY=1 so the run stops after the pre-quant EMA eval.",
+    )
+    parser.add_argument(
+        "--resume-decompose-only", action="store_true",
+        help="Set RESUME_DECOMPOSE_ONLY=1 to evaluate live/EMA/quantized/post-TTT "
+             "from a resume checkpoint without training.",
+    )
     return parser
 
 
@@ -898,6 +1007,10 @@ def build_dry_run_summary(args):
         lines.append("Iterations: {}".format(args.iterations))
     if getattr(args, "schedule_horizon", None) is not None:
         lines.append("Schedule horizon: {}s".format(args.schedule_horizon))
+    if getattr(args, "prequant_only", False):
+        lines.append("Mode: PREQUANT_ONLY")
+    if getattr(args, "resume_decompose_only", False):
+        lines.append("Mode: RESUME_DECOMPOSE_ONLY")
     lines.append("Resume enabled: {}".format(args.enable_resume))
     if args.resume_from:
         lines.append("Resume from: {}".format(args.resume_from))
@@ -921,23 +1034,7 @@ def main():
             raise SystemExit("ERROR: --sweep-only-artifact not found: {}".format(artifact_path))
 
         cmd = build_sweep_only_cmd(args)
-        # Build comprehensive download list for sweep results
-        variant_ids = [
-            "v_sliding_window_control",
-            "v0_control_pr1979", "v1_rank128_alpha192", "v2_rank128_lr3e4",
-            "v3_local_batch_chunk", "v4_global2_largechunk", "v5_prefix3000",
-            "v6_prefix3000_phase4_optional",
-        ]
-        download_files = [
-            "status.txt", "pgolf_exit_code.txt", "pgolf_stdout.txt",
-            "ttt_sweep/ttt_sweep_manifest.json",
-            "ttt_sweep/ttt_sweep_results.csv",
-            "ttt_sweep/ttt_sweep_summary.json",
-        ]
-        for vid in variant_ids:
-            download_files.append(f"ttt_sweep/{vid}/variant_result.json")
-            download_files.append(f"ttt_sweep/{vid}/eval.log")
-            download_files.append(f"ttt_sweep/{vid}/sliding_eval_summary.json")
+        download_files = build_sweep_download_list(args.ttt_sweep_variants)
 
         if args.dry_run:
             print("=== SWEEP-ONLY MODE ===")
@@ -945,7 +1042,7 @@ def main():
                 artifact_path, os.path.getsize(artifact_path) / 1048576))
             print("GPUs: {}".format(args.num_gpus))
             print("Max minutes: {}".format(args.max_minutes))
-            print("TTT variants: {}".format(args.ttt_sweep_variants or "all + optional"))
+            print("TTT variants: {}".format(args.ttt_sweep_variants or "default non-optional set"))
             print("TTT max min/variant: {}".format(args.ttt_max_minutes_per_variant))
             print("\n=== POD COMMAND ===")
             print(cmd)
@@ -997,6 +1094,8 @@ def main():
     download_files = build_download_list(
         args.seed, args.export_minutes,
         include_ttt_sweep=args.run_ttt_sweep_after_train,
+        prequant_only=args.prequant_only,
+        resume_decompose_only=args.resume_decompose_only,
     )
 
     if args.dry_run:
@@ -1013,7 +1112,7 @@ def main():
             print("Resume keep last: {}".format(args.resume_keep_last))
         print("TTT sweep after train: {}".format(args.run_ttt_sweep_after_train))
         if args.run_ttt_sweep_after_train:
-            print("TTT variants: {}".format(args.ttt_sweep_variants or "all"))
+            print("TTT variants: {}".format(args.ttt_sweep_variants or "default non-optional set"))
             print("TTT max minutes per variant: {}".format(args.ttt_max_minutes_per_variant))
         print("\nFiles to download ({}):".format(len(download_files)))
         for f in download_files:

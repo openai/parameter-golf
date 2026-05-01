@@ -15,10 +15,10 @@ import run_longtrain_ttt_sweep as sweep
 
 
 class TestVariantDefinitions(unittest.TestCase):
-    """Test that all 7 variants are properly defined."""
+    """Test that all sweep variants are properly defined."""
 
     def test_variant_count(self):
-        self.assertEqual(len(sweep.VARIANTS), 7)
+        self.assertEqual(len(sweep.VARIANTS), 8)
 
     def test_all_variants_have_env(self):
         for vid, cfg in sweep.VARIANTS.items():
@@ -132,13 +132,13 @@ class TestSelectVariants(unittest.TestCase):
         selected = sweep.select_variants(None, include_optional=False)
         ids = [vid for vid, _ in selected]
         self.assertNotIn("v6_prefix3000_phase4_optional", ids)
-        self.assertEqual(len(selected), 6)
+        self.assertEqual(len(selected), 7)
 
     def test_include_optional(self):
         selected = sweep.select_variants(None, include_optional=True)
         ids = [vid for vid, _ in selected]
         self.assertIn("v6_prefix3000_phase4_optional", ids)
-        self.assertEqual(len(selected), 7)
+        self.assertEqual(len(selected), 8)
 
     def test_filter_specific(self):
         selected = sweep.select_variants("v0_control_pr1979,v5_prefix3000",
@@ -173,7 +173,7 @@ class TestManifestGeneration(unittest.TestCase):
 
         with open(path) as f:
             manifest = json.load(f)
-        self.assertEqual(len(manifest["variants"]), 7)
+        self.assertEqual(len(manifest["variants"]), 8)
         self.assertEqual(manifest["artifact_path"], "/fake/model.ptz")
         self.assertIn("fixed_env", manifest)
         self.assertIn("generated_at", manifest)
@@ -313,7 +313,7 @@ class TestDryRun(unittest.TestCase):
 
         self.assertIn("DRY RUN", output)
         self.assertIn("v0_control_pr1979", output)
-        self.assertIn("6 variants", output)
+        self.assertIn("7 variants", output)
         self.assertIn("LOAD_QUANTIZED_MODEL_PATH", output)
 
     def test_dry_run_with_optional(self):
@@ -328,7 +328,7 @@ class TestDryRun(unittest.TestCase):
         finally:
             sys.stdout = old_stdout
 
-        self.assertIn("7 variants", output)
+        self.assertIn("8 variants", output)
         self.assertIn("v6_prefix3000_phase4_optional", output)
         self.assertIn("[OPTIONAL]", output)
 
