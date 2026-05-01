@@ -65,11 +65,6 @@ comes from the MP3 vocab surgery.
 
 ## Architecture
 
-11L / 512d / 8 query heads / 4 KV heads (GQA 2:1) / FA3 / partial RoPE 16/64 /
-MLP 4× (2048) with `LeakyReLU(0.5)²`. The standard transformer building
-blocks are baseline; the table below lists the submission-shaping components
-in rough order of contribution (most are inherited from PR #1855).
-
 | # | Component | Setting | Source |
 |---|-----------|---------|--------|
 | 1 | **MP3 marker-pair fusion** | 3 alias donor tokens for `[▁,TITLE]` / `[▁,ALLCAPS]` / `[▁,CAPNEXT]`; warm-init `0.4·E[▁]+0.6·E[marker]`, norm-matched | **this work** |
