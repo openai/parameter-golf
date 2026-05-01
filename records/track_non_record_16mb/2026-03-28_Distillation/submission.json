@@ -1,0 +1,21 @@
+{
+  "name": "Fielding Johnston",
+  "github": "fielding",
+  "val_bpb": 1.1529,
+  "seeds": {
+    "42":   {"baseline_bpb": 1.1401, "distill_bpb": 1.1529, "baseline_bytes": 15695954, "distill_bytes": 15641113},
+    "1337": {"baseline_bpb": 1.1386, "distill_bpb": 1.1403, "baseline_bytes": 16149583, "distill_bytes": 15387900, "baseline_over_limit": true},
+    "2024": {"baseline_bpb": 1.1403, "distill_bpb": 1.1413, "distill_bytes": 16168277, "baseline_bytes": 15632705, "distill_over_limit": true}
+  },
+  "val_bpb_note": "Negative result: distillation never beats baseline across 3 seeds. Seeds 1337 baseline and 2024 distillation are slightly over the 16MB artifact limit due to seed-dependent quantization variance; included as auxiliary evidence, not as compliant runs.",
+  "artifact_bytes": 15641113,
+  "hardware": "8xH100 SXM",
+  "training_time_seconds": 600,
+  "key_techniques": [
+    "knowledge_distillation",
+    "self_distillation",
+    "soft_kl_divergence",
+    "hard_distillation_top1",
+    "negative_result"
+  ]
+}
