@@ -1,0 +1,128 @@
+{
+  "author": "Julian Tang",
+  "github_id": "JulianTang2027",
+  "name": "3-Seed Reproduction + Ablations — Support for PR #2101",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "submission_type": "record_support",
+  "supports_pr": 2101,
+  "val_bpb": 1.05878776,
+  "val_bpb_std_sample": 0.00098,
+  "val_bpb_std_population": 0.00080,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31513512,
+      "val_bpb": 1.05792641,
+      "stop_step": 4855,
+      "train_wallclock_s": 592.042,
+      "prequant_val_bpb": 1.06128455,
+      "quant_val_bpb": 1.06969200,
+      "model_ptz_bytes": 15945200,
+      "artifact_bytes": 15979586,
+      "ttt_eval_time_s": 408.6,
+      "log": "train_seed42.log"
+    },
+    "0": {
+      "val_loss": 2.31658504,
+      "val_bpb": 1.05858896,
+      "stop_step": 4857,
+      "train_wallclock_s": 592.076,
+      "prequant_val_bpb": 1.06208108,
+      "quant_val_bpb": 1.07042006,
+      "model_ptz_bytes": 15942980,
+      "artifact_bytes": 15977366,
+      "ttt_eval_time_s": 405.5,
+      "log": "train_seed0.log"
+    },
+    "1234": {
+      "val_loss": 2.31934009,
+      "val_bpb": 1.05984791,
+      "stop_step": 4856,
+      "train_wallclock_s": 592.141,
+      "prequant_val_bpb": 1.06296914,
+      "quant_val_bpb": 1.07165472,
+      "model_ptz_bytes": 15948957,
+      "artifact_bytes": 15983343,
+      "ttt_eval_time_s": 447.3,
+      "log": "train_seed1234.log"
+    }
+  },
+  "comparison_pr2101_claim": {
+    "claim_3seed_mean_bpb": 1.05845438,
+    "claim_3seed_std_bpb": 0.00058,
+    "delta_seed42_bpb": -0.00104472,
+    "delta_seed0_bpb": 0.00002407,
+    "delta_seed1234_bpb": 0.00202080,
+    "delta_mean_bpb": 0.00033338,
+    "notes": "Reproduction within 0.00033 BPB of claimed mean; per-seed gap roughly symmetric around zero, std ~1.7x author's reported std (typical pod-to-pod variance)."
+  },
+  "comparison_merged_sota_pr1868": {
+    "merged_sota_bpb": 1.06141,
+    "delta_seed42_bpb": -0.00348359,
+    "delta_seed0_bpb": -0.00282104,
+    "delta_seed1234_bpb": -0.00156209,
+    "delta_mean_bpb": -0.00262224,
+    "delta_mean_nats_via_loss": -0.00181760,
+    "all_seeds_beat_merged_sota": true,
+    "clears_005nat_strict_threshold": false,
+    "notes": "Mean improvement is 0.00181 nats — below 0.005-nat strict threshold but every seed individually beats merged SOTA by 0.00156-0.00349 BPB."
+  },
+  "ablations_seed42": {
+    "baseline_bpb": 1.05792641,
+    "ablation_results": {
+      "label_smooth_0.05": {
+        "val_loss": 2.31530893,
+        "val_bpb": 1.05800583,
+        "delta_vs_baseline_bpb": 0.00007942,
+        "verdict": "null (within noise)",
+        "log": "ablation_label_smooth_005_seed42.log"
+      },
+      "grad_centralize_1": {
+        "val_loss": 2.31521576,
+        "val_bpb": 1.05796326,
+        "delta_vs_baseline_bpb": 0.00003685,
+        "verdict": "null (within noise)",
+        "log": "ablation_grad_centralize_seed42.log"
+      },
+      "ttt_local_lr_mult_0.85": {
+        "val_loss": 2.31641428,
+        "val_bpb": 1.05851093,
+        "delta_vs_baseline_bpb": 0.00058452,
+        "verdict": "worse (overshoots optimum)",
+        "log": "ablation_ttt_local_lr_085_seed42.log"
+      }
+    },
+    "notes": "Both author-introduced knobs (LABEL_SMOOTH, GRAD_CENTRALIZE) are nulls — useful negative result. TTT_LOCAL_LR_MULT=0.85 is worse than 0.75; suggests the optimum on this stack is in [0.75, 0.80]."
+  },
+  "compliance": {
+    "artifact_bytes_max": 15983343,
+    "artifact_bytes_min_slack_to_16M": 16657,
+    "train_wallclock_max_s": 592.141,
+    "ttt_eval_max_s": 447.3,
+    "gptq_reserve_seconds": 8.0,
+    "all_phased_ttt_batches_drained": true
+  },
+  "hardware": "8x NVIDIA H100 80GB HBM3 SXM (RunPod)",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "train_gpt_py_md5": "5606a60541ef66315ac6991e8cc16de8",
+  "code_changes_vs_pr2101": "none (train_gpt.py byte-identical to PR #2101)",
+  "technique_summary": "PR #1855 base + AWQ-lite (PR #1918) + AsymLogit (PR #2060) + GradCentral/LabelSmooth code features (disabled in 3-seed runs per PR #2101). No new ML.",
+  "attribution": {
+    "supports_pr": "#2101 by @OnlyJundong",
+    "reproduction": "@JulianTang2027 (independent 3-seed run + 3 ablations)",
+    "technique_prs": [
+      "#1787 @nprime06 (base architecture)",
+      "#1797 @dexhunter (SmearGate + LQER)",
+      "#1851 @aquariouseworkman (SmearGate BOS fix)",
+      "#1855 @codemath3000 (9-hparam stack)",
+      "#1918 @aquariouseworkman (AWQ-lite, technique)",
+      "#2060 @S0urC10ud (AsymLogit, technique)",
+      "#2101 @OnlyJundong (integration + GradCentral + LabelSmooth)",
+      "#1729 @romeerp (CaseOps)",
+      "#1394 @clarkkev (GPTQ + SP8192)",
+      "#549 @abaybektursun (score-first TTT)"
+    ]
+  }
+}
