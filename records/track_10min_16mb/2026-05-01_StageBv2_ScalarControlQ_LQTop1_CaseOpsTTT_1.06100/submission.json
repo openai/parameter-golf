@@ -1,0 +1,76 @@
+{
+  "author": "Kbediako",
+  "github_id": "Kbediako",
+  "name": "StageB v2 Scalar-Control Quant + LQER Top-1 + CaseOps Phased TTT",
+  "blurb": "Under-cap accepted-family StageB v2 stack with scalar/control quantization, LQER top-1 asymmetric recovery, BOS-safe SmearGate/SparseAttnGate lineage, Brotli-only self-contained compression, and phased score-first LoRA TTT. Seed 42 reached 1.06099764 BPB; forced seed confirmation gave a 3-seed mean of 1.06149165, so this should be framed only as a single-run score with disclosed multi-seed variance and timing caveats.",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "val_loss": 2.32185611,
+  "val_bpb": 1.06099764,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.32185611,
+      "val_bpb": 1.06099764,
+      "prequant_val_bpb": 1.06467457,
+      "quantized_val_bpb": 1.07393374,
+      "artifact_bytes": 15995233,
+      "train_wallclock_s": 591.924,
+      "ttt_eval_time_s": 524.630,
+      "ttt_process_real_s": 713.87
+    }
+  },
+  "confirmation_results": {
+    "three_seed_mean_bpb_rank80_p2500": 1.06149165,
+    "three_seed_mean_bpb_best_seed999_rescue": 1.06147953,
+    "seeds": {
+      "314": {
+        "val_bpb": 1.06100570,
+        "artifact_bytes": 15995151,
+        "ttt_eval_time_s": 517.960,
+        "ttt_process_real_s": 708.90
+      },
+      "999": {
+        "val_bpb": 1.06247161,
+        "artifact_bytes": 15986471,
+        "ttt_eval_time_s": 454.766,
+        "ttt_process_real_s": 581.81
+      },
+      "999_rank128_p2000_rescue": {
+        "val_bpb": 1.06243525,
+        "ttt_eval_time_s": 554.796,
+        "ttt_process_real_s": 734.67
+      }
+    }
+  },
+  "artifact_bytes": 15995233,
+  "bytes_total": 15995233,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "technique_summary": "StageB accepted-family CaseOps stack with scalar/control quantization, GATED_ATTN_QUANT_GATE, LQER_TOP_K=1, embed clip 15.0, warmdown 0.82, QK gain 5.125, SparseAttnGate scale 0.75, and phased score-first LoRA TTT rank80/prefix2500.",
+  "compliance": {
+    "train_loop_under_600s": true,
+    "artifact_production_wallclock_under_600s": false,
+    "train_under_600s_if_artifact_production_counts": false,
+    "artifact_under_16mb": true,
+    "eval_timer_under_600s": true,
+    "eval_process_real_under_600s": false,
+    "no_casefold_path": true,
+    "no_byte_ppm": true,
+    "no_ngram_cache": true,
+    "no_external_binary_dependency": true,
+    "score_first_ttt": true,
+    "three_seed_top2_mean": false
+  },
+  "known_risks": [
+    "Seed42 and seed314 shell process real time exceeds 600s despite script-reported TTT eval timers under 600s.",
+    "3-seed mean does not clear accepted top2 target due to seed999 variance.",
+    "Final PR must disclose accepted lineage and Python dependency requirements."
+  ],
+  "attribution": {
+    "accepted_stageb_caseops_ttt_lineage": "Accepted PR #1855 and its credited predecessor PRs",
+    "scalar_control_quantization_and_under_cap_tuning": "This work",
+    "pufferlib": "Inspected for research workflow ideas only; no code copied"
+  }
+}

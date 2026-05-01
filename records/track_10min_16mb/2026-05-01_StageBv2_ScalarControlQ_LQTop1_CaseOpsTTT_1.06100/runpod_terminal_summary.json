@@ -1,0 +1,79 @@
+{
+  "run_id": "runpod_8xh100_stageb_v2_forced_seed_confirm_20260501",
+  "flywheel_node_id": "1450c4a2-7893-4a09-ab33-c5b4bee7e380",
+  "flywheel_execution_id": "02221723-3999-4255-8d08-9ced71d8d206",
+  "pod_id": "3v1j7hvmx1k618",
+  "status": "completed_pod_deleted_top2_3seed_miss",
+  "best_single_seed": {
+    "seed": 42,
+    "val_bpb": 1.06099764,
+    "artifact_bytes": 15995233,
+    "eval_time_ms": 524630,
+    "process_real_wall_s": 713.87,
+    "evidence_path": "runs/stageb_v2_undercap_20260501/remote_pull/scalar_lqtop1_embed150_wd082_qkg5125"
+  },
+  "forced_seed_results": [
+    {
+      "seed": 314,
+      "val_bpb": 1.06100570,
+      "prequant_val_bpb": 1.06457879,
+      "quantized_val_bpb": 1.07419498,
+      "artifact_bytes": 15995151,
+      "eval_time_ms": 517960,
+      "process_real_wall_s": 708.90,
+      "artifact_sha256": "4c2f05eaf7948ca57b58cc611f450e1a27c2aca9b1af21d4214dd471241da64a",
+      "evidence_path": "runs/stageb_v2_seed_forced_20260501/remote_pull/seed314"
+    },
+    {
+      "seed": 999,
+      "val_bpb": 1.06247161,
+      "prequant_val_bpb": 1.06634471,
+      "quantized_val_bpb": 1.07587634,
+      "artifact_bytes": 15986471,
+      "eval_time_ms": 454766,
+      "process_real_wall_s": 581.81,
+      "artifact_sha256": "4cdb3e7f7ed641d1311e49807785a52e67cd72ebc7e024412be3892e0d36d53d",
+      "evidence_path": "runs/stageb_v2_seed_forced_20260501/remote_pull/seed999"
+    }
+  ],
+  "seed999_rescue_results": [
+    {
+      "variant": "rank96_p2000_beta999_wd1_v2",
+      "val_bpb": 1.06244678,
+      "eval_time_ms": 527605,
+      "process_real_wall_s": 711.25,
+      "evidence_path": "runs/stageb_v2_seed_forced_20260501/remote_pull/seed999_ttt_rescue"
+    },
+    {
+      "variant": "rank128_p2000_beta999_wd1",
+      "val_bpb": 1.06243525,
+      "eval_time_ms": 554796,
+      "process_real_wall_s": 734.67,
+      "evidence_path": "runs/stageb_v2_seed_forced_20260501/remote_pull/seed999_ttt_rescue"
+    }
+  ],
+  "three_seed_means": {
+    "rank80_p2500": 1.06149165,
+    "rank96_p2000_beta999_wd1_v2": 1.0614833733333333,
+    "rank128_p2000_beta999_wd1": 1.06147953
+  },
+  "accepted_board_context": {
+    "accepted_pr_1855_bpb": 1.06108,
+    "accepted_top2_threshold_bpb": 1.06141,
+    "single_seed_position_if_accepted": "beats accepted #1",
+    "three_seed_mean_position_if_required": "misses accepted #2 by about 0.00007 BPB"
+  },
+  "legality_family": "accepted-precedent clean neural CaseOps plus phased score-first TTT; no casefold, no byte PPM, NGRAM_MIX_ALPHA=0",
+  "known_risks": [
+    "Process wall for the best seed42 and seed314 TTT passes exceeds 600s, while reported eval timers are under 600s.",
+    "The 3-seed mean misses the accepted top2 target, driven by seed999 variance.",
+    "Final PR still needs a concise lineage/similarity disclosure and dependency disclosure for brotli/python-minifier/FA3."
+  ],
+  "runpod": {
+    "balance_before_usd": 298.6121817053,
+    "balance_after_delete_usd": 256.3201836019,
+    "estimated_cost_usd": 42.292,
+    "current_spend_after_usd_per_hr": 0.033,
+    "pod_list_after_delete": []
+  }
+}
