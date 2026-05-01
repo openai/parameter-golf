@@ -21,17 +21,17 @@ My focus ended up not being on Test-Time Training (TTT) or any significant imple
 - Some commits may show attempts implementation-specific optimizations (e.g. my attempt at fp8 training), but these usually either failed or led to training instability during experimentation.
 
 ## ZerO initalization
-I was intersted in this paper: https://arxiv.org/pdf/2110.12661
-- Zhao et. al. describes how performance of deep networks can be both better and more reproducable through a more deterministic initialization method involving Hadaramard/Identity-like matrices
+I was interested in this paper: https://arxiv.org/pdf/2110.12661
+- Zhao et. al. describes how performance of deep networks can be both better and more reproducable through a more deterministic initialization method involving Hadamard/Identity-like matrices
 
-The actual usage of this initialization does involve some level of non-determinism, but it's less pronounced than fully random initalization.
+The actual usage of this initialization does involve some level of non-determinism (and likely somewhat deviates from the original algorithm), but it's less pronounced than fully random initalization.
 
 ## Progression of Various Model Hyperparameters
-Throughout each layer, I utilized a progression of KV head count, rope proportion, and MLP multiple, all of which increase as the layer's depth w.r.t. the model increases. The rationale is as follows:
+Throughout each layer, I utilized a progression of KV head count, rope proportion, and MLP expansion factor, all of which increase as the layer's depth within the model increases. The rationale is as follows:
 1. Earlier layers most likely focus on nearby context and shouldn't worry about long-range dependencies.
 2. As tokens go further into the model, more information is going to be needed.
 
-Whether these should all be scaled linearly, geometrically, or something else is a question for another day.
+Whether these should all be scaled linearly, geometrically, inversely, or something else is a question for another day.
 
 ## So, could it work?
 Well, maybe if there was more time (to experiment + training time) and a better implementation.
