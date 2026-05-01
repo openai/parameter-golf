@@ -159,7 +159,7 @@ Repeat with `SEED=1337` and `SEED=2025` for 3-seed verification.
 - **@Ashray14** — CS 7643 team member
 - **@ialeksic3** — CS 7643 team member
 
-Total compute cost: ~$1,165 ($640 out-of-pocket + $525 OpenAI development grant) across 130+ experiments on RunPod.
+Total personal compute cost: ~$1,165 ($640 out-of-pocket + $525 OpenAI development grant) across 130+ experiments on RunPod.
 
 In memory of Moomoo, my cat.
 
