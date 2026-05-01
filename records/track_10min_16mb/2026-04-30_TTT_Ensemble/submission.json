@@ -1,0 +1,33 @@
+{
+  "author": "varunneal",
+  "github_id": "varunneal",
+  "name": "Peer-LoRA Ensemble",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "val_bpb": null,
+  "val_bpb_std": null,
+  "seeds": [42, 314, 1337],
+  "seed_results": {
+    "42": {"val_bpb": 1.05749, "artifact_bytes": 15986824}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.10.0+cu130",
+  "technique_summary": "PR #2014 stack with peer-LoRA ensemble: after per-doc LoRA training, run K-1 peer forwards and blend on uncertain tokens (entropy >= 0.5) in probability space (K=3, w=0.8). Tuned TTT LR=0.00015, WD=0.25.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "pr2014_stack": "@simonbissonnette (PR #2014)",
+    "per_doc_lora_TTT": "@samacqua (PR #1530)",
+    "mixture_of_models_ensembling": "inspired by Slowrun techniques from @akshayvegesna and others",
+    "peer_lora_ensemble": "@varunneal"
+  }
+}
