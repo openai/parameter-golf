@@ -1,16 +1,22 @@
-# UT7 Delta-Residual + RLMA-rank320 (no TTT)
+# UT7 Delta-Residual + RLMA-rank320 — Documented Failed Direction
 
-**TL;DR.** Universal Transformer style 7-pass stack (input block + 6 shared iterations + output block) with a scaled residual delta update on the shared block, plus rank-320 Random Linear Map Adapters with int8 GPTQ over a deterministic blake2b-keyed random base. Two 1×H100 production seeds: **`val_bpb` mean = 1.29740352`** (std 0.00052132). Max artifact **15,842,747 bytes** under the 16,000,000-byte decimal cap. Submitted to `track_non_record_16mb` as unlimited-compute research — **not** a 10-minute leaderboard claim.
+**TL;DR — this direction did not pan out.** A four-stop attempt at Universal Transformer + RLMA (UT6+TTT3 → UT6+TTT clean → UT6+RLMA256 noTTT → UT7 delta-residual) landed at `val_bpb = 1.29740` on two 1×H100 seeds. The current 10-min SOTA is around `1.06141`. This is **0.236 nat above SOTA** — not a leaderboard contender.
 
-This is the end of a four-stop research arc (UT6+TTT3 → UT6+TTT clean → UT6+RLMA256 noTTT → UT7 delta-residual). The README documents the full journey, including the negative results, so other contributors can spot what to extend or fix.
+Submitted to `track_non_record_16mb` as a **documented failed experiment**. The reusable parts are the negative results, all with numbers and direct ablations:
+
+- TTT (Test-Time Training, in-model) was directly ablated at rank-288 / 600 steps and **made things worse**: no-TTT `1.418` vs TTT `1.448` `val_bpb`, with TTT 2.17× slower per step.
+- Recurrent state contraction `x_next = branch(x)` was the real architectural bottleneck. A 240-step same-config A/B moved `val_bpb` from `1.840` → `1.586` just by switching to a scaled additive delta (`x_next = x + 0.6 * branch(x)`). Even after the fix, the gap to SOTA persists.
+- The 04-26 forensic 3-seed run **never engaged warmdown** — `lr_scale` stayed at `1.000` from step 500 through step 9000 because the iteration cap fired before the wallclock cap. The reported `val_bpb=1.43101` for that earlier run is therefore a no-decay number.
+
+Full chronology, architecture, and the rest of the negative results below in case any of it helps the next person to try Universal Transformers, deterministic random-base adapters, or in-model TTT at this scale.
 
 ---
 
 ## Status
 
-This folder is intentionally submitted to `records/track_non_record_16mb`. The current upstream 10-minute SOTA is around `1.06141` bpb; this submission lives in a different research lane (Universal Transformer + RLMA, no TTT) at `1.29740` bpb. It is offered for the architecture (delta-scaled residual UT, deterministic random-base adapters), the negative-result documentation (TTT directly ablated and rejected), and the cap-hardening discipline (independent seed-314 clip sweep).
+Submitted to `records/track_non_record_16mb` as a **documented failed direction**, not a leaderboard contender. The 10-minute SOTA is around `val_bpb 1.06141`; this submission landed at `1.29740`. It is offered because the journey produced concrete negative results (summarized in the TL;DR, detailed throughout — see `## TTT Ablation`, `## How This Got Here`, `## Negative Results`).
 
-Submitted evidence is two 1×H100 Runpod seed runs plus one cap-hardening rerun. All three logs stay below the hard decimal `16,000,000` byte artifact cap, keep validation disabled during training (`VAL_LOSS_EVERY=0`), and evaluate only after training has completed.
+Submitted evidence is two 1×H100 Runpod seed runs plus one cap-hardening rerun. All three logs stay below the hard decimal `16,000,000` byte artifact cap, keep validation disabled during training (`VAL_LOSS_EVERY=0`), and evaluate only after training has completed. The configuration is reproducible from the env-vars in the next section.
 
 ## Submitted Result
 
