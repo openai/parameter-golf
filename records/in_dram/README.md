@@ -22,6 +22,9 @@ This allows me to
 - Compute FFN layers and attention entirely with 4-bit arithmetic in a way that is compatible with in-DRAM compute.
 - Double the hidden dimension to 1024 and increase the layer to 10 because we can pack many more weights (ternary valued) in the same space.
 
+### Results
+
+I achieve a pre-quant bpb of 1.2268, not too far off from the baseline. This confirms that int4 quantization of attention vectors + ternary quantization of weights + int4 quantization of activations has potential.
 
 ### Future work
 
