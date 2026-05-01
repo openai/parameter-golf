@@ -1,0 +1,480 @@
+[
+  {
+    "id": "best4x_ttt_disabled_qk525",
+    "family": "autoregressive_eval_policy",
+    "hardwareLabel": "8xNVIDIA H100 80GB HBM3",
+    "quantization": "int8-zlib-artifact",
+    "hypothesis": "qk525_ttt_disabled_scales_best_from_1x_to_4x_h100",
+    "hypothesisTags": [
+      "ttt_disabled",
+      "qk_gain",
+      "four_h100",
+      "best_1x_promotion"
+    ],
+    "description": "4xH100 promotion of the best 1xH100 TTT-disabled QK5.25 control.",
+    "hardware": {
+      "capturedAt": "2026-05-01T15:32:33Z",
+      "hostname": "ae414d72726c",
+      "platform": "Linux-6.8.0-100-generic-x86_64-with-glibc2.39",
+      "python": "3.12.3",
+      "cudaVisibleDevices": null,
+      "gpus": [
+        {
+          "index": "0",
+          "name": "NVIDIA H100 80GB HBM3",
+          "uuid": "GPU-1d915847-cf88-904a-7b4e-05e7b50368b7",
+          "memoryTotalMiB": "81559",
+          "driverVersion": "580.126.09",
+          "powerLimitW": "700.00"
+        },
+        {
+          "index": "1",
+          "name": "NVIDIA H100 80GB HBM3",
+          "uuid": "GPU-69e7d7c9-7040-dc89-d2f2-b6831a9ce39a",
+          "memoryTotalMiB": "81559",
+          "driverVersion": "580.126.09",
+          "powerLimitW": "700.00"
+        },
+        {
+          "index": "2",
+          "name": "NVIDIA H100 80GB HBM3",
+          "uuid": "GPU-a9487790-8b12-9f15-1aed-2dfd8d5f475c",
+          "memoryTotalMiB": "81559",
+          "driverVersion": "580.126.09",
+          "powerLimitW": "700.00"
+        },
+        {
+          "index": "3",
+          "name": "NVIDIA H100 80GB HBM3",
+          "uuid": "GPU-2c175e8a-af9c-4455-45a6-29699646bf2c",
+          "memoryTotalMiB": "81559",
+          "driverVersion": "580.126.09",
+          "powerLimitW": "700.00"
+        },
+        {
+          "index": "4",
+          "name": "NVIDIA H100 80GB HBM3",
+          "uuid": "GPU-00035ce2-e937-79e5-8faf-c53162b8b68a",
+          "memoryTotalMiB": "81559",
+          "driverVersion": "580.126.09",
+          "powerLimitW": "700.00"
+        },
+        {
+          "index": "5",
+          "name": "NVIDIA H100 80GB HBM3",
+          "uuid": "GPU-70713836-3351-bd7d-9c14-2c084ff08953",
+          "memoryTotalMiB": "81559",
+          "driverVersion": "580.126.09",
+          "powerLimitW": "700.00"
+        },
+        {
+          "index": "6",
+          "name": "NVIDIA H100 80GB HBM3",
+          "uuid": "GPU-ffac9a65-5f4f-6370-98d7-bdda443fc91d",
+          "memoryTotalMiB": "81559",
+          "driverVersion": "580.126.09",
+          "powerLimitW": "700.00"
+        },
+        {
+          "index": "7",
+          "name": "NVIDIA H100 80GB HBM3",
+          "uuid": "GPU-85951712-daa9-fc97-529d-db92947324e3",
+          "memoryTotalMiB": "81559",
+          "driverVersion": "580.126.09",
+          "powerLimitW": "700.00"
+        }
+      ],
+      "nvidiaSmiAvailable": true,
+      "nvidiaSmiStderr": ""
+    },
+    "status": "completed",
+    "returnCode": 0,
+    "timedOut": false,
+    "terminationReason": "completed",
+    "elapsedSeconds": 702.656,
+    "runDir": "/workspace/parameter-golf/records/pr2069_best_8xh100/20260501T153233Z/runs/01_best4x_ttt_disabled_qk525",
+    "command": [
+      "torchrun",
+      "--standalone",
+      "--nproc_per_node=8",
+      "/workspace/parameter-golf/train_gpt.py"
+    ],
+    "nprocPerNode": 8,
+    "env": {
+      "ARTIFACT_BUDGET_STRICT": "0",
+      "CANDIDATE_IMPL": "autoregressive_gpt",
+      "DATA_PATH": "/workspace/parameter-golf/data/datasets/fineweb10B_sp1024",
+      "MAX_WALLCLOCK_SECONDS": "600",
+      "QK_GAIN_INIT": "5.25",
+      "RUN_ID": "h100_batch_20260501T153233Z_01_best4x_ttt_disabled_qk525",
+      "SKIP_PRE_QUANT_FINAL_EVAL": "1",
+      "SUBMISSION_CODE_PATHS": "/workspace/parameter-golf/train_gpt.py,/workspace/parameter-golf/candidates,/workspace/parameter-golf/fastest/scripts/artifact_budget_analyzer.py",
+      "TOKENIZER_PATH": "/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+      "TRAIN_BATCH_TOKENS": "2097152",
+      "TRAIN_LOG_EVERY": "100",
+      "TTT_ENABLED": "0",
+      "VAL_LOSS_EVERY": "0",
+      "VOCAB_SIZE": "1024"
+    },
+    "selectedTrainBatchTokens": 2097152,
+    "tokensPerSecond": 13016087.388282025,
+    "batchTuneStatus": null,
+    "batchTune": {
+      "enabled": false
+    },
+    "trainingSeries": [
+      {
+        "kind": "train",
+        "step": 1,
+        "loss": 6.9369,
+        "trainTimeMs": 564.0,
+        "stepAvgMs": 563.53
+      },
+      {
+        "kind": "train",
+        "step": 2,
+        "loss": 16.6814,
+        "trainTimeMs": 631.0,
+        "stepAvgMs": 315.35
+      },
+      {
+        "kind": "train",
+        "step": 3,
+        "loss": 9.0949,
+        "trainTimeMs": 777.0,
+        "stepAvgMs": 259.1
+      },
+      {
+        "kind": "train",
+        "step": 4,
+        "loss": 6.5716,
+        "trainTimeMs": 925.0,
+        "stepAvgMs": 231.26
+      },
+      {
+        "kind": "train",
+        "step": 5,
+        "loss": 6.7011,
+        "trainTimeMs": 1073.0,
+        "stepAvgMs": 214.5
+      },
+      {
+        "kind": "train",
+        "step": 6,
+        "loss": 6.5696,
+        "trainTimeMs": 1220.0,
+        "stepAvgMs": 203.28
+      },
+      {
+        "kind": "train",
+        "step": 7,
+        "loss": 6.4346,
+        "trainTimeMs": 1367.0,
+        "stepAvgMs": 195.27
+      },
+      {
+        "kind": "train",
+        "step": 8,
+        "loss": 6.2081,
+        "trainTimeMs": 1518.0,
+        "stepAvgMs": 189.81
+      },
+      {
+        "kind": "train",
+        "step": 9,
+        "loss": 6.1313,
+        "trainTimeMs": 1670.0,
+        "stepAvgMs": 185.59
+      },
+      {
+        "kind": "train",
+        "step": 10,
+        "loss": 6.0393,
+        "trainTimeMs": 1818.0,
+        "stepAvgMs": 181.84
+      },
+      {
+        "kind": "train",
+        "step": 100,
+        "loss": 3.2199,
+        "trainTimeMs": 16305.0,
+        "stepAvgMs": 163.05
+      },
+      {
+        "kind": "train",
+        "step": 200,
+        "loss": 2.7397,
+        "trainTimeMs": 32341.0,
+        "stepAvgMs": 161.71
+      },
+      {
+        "kind": "train",
+        "step": 300,
+        "loss": 2.5549,
+        "trainTimeMs": 48414.0,
+        "stepAvgMs": 161.38
+      },
+      {
+        "kind": "train",
+        "step": 400,
+        "loss": 2.4237,
+        "trainTimeMs": 64507.0,
+        "stepAvgMs": 161.27
+      },
+      {
+        "kind": "train",
+        "step": 500,
+        "loss": 2.3555,
+        "trainTimeMs": 80675.0,
+        "stepAvgMs": 161.35
+      },
+      {
+        "kind": "train",
+        "step": 600,
+        "loss": 2.2969,
+        "trainTimeMs": 96817.0,
+        "stepAvgMs": 161.36
+      },
+      {
+        "kind": "train",
+        "step": 700,
+        "loss": 2.3869,
+        "trainTimeMs": 112863.0,
+        "stepAvgMs": 161.23
+      },
+      {
+        "kind": "train",
+        "step": 800,
+        "loss": 2.3056,
+        "trainTimeMs": 129000.0,
+        "stepAvgMs": 161.25
+      },
+      {
+        "kind": "train",
+        "step": 900,
+        "loss": 2.3323,
+        "trainTimeMs": 145126.0,
+        "stepAvgMs": 161.25
+      },
+      {
+        "kind": "train",
+        "step": 1000,
+        "loss": 2.1503,
+        "trainTimeMs": 161232.0,
+        "stepAvgMs": 161.23
+      },
+      {
+        "kind": "train",
+        "step": 1100,
+        "loss": 2.2499,
+        "trainTimeMs": 177783.0,
+        "stepAvgMs": 161.62
+      },
+      {
+        "kind": "train",
+        "step": 1200,
+        "loss": 2.2197,
+        "trainTimeMs": 193912.0,
+        "stepAvgMs": 161.59
+      },
+      {
+        "kind": "train",
+        "step": 1300,
+        "loss": 2.2843,
+        "trainTimeMs": 209985.0,
+        "stepAvgMs": 161.53
+      },
+      {
+        "kind": "train",
+        "step": 1400,
+        "loss": 2.3222,
+        "trainTimeMs": 226069.0,
+        "stepAvgMs": 161.48
+      },
+      {
+        "kind": "train",
+        "step": 1500,
+        "loss": 2.1343,
+        "trainTimeMs": 242118.0,
+        "stepAvgMs": 161.41
+      },
+      {
+        "kind": "train",
+        "step": 1600,
+        "loss": 2.119,
+        "trainTimeMs": 258131.0,
+        "stepAvgMs": 161.33
+      },
+      {
+        "kind": "train",
+        "step": 1700,
+        "loss": 2.1857,
+        "trainTimeMs": 274215.0,
+        "stepAvgMs": 161.3
+      },
+      {
+        "kind": "train",
+        "step": 1800,
+        "loss": 2.0968,
+        "trainTimeMs": 290300.0,
+        "stepAvgMs": 161.28
+      },
+      {
+        "kind": "train",
+        "step": 1900,
+        "loss": 2.1003,
+        "trainTimeMs": 306356.0,
+        "stepAvgMs": 161.24
+      },
+      {
+        "kind": "train",
+        "step": 2000,
+        "loss": 2.1114,
+        "trainTimeMs": 322406.0,
+        "stepAvgMs": 161.2
+      },
+      {
+        "kind": "train",
+        "step": 2100,
+        "loss": 2.119,
+        "trainTimeMs": 338951.0,
+        "stepAvgMs": 161.41
+      },
+      {
+        "kind": "train",
+        "step": 2200,
+        "loss": 2.2025,
+        "trainTimeMs": 354985.0,
+        "stepAvgMs": 161.36
+      },
+      {
+        "kind": "train",
+        "step": 2300,
+        "loss": 2.109,
+        "trainTimeMs": 371062.0,
+        "stepAvgMs": 161.33
+      },
+      {
+        "kind": "train",
+        "step": 2400,
+        "loss": 2.0836,
+        "trainTimeMs": 387225.0,
+        "stepAvgMs": 161.34
+      },
+      {
+        "kind": "train",
+        "step": 2500,
+        "loss": 2.1699,
+        "trainTimeMs": 403270.0,
+        "stepAvgMs": 161.31
+      },
+      {
+        "kind": "train",
+        "step": 2600,
+        "loss": 2.0281,
+        "trainTimeMs": 419299.0,
+        "stepAvgMs": 161.27
+      },
+      {
+        "kind": "train",
+        "step": 2700,
+        "loss": 2.155,
+        "trainTimeMs": 435359.0,
+        "stepAvgMs": 161.24
+      },
+      {
+        "kind": "train",
+        "step": 2800,
+        "loss": 2.1683,
+        "trainTimeMs": 451408.0,
+        "stepAvgMs": 161.22
+      },
+      {
+        "kind": "train",
+        "step": 2900,
+        "loss": 2.1371,
+        "trainTimeMs": 467439.0,
+        "stepAvgMs": 161.19
+      },
+      {
+        "kind": "train",
+        "step": 3000,
+        "loss": 2.1337,
+        "trainTimeMs": 483504.0,
+        "stepAvgMs": 161.17
+      },
+      {
+        "kind": "train",
+        "step": 3100,
+        "loss": 2.0698,
+        "trainTimeMs": 499641.0,
+        "stepAvgMs": 161.17
+      },
+      {
+        "kind": "train",
+        "step": 3200,
+        "loss": 2.1785,
+        "trainTimeMs": 516122.0,
+        "stepAvgMs": 161.29
+      },
+      {
+        "kind": "train",
+        "step": 3300,
+        "loss": 2.1206,
+        "trainTimeMs": 532184.0,
+        "stepAvgMs": 161.27
+      },
+      {
+        "kind": "train",
+        "step": 3400,
+        "loss": 2.1353,
+        "trainTimeMs": 548229.0,
+        "stepAvgMs": 161.24
+      },
+      {
+        "kind": "train",
+        "step": 3500,
+        "loss": 2.0885,
+        "trainTimeMs": 564062.0,
+        "stepAvgMs": 161.16
+      },
+      {
+        "kind": "train",
+        "step": 3600,
+        "loss": 2.0603,
+        "trainTimeMs": 580112.0,
+        "stepAvgMs": 161.14
+      },
+      {
+        "kind": "train",
+        "step": 3700,
+        "loss": 2.0658,
+        "trainTimeMs": 596145.0,
+        "stepAvgMs": 161.12
+      }
+    ],
+    "trainingCurvePath": "/workspace/parameter-golf/records/pr2069_best_8xh100/20260501T153233Z/runs/01_best4x_ttt_disabled_qk525/training_curve.svg",
+    "rawCheckpointKept": false,
+    "rawCheckpointPath": null,
+    "quantizedArtifactPath": "/workspace/parameter-golf/records/pr2069_best_8xh100/20260501T153233Z/runs/01_best4x_ttt_disabled_qk525/final_model.int8.ptz",
+    "quantizedArtifactBytes": 15738419,
+    "finalValLoss": 2.08500235,
+    "finalValBpb": 1.23485583,
+    "modelParams": 17059912,
+    "completedSteps": 3700,
+    "targetIterations": 20000,
+    "lastTrainLoss": 2.0658,
+    "trainTimeMs": 596145.0,
+    "stepAvgMs": 161.12,
+    "rawSubmissionBytes": 67327456,
+    "int8SubmissionBytes": 15840892,
+    "peakAllocatedMiB": 36440,
+    "peakReservedMiB": 36698,
+    "artifactBudgetState": "within-budget",
+    "artifactBudgetBytes": 13442586,
+    "artifactBudgetLimitBytes": 16000000,
+    "artifactBudgetHeadroomBytes": 2557414,
+    "rank": 1,
+    "_batchDir": "records/pr2069_best_8xh100/20260501T153233Z"
+  }
+]
