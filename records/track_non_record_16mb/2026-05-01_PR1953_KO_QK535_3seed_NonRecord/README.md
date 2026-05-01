@@ -45,6 +45,13 @@ The K+O-only mask looked high-EV from the seed-42 result, but the seed-314 and s
 - Causal scoring: inherited PR #1953-style score-first phased TTT; each token is scored before any local TTT update can use it.
 - BPB accounting: canonical byte-level BPB path from the included `train_gpt.py` snapshot; full validation shards are scored once.
 
+## Packaging Checks
+
+- `train_gpt.py` size is `159,688` bytes and matches the code size reported by all three seed logs.
+- Hyperparameter blocks differ only by `seed`, `run_id`, and `logfile`.
+- No absolute local paths or placeholders are present in the submitted logs or metadata.
+- The CaseOps prep script was smoke-tested from a clean `/tmp` copy on a 10-doc sample; it produced a validation shard with 10 BOS markers.
+
 ## Included Files
 
 - `train_gpt.py` - exact 159,688-byte code snapshot used by all three runs.
