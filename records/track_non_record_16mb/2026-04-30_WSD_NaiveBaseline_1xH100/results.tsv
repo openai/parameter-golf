@@ -1,0 +1,9 @@
+val_bpb	artifact_bytes	memory_gb	status	description
+1.34579838	12734645	10.0	keep	baseline 9L/512d/sp1024 1xH100 ar_apr30a_1
+1.36199948	12826045	10.0	discard	z-loss alpha=1e-4 on naive baseline ar_apr30a_2 (Delta +0.01620 worse, also 29 fewer steps)
+1.34928285	12757299	9.1	discard	qk-norm apply_to=off ablation on naive baseline ar_apr30a_3 (Delta -0.00348)
+1.34207199	14269390	10.0	keep	wsd stable_fraction=0.6 linear decay on naive baseline ar_apr30a_4 (Delta +0.00373)
+1.34241485	14279445	10.0	keep	wsd 3-seed validation: SEED=42 (Delta +0.00338)
+1.34443462	14145578	10.0	keep	wsd 3-seed validation: SEED=2025 (Delta +0.00136)
+1.34731475	14239092	9.7	discard	wsd+qk_norm=q_only stack vs WSD anchor (Delta -0.00524)
+1.34288347	14253347	9.4	discard	wsd+qk_norm=k_only stack vs WSD anchor (Delta -0.00081)

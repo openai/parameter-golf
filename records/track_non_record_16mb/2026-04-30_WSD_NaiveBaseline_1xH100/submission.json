@@ -1,0 +1,41 @@
+{
+  "author": "gitcat",
+  "github_id": "Gitcatmeoww",
+  "name": "WSD LR Schedule on Naive Baseline (1×H100)",
+  "blurb": "1×H100 non-record: Warmup-Stable-Decay LR schedule on the naive baseline. 3-seed mean post-quant val_bpb 1.34297 vs baseline 1.34580 (Δ +0.00282 BPB); all seeds beat baseline by ≥0.001 BPB. ~13 LoC, gated by USE_WSD=1.",
+  "date": "2026-04-30T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.26755504,
+  "val_bpb": 1.34297382,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.26603233,
+      "val_bpb": 1.34207199,
+      "artifact_bytes": 14269390,
+      "steps": 1102
+    },
+    "42": {
+      "val_loss": 2.26661124,
+      "val_bpb": 1.34241485,
+      "artifact_bytes": 14279445,
+      "steps": 1102
+    },
+    "2025": {
+      "val_loss": 2.27002154,
+      "val_bpb": 1.34443462,
+      "artifact_bytes": 14145578,
+      "steps": 1055
+    }
+  },
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": 1086,
+  "wallclock_seconds": 600,
+  "artifact_bytes_mean": 14231471,
+  "artifact_bytes_max": 14279445,
+  "bytes_total": 14279445,
+  "bytes_model_int8_zlib": 14230966,
+  "bytes_code": 48479,
+  "gpu": "1xH100 80GB SXM"
+}
