@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "ACN Output Accumulator on the Naive Baseline",
+  "author": "Chris Coffee",
+  "github_id": "chrico-bu-uab",
+  "val_bpb": 1.2265,
+  "val_loss": 2.0708,
+  "bytes_total": 15875628
+}
