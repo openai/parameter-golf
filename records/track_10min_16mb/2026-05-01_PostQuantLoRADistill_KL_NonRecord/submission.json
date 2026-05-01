@@ -1,0 +1,49 @@
+{
+  "author": "okezue",
+  "github_id": "okezue",
+  "name": "Non-record: Post-Quantization LoRA Distillation (LCQ) on PR #1855 stack, val_bpb=1.06767",
+  "blurb": "Novel technique exploration: a small LoRA module is trained on the post-GPTQ dequantized model via KL distillation against the pre-quant BF16 teacher, on TRAIN data only (no val). The trained LoRA is held in memory across train-to-eval and applied via forward_ttt with cu_seqlens-aware variable-length attention during sliding-window scoring. Single-seed result, documented as a non-record submission with negative-result analysis.",
+  "date": "2026-05-01T13:48:00Z",
+  "track": "10min_16mb",
+  "val_bpb": 1.06767188,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.33646183,
+      "val_bpb": 1.06767188,
+      "post_ema_bpb": 1.06870134,
+      "quantized_bpb": 1.07702344,
+      "lcq_kl_final_loss": 0.02,
+      "lcq_steps": 636,
+      "artifact_bytes": 15912974,
+      "train_ms": 520163,
+      "stop_step": 4320
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu129",
+  "compressor": "pergroup_lrzip_L9",
+  "non_record": true,
+  "technique_summary": "PR #1855 SOTA stack base + train-time post-quant LoRA KL distillation (rank=4, alpha=4, 60s, train data, BF16 teacher) + sliding-window stride-64 eval with the trained LoRA dispatched through cu_seqlens-aware forward_ttt.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb_decimal": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "no_logit_bias": true,
+    "score_first_on_val": true,
+    "no_pre_quant_ttt_on_val": true,
+    "8xh100_sxm": true
+  },
+  "attribution": {
+    "pr1855_base_stack": "@codemath3000 (PR #1855)",
+    "sliding_window_eval": "PR #1493, PR #1413",
+    "ttt_lora_infrastructure": "PR #1411 line and follow-ups",
+    "pergroup_lrzip_compression": "PR #1586, PR #1667, PR #1729",
+    "sp8192_gptq_base": "@clarkkev (PR #1394)",
+    "lqer_residual": "Yao et al. 2024",
+    "gptq": "Frantar et al. 2023"
+  }
+}
