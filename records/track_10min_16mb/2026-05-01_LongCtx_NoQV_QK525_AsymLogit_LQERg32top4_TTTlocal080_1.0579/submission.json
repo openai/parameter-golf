@@ -19,9 +19,9 @@
     "TTT_LOCAL_LR_MULT": {"parent": 0.75, "this": 0.80}
   },
   "code_changes_vs_parent": "none (env-var-only retune; train_gpt.py byte-identical to parent, md5 2a7e36e29aa5b5811abb6170059aa8d1)",
-  "val_loss": 2.31453262,
-  "val_bpb": 1.05768720,
-  "val_bpb_std": 0.00040508,
+  "val_loss": 2.31504310,
+  "val_bpb": 1.05792053,
+  "val_bpb_std": 0.00007528,
   "seeds": [
     42,
     0,
@@ -29,8 +29,8 @@
   ],
   "seed_results": {
     "42": {
-      "val_loss": 2.31327958,
-      "val_bpb": 1.05711454,
+      "val_loss": 2.31481102,
+      "val_bpb": 1.05781454,
       "artifact_bytes": 15971753,
       "model_ptz_bytes": 15928981,
       "code_compressed_bytes": 42772,
@@ -82,22 +82,22 @@
   "comparison_pr1493_merged_sota": {
     "baseline_pr": "#1493",
     "baseline_3seed_mean_bpb": 1.0810,
-    "delta_mean_bpb": -0.02331,
-    "delta_mean_nats_approx": -0.0510,
+    "delta_mean_bpb": -0.02308,
+    "delta_mean_nats_approx": -0.0505,
     "notes": "well above 0.005-nat record threshold; matched-seed paired t-test not possible because #1493 used different seed pool"
   },
   "comparison_pr2007_pending_parent": {
     "baseline_pr": "#2007",
     "baseline_3seed_mean_bpb": 1.05899193,
     "baseline_seed_results": {"42": 1.05857451, "0": 1.05915199, "1234": 1.05924929},
-    "delta_seed42_bpb": -0.00145997,
+    "delta_seed42_bpb": -0.00075997,
     "delta_seed0_bpb": -0.00116987,
     "delta_seed1234_bpb": -0.00128435,
-    "delta_mean_bpb": -0.00130473,
-    "delta_mean_nats_via_val_loss": -0.00293427,
-    "paired_one_sided_t_test_val_loss": {"t": -15.91, "df": 2, "p_value": 0.00198, "test": "H0: mean_delta_loss >= 0 vs H1: < 0"},
-    "paired_one_sided_t_test_005nat_threshold": {"reject_005_nat_improvement_at_p_lt_0_01": false, "notes": "0.00293-nat improvement is below 0.005-nat margin; cannot claim record against #2007 by strict criterion"}
+    "delta_mean_bpb": -0.00107140,
+    "delta_mean_nats_via_val_loss": -0.00234453,
+    "paired_one_sided_t_test_val_loss": {"t": -6.73, "df": 2, "p_value": 0.01069, "test": "H0: mean_delta_loss >= 0 vs H1: < 0"},
+    "paired_one_sided_t_test_005nat_threshold": {"reject_005_nat_improvement_at_p_lt_0_01": false, "notes": "0.00234-nat improvement is below 0.005-nat margin; cannot claim record against #2007 by strict criterion"}
   },
-  "record_threshold_assessment": "Vs currently merged SOTA PR #1493 (1.0810): improvement ~0.0233 BPB / ~0.051 nats, signal-to-noise ~50; strict record threshold (>=0.005 nats at p<0.01) is satisfied with very wide margin even though seed pools differ. Vs PR #2007 (still under review): paired 3-seed improvement is only ~0.00293 nats, p=0.0020 — beats p<0.01 but does NOT meet the 0.005-nat magnitude bar. If #2007 is merged before this PR is reviewed, this submission is offered as a non-record tuning improvement on top of #2007, not a record claim against #2007.",
+  "record_threshold_assessment": "Vs currently merged SOTA PR #1493 (1.0810): improvement ~0.0231 BPB / ~0.051 nats, signal-to-noise ~50; strict record threshold (>=0.005 nats at p<0.01) is satisfied with very wide margin even though seed pools differ. Vs PR #2007 (still under review): paired 3-seed improvement is only ~0.00234 nats, p=0.011 — does NOT meet p<0.01 and does NOT meet the 0.005-nat magnitude bar. If #2007 is merged before this PR is reviewed, this submission is offered as a non-record tuning improvement on top of #2007, not a record claim against #2007.",
   "technique_summary": "Forks PR #2007 (LongCtx No-QV QK5.25 + AsymLogit, 1.0590). Five env-only knob retunes: MATRIX_LR=0.028, LQER_RANK=2, LQER_TOP_K=4, LQER_ASYM_GROUP=32, TTT_LOCAL_LR_MULT=0.80. No code changes; train_gpt.py is byte-identical to parent. Same CaseOps/SP8192 stack, 2560-token eval/TTT, no-QV LoRA TTT, prefix-3000 phased TTT, eval-only asymmetric logit rescale, AWQ-lite mixed-precision GPTQ, per-group lrzip compression."
 }

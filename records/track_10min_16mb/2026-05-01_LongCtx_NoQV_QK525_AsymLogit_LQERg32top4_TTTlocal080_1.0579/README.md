@@ -1,6 +1,6 @@
 # LongCtx No-QV QK5.25 + AsymLogit + LQER g32/top4 + TTT-local 0.80 + MatrixLR 0.028
 
-**val_bpb = 1.05769** (3-seed mean, std 0.00041) | **15,971,753 bytes max** with **28,247 B slack** | 8×H100 80GB SXM (Runpod)
+**val_bpb = 1.05792** (3-seed mean, std 0.00008) | **15,971,753 bytes max** with **28,247 B slack** | 8×H100 80GB SXM (Runpod)
 
 Forked from PR **#2007** record `2026-04-30_LongCtx_NoQV_QK525_AsymLogit_1.0590`
 (parent 3-seed mean **1.05899193**, parent seed-42 **1.05857451**).
@@ -16,11 +16,11 @@ variables in the parent's `train_gpt.py`. **There are no code changes vs parent
 
 | Seed | Stop step | Train time | Pre-quant BPB | Quant BPB | Final TTT BPB | TTT eval time | Artifact bytes |
 |---:|---:|---:|---:|---:|---:|---:|---:|
-| 42   | 4868 | 596.142 s | 1.05972472 | 1.06790517 | **1.05711454** | 397.125 s | 15,971,753 |
+| 42   | 4868 | 596.142 s | 1.05972472 | 1.06790517 | **1.05781454** | 397.125 s | 15,971,753 |
 | 0    | 4861 | 595.821 s | 1.06048352 | 1.06872963 | **1.05798212** | 397.575 s | 15,971,492 |
 | 1234 | 4873 | 595.991 s | 1.06052013 | 1.06872931 | **1.05796494** | 395.401 s | 15,971,748 |
-| **Mean** | | | | | **1.05768720** | | |
-| **Std (pop, n)** | | | | | **0.00040508** | | |
+| **Mean** | | | | | **1.05792053** | | |
+| **Std (pop, n)** | | | | | **0.00007528** | | |
 
 All seeds satisfy the 10-minute / 16 MB rules:
 
@@ -54,24 +54,24 @@ default; `train_gpt.py` is unchanged.
 
 | Seed | parent #2007 BPB | this PR BPB | Δ BPB |
 |---|---:|---:|---:|
-| 42   | 1.05857451 | 1.05711454 | **−0.00145997** |
+| 42   | 1.05857451 | 1.05781454 | **−0.00075997** |
 | 0    | 1.05915199 | 1.05798212 | **−0.00116987** |
 | 1234 | 1.05924929 | 1.05796494 | **−0.00128435** |
-| **Mean** | **1.05899193** | **1.05768720** | **−0.00130473** |
+| **Mean** | **1.05899193** | **1.05792053** | **−0.00107140** |
 
 Paired one-sided t-test on val_loss (lower is better, df=2):
-mean Δ_loss = **−0.00293427 nats**, sample SE = 0.0001845, **t = −15.91**,
-**p ≈ 0.00198**. Improvement is statistically significant at p < 0.01, but
-the magnitude (~0.00293 nats) is below the project's **0.005-nat record
+mean Δ_loss = **−0.00234 nats**, sample SE = 0.000348, **t = −6.73**,
+**p ≈ 0.011**. Improvement does not reach p < 0.01, and
+the magnitude (~0.00234 nats) is below the project's **0.005-nat record
 threshold against the parent**.
 
 ## Comparison vs currently-merged SOTA #1493 (1.0810)
 
-Δ_BPB ≈ **−0.0233**, Δ_nats ≈ **−0.051**. Signal-to-noise vs our 3-seed std
-is ~50× the project's 0.005-nat record bar. Strict per-seed paired t-test is
-not directly possible (PR #1493 used a different seed pool: 42, 314, 999),
-but on every individual seed in this submission the improvement vs #1493 is
-≥ 0.022 BPB, far above the threshold.
+Δ_BPB ≈ **−0.0231**, Δ_nats ≈ **−0.051**. Signal-to-noise vs our 3-seed std
+is very large relative to the project's 0.005-nat record bar. Strict per-seed
+paired t-test is not directly possible (PR #1493 used a different seed pool:
+42, 314, 999), but on every individual seed in this submission the improvement
+vs #1493 is ≥ 0.022 BPB, far above the threshold.
 
 ## Record-threshold framing
 
@@ -79,10 +79,10 @@ but on every individual seed in this submission the improvement vs #1493 is
   ~0.051 nats; satisfies the 0.005-nat / p<0.01 record threshold with very
   wide margin.
 - **Vs PR #2007 (still under review at submission time):** paired 3-seed
-  improvement of ~0.00293 nats meets p<0.01 but does **not** clear the
-  0.005-nat magnitude bar. If #2007 is merged before this PR is reviewed,
-  treat this submission as a non-record tuning improvement on top of #2007
-  rather than a record claim against #2007.
+  improvement of ~0.00234 nats does **not** meet p<0.01 (p ≈ 0.011) and does
+  **not** clear the 0.005-nat magnitude bar. If #2007 is merged before this
+  PR is reviewed, treat this submission as a non-record tuning improvement on
+  top of #2007 rather than a record claim against #2007.
 
 Maintainers may treat this as record or non-record at their preferred
 significance framework.
@@ -135,7 +135,7 @@ the same seed pool as the parent record.
 
 ## Logs
 
-- `train_seed42.log` — Runpod seed-42 final rerun, final BPB **1.05711454**.
+- `train_seed42.log` — Runpod seed-42 final rerun, final BPB **1.05781454**.
 - `train_seed0.log` — Runpod seed-0 final rerun, final BPB **1.05798212**.
 - `train_seed1234.log` — Runpod seed-1234 final rerun, final BPB
   **1.05796494**.

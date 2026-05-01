@@ -1034,5 +1034,5 @@ ttp: b27/782 bl:2.5906 bb:1.2247 rl:2.3158 rb:1.0614 dl:130-131 gd:1
 ttp: b19/782 bl:2.6281 bb:1.2068 rl:2.3162 rb:1.0616 dl:121-122 gd:1
 ttp: b11/782 bl:2.6333 bb:1.2176 rl:2.3166 rb:1.0618 dl:109-110 gd:1
 ttp: b2/782 bl:2.8194 bb:1.2392 rl:2.3170 rb:1.0620 dl:83-89 gd:1
-quantized_ttt_phased val_loss:2.31327958 val_bpb:1.05711454 eval_time:397125ms
+quantized_ttt_phased val_loss:2.31481102 val_bpb:1.05781454 eval_time:397125ms
 total_eval_time:397.1s
