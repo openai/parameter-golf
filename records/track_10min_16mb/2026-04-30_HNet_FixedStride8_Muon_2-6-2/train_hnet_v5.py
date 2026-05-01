@@ -180,7 +180,7 @@ class Muon(torch.optim.Optimizer):
 
             curr = 0
             for i, p in enumerate(params):
-                if i % world_size == rank and p.grad is not None:
+                if i % world_size == rank and p.grad is not None and p.grad.ndim == 2:
                     g = p.grad
                     state = self.state[p]
                     if "momentum_buffer" not in state:
