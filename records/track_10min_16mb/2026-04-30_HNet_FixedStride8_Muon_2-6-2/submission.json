@@ -1,0 +1,48 @@
+{
+  "author": "firfre",
+  "github_id": "firfre",
+  "name": "Fixed-Stride H-Net (stride=8, m2-T6-m2) + Muon + torch.compile",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "submission_type": "record",
+  "val_bpb": 1.90577914,
+  "hardware": "1xH100 80GB",
+  "artifact_bytes": 13102976,
+  "model": {
+    "architecture": "FixedStrideHNet",
+    "encoder": "m2",
+    "chunk_transformer": "T6",
+    "decoder": "m2",
+    "stride": 8,
+    "model_dim": 512,
+    "chunk_model_dim": 576,
+    "chunk_ffn_dim": 2304,
+    "mamba_state": 32,
+    "mamba_conv": 4,
+    "mamba_expand": 2,
+    "num_heads": 8,
+    "chunk_rotary_dim": 48,
+    "vocab_size": 260,
+    "tokenizer": "byte260"
+  },
+  "training": {
+    "optimizer": "Muon (2D matrix params) + AdamW (embeddings, scalars, head)",
+    "muon_lr": 0.02,
+    "muon_momentum": 0.95,
+    "embed_lr": 0.6,
+    "head_lr": 0.008,
+    "scalar_lr": 0.04,
+    "warmdown_iters": 1200,
+    "train_seq_len": 1024,
+    "train_batch_tokens": 524288,
+    "compile": true,
+    "wall_clock_seconds": 600
+  },
+  "compression": {
+    "quantization": "int6 (2D matrices), int8 (Mamba SSM dynamics)",
+    "compression": "brotli-11",
+    "payload_bytes": 39613456,
+    "compressed_bytes": 13039458
+  },
+  "technique_summary": "Hierarchical byte-level language model with fixed stride (stride=8) instead of learned dynamic routing. Encoder: 2-layer Mamba2 at byte level. Chunk transformer: 6-layer causal self-attention at word level (1/8 sequence length). Decoder: 2-layer Mamba2 at byte level. Causal upsample with residual connection. Muon optimizer for 2D weight matrices, AdamW for embeddings/scalars. torch.compile for training speedup. int6+brotli11 compression."
+}
