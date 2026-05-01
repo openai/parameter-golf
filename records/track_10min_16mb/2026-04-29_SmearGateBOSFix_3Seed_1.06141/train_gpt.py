@@ -224,264 +224,6 @@ def softcapped_cross_entropy(
     raise ValueError(f"Unsupported reduction={reduction!r}")
 
 
-# ===== Spellingbee: multiresolution hash n-gram fast-weight memory =====
-# Hashes suffix n-grams (3 levels: 2-gram, 3-gram, 4-gram) with FNV-1a into
-# fp32 tables. Forward Triton kernel gathers features. Backward Triton kernel
-# atomic-adds gradients into bucket rows. SpellingbeeOptimizer does per-bucket
-# Adam: only updates buckets that received gradients on this step.
-#
-# Compile compatibility: kernels are wrapped in torch.library.custom_op +
-# register_fake, then a thin autograd Function delegates to them. fullgraph=True
-# in torch.compile traces past these as opaque ops.
-_SB_LIBRARY = "spellingbee_pgsubmission"
-
-
-@triton.jit
-def _spellingbee_forward_kernel(
-    token_ids_ptr, tables_ptr, features_ptr,
-    B, S, L, T, F, BLOCK_F: tl.constexpr,
-):
-    pid = tl.program_id(0)
-    bsl = B * S * L
-    if pid >= bsl:
-        return
-    b = pid // (S * L)
-    s = (pid // L) % S
-    level = pid % L
-    n = level + 2  # 2-gram at L=0, 3-gram at L=1, 4-gram at L=2
-    h = tl.full((), 2166136261, dtype=tl.uint64)
-    for i in tl.static_range(0, 4):
-        pos = s - (n - 1 - i)
-        active = i < n
-        tok = tl.load(
-            token_ids_ptr + b * S + pos,
-            mask=active & (pos >= 0),
-            other=0,
-        ).to(tl.uint64)
-        h_next = (h ^ tok) * 16777619
-        h = tl.where(active, h_next, h)
-    bucket = (h % T).to(tl.int64)
-    table_offset = (level * T + bucket) * F
-    feat_offset = (b * S + s) * (L * F) + level * F
-    fs = tl.arange(0, BLOCK_F)
-    mask = fs < F
-    vals = tl.load(tables_ptr + table_offset + fs, mask=mask, other=0.0)
-    tl.store(features_ptr + feat_offset + fs, vals, mask=mask)
-
-
-@triton.jit
-def _spellingbee_scatter_kernel(
-    grad_features_ptr, token_ids_ptr, grad_tables_ptr,
-    B, S, L, T, F, BLOCK_F: tl.constexpr,
-):
-    pid = tl.program_id(0)
-    bsl = B * S * L
-    if pid >= bsl:
-        return
-    b = pid // (S * L)
-    s = (pid // L) % S
-    level = pid % L
-    n = level + 2
-    h = tl.full((), 2166136261, dtype=tl.uint64)
-    for i in tl.static_range(0, 4):
-        pos = s - (n - 1 - i)
-        active = i < n
-        tok = tl.load(
-            token_ids_ptr + b * S + pos,
-            mask=active & (pos >= 0),
-            other=0,
-        ).to(tl.uint64)
-        h_next = (h ^ tok) * 16777619
-        h = tl.where(active, h_next, h)
-    bucket = (h % T).to(tl.int64)
-    table_offset = (level * T + bucket) * F
-    feat_offset = (b * S + s) * (L * F) + level * F
-    fs = tl.arange(0, BLOCK_F)
-    mask = fs < F
-    grads = tl.load(grad_features_ptr + feat_offset + fs, mask=mask, other=0.0)
-    tl.atomic_add(grad_tables_ptr + table_offset + fs, grads, mask=mask)
-
-
-@torch.library.custom_op("spellingbee_pgsubmission::forward", mutates_args=())
-def _spellingbee_forward_op(
-    tables: Tensor, token_ids: Tensor, L: int, T: int, F_dim: int, BLOCK_F: int,
-) -> Tensor:
-    B, S = token_ids.shape
-    features = torch.empty(B, S, L * F_dim, device=tables.device, dtype=torch.float32)
-    _spellingbee_forward_kernel[(B * S * L,)](
-        token_ids, tables, features,
-        B=B, S=S, L=L, T=T, F=F_dim, BLOCK_F=BLOCK_F,
-    )
-    return features
-
-
-@_spellingbee_forward_op.register_fake
-def _(tables, token_ids, L, T, F_dim, BLOCK_F):
-    B, S = token_ids.shape
-    return torch.empty(B, S, L * F_dim, device=tables.device, dtype=torch.float32)
-
-
-@torch.library.custom_op("spellingbee_pgsubmission::backward", mutates_args=())
-def _spellingbee_backward_op(
-    grad_output: Tensor, token_ids: Tensor, total_entries: int, F_dim_param: int,
-    L: int, T: int, F_dim: int, BLOCK_F: int,
-) -> Tensor:
-    B, S = token_ids.shape
-    grad_tables = torch.zeros(
-        total_entries, F_dim_param, device=grad_output.device, dtype=torch.float32
-    )
-    _spellingbee_scatter_kernel[(B * S * L,)](
-        grad_output, token_ids, grad_tables,
-        B=B, S=S, L=L, T=T, F=F_dim, BLOCK_F=BLOCK_F,
-    )
-    return grad_tables
-
-
-@_spellingbee_backward_op.register_fake
-def _(grad_output, token_ids, total_entries, F_dim_param, L, T, F_dim, BLOCK_F):
-    return torch.empty(
-        total_entries, F_dim_param, device=grad_output.device, dtype=torch.float32
-    )
-
-
-class _SpellingbeeFn(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, tables, token_ids, L, T, F_dim, BLOCK_F):
-        feats = torch.ops.spellingbee_pgsubmission.forward(
-            tables, token_ids, L, T, F_dim, BLOCK_F
-        )
-        ctx.save_for_backward(token_ids)
-        ctx.L, ctx.T, ctx.F_dim, ctx.BLOCK_F = L, T, F_dim, BLOCK_F
-        ctx.tables_shape = tables.shape
-        ctx.tables_dtype = tables.dtype
-        return feats
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        (token_ids,) = ctx.saved_tensors
-        grad_tables = torch.ops.spellingbee_pgsubmission.backward(
-            grad_output.contiguous(), token_ids,
-            ctx.tables_shape[0], ctx.tables_shape[1],
-            ctx.L, ctx.T, ctx.F_dim, ctx.BLOCK_F,
-        )
-        return grad_tables.to(ctx.tables_dtype), None, None, None, None, None
-
-
-class Spellingbee(nn.Module):
-    """Hash-addressed fast-weight memory.
-
-    tables: [L*T, F] fp32, updated by SpellingbeeOptimizer per-bucket Adam.
-    proj: CastedLinear(L*F, d_model), zero-init so output is zero at start.
-    spellingbeegate: CastedLinear(d_model, 1), trust gate from detached hidden.
-    Forward returns gate * proj(features). Add as residual to hidden state.
-    """
-
-    def __init__(self, d_model, levels=3, table_size=16384, features=4):
-        super().__init__()
-        self.L = levels
-        self.T = table_size
-        self.F_dim = features
-        self.hash_dim = levels * features
-        self.BLOCK_F = triton.next_power_of_2(features)
-        total = levels * table_size
-        self.tables = nn.Parameter(torch.zeros(total, features, dtype=torch.float32))
-        self.proj = CastedLinear(self.hash_dim, d_model, bias=False)
-        self.proj._zero_init = True
-        self.spellingbeegate = CastedLinear(d_model, 1, bias=True)
-
-    def forward(self, token_ids, hidden):
-        feats = _SpellingbeeFn.apply(
-            self.tables, token_ids, self.L, self.T, self.F_dim, self.BLOCK_F
-        )
-        projected = self.proj(feats.to(hidden.dtype))
-        gate = torch.sigmoid(self.spellingbeegate(hidden.detach()))
-        return gate * projected
-
-
-@triton.jit
-def _spellingbee_adam_step_kernel(
-    tables_ptr, grad_ptr, exp_avg_ptr, exp_avg_sq_ptr, step_count_ptr,
-    N_buckets, F, lr, beta1, beta2, eps, weight_decay, BLOCK_F: tl.constexpr,
-):
-    pid = tl.program_id(0)
-    if pid >= N_buckets:
-        return
-    fs = tl.arange(0, BLOCK_F)
-    mask = fs < F
-    g = tl.load(grad_ptr + pid * F + fs, mask=mask, other=0.0)
-    grad_norm = tl.sum(g * g)
-    if grad_norm == 0.0:
-        return
-    step = tl.load(step_count_ptr + pid) + 1
-    tl.store(step_count_ptr + pid, step)
-    m = tl.load(exp_avg_ptr + pid * F + fs, mask=mask, other=0.0)
-    v = tl.load(exp_avg_sq_ptr + pid * F + fs, mask=mask, other=0.0)
-    m = beta1 * m + (1.0 - beta1) * g
-    v = beta2 * v + (1.0 - beta2) * g * g
-    tl.store(exp_avg_ptr + pid * F + fs, m, mask=mask)
-    tl.store(exp_avg_sq_ptr + pid * F + fs, v, mask=mask)
-    bc1 = 1.0 - tl.exp(step * tl.log(beta1))
-    bc2 = 1.0 - tl.exp(step * tl.log(beta2))
-    m_hat = m / bc1
-    v_hat = v / bc2
-    w = tl.load(tables_ptr + pid * F + fs, mask=mask, other=0.0)
-    if weight_decay > 0.0:
-        w = w * (1.0 - lr * weight_decay)
-    w = w - lr * m_hat / (tl.sqrt(v_hat) + eps)
-    tl.store(tables_ptr + pid * F + fs, w, mask=mask)
-
-
-class SpellingbeeOptimizer(torch.optim.Optimizer):
-    """Per-bucket Adam for hash table fast weights.
-
-    Only updates buckets that received gradients this step. DDP all-reduce on
-    grads happens externally after tables are added to replicated_large_params.
-    """
-
-    def __init__(self, params, lr=3e-3, betas=(0.9, 0.999), eps=1e-15, weight_decay=0.0):
-        super().__init__(
-            params, dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
-        )
-        self._init_state()
-
-    def _init_state(self):
-        for group in self.param_groups:
-            for p in group["params"]:
-                state = self.state[p]
-                if "exp_avg" not in state:
-                    state["exp_avg"] = torch.zeros_like(p)
-                    state["exp_avg_sq"] = torch.zeros_like(p)
-                    state["step_count"] = torch.zeros(
-                        p.shape[0], dtype=torch.int32, device=p.device
-                    )
-
-    @torch.no_grad()
-    def step(self, closure=None):
-        loss = None
-        if closure is not None:
-            with torch.enable_grad():
-                loss = closure()
-        for group in self.param_groups:
-            lr = group["lr"]
-            beta1, beta2 = group["betas"]
-            eps = group["eps"]
-            wd = group["weight_decay"]
-            for p in group["params"]:
-                if p.grad is None:
-                    continue
-                state = self.state[p]
-                N_buckets, F_dim = p.shape
-                BLOCK_F = triton.next_power_of_2(F_dim)
-                _spellingbee_adam_step_kernel[(N_buckets,)](
-                    p, p.grad, state["exp_avg"], state["exp_avg_sq"],
-                    state["step_count"],
-                    N_buckets=N_buckets, F=F_dim,
-                    lr=lr, beta1=beta1, beta2=beta2, eps=eps, weight_decay=wd,
-                    BLOCK_F=BLOCK_F,
-                )
-        return loss
-
-
 class Hyperparameters:
     data_dir = os.environ.get("DATA_DIR", "./data/")
     seed = int(os.environ.get("SEED", 1337))
@@ -536,7 +278,6 @@ class Hyperparameters:
     muon_row_normalize = bool(int(os.environ.get("MUON_ROW_NORMALIZE", "1")))
     beta1 = float(os.environ.get("BETA1", 0.9))
     beta2 = float(os.environ.get("BETA2", 0.95))
-<<<<<<< main
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-08))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.3))
     eval_stride = int(os.environ.get("EVAL_STRIDE", 64))
@@ -617,24 +358,6 @@ class Hyperparameters:
     sparse_attn_gate_enabled = bool(int(os.environ.get("SPARSE_ATTN_GATE_ENABLED", "0")))
     sparse_attn_gate_init_std = float(os.environ.get("SPARSE_ATTN_GATE_INIT_STD", 0.0))
     sparse_attn_gate_scale = float(os.environ.get("SPARSE_ATTN_GATE_SCALE", 1.0))
-    # Inhibitor: low-rank data-dependent gate on attn_scale and mlp_scale at chosen layers.
-    # Confirmed ~5% loss improvement in standalone testing; near-identity at init so
-    # neutral-to-positive on this stack. Routes to scalar AdamW via name pattern.
-    inhibitor_enabled = bool(int(os.environ.get("INHIBITOR_ENABLED", "1")))
-    inhibitor_layers = os.environ.get("INHIBITOR_LAYERS", "0,5")
-    inhibitor_rank = int(os.environ.get("INHIBITOR_RANK", 8))
-    # Spellingbee: hash-addressed fast-weight memory at the input layer.
-    # Tables are excluded from EMA, grad clip, and standard quantization.
-    sb_enabled = bool(int(os.environ.get("SB_ENABLED", "1")))
-    sb_lr = float(os.environ.get("SB_LR", 3e-3))
-    sb_levels = int(os.environ.get("SB_LEVELS", 3))
-    sb_table_size = int(os.environ.get("SB_TABLE_SIZE", 16384))
-    sb_features = int(os.environ.get("SB_FEATURES", 4))
-    sb_beta1 = float(os.environ.get("SB_BETA1", 0.9))
-    sb_beta2 = float(os.environ.get("SB_BETA2", 0.999))
-    sb_eps = float(os.environ.get("SB_EPS", 1e-15))
-    sb_weight_decay = float(os.environ.get("SB_WEIGHT_DECAY", 0.0))
-    sb_int8_quant = bool(int(os.environ.get("SB_INT8_QUANT", "1")))
     # LQER asymmetric rank-k correction on top-K quant-error tensors (PR #1530 v2 port).
     # Computes SVD of E = W_fp - W_quant, packs top-r A,B as INT2/INT4 (asym) or INTk (sym).
     lqer_enabled = bool(int(os.environ.get("LQER_ENABLED", "1")))
@@ -702,32 +425,6 @@ class Hyperparameters:
         if artifact_dir
         else "final_model.int6.ptz"
     )
-=======
-    adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
-    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
-
-# -----------------------------
-# MUON OPTIMIZER 
-# -----------------------------
-# 
-# As borrowed from modded-nanogpt
-# Background on Muon: https://kellerjordan.github.io/posts/muon/
-
-def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
-    # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
-    # Muon uses this to normalize matrix-shaped gradients before applying them.
-    a, b, c = (3.4445, -4.7750, 2.0315)
-    X = G.bfloat16()
-    X /= X.norm() + eps
-    transposed = G.size(0) > G.size(1)
-    if transposed:
-        X = X.T
-    for _ in range(steps):
-        A = X @ X.T
-        B = b * A + c * A @ A
-        X = a * X + B @ X
-    return X.T if transposed else X
->>>>>>> main
 
 
 _logger_hparams = None
@@ -758,17 +455,15 @@ class ValidationData:
                 f"VOCAB_SIZE={h.vocab_size} does not match tokenizer vocab_size={int(self.sp.vocab_size())}"
             )
         self.val_tokens = load_validation_tokens(h.val_files, h.eval_seq_len)
+        (
+            self.base_bytes_lut,
+            self.has_leading_space_lut,
+            self.is_boundary_token_lut,
+        ) = build_sentencepiece_luts(self.sp, h.vocab_size, device)
+        # CaseOps: when enabled, load per-token byte sidecar and stash it as a
+        # CPU tensor aligned 1:1 with self.val_tokens. eval_val/eval_val_ttt
+        # branches use this as the canonical raw-byte budget per token.
         self.caseops_enabled = bool(getattr(h, "caseops_enabled", False))
-        if self.caseops_enabled:
-            self.base_bytes_lut = None
-            self.has_leading_space_lut = None
-            self.is_boundary_token_lut = None
-        else:
-            (
-                self.base_bytes_lut,
-                self.has_leading_space_lut,
-                self.is_boundary_token_lut,
-            ) = build_sentencepiece_luts(self.sp, h.vocab_size, device)
         self.val_bytes = None
         if self.caseops_enabled:
             self.val_bytes = load_validation_byte_sidecar(
@@ -932,7 +627,7 @@ class DocumentPackingLoader:
         self._init_shard(load_data_shard(next(self.file_iter)))
         self._next_shard = self._submit_next_shard()
         self._batch_pool = ThreadPoolExecutor(1)
-        self._prefetch_queue = []
+        self._next_batch = None
 
     def _init_shard(self, tokens):
         global BOS_ID
@@ -973,10 +668,8 @@ class DocumentPackingLoader:
             self._advance_shard()
         local_start = self.cursor + self.rank * per_rank_span
         buf = self.tokens[local_start : local_start + per_rank_span]
-        inputs = torch.empty(per_rank_span - 1, dtype=torch.int64, pin_memory=True)
-        targets = torch.empty(per_rank_span - 1, dtype=torch.int64, pin_memory=True)
-        inputs.copy_(buf[:-1])
-        targets.copy_(buf[1:])
+        inputs = buf[:-1].to(dtype=torch.int64).pin_memory()
+        targets = buf[1:].to(dtype=torch.int64).pin_memory()
         starts = self._local_doc_starts(local_start, inputs.numel())
         cu_seqlens, max_seqlen = _build_cu_seqlens(
             starts, inputs.numel(), inputs.device, max_seq_len, self.cu_bucket_size
@@ -987,12 +680,15 @@ class DocumentPackingLoader:
 
     def next_batch(self, global_tokens, grad_accum_steps):
         num_tokens_local = global_tokens // (self.world_size * grad_accum_steps)
-        while len(self._prefetch_queue) < 2:
-            self._prefetch_queue.append(
-                self._batch_pool.submit(self._prepare_batch, num_tokens_local, self.max_seq_len))
-        inputs, targets, cu_seqlens, max_seqlen = self._prefetch_queue.pop(0).result()
-        self._prefetch_queue.append(
-            self._batch_pool.submit(self._prepare_batch, num_tokens_local, self.max_seq_len))
+        if self._next_batch is not None:
+            inputs, targets, cu_seqlens, max_seqlen = self._next_batch.result()
+        else:
+            inputs, targets, cu_seqlens, max_seqlen = self._prepare_batch(
+                num_tokens_local, self.max_seq_len
+            )
+        self._next_batch = self._batch_pool.submit(
+            self._prepare_batch, num_tokens_local, self.max_seq_len
+        )
         return (
             inputs[None].to(self.device, non_blocking=True),
             targets[None].to(self.device, non_blocking=True),
@@ -1062,27 +758,6 @@ class RMSNorm(nn.Module):
 
     def forward(self, x):
         return F.rms_norm(x, (x.size(-1),), eps=self.eps)
-
-
-class InhibitorGate(nn.Module):
-    """Low-rank data-dependent multiplicative gate.
-    Replaces the static [d_model] attn_scale/mlp_scale with sigmoid(up(down(x)) + bias).
-    - down: d_model -> rank (CastedLinear, fp32 weight)
-    - up:   rank   -> d_model (zero-init weight, large positive bias)
-    Init: up.weight=0, bias=4.0 -> sigmoid(4.0)~0.98 -> near-identity at start.
-    Routed to scalar AdamW via 'inhibitor' substring in CONTROL_TENSOR_NAME_PATTERNS.
-    Forward returns gate in [0,1]; multiply this against the static scale before applying.
-    """
-
-    def __init__(self, d_model, rank=8, init_bias=4.0):
-        super().__init__()
-        self.down = CastedLinear(d_model, rank, bias=False)
-        self.up = CastedLinear(rank, d_model, bias=True)
-        self.up._zero_init = True
-        self.up._inhibitor_bias_init = init_bias
-
-    def forward(self, x):
-        return torch.sigmoid(self.up(self.down(x)))
 
 
 class CastedLinear(nn.Linear):
@@ -1156,7 +831,7 @@ def linear_leaky_relu_square(a, b, aux=None):
     if aux is None:
         aux = torch.empty((M, N), device=a.device, dtype=a.dtype)
     num_sms = torch.cuda.get_device_properties(a.device).multi_processor_count
-    BLOCK_SIZE_M, BLOCK_SIZE_N, BLOCK_SIZE_K = 256, 128, 64
+    BLOCK_SIZE_M, BLOCK_SIZE_N, BLOCK_SIZE_K = 128, 256, 64
     num_stages = 4 if forward else 3
     a_desc = TensorDescriptor.from_tensor(a, [BLOCK_SIZE_M, BLOCK_SIZE_K])
     b_desc = TensorDescriptor.from_tensor(b, [BLOCK_SIZE_N, BLOCK_SIZE_K])
@@ -1283,7 +958,6 @@ class CausalSelfAttention(nn.Module):
         self.head_dim = dim // num_heads
         if self.head_dim % 2 != 0:
             raise ValueError("head_dim must be even for RoPE")
-<<<<<<< main
         self.q_gain = nn.Parameter(
             torch.full((num_heads,), qk_gain_init, dtype=torch.float32)
         )
@@ -1342,22 +1016,6 @@ class CausalSelfAttention(nn.Module):
         q = q_raw.reshape(bsz, seqlen, self.num_heads, self.head_dim)
         k = F.linear(x, k_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
         v = F.linear(x, v_w.to(x.dtype)).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
-=======
-        kv_dim = self.num_kv_heads * self.head_dim
-        self.c_q = CastedLinear(dim, dim, bias=False)
-        self.c_k = CastedLinear(dim, kv_dim, bias=False)
-        self.c_v = CastedLinear(dim, kv_dim, bias=False)
-        self.proj = CastedLinear(dim, dim, bias=False)
-        self.proj._zero_init = True
-        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
-        self.rotary = Rotary(self.head_dim, base=rope_base)
-
-    def forward(self, x: Tensor) -> Tensor:
-        bsz, seqlen, dim = x.shape
-        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
->>>>>>> main
         q = F.rms_norm(q, (q.size(-1),))
         k = F.rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
@@ -1444,8 +1102,6 @@ class Block(nn.Module):
         sparse_attn_gate=False,
         sparse_attn_gate_init_std=0.0,
         sparse_attn_gate_scale=1.0,
-        use_inhibitor=False,
-        inhibitor_rank=8,
     ):
         super().__init__()
         self.attn_norm = RMSNorm()
@@ -1465,45 +1121,21 @@ class Block(nn.Module):
             torch.stack((torch.ones(dim), torch.zeros(dim))).float()
         )
         self.ln_scale_factor = 1.0 / math.sqrt(layer_idx + 1) if ln_scale else 1.0
-        self.use_inhibitor = use_inhibitor
-        if use_inhibitor:
-            self.attn_inhibitor = InhibitorGate(dim, rank=inhibitor_rank)
-            self.mlp_inhibitor = InhibitorGate(dim, rank=inhibitor_rank)
-        else:
-            self.attn_inhibitor = None
-            self.mlp_inhibitor = None
 
-<<<<<<< main
     def forward(self, x, x0, q_w, k_w, v_w, out_w, up_w, down_w, cu_seqlens=None, max_seqlen=0):
         mix = self.resid_mix.to(dtype=x.dtype)
         x_in = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_normed = self.attn_norm(x_in) * self.ln_scale_factor
         attn_out = self.attn(
-            attn_normed,
+            self.attn_norm(x_in) * self.ln_scale_factor,
             q_w, k_w, v_w, out_w,
             cu_seqlens=cu_seqlens,
             max_seqlen=max_seqlen,
         )
-        attn_s = self.attn_scale.to(dtype=x_in.dtype)[None, None, :]
-        if self.use_inhibitor:
-            attn_s = attn_s * self.attn_inhibitor(attn_normed).to(dtype=x_in.dtype)
-        x_out = x_in + attn_s * attn_out
-        mlp_normed = self.mlp_norm(x_out) * self.ln_scale_factor
-        mlp_s = self.mlp_scale.to(dtype=x_out.dtype)[None, None, :]
-        if self.use_inhibitor:
-            mlp_s = mlp_s * self.mlp_inhibitor(mlp_normed).to(dtype=x_out.dtype)
-        x_out = x_out + mlp_s * self.mlp(mlp_normed, up_w, down_w)
+        x_out = x_in + self.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
+        x_out = x_out + self.mlp_scale.to(dtype=x_out.dtype)[
+            None, None, :
+        ] * self.mlp(self.mlp_norm(x_out) * self.ln_scale_factor, up_w, down_w)
         return x_out
-=======
-    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
-        mix = self.resid_mix.to(dtype=x.dtype)
-        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
-        attn_out = self.attn(self.attn_norm(x))
-        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
-        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
-        return x
-
->>>>>>> main
 
 class GPT(nn.Module):
     def __init__(self, h):
@@ -1515,20 +1147,6 @@ class GPT(nn.Module):
         self.logit_softcap = h.logit_softcap
         self.fused_ce_enabled = bool(h.fused_ce_enabled)
         self.tok_emb = nn.Embedding(h.vocab_size, h.model_dim)
-        self.sb_enabled = h.sb_enabled
-        if h.sb_enabled:
-            self.spellingbee = Spellingbee(
-                h.model_dim,
-                levels=h.sb_levels,
-                table_size=h.sb_table_size,
-                features=h.sb_features,
-            )
-            self.spellingbee_scale = nn.Parameter(
-                torch.ones(h.model_dim, dtype=torch.float32)
-            )
-        else:
-            self.spellingbee = None
-            self.spellingbee_scale = None
         self.num_layers = h.num_layers
         head_dim = h.model_dim // h.num_heads
         kv_dim = h.num_kv_heads * head_dim
@@ -1539,11 +1157,6 @@ class GPT(nn.Module):
         self.mlp_down_bank = nn.Parameter(torch.empty(h.num_layers, h.model_dim, hidden_dim))
         self.num_encoder_layers = h.num_layers // 2
         self.num_decoder_layers = h.num_layers - self.num_encoder_layers
-        inhibitor_layer_set = (
-            set(int(s.strip()) for s in h.inhibitor_layers.split(",") if s.strip() != "")
-            if h.inhibitor_enabled
-            else set()
-        )
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -1565,8 +1178,6 @@ class GPT(nn.Module):
                     sparse_attn_gate=h.sparse_attn_gate_enabled,
                     sparse_attn_gate_init_std=h.sparse_attn_gate_init_std,
                     sparse_attn_gate_scale=h.sparse_attn_gate_scale,
-                    use_inhibitor=(i in inhibitor_layer_set),
-                    inhibitor_rank=h.inhibitor_rank,
                 )
                 for i in range(h.num_layers)
             ]
@@ -1637,15 +1248,6 @@ class GPT(nn.Module):
             self.smear_gate = CastedLinear(self.smear_window, 1, bias=False)
             self.smear_gate._zero_init = True
             self.smear_lambda = nn.Parameter(torch.zeros(1, dtype=torch.float32))
-        if h.inhibitor_enabled and inhibitor_layer_set:
-            log(f"inhibitor: layers={sorted(inhibitor_layer_set)} rank={h.inhibitor_rank}")
-        if h.sb_enabled:
-            sb_total = h.sb_levels * h.sb_table_size * h.sb_features
-            log(
-                f"spellingbee: levels={h.sb_levels} table={h.sb_table_size} "
-                f"feat={h.sb_features} | tables={sb_total} "
-                f"({sb_total * 4 / 1024:.0f} KB raw)"
-            )
         self._init_weights()
 
     def _init_weights(self):
@@ -1673,10 +1275,6 @@ class GPT(nn.Module):
                     and module.weight.shape[1] >= 64
                 ):
                     nn.init.orthogonal_(module.weight, gain=1.0)
-                # InhibitorGate.up: zero weight + large positive bias -> near-identity init.
-                inhib_bias_init = getattr(module, "_inhibitor_bias_init", None)
-                if inhib_bias_init is not None and module.bias is not None:
-                    nn.init.constant_(module.bias, inhib_bias_init)
 
     def _bank_weights(self, i):
         n = self.num_layers
@@ -1689,7 +1287,6 @@ class GPT(nn.Module):
             self.mlp_down_bank[i],
         )
 
-<<<<<<< main
     def _parallel_block(
         self, block_idx, lane0, lane1, x0,
         q_w, k_w, v_w, out_w, up_w, down_w,
@@ -1698,22 +1295,16 @@ class GPT(nn.Module):
         block = self.blocks[block_idx]
         mix = block.resid_mix.to(dtype=lane0.dtype)
         attn_read = mix[0][None, None, :] * lane0 + mix[1][None, None, :] * x0
-        attn_normed = block.attn_norm(attn_read) * block.ln_scale_factor
         attn_out = block.attn(
-            attn_normed,
+            block.attn_norm(attn_read) * block.ln_scale_factor,
             q_w, k_w, v_w, out_w,
             cu_seqlens=cu_seqlens, max_seqlen=max_seqlen,
         )
-        attn_s = block.attn_scale.to(dtype=attn_out.dtype)[None, None, :]
-        if block.use_inhibitor:
-            attn_s = attn_s * block.attn_inhibitor(attn_normed).to(dtype=attn_out.dtype)
-        attn_out = attn_s * attn_out
+        attn_out = block.attn_scale.to(dtype=attn_out.dtype)[None, None, :] * attn_out
         mlp_read = lane1
-        mlp_normed = block.mlp_norm(mlp_read) * block.ln_scale_factor
-        mlp_s = block.mlp_scale.to(dtype=lane1.dtype)[None, None, :]
-        if block.use_inhibitor:
-            mlp_s = mlp_s * block.mlp_inhibitor(mlp_normed).to(dtype=lane1.dtype)
-        mlp_out = mlp_s * block.mlp(mlp_normed, up_w, down_w)
+        mlp_out = block.mlp_scale.to(dtype=lane1.dtype)[None, None, :] * block.mlp(
+            block.mlp_norm(mlp_read) * block.ln_scale_factor, up_w, down_w
+        )
         attn_resid = self.parallel_resid_lambdas[block_idx, 0].to(dtype=lane0.dtype)
         attn_post = self.parallel_post_lambdas[block_idx, 0].to(dtype=lane0.dtype)
         mlp_resid = self.parallel_resid_lambdas[block_idx, 1].to(dtype=lane0.dtype)
@@ -1732,28 +1323,20 @@ class GPT(nn.Module):
     def _forward_hidden(self, input_ids, cu_seqlens=None, max_seqlen=0):
         """Run the encoder/decoder stack to the final RMSNorm; returns pre-projection hidden.
         Shared by eval (softcap+projection via forward_logits) and train (fused CE path)."""
-=======
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
->>>>>>> main
         x = self.tok_emb(input_ids)
-        # SmearGate (PR #1667). lam=0 + W=0 -> identity at init.
-        # Cross-doc leak fix: zero the prev-token smear at any position whose current token
-        # is BOS, so the BOS embedding starting doc N+1 in a packed stream is not
-        # contaminated by doc N's last token (audited issue on PR#1797 base).
+        # SmearGate (PR #1667). Inline gate compute with .contiguous() on the slice fed
+        # to the projection so torch.compile fullgraph is happy. lam=0 + W=0 -> identity
+        # at init. This block runs unconditionally on the smear path; the cat keeps
+        # position 0 untouched so causality holds.
         if self.smear_gate_enabled:
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
-            not_bos = (input_ids[:, 1:] != BOS_ID).to(x.dtype).unsqueeze(-1)
-            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
+            bos_mask = (input_ids[:, 1:] == 1).unsqueeze(-1)
+            g = g.masked_fill(bos_mask, 0.0)
+            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
-        if self.sb_enabled and self.spellingbee is not None:
-            sb_out = self.spellingbee(input_ids, x)
-            x = x + self.spellingbee_scale.to(dtype=x.dtype)[None, None, :] * sb_out.to(
-                dtype=x.dtype
-            )
         x0 = x
-<<<<<<< main
         skips = []
         enc_iter = (
             self.encoder_indices
@@ -1844,19 +1427,14 @@ class GPT(nn.Module):
     def forward_ttt(self, input_ids, target_ids, lora):
         x = self.tok_emb(input_ids)
         # SmearGate on the TTT path — same inline compute as forward_logits.
-        # Cross-doc leak fix: see _forward_hidden comment.
         if self.smear_gate_enabled:
             sl = self.smear_lambda.to(dtype=x.dtype)
             gate_in = x[:, 1:, : self.smear_window].contiguous()
             g = sl * torch.sigmoid(self.smear_gate(gate_in))
-            not_bos = (input_ids[:, 1:] != BOS_ID).to(x.dtype).unsqueeze(-1)
-            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1] * not_bos], dim=1)
+            bos_mask = (input_ids[:, 1:] == 1).unsqueeze(-1)
+            g = g.masked_fill(bos_mask, 0.0)
+            x = torch.cat([x[:, :1], x[:, 1:] + g * x[:, :-1]], dim=1)
         x = F.rms_norm(x, (x.size(-1),))
-        if self.sb_enabled and self.spellingbee is not None:
-            sb_out = self.spellingbee(input_ids, x)
-            x = x + self.spellingbee_scale.to(dtype=x.dtype)[None, None, :] * sb_out.to(
-                dtype=x.dtype
-            )
         x0 = x
         skips = []
         enc_iter = (
@@ -1979,18 +1557,12 @@ class GPT(nn.Module):
         attn_out = F.linear(y, out_w.to(n.dtype))
         if lora.o_loras is not None:
             attn_out = attn_out + lora.o_loras[slot](n)
-        attn_s = block.attn_scale.to(dtype=x_in.dtype)[None, None, :]
-        if block.use_inhibitor:
-            attn_s = attn_s * block.attn_inhibitor(n).to(dtype=x_in.dtype)
-        x_out = x_in + attn_s * attn_out
+        x_out = x_in + block.attn_scale.to(dtype=x_in.dtype)[None, None, :] * attn_out
         mlp_n = block.mlp_norm(x_out) * block.ln_scale_factor
         mlp_out = block.mlp(mlp_n, up_w, down_w)
         if lora.mlp_loras is not None:
             mlp_out = mlp_out + lora.mlp_loras[slot](mlp_n)
-        mlp_s = block.mlp_scale.to(dtype=x_out.dtype)[None, None, :]
-        if block.use_inhibitor:
-            mlp_s = mlp_s * block.mlp_inhibitor(mlp_n).to(dtype=x_out.dtype)
-        x_out = x_out + mlp_s * mlp_out
+        x_out = x_out + block.mlp_scale.to(dtype=x_out.dtype)[None, None, :] * mlp_out
         return x_out
 
     def _parallel_block_with_lora(
@@ -2045,19 +1617,13 @@ class GPT(nn.Module):
         attn_out = F.linear(y, out_w.to(n.dtype))
         if lora.o_loras is not None:
             attn_out = attn_out + lora.o_loras[slot](n)
-        attn_s = block.attn_scale.to(dtype=attn_out.dtype)[None, None, :]
-        if block.use_inhibitor:
-            attn_s = attn_s * block.attn_inhibitor(n).to(dtype=attn_out.dtype)
-        attn_out = attn_s * attn_out
+        attn_out = block.attn_scale.to(dtype=attn_out.dtype)[None, None, :] * attn_out
         mlp_read = lane1
         mlp_n = block.mlp_norm(mlp_read) * block.ln_scale_factor
         mlp_out = block.mlp(mlp_n, up_w, down_w)
         if lora.mlp_loras is not None:
             mlp_out = mlp_out + lora.mlp_loras[slot](mlp_n)
-        mlp_s = block.mlp_scale.to(dtype=lane1.dtype)[None, None, :]
-        if block.use_inhibitor:
-            mlp_s = mlp_s * block.mlp_inhibitor(mlp_n).to(dtype=lane1.dtype)
-        mlp_out = mlp_s * mlp_out
+        mlp_out = block.mlp_scale.to(dtype=lane1.dtype)[None, None, :] * mlp_out
         attn_resid = self.parallel_resid_lambdas[block_idx, 0].to(dtype=lane0.dtype)
         attn_post = self.parallel_post_lambdas[block_idx, 0].to(dtype=lane0.dtype)
         mlp_resid = self.parallel_resid_lambdas[block_idx, 1].to(dtype=lane0.dtype)
@@ -2243,7 +1809,9 @@ class Muon(torch.optim.Optimizer):
                 self._rs_futures.append(None)
                 continue
             pg = m["padded_grad"]
-            pg[: m["B"]].copy_(p.grad)
+            pg[: m["B"]].copy_(p.grad.bfloat16())
+            if pg.shape[0] > m["B"]:
+                pg[m["B"] :].zero_()
             fut = dist.reduce_scatter_tensor(
                 m["shard"], pg, op=dist.ReduceOp.AVG, async_op=True
             )
@@ -2277,7 +1845,7 @@ class Muon(torch.optim.Optimizer):
                     upd = prev_m["full_update"][: prev_m["B"]]
                     if wd > 0.0:
                         pp.data.mul_(1.0 - lr * wd)
-                    pp.add_(upd, alpha=-lr * prev_m["scale"])
+                    pp.add_(upd.to(dtype=pp.dtype), alpha=-lr * prev_m["scale"])
                 if sharded and self._rs_futures[idx] is not None:
                     self._rs_futures[idx].wait()
                     g = m["shard"]
@@ -2305,14 +1873,14 @@ class Muon(torch.optim.Optimizer):
                 else:
                     if wd > 0.0:
                         p.data.mul_(1.0 - lr * wd)
-                    p.add_(update, alpha=-lr * m["scale"])
+                    p.add_(update.to(dtype=p.dtype), alpha=-lr * m["scale"])
             if prev_ag_handle is not None:
                 prev_ag_handle.wait()
                 pp = prev_m["p"]
                 upd = prev_m["full_update"][: prev_m["B"]]
                 if wd > 0.0:
                     pp.data.mul_(1.0 - lr * wd)
-                pp.add_(upd, alpha=-lr * prev_m["scale"])
+                pp.add_(upd.to(dtype=pp.dtype), alpha=-lr * prev_m["scale"])
             if hasattr(self, "_rs_futures"):
                 del self._rs_futures
         return loss
@@ -2322,7 +1890,7 @@ CONTROL_TENSOR_NAME_PATTERNS = tuple(
     pattern
     for pattern in os.environ.get(
         "CONTROL_TENSOR_NAME_PATTERNS",
-        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,skip_gates,parallel_post_lambdas,parallel_resid_lambdas,attn_gate_proj,attn_gate_w,smear_gate,smear_lambda,inhibitor,spellingbeegate,spellingbee_scale",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights,skip_gates,parallel_post_lambdas,parallel_resid_lambdas,attn_gate_proj,attn_gate_w,smear_gate,smear_lambda",
     ).split(",")
     if pattern
 )
@@ -2392,34 +1960,8 @@ class Optimizers:
             self.optimizer_muon,
             self.optimizer_scalar,
         ]
-        # Spellingbee optimizer is separate so per-bucket Adam does not fight stock AdamW state.
-        # The tables param is all-reduced with replicated_large_params; the projection,
-        # trust gate, and scale are normal scalar-style control params.
-        self.optimizer_spellingbee = None
-        spellingbee_replicated_params = []
-        if hasattr(base_model, "spellingbee") and base_model.spellingbee is not None:
-            self.optimizer_spellingbee = SpellingbeeOptimizer(
-                [base_model.spellingbee.tables],
-                lr=h.sb_lr,
-                betas=(h.sb_beta1, h.sb_beta2),
-                eps=h.sb_eps,
-                weight_decay=h.sb_weight_decay,
-            )
-            for group in self.optimizer_spellingbee.param_groups:
-                group["base_lr"] = h.sb_lr
-            self.optimizers.append(self.optimizer_spellingbee)
-            spellingbee_replicated_params.append(base_model.spellingbee.tables)
-            for p in [
-                base_model.spellingbee.proj.weight,
-                base_model.spellingbee.spellingbeegate.weight,
-                base_model.spellingbee.spellingbeegate.bias,
-                base_model.spellingbee_scale,
-            ]:
-                self.optimizer_scalar.param_groups[0]["params"].append(p)
-                spellingbee_replicated_params.append(p)
         self.replicated_params = list(tok_params[0]["params"])
         self.replicated_params.extend(scalar_params)
-        self.replicated_params.extend(spellingbee_replicated_params)
         self.replicated_large_params = []
         self.replicated_packed_params = []
         for p in self.replicated_params:
@@ -2427,7 +1969,6 @@ class Optimizers:
                 self.replicated_packed_params.append(p)
             else:
                 self.replicated_large_params.append(p)
-        self._aux_stream = torch.cuda.Stream()
 
     def __iter__(self):
         return iter(self.optimizers)
@@ -2470,14 +2011,9 @@ class Optimizers:
             self._all_reduce_packed_grads()
             for handle in reduce_handles:
                 handle.wait()
-        self._aux_stream.wait_stream(torch.cuda.current_stream())
-        with torch.cuda.stream(self._aux_stream):
-            self.optimizer_tok.step()
-            self.optimizer_scalar.step()
-            if self.optimizer_spellingbee is not None:
-                self.optimizer_spellingbee.step()
+        self.optimizer_tok.step()
+        self.optimizer_scalar.step()
         self.optimizer_muon.step()
-        torch.cuda.current_stream().wait_stream(self._aux_stream)
         self.zero_grad_all()
 
 
@@ -2489,7 +2025,6 @@ def restore_fp32_params(model):
         if (
             param.ndim < 2
             or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-            or "spellingbee.tables" in name
         ) and param.dtype != torch.float32:
             param.data = param.data.float()
     if hasattr(model, "qo_bank") and model.qo_bank is not None:
@@ -2707,17 +2242,6 @@ def gptq_mixed_quantize(state_dict, hessians, h):
             result[name + ".gs"] = gs
             meta[name] = "gate_int8_row"
             continue
-        # Spellingbee tables are lookup rows, not linear weights; GPTQ Hessians do not apply.
-        if name == "spellingbee.tables" and t.is_floating_point():
-            if getattr(h, "sb_int8_quant", True):
-                gq, gs = _quantize_gate_int8_row(t)
-                result[name + ".gq"] = gq
-                result[name + ".gs"] = gs
-                meta[name] = "spellingbee_int8_row"
-                continue
-            result[name] = t.to(torch.float16)
-            meta[name] = "passthrough (float16)"
-            continue
         if not t.is_floating_point() or t.numel() <= 65536:
             result[name] = t.to(torch.float16) if t.is_floating_point() else t
             meta[name] = "passthrough (float16)"
@@ -2796,11 +2320,6 @@ def dequantize_mixed(result, meta, template_sd):
             gs = result[name + ".gs"]
             out[name] = (gq.float() * gs.float().view(-1, 1)).to(orig_dtype)
             continue
-        if info == "spellingbee_int8_row":
-            gq = result[name + ".gq"]
-            gs = result[name + ".gs"]
-            out[name] = (gq.float() * gs.float().view(-1, 1)).to(orig_dtype)
-            continue
         q, s = result[name + ".q"], result[name + ".scale"]
         if s.ndim > 0:
             W = q.float() * s.float().view(q.shape[0], *[1] * (q.ndim - 1))
@@ -2828,225 +2347,59 @@ def dequantize_mixed(result, meta, template_sd):
 _BSHF_MAGIC = b"BSHF"
 
 
-# ── Per-group lrzip compression (ported from PR#1586 via PR#1667/1729) ────────
-
-_GROUP_ORDER = [
-    "_tok_emb.weight.q",
-    "attn.c_k.weight.q", "attn.c_q.weight.q",
-    "attn.c_v.weight.q", "attn.proj.weight.q",
-    "mlp.fc.weight.q", "mlp.proj.weight.q",
-]
-_SIMSORT_KEYS = {"_tok_emb.weight.q", "attn.c_q.weight.q", "mlp.fc.weight.q"}
-_PACK_MAGIC = b"PGRP"
-
-
-def _similarity_sort_l1(matrix):
-    import numpy as _np
-    n = matrix.shape[0]
-    used = _np.zeros(n, dtype=bool)
-    order = [0]
-    used[0] = True
-    cur = matrix[0].astype(_np.float32)
-    for _ in range(n - 1):
-        dists = _np.sum(_np.abs(matrix[~used].astype(_np.float32) - cur), axis=1)
-        unused = _np.where(~used)[0]
-        best = unused[_np.argmin(dists)]
-        order.append(best)
-        used[best] = True
-        cur = matrix[best].astype(_np.float32)
-    return _np.array(order, dtype=_np.uint16)
+def _byte_shuffle(data, stride=2):
+    if stride <= 1 or len(data) < stride:
+        return data
+    src = np.frombuffer(data, dtype=np.uint8)
+    n = len(src)
+    out = np.empty(n, dtype=np.uint8)
+    dest_off = 0
+    for pos in range(stride):
+        chunk = src[pos::stride]
+        out[dest_off : dest_off + len(chunk)] = chunk
+        dest_off += len(chunk)
+    return _BSHF_MAGIC + bytes([stride]) + out.tobytes()
 
 
-def _lrzip_compress(data, tmpdir, label):
-    inp = os.path.join(tmpdir, f"{label}.bin")
-    out = f"{inp}.lrz"
-    with open(inp, "wb") as f:
-        f.write(data)
-    subprocess.run(["lrzip", "-z", "-L", "9", "-o", out, inp], capture_output=True, check=True)
-    with open(out, "rb") as f:
-        result = f.read()
-    os.remove(inp); os.remove(out)
-    return result
+def _byte_unshuffle(data):
+    if len(data) < 5 or data[:4] != _BSHF_MAGIC:
+        return data
+    stride = data[4]
+    if stride < 2:
+        return data[5:]
+    payload = np.frombuffer(data, dtype=np.uint8, offset=5)
+    n = len(payload)
+    out = np.empty(n, dtype=np.uint8)
+    src_off = 0
+    for pos in range(stride):
+        chunk_len = n // stride + (1 if pos < n % stride else 0)
+        out[pos::stride][:chunk_len] = payload[src_off : src_off + chunk_len]
+        src_off += chunk_len
+    return out.tobytes()
 
 
-def _lrzip_decompress(data, tmpdir, label):
-    inp = os.path.join(tmpdir, f"{label}.lrz")
-    out = os.path.join(tmpdir, f"{label}.bin")
-    with open(inp, "wb") as f:
-        f.write(data)
-    subprocess.run(["lrzip", "-d", "-f", "-o", out, inp], capture_output=True, check=True)
-    with open(out, "rb") as f:
-        result = f.read()
-    os.remove(inp); os.remove(out)
-    return result
-
-
-def _pack_streams(streams):
-    import struct
-    n = len(streams)
-    hdr = _PACK_MAGIC + struct.pack("<I", n)
-    for s in streams:
-        hdr += struct.pack("<I", len(s))
-    return hdr + b"".join(streams)
-
-
-def _unpack_streams(blob):
-    import struct
-    assert blob[:4] == _PACK_MAGIC
-    n = struct.unpack("<I", blob[4:8])[0]
-    off = 8
-    lengths = [struct.unpack("<I", blob[off + i*4:off + i*4 + 4])[0] for i in range(n)]
-    off += n * 4
-    streams = []
-    for length in lengths:
-        streams.append(blob[off:off + length])
-        off += length
-    return streams
-
-
-def _compress(raw, compressor):
-    if compressor == "brotli":
-        import brotli
-        return brotli.compress(raw, quality=11)
+def _compress(data, compressor):
+    data = _byte_shuffle(data)
     if compressor == "lzma":
-        import lzma
-        return lzma.compress(raw, preset=9)
-    raise ValueError(f"unknown compressor {compressor!r}")
-
-
-def _decompress(blob, compressor):
-    if compressor == "brotli":
+        return lzma.compress(data, preset=6)
+    elif compressor == "brotli":
         import brotli
-        return brotli.decompress(blob)
+
+        return brotli.compress(data, quality=11)
+    raise ValueError(f"Unknown compressor: {compressor!r}")
+
+
+def _decompress(data, compressor):
     if compressor == "lzma":
-        import lzma
-        return lzma.decompress(blob)
-    raise ValueError(f"unknown compressor {compressor!r}")
+        raw = lzma.decompress(data)
+    elif compressor == "brotli":
+        import brotli
 
-
-def _serialize_pergroup(quant_result, quant_meta, num_layers, tmpdir):
-    import brotli
-    import numpy as _np
-    groups = collections.defaultdict(list)
-    remainder = {}
-    for name, t in sorted(quant_result.items()):
-        if t.dtype != torch.int8:
-            remainder[name] = t
-            continue
-        parts = name.split(".")
-        routed = False
-        if parts[0] == "blocks" and parts[1].isdigit():
-            key = ".".join(parts[2:])
-            if key in _GROUP_ORDER:
-                groups[key].append((int(parts[1]), t))
-                routed = True
-        else:
-            group_key = "_" + name
-            if group_key in _GROUP_ORDER:
-                groups[group_key] = [(0, t)]
-                routed = True
-        if not routed:
-            # int8 tensor that doesn't fit a known group (e.g. gate_int8_row
-            # tensors like attn.attn_gate_w.gq from GATED_ATTN). Stash in
-            # the brotli-compressed remainder blob so it round-trips.
-            remainder[name] = t
-
-    streams = []
-    all_perms = b""
-    shape_manifest = {}
-
-    for group_key in _GROUP_ORDER:
-        if group_key not in groups:
-            streams.append(b"")
-            continue
-        tensors = sorted(groups[group_key], key=lambda x: x[0])
-        blob = b""
-        grp_shapes = []
-        for idx, t in tensors:
-            arr = t.numpy()
-            orig_shape = arr.shape
-            if arr.ndim == 2:
-                if group_key in _SIMSORT_KEYS:
-                    order = _similarity_sort_l1(arr)
-                    all_perms += order.tobytes()
-                    arr = arr[order]
-                arr = _np.ascontiguousarray(arr.T)
-            blob += arr.tobytes()
-            grp_shapes.append(orig_shape)
-        shape_manifest[group_key] = grp_shapes
-        compressed = _lrzip_compress(blob, tmpdir, group_key.replace(".", "_"))
-        streams.append(compressed)
-
-    remainder_buf = io.BytesIO()
-    torch.save({"r": remainder, "m": quant_meta, "s": shape_manifest}, remainder_buf)
-    streams.append(brotli.compress(remainder_buf.getvalue(), quality=11, lgwin=24))
-    streams.append(brotli.compress(all_perms, quality=11) if all_perms else b"")
-
-    return _pack_streams(streams)
-
-
-def _deserialize_pergroup(blob, num_layers, tmpdir):
-    import brotli
-    import numpy as _np
-    streams = _unpack_streams(blob)
-    n_groups = len(_GROUP_ORDER)
-
-    remainder_state = torch.load(
-        io.BytesIO(brotli.decompress(streams[n_groups])), map_location="cpu"
-    )
-    quant_meta = remainder_state["m"]
-    quant_result = dict(remainder_state["r"])
-    shape_manifest = remainder_state["s"]
-    all_perms = brotli.decompress(streams[n_groups + 1]) if streams[n_groups + 1] else b""
-
-    def _decompress_one(args):
-        i, gk, data = args
-        if not data:
-            return gk, b""
-        return gk, _lrzip_decompress(data, tmpdir, f"d_{gk.replace('.', '_')}")
-
-    from concurrent.futures import ThreadPoolExecutor as _TPool
-    with _TPool(max_workers=n_groups) as pool:
-        futs = [pool.submit(_decompress_one, (i, gk, streams[i])) for i, gk in enumerate(_GROUP_ORDER)]
-        raw_groups = {f.result()[0]: f.result()[1] for f in futs}
-
-    perm_off = 0
-    for group_key in _GROUP_ORDER:
-        raw = raw_groups.get(group_key, b"")
-        if not raw:
-            continue
-        grp_shapes = shape_manifest[group_key]
-        data_arr = _np.frombuffer(raw, dtype=_np.int8)
-
-        if group_key.startswith("_"):
-            tensor_names = [group_key[1:]]
-        else:
-            tensor_names = [f"blocks.{i}.{group_key}" for i in range(num_layers)]
-
-        offset = 0
-        for tname, orig_shape in zip(tensor_names, grp_shapes):
-            n_elem = 1
-            for d in orig_shape:
-                n_elem *= d
-            chunk = data_arr[offset:offset + n_elem].copy()
-            offset += n_elem
-
-            if len(orig_shape) == 2:
-                rows, cols = orig_shape
-                chunk = chunk.reshape(cols, rows).T
-
-                if group_key in _SIMSORT_KEYS:
-                    perm = _np.frombuffer(all_perms[perm_off:perm_off + rows * 2], dtype=_np.uint16)
-                    perm_off += rows * 2
-                    inv_perm = _np.empty_like(perm)
-                    inv_perm[perm] = _np.arange(rows, dtype=_np.uint16)
-                    chunk = chunk[inv_perm]
-
-                chunk = chunk.reshape(orig_shape)
-
-            quant_result[tname] = torch.from_numpy(_np.ascontiguousarray(chunk))
-
-    return quant_result, quant_meta
+        raw = brotli.decompress(data)
+    else:
+        raise ValueError(f"Unknown compressor: {compressor!r}")
+    raw = _byte_unshuffle(raw)
+    return raw
 
 
 def _unbank_state_dict(state_dict, num_layers):
@@ -3106,18 +2459,14 @@ def _rebank_state_dict(flat_sd, num_layers, model_dim, kv_dim, hidden_dim):
 
 
 def _compressed_code_size(code):
-    import brotli
     code_raw = code.encode("utf-8")
-    try:
-        minified = subprocess.run(
-            ["pyminify", "--no-rename-locals", "--no-hoist-literals", "--remove-literal-statements", "--remove-asserts", "--prefer-single-line", "-"],
-            input=code_raw, capture_output=True, check=True,
-        ).stdout
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        minified = code_raw
-    compressed = brotli.compress(minified, quality=11)
+    minified = subprocess.run(
+        ["pyminify", "--no-rename-locals", "--no-hoist-literals", "--remove-literal-statements", "-"],
+        input=code_raw, capture_output=True, check=True,
+    ).stdout
+    compressed = lzma.compress(minified)
     encoded = base64.b85encode(compressed)
-    wrapper = b"import brotli as B,base64 as b\nexec(B.decompress(b.b85decode(\"" + encoded + b"\")))\n"
+    wrapper = b'import lzma as L,base64 as B\nexec(L.decompress(B.b85decode("' + encoded + b'")))\n'
     return len(code_raw), len(wrapper)
 
 
@@ -3142,23 +2491,15 @@ def serialize(h, base_model, code):
         n_calibration_batches=h.gptq_calibration_batches,
     )
     log(f"GPTQ:collected {len(hessians)} Hessians in {time.perf_counter()-t0:.1f}s")
+    t_quant = time.perf_counter()
     quant_result, quant_meta = gptq_mixed_quantize(sd_cpu, hessians, h)
-    if h.compressor == "pergroup":
-        import tempfile
-        tmpdir = tempfile.mkdtemp(prefix="pgrp_")
-        log("Serialize: per-group lrzip compression...")
-        t1 = time.perf_counter()
-        quant_blob = _serialize_pergroup(quant_result, quant_meta, h.num_layers, tmpdir)
-        log(f"Serialize: per-group compression done in {time.perf_counter()-t1:.1f}s")
-        try:
-            os.rmdir(tmpdir)
-        except OSError:
-            pass
-    else:
-        quant_buf = io.BytesIO()
-        torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
-        quant_raw = quant_buf.getvalue()
-        quant_blob = _compress(quant_raw, h.compressor)
+    log(f"GPTQ:quantized in {time.perf_counter()-t_quant:.1f}s")
+    quant_buf = io.BytesIO()
+    torch.save({"w": quant_result, "m": quant_meta}, quant_buf)
+    quant_raw = quant_buf.getvalue()
+    t_compress = time.perf_counter()
+    quant_blob = _compress(quant_raw, h.compressor)
+    log(f"GPTQ:compressed+saved in {time.perf_counter()-t_compress:.1f}s")
     quant_file_bytes = len(quant_blob)
     bytes_total = quant_file_bytes + code_bytes
     if h.is_main_process:
@@ -3175,25 +2516,10 @@ def deserialize(h, device):
     flat_template = _unbank_state_dict(eval_model.state_dict(), h.num_layers)
     with open(h.quantized_model_path, "rb") as f:
         quant_blob_disk = f.read()
-    if quant_blob_disk[:4] == _PACK_MAGIC:
-        import tempfile
-        tmpdir = tempfile.mkdtemp(prefix="pgrp_dec_")
-        log("Deserialize: per-group lrzip decompression...")
-        t0 = time.perf_counter()
-        quant_result, quant_meta = _deserialize_pergroup(
-            quant_blob_disk, h.num_layers, tmpdir
-        )
-        log(f"Deserialize: decompression done in {time.perf_counter()-t0:.1f}s")
-        try:
-            os.rmdir(tmpdir)
-        except OSError:
-            pass
-    else:
-        quant_state = torch.load(
-            io.BytesIO(_decompress(quant_blob_disk, h.compressor)), map_location="cpu"
-        )
-        quant_result, quant_meta = quant_state["w"], quant_state["m"]
-    deq_flat = dequantize_mixed(quant_result, quant_meta, flat_template)
+    quant_state = torch.load(
+        io.BytesIO(_decompress(quant_blob_disk, h.compressor)), map_location="cpu"
+    )
+    deq_flat = dequantize_mixed(quant_state["w"], quant_state["m"], flat_template)
     head_dim = h.model_dim // h.num_heads
     kv_dim = h.num_kv_heads * head_dim
     hidden_dim = int(h.mlp_mult * h.model_dim)
@@ -3262,10 +2588,22 @@ def eval_val(h, device, val_data, model, forward_logits_fn=None):
             val_token_count += float(y.numel())
             prev_ids = x
             tgt_ids = y
-            sidecar_slice = val_data.val_bytes[raw_start + 1 : raw_end].to(
-                device=device, dtype=torch.int32, non_blocking=True
-            )
-            val_byte_count += sidecar_slice.to(torch.float64).sum()
+            if val_data.caseops_enabled and val_data.val_bytes is not None:
+                # CaseOps: read per-token byte budget from sidecar at the same
+                # global positions as the target tokens y. raw_start/raw_end
+                # span [raw_start, raw_end), x = local[:-1], y = local[1:],
+                # so y is at sidecar positions [raw_start + 1, raw_end).
+                sidecar_slice = val_data.val_bytes[raw_start + 1 : raw_end].to(
+                    device=device, dtype=torch.int32, non_blocking=True
+                )
+                val_byte_count += sidecar_slice.to(torch.float64).sum()
+            else:
+                token_bytes = val_data.base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+                token_bytes += (
+                    val_data.has_leading_space_lut[tgt_ids]
+                    & ~val_data.is_boundary_token_lut[prev_ids]
+                ).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
         dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
@@ -3805,30 +3143,6 @@ def timed_eval(label, fn, *args, **kwargs):
         f"{label} val_loss:{val_loss:.8f} val_bpb:{val_bpb:.8f} eval_time:{elapsed_ms:.0f}ms"
     )
     return val_loss, val_bpb
-=======
-        skips: list[Tensor] = []
-
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
-
-        x = self.final_norm(x).reshape(-1, x.size(-1))
-        targets = target_ids.reshape(-1)
-        if self.tie_embeddings:
-            logits_proj = F.linear(x, self.tok_emb.weight)
-        else:
-            if self.lm_head is None:
-                raise RuntimeError("lm_head is required when tie_embeddings=False")
-            logits_proj = self.lm_head(x)
-        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
-
->>>>>>> main
 
 
 def train_model(h, device, val_data):
@@ -3848,7 +3162,7 @@ def train_model(h, device, val_data):
     if max_wallclock_ms is not None:
         max_wallclock_ms -= h.gptq_reserve_seconds * 1e3
         log(
-            f"gptq:reserving {h.gptq_reserve_seconds:.0f}s, effective={max_wallclock_ms:.0f}ms"
+            f"gptq:reserving {h.gptq_reserve_seconds:.1f}s, effective={max_wallclock_ms:.0f}ms"
         )
 
     def training_frac(step, elapsed_ms):
@@ -3863,11 +3177,8 @@ def train_model(h, device, val_data):
             return max((1.0 - frac) / h.warmdown_frac, h.min_lr)
         return 1.0
 
-    _clip_params = [
-        p for (name, p) in base_model.named_parameters()
-        if p.requires_grad and "spellingbee.tables" not in name
-    ]
     def step_fn(step, lr_scale):
+        optimizers.zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(h.grad_accum_steps):
             x, y, cu_seqlens, _max_seqlen = train_loader.next_batch(
@@ -3878,145 +3189,21 @@ def train_model(h, device, val_data):
             train_loss += loss.detach()
             (loss / h.grad_accum_steps).backward()
         train_loss /= h.grad_accum_steps
-        if step <= h.muon_momentum_warmup_steps:
-
-            frac = (
-
-                min(step / h.muon_momentum_warmup_steps, 1.0)
-
-                if h.muon_momentum_warmup_steps > 0
-
-                else 1.0
-
-            )
-
-            muon_momentum = (
-
-                1 - frac
-
-<<<<<<< main
-            ) * h.muon_momentum_warmup_start + frac * h.muon_momentum
-=======
-    if not args.tokenizer_path.endswith(".model"):
-        raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
-    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
-    if int(sp.vocab_size()) != args.vocab_size:
-        raise ValueError(
-            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        frac = (
+            min(step / h.muon_momentum_warmup_steps, 1.0)
+            if h.muon_momentum_warmup_steps > 0
+            else 1.0
         )
-    dataset_dir = Path(args.data_path).resolve()
-    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
-    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
-    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
-        sp, args.vocab_size, device
-    )
-    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
-    log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
-    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
-
-    # -----------------------------
-    # MODEL + OPTIMIZER SETUP
-    # -----------------------------
-
-    base_model = GPT(
-        vocab_size=args.vocab_size,
-        num_layers=args.num_layers,
-        model_dim=args.model_dim,
-        num_heads=args.num_heads,
-        num_kv_heads=args.num_kv_heads,
-        mlp_mult=args.mlp_mult,
-        tie_embeddings=args.tie_embeddings,
-        tied_embed_init_std=args.tied_embed_init_std,
-        logit_softcap=args.logit_softcap,
-        rope_base=args.rope_base,
-        qk_gain_init=args.qk_gain_init,
-    ).to(device).bfloat16()
-    for module in base_model.modules():
-        if isinstance(module, CastedLinear):
-            module.float()
-    restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
-    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
-
-    # Optimizer split:
-    # - token embedding (Adam) uses EMBED_LR
-    # - untied lm_head (Adam) uses HEAD_LR
-    # - matrix params in transformer blocks use MATRIX_LR via Muon
-    # - vectors/scalars use SCALAR_LR via Adam
-    block_named_params = list(base_model.blocks.named_parameters())
-    matrix_params = [
-        p
-        for name, p in block_named_params
-        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-    ]
-    scalar_params = [
-        p
-        for name, p in block_named_params
-        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
-    ]
-    if base_model.skip_weights.numel() > 0:
-        scalar_params.append(base_model.skip_weights)
-    token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
-    optimizer_tok = torch.optim.Adam(
-        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
-    )
-    optimizer_muon = Muon(
-        matrix_params,
-        lr=args.matrix_lr,
-        momentum=args.muon_momentum,
-        backend_steps=args.muon_backend_steps,
-    )
-    for group in optimizer_muon.param_groups:
-        group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.Adam(
-        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
-        betas=(args.beta1, args.beta2),
-        eps=args.adam_eps,
-        fused=True,
-    )
-    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
-    if base_model.lm_head is not None:
-        optimizer_head = torch.optim.Adam(
-            [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
-            betas=(args.beta1, args.beta2),
-            eps=args.adam_eps,
-            fused=True,
-        )
-        optimizers.insert(1, optimizer_head)
-
-    n_params = sum(p.numel() for p in base_model.parameters())
-    log0(f"model_params:{n_params}")
-    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
-    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
-    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
-    log0(
-        f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
-        f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
-        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
-    )
-    log0(
-        f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
-        f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
-        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
-    )
-    log0(f"seed:{args.seed}")
-
-    # -----------------------------
-    # DATA LOADER & MODEL WARMUP
-    # -----------------------------
->>>>>>> main
-
-            for group in optimizers.optimizer_muon.param_groups:
-
-                group["momentum"] = muon_momentum
+        muon_momentum = (
+            1 - frac
+        ) * h.muon_momentum_warmup_start + frac * h.muon_momentum
+        for group in optimizers.optimizer_muon.param_groups:
+            group["momentum"] = muon_momentum
         for opt in optimizers:
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * lr_scale
         if h.grad_clip_norm > 0:
-            torch.nn.utils.clip_grad_norm_(_clip_params, h.grad_clip_norm)
+            torch.nn.utils.clip_grad_norm_(base_model.parameters(), h.grad_clip_norm)
         optimizers.step(distributed=h.distributed)
         return train_loss
 
@@ -4084,16 +3271,10 @@ def train_model(h, device, val_data):
             opt.load_state_dict(state)
         optimizers.zero_grad_all()
         train_loader = DocumentPackingLoader(h, device)
-    _live_state = base_model.state_dict(keep_vars=True)
     ema_state = {
         name: t.detach().float().clone()
-        for (name, t) in _live_state.items()
-        if "spellingbee.tables" not in name
+        for (name, t) in base_model.state_dict().items()
     }
-    _ema_pairs = [
-        (ema_state[name], t) for (name, t) in _live_state.items()
-        if "spellingbee.tables" not in name
-    ]
     ema_decay = h.ema_decay
     training_time_ms = 0.0
     stop_after_step = None
@@ -4140,8 +3321,10 @@ def train_model(h, device, val_data):
             )
         train_loss = step_fn(step, scale)
         with torch.no_grad():
-            for ema_t, t in _ema_pairs:
-                ema_t.mul_(ema_decay).add_(t.detach(), alpha=1.0 - ema_decay)
+            for (name, t) in base_model.state_dict().items():
+                ema_state[name].mul_(ema_decay).add_(
+                    t.detach().float(), alpha=1.0 - ema_decay
+                )
         step += 1
         approx_training_time_ms = training_time_ms + 1e3 * (time.perf_counter() - t0)
         should_log_train = h.train_log_every > 0 and (
@@ -4164,14 +3347,11 @@ def train_model(h, device, val_data):
     log(
         f"peak memory allocated: {torch.cuda.max_memory_allocated()//1024//1024} MiB reserved: {torch.cuda.max_memory_reserved()//1024//1024} MiB"
     )
-    log("ema:applying EMA weights (excluding spellingbee.tables)")
+    log("ema:applying EMA weights")
     current_state = base_model.state_dict()
     avg_state = {
         name: t.to(dtype=current_state[name].dtype) for (name, t) in ema_state.items()
     }
-    for name, t in current_state.items():
-        if "spellingbee.tables" in name:
-            avg_state[name] = t
     base_model.load_state_dict(avg_state, strict=True)
     return base_model, compiled_model, compiled_forward_logits
 
@@ -4198,10 +3378,31 @@ def train_and_eval(h, device):
         log(f"ttt_warm_start_a: {BatchedLinearLoRA._WARM_START_A}")
         log(f"ttt_weight_decay: {h.ttt_weight_decay}")
     else:
+        t_artifact_start = time.perf_counter()
         base_model, compiled_model, compiled_forward_logits = train_model(
             h, device, val_data
         )
         torch._dynamo.reset()
+        if os.environ.get("PREQUANT_ONLY", "0") == "1":
+            timed_eval(
+                "diagnostic pre-quantization post-ema",
+                eval_val,
+                h,
+                device,
+                val_data,
+                compiled_model,
+                compiled_forward_logits,
+            )
+            log("PREQUANT_ONLY=1 — skipping serialize/GPTQ/post-quant eval/TTT")
+            return
+        t_serialize_start = time.perf_counter()
+        serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
+        serialize_seconds = time.perf_counter() - t_serialize_start
+        log(f"serialize_wallclock: {serialize_seconds:.3f}s")
+        if h.distributed:
+            dist.barrier()
+        artifact_production_seconds = time.perf_counter() - t_artifact_start
+        log(f"artifact_production_wallclock: {artifact_production_seconds:.3f}s (must be < {h.max_wallclock_seconds})")
         timed_eval(
             "diagnostic pre-quantization post-ema",
             eval_val,
@@ -4211,12 +3412,6 @@ def train_and_eval(h, device):
             compiled_model,
             compiled_forward_logits,
         )
-        if os.environ.get("PREQUANT_ONLY", "0") == "1":
-            log("PREQUANT_ONLY=1 — skipping serialize/GPTQ/post-quant eval/TTT")
-            return
-        serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
-        if h.distributed:
-            dist.barrier()
     eval_model = deserialize(h, device)
     if h.num_loops > 0:
         eval_model.looping_active = True
@@ -4336,7 +3531,6 @@ def main():
     if distributed:
         dist.init_process_group(backend="nccl", device_id=device)
         dist.barrier()
-<<<<<<< main
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     torch.set_float32_matmul_precision("high")
@@ -4352,7 +3546,7 @@ def main():
     enable_mem_efficient_sdp(False)
     enable_math_sdp(False)
     torch._dynamo.config.optimize_ddp = False
-    torch._dynamo.config.cache_size_limit = 64
+    torch._dynamo.config.cache_size_limit = 16
     h = Hyperparameters()
     set_logging_hparams(h)
     if h.is_main_process:
@@ -4372,33 +3566,6 @@ def main():
         log(f"Running PyTorch {torch.__version__}", console=False)
         log("=" * 100, console=False)
     train_and_eval(h, device)
-=======
-    with open("final_model.int8.ptz", "rb") as f:
-        quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
-    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
-    torch.cuda.synchronize()
-    t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
-        args,
-        model,
-        rank,
-        world_size,
-        device,
-        grad_accum_steps,
-        val_tokens,
-        base_bytes_lut,
-        has_leading_space_lut,
-        is_boundary_token_lut,
-    )
-    torch.cuda.synchronize()
-    log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
-    )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
-
->>>>>>> main
     if distributed:
         dist.destroy_process_group()
 
