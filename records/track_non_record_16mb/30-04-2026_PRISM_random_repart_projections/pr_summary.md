@@ -126,12 +126,12 @@ Two-block models develop near-zero cosine similarity between encoder (block 0) a
 
 | Model | Best At | Key Weakness | Implication for Next Experiments |
 |---|---|---|---|
-| **Standard 11L** | Absolute quality, head diversity, quant robustness | 35.9M params, too large | Quality ceiling; skip pattern (outer>inner) should initialize shared models |
-| **ALBERT** | Smallest submission (3.8 MB) | Quality collapse, quant catastrophe, no depth awareness | Add virtual adapters to 1-block ALBERT; its failures pinpoint what matters most |
-| **Naive Shared** | Proves U-Net structure value (+48.5 mBPB vs ALBERT) | No learned specialization, uniform skip gates | The "adapter premium" (4.9 mBPB) justifies per-layer scaling |
-| **PRISM-WO** | Best shared quality, best quant robustness, adapter utilization | 103.6 mBPB gap to dense still large | Correct baseline for all future work; try low-rank adapters for more capacity |
-| **PRISM-WT** | Strongest encoder asymmetry, highest QGain diversity | Attention alignment tax, head entanglement | Motivates structured perms (butterfly) + static blend; raw random perms are wrong tool |
-| **PRISM-Adapt** | Proves static α=0.5 is optimal (gate discovers it) | Gate is useless (0 weight norm), 5% throughput loss | Use `STATIC_BLEND_ALPHA=0.5` directly; don't learn the gate |
+| **Standard 11L** | Absolute BPB, head diversity, quant robustness, rare-token handling | 35.9M params / 16.1 MB submission | Treat as the physical quality ceiling; copy its outer-skip > inner-skip bias into shared models |
+| **ALBERT** | Smallest submission (3.8 MB) and cleanest collapse baseline | Worst BPB, catastrophic quant penalty, severe layer collapse | Extreme sharing needs structural compensation; add virtual adapters or U-Net hierarchy before anything else |
+| **Naive Shared** | Proves the 2-block U-Net skeleton matters (+48.5 mBPB vs ALBERT) | No per-depth specialization; skip gates stay near init | Use as the skeleton control; the Naive→WO gain measures the adapter premium |
+| **PRISM-WO** | Best shared-bracket BPB and quant robustness; strongest evidence for virtual adapters | Still 103.6 mBPB behind dense; weakest rare-token ratio | Correct no-repartition control; add targeted capacity (low-rank or number/irregular-token adapters) rather than random mixing |
+| **PRISM-WT** | Highest layer diversity and strongest encoder/QGain asymmetry | Q/K activation alignment tax, head entanglement, poor Q-proj conditioning | Raw random Q/K repartition is the wrong primitive; try structured permutations/rotations plus blending |
+| **PRISM-Adapt** | Best rare-token robustness; discovers the useful 50/50 identity/permutation blend; strong weight health | Learned gate adds overhead and collapses to a static bias | Replace learned routing with fixed `STATIC_BLEND_ALPHA=0.5`; pair with structured Q/K repartition |
 
 ## Finding 8: Radically Different Weights, Nearly Identical BPB
 
