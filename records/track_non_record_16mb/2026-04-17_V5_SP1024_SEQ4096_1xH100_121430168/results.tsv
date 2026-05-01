@@ -1,0 +1,2 @@
+run_id	track	gpu	tokenizer	train_seq_len	iterations	warmup_steps	val_loss_exact	val_bpb_exact	bytes_total
+v5_sp1024_top10_a	non-record-16mb	1xH100	sp1024	4096	6000	30	2.05029752	1.21430168	15841388
