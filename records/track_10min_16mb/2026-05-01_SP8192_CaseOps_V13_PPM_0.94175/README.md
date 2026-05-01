@@ -12,7 +12,7 @@ PPM_T=0.80
 TTT_ENABLED=0
 ```
 
-Thanks to Claude for the late-stage experiment design help and to Codex for implementation, audit, run coordination, and packaging. This stack also builds on the public Parameter Golf work around SP8192, SmearGate, byte PPM, and per-group compression.
+Thanks to Claude for the late-stage experiment design help and to Codex for implementation, audit, run coordination, and packaging. This stack also builds on public Parameter Golf work by @clarkkev, @bigbag, @codemath3000, @OE-GOD, @remg1997, @joshuaswanson, @MarioPaerle, @classiclarryd, @simonbissonnette, @dexhunter, @romeerp, @samacqua, @renqianluo, @jorge-asenjo, @Omrigotlieb, @AnirudhRahul, and @ndokutovich. See `REFERENCES.md` for the component lineage and PR numbers.
 
 ## Score
 
@@ -45,6 +45,19 @@ Relative to the previous SP8192 + byte-PPM tuned-gate line, v13 combines:
 - Per-group `lrzip` compression for banked int6 tensors, with Brotli for the remainder/code wrapper.
 - PPM order 5 with the final gate retune `H=0.999`, `L=0.18`, `T=0.80`.
 - TTT disabled for the submitted score, so the validation pass is a single causal PPM scoring pass over the quantized artifact.
+
+## Lineage and attribution
+
+This is not a from-scratch model. The code is a consolidation of several public Parameter Golf ideas:
+
+- SP8192 tokenizer, recurrence, QK gain, and compact GPT training lineage from PR #1394, PR #1493, and PR #1855.
+- Causal byte-PPM mixer lineage from PR #1795, PR #1959, and PR #1991.
+- SmearGate / attention output gate lineage from modded-nanogpt @classiclarryd and PR #1667, plus the BOS cross-document leak fix discussed in PR #2014 / the PR #1797 base audit.
+- Per-group `lrzip` compression lineage from PR #1586 through PR #1667 / PR #1729-style grouped serialization work.
+- LQER/AWQ/asymmetric-rescale and related quantization/optimization pieces from PR #1530, PR #1797, PR #1886, PR #1923, and PR #1855.
+- Online n-gram tilt / scoring overlay ideas from PR #1145 and PR #1967, though the submitted score uses the PPM path rather than TTT.
+
+Our specific contribution in this PR is the v13 consolidation, the CaseOps sidecar-aware evaluation packaging, and the final PPM gate retune to `H=0.999`, `L=0.18`, `T=0.80` over the same seed set.
 
 The checked-in script sets the final PPM gate as defaults, so a fresh run follows the same configuration without external environment overrides.
 
