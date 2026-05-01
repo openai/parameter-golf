@@ -1,0 +1,14 @@
+{
+  "val_bpb": 1.06287,
+  "val_loss": 2.326951,
+  "seeds": [42, 0, 1234],
+  "per_seed": {
+    "42":   {"steps": 4989, "pre_quant_bpb": 1.06749, "quantized_bpb": 1.07678, "post_ttt_bpb": 1.06366, "artifact_bytes": 15909254},
+    "0":    {"steps": 4974, "pre_quant_bpb": 1.06685, "quantized_bpb": 1.07608, "post_ttt_bpb": 1.06311, "artifact_bytes": 15904209},
+    "1234": {"steps": 4973, "pre_quant_bpb": 1.06578, "quantized_bpb": 1.07509, "post_ttt_bpb": 1.06183, "artifact_bytes": 15909401}
+  },
+  "hardware": "8xH100 SXM 80GB",
+  "region": "NA-1",
+  "base_pr": 1787,
+  "git_commit": "1d12cb6"
+}
