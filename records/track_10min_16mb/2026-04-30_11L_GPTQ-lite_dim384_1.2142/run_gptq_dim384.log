@@ -1,0 +1,692 @@
+W0501 03:53:30.678000 123756002550400 torch/distributed/run.py:779] 
+W0501 03:53:30.678000 123756002550400 torch/distributed/run.py:779] *****************************************
+W0501 03:53:30.678000 123756002550400 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0501 03:53:30.678000 123756002550400 torch/distributed/run.py:779] *****************************************
+logs/8xh100_gptq_dim384.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:16632280
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:8
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9314 val_bpb:4.1051 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9309 train_time:53ms step_avg:53.48ms
+step:2/20000 train_loss:12.8612 train_time:114ms step_avg:56.95ms
+step:3/20000 train_loss:6.9034 train_time:181ms step_avg:60.37ms
+step:4/20000 train_loss:7.0928 train_time:248ms step_avg:61.97ms
+step:5/20000 train_loss:7.6453 train_time:315ms step_avg:62.97ms
+step:6/20000 train_loss:7.8967 train_time:381ms step_avg:63.57ms
+step:7/20000 train_loss:6.8356 train_time:448ms step_avg:64.01ms
+step:8/20000 train_loss:6.5583 train_time:515ms step_avg:64.36ms
+step:9/20000 train_loss:6.3922 train_time:582ms step_avg:64.68ms
+step:10/20000 train_loss:6.1534 train_time:649ms step_avg:64.88ms
+step:200/20000 train_loss:2.8417 train_time:13386ms step_avg:66.93ms
+step:400/20000 train_loss:2.3425 train_time:26794ms step_avg:66.99ms
+step:600/20000 train_loss:2.5280 train_time:40191ms step_avg:66.99ms
+step:800/20000 train_loss:2.2672 train_time:53567ms step_avg:66.96ms
+step:1000/20000 train_loss:2.3508 train_time:66935ms step_avg:66.94ms
+step:1000/20000 val_loss:2.3058 val_bpb:1.3656 train_time:66961ms step_avg:66.96ms
+step:1200/20000 train_loss:2.3700 train_time:80311ms step_avg:66.93ms
+step:1400/20000 train_loss:2.3903 train_time:93674ms step_avg:66.91ms
+step:1600/20000 train_loss:2.0566 train_time:107053ms step_avg:66.91ms
+step:1800/20000 train_loss:2.1739 train_time:120425ms step_avg:66.90ms
+step:2000/20000 train_loss:2.1942 train_time:133810ms step_avg:66.91ms
+step:2000/20000 val_loss:2.2033 val_bpb:1.3049 train_time:133836ms step_avg:66.92ms
+step:2200/20000 train_loss:2.3070 train_time:147188ms step_avg:66.90ms
+step:2400/20000 train_loss:2.3211 train_time:160574ms step_avg:66.91ms
+step:2600/20000 train_loss:2.1770 train_time:173948ms step_avg:66.90ms
+step:2800/20000 train_loss:2.1282 train_time:187322ms step_avg:66.90ms
+step:3000/20000 train_loss:3.1449 train_time:200691ms step_avg:66.90ms
+step:3000/20000 val_loss:2.1608 val_bpb:1.2797 train_time:200716ms step_avg:66.91ms
+step:3200/20000 train_loss:2.2332 train_time:214067ms step_avg:66.90ms
+step:3400/20000 train_loss:2.0590 train_time:227430ms step_avg:66.89ms
+step:3600/20000 train_loss:2.1716 train_time:240808ms step_avg:66.89ms
+step:3800/20000 train_loss:2.1289 train_time:254283ms step_avg:66.92ms
+step:4000/20000 train_loss:2.2364 train_time:267660ms step_avg:66.92ms
+step:4000/20000 val_loss:2.1331 val_bpb:1.2634 train_time:267686ms step_avg:66.92ms
+step:4200/20000 train_loss:2.1899 train_time:281119ms step_avg:66.93ms
+step:4400/20000 train_loss:2.1270 train_time:294482ms step_avg:66.93ms
+step:4600/20000 train_loss:2.1664 train_time:307856ms step_avg:66.93ms
+step:4800/20000 train_loss:2.1010 train_time:321222ms step_avg:66.92ms
+step:5000/20000 train_loss:2.1846 train_time:334594ms step_avg:66.92ms
+step:5000/20000 val_loss:2.1184 val_bpb:1.2546 train_time:334620ms step_avg:66.92ms
+step:5200/20000 train_loss:2.2508 train_time:347960ms step_avg:66.92ms
+step:5400/20000 train_loss:2.2024 train_time:361340ms step_avg:66.91ms
+step:5600/20000 train_loss:2.0991 train_time:374710ms step_avg:66.91ms
+step:5800/20000 train_loss:2.1475 train_time:388095ms step_avg:66.91ms
+step:6000/20000 train_loss:2.0695 train_time:401458ms step_avg:66.91ms
+step:6000/20000 val_loss:2.1055 val_bpb:1.2470 train_time:401484ms step_avg:66.91ms
+step:6200/20000 train_loss:2.0541 train_time:414835ms step_avg:66.91ms
+step:6400/20000 train_loss:1.8216 train_time:428204ms step_avg:66.91ms
+step:6600/20000 train_loss:2.0522 train_time:441579ms step_avg:66.91ms
+step:6800/20000 train_loss:2.1017 train_time:454952ms step_avg:66.90ms
+step:7000/20000 train_loss:2.0556 train_time:468335ms step_avg:66.90ms
+step:7000/20000 val_loss:2.0960 val_bpb:1.2413 train_time:468360ms step_avg:66.91ms
+step:7200/20000 train_loss:1.9360 train_time:481699ms step_avg:66.90ms
+step:7400/20000 train_loss:1.8646 train_time:495084ms step_avg:66.90ms
+step:7600/20000 train_loss:2.1265 train_time:508456ms step_avg:66.90ms
+step:7800/20000 train_loss:2.0896 train_time:521833ms step_avg:66.90ms
+step:8000/20000 train_loss:2.0057 train_time:535199ms step_avg:66.90ms
+step:8000/20000 val_loss:2.0815 val_bpb:1.2328 train_time:535225ms step_avg:66.90ms
+step:8200/20000 train_loss:2.1427 train_time:548570ms step_avg:66.90ms
+step:8400/20000 train_loss:2.1257 train_time:562019ms step_avg:66.91ms
+step:8600/20000 train_loss:2.1416 train_time:575382ms step_avg:66.90ms
+step:8800/20000 train_loss:1.9875 train_time:588756ms step_avg:66.90ms
+step:8969/20000 val_loss:2.0412 val_bpb:1.2089 train_time:600087ms step_avg:66.91ms
+stopping_early: wallclock_cap train_time:600087ms step:8969/20000
+Running GPTQ-lite calibration...
+Running GPTQ-lite calibration...
+Running GPTQ-lite calibration...
+Running GPTQ-lite calibration...
+Running GPTQ-lite calibration...
+Running GPTQ-lite calibration...
+Collecting calibration activations...
+Running GPTQ-lite calibration...
+Collecting calibration activations...
+Collecting calibration activations...
+Collecting calibration activations...
+Collecting calibration activations...
+peak memory allocated: 13404 MiB reserved: 13664 MiB
+Collecting calibration activations...
+Collecting calibration activations...
+Serialized model: 65783458 bytes
+Code size: 48922 bytes
+Total submission size: 65832380 bytes
+Running GPTQ-lite calibration...
+Collecting calibration activations...
+Collected activations for 66 layers
+Running GPTQ-lite optimization...
+Collected activations for 66 layers
+Running GPTQ-lite optimization...
+Collected activations for 66 layers
+Running GPTQ-lite optimization...
+Collected activations for 66 layers
+Running GPTQ-lite optimization...
+  GPTQ-lite quantizing blocks.0.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_q: torch.Size([384, 384])
+Collected activations for 66 layers
+Running GPTQ-lite optimization...
+Collected activations for 66 layers
+Running GPTQ-lite optimization...
+  GPTQ-lite quantizing blocks.0.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_q: torch.Size([384, 384])
+Collected activations for 66 layers
+Running GPTQ-lite optimization...
+  GPTQ-lite quantizing blocks.0.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_q: torch.Size([384, 384])
+Collected activations for 66 layers
+Running GPTQ-lite optimization...
+  GPTQ-lite quantizing blocks.0.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.0.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.0.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.0.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.0.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.0.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.0.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.0.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.0.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.0.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.0.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.0.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.0.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.0.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.0.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.0.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.0.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.1.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.1.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.1.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.1.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.1.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.1.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.1.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.1.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.1.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.1.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.1.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.1.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.1.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.2.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.2.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.2.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.1.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.2.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.2.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.2.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.2.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.2.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.2.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.2.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.2.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.2.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.2.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.2.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.2.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.3.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.3.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.3.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.3.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.3.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.3.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.3.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.4.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.4.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.4.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.3.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.4.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.4.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.4.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.4.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.4.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.4.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.4.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.4.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.4.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.5.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.6.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.5.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.6.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.6.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.5.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.6.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.5.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.6.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.6.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.6.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.6.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.6.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.6.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.6.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.7.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.7.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.7.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.7.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.6.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.7.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.7.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.7.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.7.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.8.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.8.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.7.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.8.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.8.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.7.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.8.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.8.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.8.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.8.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.9.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.9.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.8.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.8.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.9.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.10.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.9.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.10.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.10.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.9.mlp.proj: torch.Size([384, 1152])
+GPTQ-lite: optimized 66 weight tensors
+  GPTQ-lite quantizing blocks.10.mlp.fc: torch.Size([1152, 384])
+GPTQ-lite: optimized 66 weight tensors
+  GPTQ-lite quantizing blocks.10.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.attn.proj: torch.Size([384, 384])
+GPTQ-lite: optimized 66 weight tensors
+  GPTQ-lite quantizing blocks.9.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.10.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_q: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_k: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.10.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.10.attn.c_v: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.attn.proj: torch.Size([384, 384])
+GPTQ-lite: optimized 66 weight tensors
+GPTQ-lite: optimized 66 weight tensors
+  GPTQ-lite quantizing blocks.10.mlp.proj: torch.Size([384, 1152])
+  GPTQ-lite quantizing blocks.10.attn.proj: torch.Size([384, 384])
+  GPTQ-lite quantizing blocks.10.mlp.fc: torch.Size([1152, 384])
+GPTQ-lite: optimized 66 weight tensors
+  GPTQ-lite quantizing blocks.10.mlp.fc: torch.Size([1152, 384])
+  GPTQ-lite quantizing blocks.10.mlp.proj: torch.Size([384, 1152])
+GPTQ-lite: optimized 66 weight tensors
+  GPTQ-lite quantizing blocks.10.mlp.proj: torch.Size([384, 1152])
+GPTQ-lite: optimized 66 weight tensors
+Serialized model int8+zlib: 15465003 bytes (payload:16758624 raw_torch:16813196 payload_ratio:3.92x)
+Total submission size int8+zlib: 15513925 bytes
+/workspace/pgolf/train_gpt.py:1120: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/pgolf/train_gpt.py:1120: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/pgolf/train_gpt.py:1120: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/pgolf/train_gpt.py:1120: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/pgolf/train_gpt.py:1120: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/pgolf/train_gpt.py:1120: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/pgolf/train_gpt.py:1120: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/pgolf/train_gpt.py:1120: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+final_int8_zlib_roundtrip val_loss:2.0502 val_bpb:1.2142 eval_time:35854ms
+final_int8_zlib_roundtrip_exact val_loss:2.05018634 val_bpb:1.21423583
