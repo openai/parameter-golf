@@ -502,10 +502,9 @@ def apply_zero_init(model: nn.Module) -> nn.Module:
     Applies ZerO initialization to a given PyTorch nn.Module in-place.
     
     This function implements:
-      - Algorithm 1 (Linear/FFN Layers)
+      - Algorithm 1 (Linear/FFN Layers using Identity, Partial Identity, and Hadamard)
       - Algorithm 2 (Convolution Layers)
-      - Section 4.1 Transformer specific initialization (W_Q=Identity, W_K/W_V=Zeros)
-      
+    
     Args:
         model (nn.Module): The PyTorch model to initialize.
         
@@ -520,11 +519,10 @@ def apply_zero_init(model: nn.Module) -> nn.Module:
         
         if out_f <= in_f:
             # P_l == Q_l: Identity mapping
-            # P_l < Q_l:  Partial identity (Propagates first P_l dimensions)
-            # torch.eye intrinsically handles rectangular partial-identities.
+            # P_l < Q_l: Partial identity (Propagates first P_l dimensions)
             tensor.copy_(torch.eye(out_f, in_f, dtype=tensor.dtype, device=tensor.device))
         else:
-            # P_l > Q_l: Hadamard mapping
+            # P_l > Q_l: Hadamard mapping (e.g., expanding MLPs)
             m = math.ceil(math.log2(out_f))
             m = max(m, 1)  # Ensure at least m=1 
             
@@ -541,100 +539,56 @@ def apply_zero_init(model: nn.Module) -> nn.Module:
             # Apply scaled Hadamard top-left submatrix (I* H_m I*)
             tensor.copy_(c * H[:out_f, :in_f])
 
-    @torch.no_grad()
-    def _init_mha_zero(module: nn.MultiheadAttention):
-        """Initializes PyTorch's native MultiheadAttention according to Sec 4.1"""
-        embed_dim = module.embed_dim
-        
-        # in_proj_weight groups Q, K, and V
-        if module.in_proj_weight is not None:
-            module.in_proj_weight.zero_()
-            # W_Q is identity
-            module.in_proj_weight[:embed_dim, :].copy_(
-                torch.eye(embed_dim, dtype=module.in_proj_weight.dtype, device=module.in_proj_weight.device)
-            )
-            # W_K, W_V remain zero (as handled by .zero_())
-        else:
-            # If instantiated with separate weights
-            if getattr(module, 'q_proj_weight', None) is not None:
-                module.q_proj_weight.copy_(
-                    torch.eye(embed_dim, dtype=module.q_proj_weight.dtype, device=module.q_proj_weight.device)
-                )
-            if getattr(module, 'k_proj_weight', None) is not None:
-                module.k_proj_weight.zero_()
-            if getattr(module, 'v_proj_weight', None) is not None:
-                module.v_proj_weight.zero_()
-                
-        if getattr(module, 'in_proj_bias', None) is not None:
-            module.in_proj_bias.zero_()
-            
-        # The output projection relies on the standard algorithm (P_l = Q_l) -> Identity
-        if getattr(module, 'out_proj', None) is not None and getattr(module.out_proj, 'weight', None) is not None:
-            _zero_init_tensor(module.out_proj.weight, module.out_proj.out_features, module.out_proj.in_features)
-            if getattr(module.out_proj, 'bias', None) is not None:
-                module.out_proj.bias.zero_()
-
-    @torch.no_grad()
-    def _init_conv_zero(module):
-        """Initializes Convolutions according to Algorithm 2"""
-        out_c, in_c = module.out_channels, module.in_channels
-        module.weight.zero_()
-        
-        # Find center index, taking n <- floor(k / 2) for each dimension
-        centers = tuple(k // 2 for k in module.kernel_size)
-        
-        # Create an out_c x in_c block utilizing the base ZerO logic
-        block = torch.zeros(out_c, in_c, dtype=module.weight.dtype, device=module.weight.device)
-        _zero_init_tensor(block, out_c, in_c)
-        
-        # Place block in the center slice of the kernel
-        if len(centers) == 1:   # Conv1D
-            module.weight[:, :, centers[0]] = block
-        elif len(centers) == 2: # Conv2D
-            module.weight[:, :, centers[0], centers[1]] = block
-        elif len(centers) == 3: # Conv3D
-            module.weight[:, :, centers[0], centers[1], centers[2]] = block
-            
-        if getattr(module, 'bias', None) is not None:
-            module.bias.zero_()
-
     # Iterate through and parse all network submodules
     for name, module in model.named_modules():
         
-        # 1. Transformers MultiheadAttention (PyTorch Native MHA)
-        if isinstance(module, nn.MultiheadAttention):
-            _init_mha_zero(module)
-            
-        # 2. Linear Layers (Applies to Feed-Forward Networks or HuggingFace Custom QKV Projections)
-        elif isinstance(module, nn.Linear):
-            name_lower = name.split('.')[-1].lower()
-            
-            # W_K, W_V at zero (Fallback heuristics for custom attention modules)
-            if any(k in name_lower for k in ['k_proj', 'v_proj', 'key', 'value']):
+        # 1. Respect the script's architectural _zero_init flags (e.g., `proj` & `lm_head`).
+        # This achieves the paper's goal of dynamical isometry (Identity residual pass) 
+        # and avoids the gradient deadlock.
+        if getattr(module, '_zero_init', False):
+            if hasattr(module, 'weight') and module.weight is not None:
                 module.weight.data.zero_()
-                
-            # W_Q as identity (Fallback heuristics for custom attention modules)
-            elif any(q in name_lower for q in ['q_proj', 'query']):
-                module.weight.data.copy_(
-                    torch.eye(module.out_features, module.in_features, dtype=module.weight.dtype, device=module.weight.device)
-                )
-                
-            # Generic linear layer (e.g., Dimension expanding/shrinking FFN)
-            else:
-                _zero_init_tensor(module.weight, module.out_features, module.in_features)
-                
+            if hasattr(module, 'bias') and module.bias is not None:
+                module.bias.data.zero_()
+            continue
+
+        # 2. Linear Layers (c_q, c_k, c_v, fc)
+        # c_q (512->512) becomes Identity.
+        # c_k/c_v (512->256) become Partial Identities.
+        # fc (512->1024) becomes a Hadamard transform.
+        if isinstance(module, nn.Linear):
+            _zero_init_tensor(module.weight.data, module.out_features, module.in_features)
             if getattr(module, 'bias', None) is not None:
                 module.bias.data.zero_()
 
-        # 3. Convolutional Layers
+        # 3. Convolutional Layers (Implementation of Algorithm 2)
         elif isinstance(module, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
-            _init_conv_zero(module)
+            out_c, in_c = module.out_channels, module.in_channels
+            module.weight.data.zero_()
             
+            # Find center index, taking n <- floor(k / 2) for each dimension
+            centers = tuple(k // 2 for k in module.kernel_size)
+            
+            # Create an out_c x in_c block utilizing the base ZerO logic
+            block = torch.zeros(out_c, in_c, dtype=module.weight.dtype, device=module.weight.device)
+            _zero_init_tensor(block, out_c, in_c)
+            
+            # Place block in the center slice of the kernel
+            if len(centers) == 1:   
+                module.weight.data[:, :, centers[0]] = block
+            elif len(centers) == 2: 
+                module.weight.data[:, :, centers[0], centers[1]] = block
+            elif len(centers) == 3: 
+                module.weight.data[:, :, centers[0], centers[1], centers[2]] = block
+                
+            if getattr(module, 'bias', None) is not None:
+                module.bias.data.zero_()
+                
         # 4. Normalization Layers (Standard practice is Scale=1, Bias=0)
         elif isinstance(module, (nn.LayerNorm, nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.GroupNorm)):
-            if getattr(module, 'weight', None) is not None:
+            if hasattr(module, 'weight') and module.weight is not None:
                 module.weight.data.fill_(1.0)
-            if getattr(module, 'bias', None) is not None:
+            if hasattr(module, 'bias') and module.bias is not None:
                 module.bias.data.zero_()
 
     return model
