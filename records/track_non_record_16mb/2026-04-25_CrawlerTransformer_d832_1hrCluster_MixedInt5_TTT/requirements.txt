@@ -1,0 +1,6 @@
+numpy
+torch
+sentencepiece
+brotli
+zstandard
+huggingface_hub
