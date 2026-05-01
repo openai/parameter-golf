@@ -1,0 +1,27 @@
+{
+  "n_targets": 47851520,
+  "token_gate_count": 628130,
+  "within_gate_count": 0,
+  "word_gate_count": 0,
+  "agree2plus_count": 0,
+  "all_val_targets": {
+    "total": 47851520,
+    "boundary": 49999,
+    "new_word": 25250866,
+    "continuation": 22550655,
+    "boundary_pct": 0.1045,
+    "new_word_pct": 52.7692,
+    "continuation_pct": 47.1263
+  },
+  "token_gate_positions": {
+    "total": 628130,
+    "boundary": 1718,
+    "new_word": 238227,
+    "continuation": 388185,
+    "boundary_pct": 0.2735,
+    "new_word_pct": 37.9264,
+    "continuation_pct": 61.8001
+  },
+  "source_alignment": "load_data_shard header-aware tokens[:usable+1], then targets=val_tokens[1:], matching train_gpt.py",
+  "production_path": "build_hints_for_targets(... token_order=16, within_boost=0, word_boost=0), dispatching process_chunk_token_only"
+}

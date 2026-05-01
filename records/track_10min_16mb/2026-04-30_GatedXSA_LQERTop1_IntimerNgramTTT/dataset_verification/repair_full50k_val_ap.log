@@ -1,0 +1,11 @@
+processed 5000 docs val_shards=0 buffered=4868711
+processed 10000 docs val_shards=0 buffered=9662502
+processed 15000 docs val_shards=1 buffered=4359790
+processed 20000 docs val_shards=1 buffered=9231754
+processed 25000 docs val_shards=2 buffered=4164835
+processed 30000 docs val_shards=2 buffered=8727017
+processed 35000 docs val_shards=3 buffered=3527019
+processed 40000 docs val_shards=3 buffered=8448288
+processed 45000 docs val_shards=4 buffered=3163420
+processed 50000 docs val_shards=4 buffered=7853344
+done docs=50000 val_shards=5 val_tokens=47853344

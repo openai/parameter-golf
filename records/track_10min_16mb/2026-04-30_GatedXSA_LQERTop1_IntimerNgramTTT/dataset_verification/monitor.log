@@ -1,0 +1,43 @@
+monitor_start=2026-04-30T19:33:09+00:00
+2026-04-30T19:33:09+00:00 train_shards=10
+2026-04-30T19:34:09+00:00 train_shards=13
+2026-04-30T19:35:09+00:00 train_shards=16
+2026-04-30T19:36:09+00:00 train_shards=19
+2026-04-30T19:37:09+00:00 train_shards=22
+2026-04-30T19:38:09+00:00 train_shards=25
+2026-04-30T19:39:09+00:00 train_shards=28
+2026-04-30T19:40:09+00:00 train_shards=31
+2026-04-30T19:41:09+00:00 train_shards=34
+2026-04-30T19:42:09+00:00 train_shards=37
+2026-04-30T19:43:09+00:00 train_shards=40
+2026-04-30T19:44:09+00:00 train_shards=43
+2026-04-30T19:45:09+00:00 train_shards=46
+2026-04-30T19:46:09+00:00 train_shards=49
+2026-04-30T19:47:09+00:00 train_shards=52
+2026-04-30T19:48:09+00:00 train_shards=55
+2026-04-30T19:49:09+00:00 train_shards=58
+2026-04-30T19:50:09+00:00 train_shards=61
+2026-04-30T19:51:09+00:00 train_shards=64
+2026-04-30T19:52:09+00:00 train_shards=67
+2026-04-30T19:53:09+00:00 train_shards=70
+2026-04-30T19:54:09+00:00 train_shards=73
+2026-04-30T19:55:09+00:00 train_shards=76
+2026-04-30T19:56:10+00:00 train_shards=79
+2026-04-30T19:57:10+00:00 train_shards=82
+reached train_shards=82; stopping exact long producer/consumer
+{
+  "exact_train_shards_seen": 82,
+  "exact_train_first80_tokens": 800000000,
+  "archive_train_first80_tokens": 800000000,
+  "train_first80_hash_mismatches": 0,
+  "train_mismatches_first5": [],
+  "exact_val_shards": 1,
+  "exact_val_byte_shards": 1,
+  "exact_val_tokens": 9662502,
+  "exact_val_byte_entries": 9662502,
+  "archive_val_tokens": 9662502,
+  "archive_val_byte_entries": 9662502,
+  "val_hash_match": true,
+  "val_bytes_hash_match": true
+}
+monitor_done=2026-04-30T19:58:06+00:00

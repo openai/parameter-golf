@@ -94,6 +94,14 @@ def ensure_online_ngram_lib(log0=print) -> ctypes.CDLL:
         ctypes.POINTER(ctypes.c_float),
         ctypes.POINTER(ctypes.c_uint8),
     ]
+    lib.online_ngram_state_process_chunk_token_only.restype = ctypes.c_int
+    lib.online_ngram_state_process_chunk_token_only.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_uint16),
+        ctypes.c_int64,
+        ctypes.POINTER(ctypes.c_uint16),
+        ctypes.POINTER(ctypes.c_float),
+    ]
     return lib
 
 
@@ -143,6 +151,22 @@ class OnlineNgramState:
         if rc != 0:
             raise RuntimeError(f"Native ngram process_chunk failed rc={rc}")
         return token_top_token, token_top_prob, within_top_token, within_top_prob, within_valid.astype(bool)
+
+    def process_chunk_token_only(self, chunk_tokens):
+        chunk_tokens = np.ascontiguousarray(chunk_tokens.astype(np.uint16, copy=False))
+        n = int(chunk_tokens.size)
+        token_top_token = np.zeros(n, dtype=np.uint16)
+        token_top_prob = np.zeros(n, dtype=np.float32)
+        rc = self.lib.online_ngram_state_process_chunk_token_only(
+            self.state,
+            chunk_tokens.ctypes.data_as(ctypes.POINTER(ctypes.c_uint16)),
+            ctypes.c_int64(n),
+            token_top_token.ctypes.data_as(ctypes.POINTER(ctypes.c_uint16)),
+            token_top_prob.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+        )
+        if rc != 0:
+            raise RuntimeError(f"Native ngram token-only process_chunk failed rc={rc}")
+        return token_top_token, token_top_prob
 
 
 class WordStartState:
@@ -229,10 +253,10 @@ def build_piece_luts(*, tokenizer_path, vocab_size):
 def build_hints_for_targets(
     *, target_token_ids_np, tokenizer_path, vocab_size, log0=print,
     token_order=16, token_threshold=0.800, token_boost=2.625,
-    within_tau=0.450, within_boost=0.750,
+    within_tau=999.0, within_boost=0.0,
     word_order=4, word_normalize="strip_punct_lower",
-    word_tau=0.650, word_boost=0.750,
-    agree_add_boost=0.500,
+    word_tau=999.0, word_boost=0.0,
+    agree_add_boost=0.0,
 ):
     """Single L->R pass. Returns dict with hint_ids, gate_mask, boost_per_pos.
 
@@ -264,6 +288,10 @@ def build_hints_for_targets(
 
     token_table_bits = suggest_table_bits(total, load_factor=0.55)
     within_table_bits = suggest_table_bits(max(total // 2, 1), load_factor=0.60)
+    token_only = (
+        float(within_boost) == 0.0
+        and float(word_boost) == 0.0
+    )
     online_lib = ensure_online_ngram_lib(log0)
     ngram_state = OnlineNgramState(
         lib=online_lib,
@@ -274,6 +302,23 @@ def build_hints_for_targets(
         boundary_lut=boundary_lut,
         seed_prefix_token=int(target_token_ids_np[0]),
     )
+    if token_only:
+        token_top_tok, token_top_prob = ngram_state.process_chunk_token_only(target_token_ids_np)
+        token_gate = token_top_prob >= np.float32(token_threshold)
+        hint_ids = np.where(token_gate, token_top_tok.astype(np.int64), 0).astype(np.int64)
+        boost = np.where(token_gate, np.float32(token_boost), np.float32(0.0)).astype(np.float32)
+        log0(
+            f"ngram_tilt:hints total={total} gated={int(token_gate.sum())} "
+            f"token_gate={int(token_gate.sum())} within_gate=0 word_gate=0 agree2plus=0"
+        )
+        return {
+            "hint_ids":   hint_ids,
+            "gate_mask":  token_gate,
+            "boost":      boost,
+            "sp":         sp,
+            "starts_new_word_lut": starts_new_word_lut,
+            "boundary_lut": boundary_lut,
+        }
     word_state = WordStartState(sp=sp, order=word_order, normalize_mode=word_normalize)
 
     token_top_tok, token_top_prob, within_top_tok, within_top_prob, within_valid = (

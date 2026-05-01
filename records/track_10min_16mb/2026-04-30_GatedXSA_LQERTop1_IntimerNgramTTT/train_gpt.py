@@ -382,24 +382,22 @@ class Hyperparameters:
     awq_lite_group_top_k = int(os.environ.get("AWQ_LITE_GROUP_TOP_K", "1"))
     awq_lite_group_size = int(os.environ.get("AWQ_LITE_GROUP_SIZE", "64"))
     # PR #1145 online n-gram tilt (AnirudhRahul, valerio-endorsed). Causal,
-    # normalized, prefix-only experts; closed-form multiplicative-boost-with-renorm
+    # normalized, prefix-only token expert; closed-form multiplicative-boost-with-renorm
     # applied to per-token NLL. See online_ngram_tilt.py for math + compliance.
     ngram_tilt_enabled = bool(int(os.environ.get("NGRAM_TILT_ENABLED", "0")))
     token_order = int(os.environ.get("TOKEN_ORDER", "16"))
     token_threshold = float(os.environ.get("TOKEN_THRESHOLD", "0.800"))
     token_boost = float(os.environ.get("TOKEN_BOOST", "2.625"))
-    within_tau = float(os.environ.get("WITHIN_TAU", "0.450"))
-    within_boost = float(os.environ.get("WITHIN_BOOST", "0.750"))
+    within_tau = float(os.environ.get("WITHIN_TAU", "999.0"))
+    within_boost = float(os.environ.get("WITHIN_BOOST", "0.0"))
     word_order = int(os.environ.get("WORD_ORDER", "4"))
     word_normalize = os.environ.get("WORD_NORMALIZE", "strip_punct_lower")
-    word_tau = float(os.environ.get("WORD_TAU", "0.650"))
-    word_boost = float(os.environ.get("WORD_BOOST", "0.750"))
-    agree_add_boost = float(os.environ.get("AGREE_ADD_BOOST", "0.500"))
-    # === v5 Stage 1 optimizations (env-gated) ===
-    # 1A: Move ngram hint precompute OUTSIDE eval timer (single causal pass over val tokens).
-    #     Compliance: still inside validate(), single-pass causal, val tokens only.
-    #     Save: ~168s (measured in v2 fulltilt) — enough alone to fit cap.
-    ngram_hint_precompute_outside = bool(int(os.environ.get("NGRAM_HINT_PRECOMPUTE_OUTSIDE", "1")))
+    word_tau = float(os.environ.get("WORD_TAU", "999.0"))
+    word_boost = float(os.environ.get("WORD_BOOST", "0.0"))
+    agree_add_boost = float(os.environ.get("AGREE_ADD_BOOST", "0.0"))
+    # Optional legacy switch: move ngram hint precompute outside the measured eval
+    # timer. The submitted configuration keeps this disabled so precompute is timed.
+    ngram_hint_precompute_outside = bool(int(os.environ.get("NGRAM_HINT_PRECOMPUTE_OUTSIDE", "0")))
     # === Modded-NanoGPT transplants (PR-#1967 base + miracle stack) ===
     # GATED_XSA: per-(layer, head) tanh(alpha) gate around the existing XSA
     # subtraction. zero-init alpha -> tanh(0)=0 -> step-0 model is bit-identical

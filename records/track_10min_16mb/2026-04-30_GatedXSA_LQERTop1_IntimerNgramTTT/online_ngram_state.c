@@ -431,3 +431,66 @@ int online_ngram_state_process_chunk(
     }
     return 0;
 }
+
+int online_ngram_state_process_chunk_token_only(
+    void *ptr,
+    const uint16_t *tokens,
+    int64_t n_tokens,
+    uint16_t *token_top_token,
+    float *token_top_prob
+) {
+    OnlineNgramState *st = (OnlineNgramState *)ptr;
+    if (!st || !tokens || n_tokens < 0) {
+        return -1;
+    }
+    for (int64_t i = 0; i < n_tokens; ++i) {
+        const uint16_t tok = tokens[i];
+
+        uint64_t token_ctx_key = 0ULL;
+        if (st->token_ctx_len == 0 || st->token_prefix_len >= st->token_ctx_len) {
+            token_ctx_key = token_context_hash(st);
+            int found = 0;
+            size_t idx = find_ctx_slot(
+                st->token_ctx_tbl,
+                st->token_ctx_used,
+                st->token_ctx_mask,
+                token_ctx_key,
+                &found
+            );
+            if (found > 0) {
+                token_top_token[i] = st->token_ctx_tbl[idx].top_tok;
+                token_top_prob[i] =
+                    (float)st->token_ctx_tbl[idx].top_count / (float)st->token_ctx_tbl[idx].total;
+            } else {
+                token_top_token[i] = 0U;
+                token_top_prob[i] = 0.0f;
+            }
+
+            const uint64_t pair_key = token_pair_key(token_ctx_key, tok, st->token_ctx_len);
+            const uint32_t pair_count = pair_increment(
+                st->token_pair_tbl,
+                st->token_pair_used,
+                st->token_pair_mask,
+                pair_key
+            );
+            if (pair_count == 0U) {
+                return -2;
+            }
+            if (ctx_increment(
+                    st->token_ctx_tbl,
+                    st->token_ctx_used,
+                    st->token_ctx_mask,
+                    token_ctx_key,
+                    tok,
+                    pair_count
+                ) != 0) {
+                return -3;
+            }
+        } else {
+            token_top_token[i] = 0U;
+            token_top_prob[i] = 0.0f;
+        }
+        token_push(st, tok);
+    }
+    return 0;
+}

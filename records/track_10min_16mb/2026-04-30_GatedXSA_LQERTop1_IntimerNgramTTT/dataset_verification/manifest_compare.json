@@ -1,0 +1,15 @@
+{
+  "exact_train_shards_seen": 82,
+  "exact_train_first80_tokens": 800000000,
+  "archive_train_first80_tokens": 800000000,
+  "train_first80_hash_mismatches": 0,
+  "train_mismatches_first5": [],
+  "exact_val_shards": 1,
+  "exact_val_byte_shards": 1,
+  "exact_val_tokens": 9662502,
+  "exact_val_byte_entries": 9662502,
+  "archive_val_tokens": 9662502,
+  "archive_val_byte_entries": 9662502,
+  "val_hash_match": true,
+  "val_bytes_hash_match": true
+}
