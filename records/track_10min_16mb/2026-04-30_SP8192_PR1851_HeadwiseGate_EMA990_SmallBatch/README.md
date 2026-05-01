@@ -129,9 +129,26 @@ pip install brotli sentencepiece numpy python-minifier
 pip install --no-cache-dir \
   "https://download.pytorch.org/whl/cu130/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl"
 
+# Step 1: Download regular SP8192 data
 python3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 80
 
-# Note: CaseOps data was used via symlinks on the pod (see README notes above)
+# Step 2: Download CaseOps-tokenized data
+# Due to a technical issue (regular sp8192 and CaseOps sp8192 datasets conflict
+# on disk), CaseOps data was symlinked into the standard paths on our pod.
+# The env var caseops_enabled=False, but training used CaseOps-tokenized shards.
+MATCHED_FINEWEB_REPO_ID=romeerp/parameter-golf-caseops-v1 \
+  MATCHED_FINEWEB_REMOTE_ROOT_PREFIX=datasets \
+  python3 data/cached_challenge_fineweb.py \
+    --variant sp8192_lossless_caps_caseops_v1_reserved \
+    --train-shards 80
+
+# Step 3: Symlink CaseOps data into standard paths
+mv data/datasets/fineweb10B_sp8192 data/datasets/fineweb10B_sp8192_regular 2>/dev/null || true
+mv data/tokenizers/fineweb_8192_bpe.model data/tokenizers/fineweb_8192_bpe.model.regular 2>/dev/null || true
+ln -s fineweb10B_sp8192_lossless_caps_caseops_v1_reserved data/datasets/fineweb10B_sp8192
+ln -s fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model data/tokenizers/fineweb_8192_bpe.model
+
+# Step 4: Train (CASEOPS_ENABLED=0 — byte sidecar not used, but data is CaseOps-tokenized)
 SEED=42 GATED_ATTN_ENABLED=1 SPARSE_ATTN_GATE_ENABLED=0 \
   EMA_DECAY=0.990 GRAD_ACCUM_STEPS=1 TRAIN_BATCH_TOKENS=196608 EMBED_BITS=6 \
   torchrun --standalone --nproc_per_node=8 train_gpt.py
