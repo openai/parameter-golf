@@ -2,16 +2,20 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 from pathlib import Path
 
-TRAIN_GPT_PATH = (
+SUBMISSION_DIR = (
     Path(__file__).parent.parent.parent
     / "records"
     / "track_10min_16mb"
     / "2026-05-01_SemanticEngine_CareSSM"
-    / "train_gpt.py"
 )
+TRAIN_GPT_PATH = (
+    SUBMISSION_DIR / "train_gpt.py"
+)
+SUBMISSION_JSON_PATH = SUBMISSION_DIR / "submission.json"
 
 
 def _load_module():
@@ -117,3 +121,12 @@ def test_score_summary_keys_present():
     assert "artifact_bytes" in source
     assert "packet_online_cache" in source
     assert "score each chunk" in source.lower() or "score-before-write" in source.lower()
+
+
+def test_submission_artifact_accounting_is_not_raw_bf16_size():
+    """Public artifact field must be the under-cap compressed payload estimate."""
+    data = json.loads(SUBMISSION_JSON_PATH.read_text())
+    assert data["artifact_submit_valid"] is True
+    assert data["artifact_bytes_estimate"] < data["artifact_bytes_limit"]
+    assert data["raw_bf16_weight_bytes"] > data["artifact_bytes_limit"]
+    assert "int6/LZMA" in data["artifact_accounting_note"]

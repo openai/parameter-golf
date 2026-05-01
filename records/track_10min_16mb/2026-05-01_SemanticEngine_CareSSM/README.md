@@ -2,7 +2,12 @@
 
 **Track:** track_10min_16mb  
 **val_bpb:** 1.642868 (3-seed mean, std 0.023340)  
+**artifact:** 13,554,222 / 16,000,000 bytes estimated contest-counted int6/LZMA payload, including 500 KB overhead  
 **eval:** full 50k FineWeb validation docs, legal prequential packet-online cache
+
+The raw bf16 runtime weight mirror is 44,600,064 bytes. That is not the submitted
+artifact size; the submitted artifact uses the same int6/LZMA artifact accounting
+used by the dim-384 headroom check.
 
 ## Architecture
 
@@ -43,6 +48,11 @@ During eval, the same memory substrate is live, but the run is **prequential**: 
 | **Mean** | **4.075300** | **1.642868** | **1690.7** | **594.8s** | **353.8s** | |
 
 All evals scored the full 50,000-doc validation set: 42,216,034 scored tokens and 151,080,645 raw bytes per seed. Each eval performed 3,348 episodic reads and 3,348 score-first episodic writes.
+
+Artifact accounting: the public `artifact_bytes_estimate` is the contest-counted
+compressed artifact estimate, `13,554,222` bytes against the decimal `16,000,000`
+byte cap. The larger `raw_bf16_weight_bytes` value in `submission.json` is only
+the uncompressed runtime state size used by the shared-memory weight mirror.
 
 ## Reproduction
 
