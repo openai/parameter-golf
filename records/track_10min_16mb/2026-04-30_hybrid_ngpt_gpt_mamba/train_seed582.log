@@ -1,0 +1,105 @@
+seed = 582
+
+Type of layers = ['nT', 'M', 'M', 'T', 'M', 'T', 'T', 'M', 'T', 'nT']
+Paired layers = []
+------------------------------------------------------------
+max_context = 8192
+batch_size = 16
+number of layers = 10
+Embedding dimension = 512
+Number of heads = 4
+MLP dim = [2048, 1792, 1792, 1792, 1792, 1792, 1792, 1792, 1792, 2048]
+------------------------------------------------------------
+Betas for AdamW = (0.9, 0.95)
+------------------------------------------------------------
+AdamW start lr = 0.008
+AdamW end lr = 1e-05
+AdamW decay start = 1000
+AdamW decay end = 3390
+AdamW weight decay = 0.077
+------------------------------------------------------------
+Emb/out start lr = 0.02
+Emb/out end lr = 1e-05
+Emb/out decay start = 1000
+Emb/out decay end = 3400
+Emb/out weight decay = 0.077
+------------------------------------------------------------
+Muon momentum = 0.95
+Muon momentum warmup start = 0.95
+Muon momentum warmup steps = 1500
+------------------------------------------------------------
+Muon start lr = 0.04
+Muon end lr = 2e-05
+Muon decay start = 1000
+Muon decay end = 3400
+Muon weight decay = 0.077
+------------------------------------------------------------
+Mamba start lr = 0.04
+Mamba end lr = 2e-05
+Mamba decay start = 1000
+Mamba decay end = 3400
+Mamba weight decay = 0.077
+------------------------------------------------------------
+use EMA = False
+leaky relu parameter = 0.2
+------------------------------------------------------------
+Layers with GQA = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+Rope dimension for each layer = [32, 32, 32, 32, 32, 32, 32, 32, 32, 32]
+------------------------------------------------------------
+Initial embedding tied std = 0.15
+Scale of nGPT = 0.044194173824159216
+Scale of GPT = 0.02
+------------------------------------------------------------
+Number of parameters = 23655645
+============================================================
+============================================================
+Muon 2D params        = 16252928
+Mamba 2D params       = 6848512
+Emb-out params        = 524288
+AdamW params          = 29917
+Total optimizer params = 23655645
+------------------------------------------------------------
+step=500
+train_loss = 2.3335, tok/s = 3104857.2
+muon_momentum = 0.95000
+Time train between train evaluations/s = 169.20 Time passed/s = 169.2 
+------------------------------------------------------------
+step=1000
+train_loss = 2.1957, tok/s = 4317178.7
+muon_momentum = 0.95000
+Time train between train evaluations/s = 73.93 Time passed/s = 243.1 
+------------------------------------------------------------
+step=1500
+train_loss = 2.1646, tok/s = 4968687.9
+muon_momentum = 0.95000
+Time train between train evaluations/s = 73.64 Time passed/s = 316.8 
+------------------------------------------------------------
+step=2000
+train_loss = 2.1333, tok/s = 5378067.0
+muon_momentum = 0.95000
+Time train between train evaluations/s = 73.37 Time passed/s = 390.1 
+------------------------------------------------------------
+step=2500
+train_loss = 2.1225, tok/s = 5657766.6
+muon_momentum = 0.95000
+Time train between train evaluations/s = 73.38 Time passed/s = 463.5 
+------------------------------------------------------------
+step=3000
+train_loss = 2.0385, tok/s = 5862141.9
+muon_momentum = 0.95000
+Time train between train evaluations/s = 73.28 Time passed/s = 536.8 
+------------------------------------------------------------
+Time is over, worked 600.0986716747284 seconds
+done in 600.1s
+============================================================
+Final result
+code_bytes:58609
+total_submission_bytes:15551963
+Total number of steps is 3433
+final_eval_time_seconds:105.31
+final_int8_zlib_roundtrip val_loss:1.9792 val_bpb:1.1722
+final_int8_zlib_roundtrip_exact val_loss:1.979152 val_bpb:1.172165
+int8_payload_bytes:24283764
+quant_raw_bytes:24315761
+int8_zlib_bytes:15493354
+baseline_tensor_bytes:96719732

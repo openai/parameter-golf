@@ -1,0 +1,16 @@
+cat > records/track_10min_16mb/2026-04-30_hybrid_ngpt_gpt_mamba/submission.json <<'EOF'
+{
+  "name": "Vardan Oganesyan",
+  "github_id": "vardanbobo007",
+  "submission_name": "Hybrid nGPT GPT Mamba",
+  "track": "track_10min_16mb",
+  "val_bpb": 1.172,
+  "val_loss": 1.98,
+  "artifact_bytes": 15500000,
+  "train_seconds": 600,
+  "eval_seconds": 105,
+  "hardware": "8xH100",
+  "train_script": "train_gpt.py",
+  "description": "Hybrid nGPT/GPT/Mamba model."
+}
+EOF
