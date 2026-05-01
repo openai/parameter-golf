@@ -53,7 +53,7 @@ class Hyperparameters:
     # Training length.
     iterations = int(os.environ.get("ITERATIONS", 20000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
-    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 500))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
@@ -61,7 +61,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_layers = int(os.environ.get("NUM_LAYERS", 10))
     num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
     model_dim = int(os.environ.get("MODEL_DIM", 512))
     num_heads = int(os.environ.get("NUM_HEADS", 8))
@@ -497,6 +497,102 @@ class DistributedTokenLoader:
 # TRANSFORMER MODULES
 # -----------------------------
 
+def apply_zero_init(model: nn.Module) -> nn.Module:
+    """
+    Applies ZerO initialization to a given PyTorch nn.Module in-place.
+    
+    This function implements:
+      - Algorithm 1 (Linear/FFN Layers using Identity, Partial Identity, and Hadamard)
+      - Algorithm 2 (Convolution Layers)
+    
+    Args:
+        model (nn.Module): The PyTorch model to initialize.
+        
+    Returns:
+        nn.Module: The model with initialized weights.
+    """
+
+    @torch.no_grad()
+    def _zero_init_tensor(tensor: torch.Tensor, out_f: int, in_f: int):
+        """Core logic corresponding to Algorithm 1 in the paper."""
+        tensor.zero_()
+        
+        if out_f <= in_f:
+            # P_l == Q_l: Identity mapping
+            # P_l < Q_l: Partial identity (Propagates first P_l dimensions)
+            tensor.copy_(torch.eye(out_f, in_f, dtype=tensor.dtype, device=tensor.device))
+        else:
+            # P_l > Q_l: Hadamard mapping (e.g., expanding MLPs)
+            m = math.ceil(math.log2(out_f))
+            m = max(m, 1)  # Ensure at least m=1 
+            
+            # Recursively generate Hadamard matrix H_m
+            H = torch.tensor([[1.0]], dtype=tensor.dtype, device=tensor.device)
+            for _ in range(m):
+                H1 = torch.cat([H, H], dim=1)
+                H2 = torch.cat([H, -H], dim=1)
+                H = torch.cat([H1, H2], dim=0)
+            
+            # Normalization factor defined in the paper: c = 2^{-(m-1)/2}
+            c = 2.0 ** (-(m - 1) / 2.0)
+            
+            # Apply scaled Hadamard top-left submatrix (I* H_m I*)
+            tensor.copy_(c * H[:out_f, :in_f])
+
+    # Iterate through and parse all network submodules
+    for name, module in model.named_modules():
+        
+        # 1. Respect the script's architectural _zero_init flags (e.g., `proj` & `lm_head`).
+        # This achieves the paper's goal of dynamical isometry (Identity residual pass) 
+        # and avoids the gradient deadlock.
+        if getattr(module, '_zero_init', False):
+            if hasattr(module, 'weight') and module.weight is not None:
+                module.weight.data.zero_()
+            if hasattr(module, 'bias') and module.bias is not None:
+                module.bias.data.zero_()
+            continue
+
+        # 2. Linear Layers (c_q, c_k, c_v, fc)
+        # c_q (512->512) becomes Identity.
+        # c_k/c_v (512->256) become Partial Identities.
+        # fc (512->1024) becomes a Hadamard transform.
+        if isinstance(module, nn.Linear):
+            _zero_init_tensor(module.weight.data, module.out_features, module.in_features)
+            if getattr(module, 'bias', None) is not None:
+                module.bias.data.zero_()
+
+        # 3. Convolutional Layers (Implementation of Algorithm 2)
+        elif isinstance(module, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+            out_c, in_c = module.out_channels, module.in_channels
+            module.weight.data.zero_()
+            
+            # Find center index, taking n <- floor(k / 2) for each dimension
+            centers = tuple(k // 2 for k in module.kernel_size)
+            
+            # Create an out_c x in_c block utilizing the base ZerO logic
+            block = torch.zeros(out_c, in_c, dtype=module.weight.dtype, device=module.weight.device)
+            _zero_init_tensor(block, out_c, in_c)
+            
+            # Place block in the center slice of the kernel
+            if len(centers) == 1:   
+                module.weight.data[:, :, centers[0]] = block
+            elif len(centers) == 2: 
+                module.weight.data[:, :, centers[0], centers[1]] = block
+            elif len(centers) == 3: 
+                module.weight.data[:, :, centers[0], centers[1], centers[2]] = block
+                
+            if getattr(module, 'bias', None) is not None:
+                module.bias.data.zero_()
+                
+        # 4. Normalization Layers (Standard practice is Scale=1, Bias=0)
+        elif isinstance(module, (nn.LayerNorm, nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.GroupNorm)):
+            if hasattr(module, 'weight') and module.weight is not None:
+                module.weight.data.fill_(1.0)
+            if hasattr(module, 'bias') and module.bias is not None:
+                module.bias.data.zero_()
+
+    return model
+
 class RMSNorm(nn.Module):
     def __init__(self, eps: float | None = None):
         super().__init__()
@@ -733,7 +829,7 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5, fullgraph=True)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -836,6 +932,7 @@ def main() -> None:
         rope_base=args.rope_base,
         qk_gain_init=args.qk_gain_init,
     ).to(device).bfloat16()
+    base_model = apply_zero_init(base_model)
     for module in base_model.modules():
         if isinstance(module, CastedLinear):
             module.float()
