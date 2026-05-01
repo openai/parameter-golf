@@ -14,7 +14,7 @@
   },
   "hardware": "8xH100 80GB SXM",
   "pytorch_version": "2.11.0+cu130",
-  "technique_summary": "PR #1851 fork (@aquariouseworkman) + 4 novel contributions: headwise gated attention, EMA=0.990, small batch (ga=1, 196K tokens), 6-bit embedding quantization. Base includes LQER (asymmetric int4), phased TTT, fused CE kernel, XSA, depth recurrence, parallel residuals, QK-Gain 5.0, GPTQ int6+brotli. CaseOps/SmearGate/SparseGate disabled.",
+  "technique_summary": "PR #1851 fork (@aquariouseworkman) + 4 novel contributions: headwise gated attention, EMA=0.990, small batch (ga=1, 196K tokens), 6-bit embedding quantization. Base includes LQER (asymmetric int4), phased TTT, fused CE kernel, XSA, depth recurrence, parallel residuals, QK-Gain 5.0, GPTQ int6+brotli. CaseOps active (via symlinked data), SmearGate/SparseGate disabled.",
   "compliance": {
     "train_under_600s": true,
     "artifact_under_16mb": true,

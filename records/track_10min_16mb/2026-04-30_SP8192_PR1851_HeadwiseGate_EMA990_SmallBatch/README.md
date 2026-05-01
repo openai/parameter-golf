@@ -50,11 +50,11 @@ Extends @bigbag's PR #1493 with:
 - **Brotli compression**
 - SmearGate (available but **disabled** in our runs: `smear_gate_enabled=False`)
 - Sparse Attention Gate (available but **replaced** by our headwise gate: `sparse_attn_gate_enabled=False`)
-- CaseOps tokenizer (available but **disabled**: `caseops_enabled=False`)
+- CaseOps tokenizer (**active via symlinked data** — env var was `caseops_enabled=False` but pod data paths pointed to CaseOps-tokenized shards)
 
 ### Upstream: @bigbag PR #1493
 
-- SP8192 vocabulary (8192-token SentencePiece BPE, regular — not CaseOps)
+- SP8192 vocabulary (8192-token SentencePiece BPE, CaseOps variant via symlinked data)
 - 11L × 512d × 8H/4KV, MLP 4×, LeakyReLU(0.5)²
 - 3-layer depth recurrence (layers 3-4-5 looped 2×, 17 virtual from 11 physical)
 - Parallel residuals (layers 7+), sigmoid skip gates
@@ -131,7 +131,8 @@ pip install --no-cache-dir \
 
 python3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 80
 
-SEED=42 CASEOPS_ENABLED=0 GATED_ATTN_ENABLED=1 SPARSE_ATTN_GATE_ENABLED=0 \
+# Note: CaseOps data was used via symlinks on the pod (see README notes above)
+SEED=42 GATED_ATTN_ENABLED=1 SPARSE_ATTN_GATE_ENABLED=0 \
   EMA_DECAY=0.990 GRAD_ACCUM_STEPS=1 TRAIN_BATCH_TOKENS=196608 EMBED_BITS=6 \
   torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
