@@ -1,0 +1,25 @@
+{
+  "name": "LongCtx No-QV QK5.25 + AsymLogit + LQER g32/top4 + TTT-local 0.80 + GlobalTTT LR 0.0008",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "status": "probe_pending",
+  "base_pr": "#2060",
+  "base_record": "2026-05-01_LongCtx_NoQV_QK525_AsymLogit_LQERg32top4_TTTlocal080_1.0579",
+  "base_seed42_bpb": 1.05781454,
+  "change_vs_base": {
+    "GLOBAL_TTT_LR": {
+      "base": 0.001,
+      "this": 0.0008
+    }
+  },
+  "unchanged": [
+    "MATRIX_LR=0.028",
+    "LQER_RANK=2",
+    "LQER_ASYM_GROUP=32",
+    "LQER_TOP_K=4",
+    "TTT_LOCAL_LR_MULT=0.80",
+    "PHASED_TTT_PREFIX_DOCS=3000",
+    "TTT_MASK=no_qv"
+  ],
+  "decision_rule": "Run seed 42 first. Continue only if final quantized_ttt_phased BPB is neutral or better vs 1.05781454."
+}
