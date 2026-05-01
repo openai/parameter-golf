@@ -83,7 +83,7 @@ otation_ValResLearning/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets
 otation_ValResLearning/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/
 
 
-3. Training and validation
+3.Training and validation
 
 Run the command  
 
