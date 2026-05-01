@@ -1,0 +1,174 @@
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  adaptive_repartition_enabled: False
+  albert_mode: False
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /workspace/parameter-golf/data
+  datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192
+  distributed: False
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gl_att_enabled: False
+  gl_att_mode: glg
+  gl_att_stride: 1
+  gl_att_window_size: 256
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 2500
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/prism_wo_seed2024.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 0.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: models_token_limited/final_model_prism_wo_seed2024.pt
+  moe_aux_loss_coeff: 0.01
+  moe_enabled: False
+  moe_num_experts: 4
+  moe_top_k: 2
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  naive_shared_mode: False
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 0
+  parallel_final_lane: mlp
+  parallel_freeze_lane0: False
+  parallel_residual: False
+  parallel_residual_start: 7
+  parallel_start_layer: 7
+  parallel_start_layer_is_physical: True
+  qk_gain_init: 5.0
+  quantized_model_path: models_token_limited/final_model_prism_wo_seed2024.int6.ptz
+  rank: 0
+  repartition_enabled: False
+  repartition_permute_dims: True
+  repartition_permute_heads: True
+  repartition_seed: 1729
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: prism_wo_seed2024
+  scalar_lr: 0.02
+  seed: 2024
+  sensitive_matrix_bits: 6
+  sensitive_matrix_clip_sigmas: 12.85
+  sensitive_matrix_patterns: ('attn.c_q.weight', 'attn.c_k.weight', 'attn.proj.weight', 'mlp.proj.weight')
+  shared_encdec_enabled: True
+  skip_gates_enabled: True
+  sliding_window_enabled: False
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 100
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: False
+  ttt_epochs: 3
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 500
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 40540160
+model_params:9993320
+shared_encdec:active=1 physical_blocks=2 virtual_layers=11
+parallel_residual:active=0 start_layer=7 start_mode=physical final_lane=mlp freeze_lane0=0
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+0/2500 val_loss: 9.0098 val_bpb: 3.4880
+1/2500 train_loss: 9.0103 train_time: 0.0m tok/s: 1134982
+2/2500 train_loss: 11.7370 train_time: 0.0m tok/s: 1104341
+3/2500 train_loss: 10.6344 train_time: 0.0m tok/s: 1082944
+4/2500 train_loss: 9.1749 train_time: 0.0m tok/s: 1073795
+5/2500 train_loss: 8.0699 train_time: 0.1m tok/s: 1068563
+100/2500 train_loss: 4.5270 train_time: 1.3m tok/s: 1036161
+200/2500 train_loss: 3.8801 train_time: 2.5m tok/s: 1037348
+300/2500 train_loss: 3.6835 train_time: 3.8m tok/s: 1039024
+400/2500 train_loss: 3.5929 train_time: 5.0m tok/s: 1040093
+500/2500 train_loss: 3.5745 train_time: 6.3m tok/s: 1040679
+500/2500 val_loss: 3.5603 val_bpb: 1.3783
+600/2500 train_loss: 3.5428 train_time: 7.6m tok/s: 1041171
+700/2500 train_loss: 3.4899 train_time: 8.8m tok/s: 1041573
+800/2500 train_loss: 3.4825 train_time: 10.1m tok/s: 1041862
+900/2500 train_loss: 3.4318 train_time: 11.3m tok/s: 1042058
+1000/2500 train_loss: 3.4506 train_time: 12.6m tok/s: 1042181
+1000/2500 val_loss: 3.4194 val_bpb: 1.3238
+1100/2500 train_loss: 3.4292 train_time: 13.8m tok/s: 1042249
+1200/2500 train_loss: 3.3987 train_time: 15.1m tok/s: 1042369
+1300/2500 train_loss: 3.3621 train_time: 16.3m tok/s: 1042435
+1400/2500 train_loss: 3.3835 train_time: 17.6m tok/s: 1042524
+1500/2500 train_loss: 3.3406 train_time: 18.9m tok/s: 1042565
+1500/2500 val_loss: 3.3347 val_bpb: 1.2910
+1600/2500 train_loss: 3.2962 train_time: 20.1m tok/s: 1042628
+1700/2500 train_loss: 3.3036 train_time: 21.4m tok/s: 1042676
+1800/2500 train_loss: 3.3108 train_time: 22.6m tok/s: 1042710
+1900/2500 train_loss: 3.3039 train_time: 23.9m tok/s: 1042737
+2000/2500 train_loss: 3.2448 train_time: 25.1m tok/s: 1042769
+2000/2500 val_loss: 3.2507 val_bpb: 1.2584
+2100/2500 train_loss: 3.2323 train_time: 26.4m tok/s: 1042793
+2200/2500 train_loss: 3.2565 train_time: 27.7m tok/s: 1042823
+2300/2500 train_loss: 3.2414 train_time: 28.9m tok/s: 1042836
+2400/2500 train_loss: 3.1928 train_time: 30.2m tok/s: 1042884
+2500/2500 train_loss: 3.1929 train_time: 31.4m tok/s: 1042917
+2500/2500 val_loss: 3.1778 val_bpb: 1.2302
+peak memory allocated: 26143 MiB reserved: 26198 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:3.17891248 val_bpb:1.23065609 eval_time:15662ms
+Serialized model: 31595432 bytes
+Code size: 85180 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 13 Hessians in 8.4s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights, virtual_attn_scales, virtual_mlp_scales, virtual_q_gain_mult, virtual_resid_mix_delta
+Serialized model quantized+brotli: 4984921 bytes
+Total submission size quantized+brotli: 5070101 bytes
+quantized val_loss:3.23148794 val_bpb:1.25100969 eval_time:16749ms

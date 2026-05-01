@@ -1,0 +1,139 @@
+{
+  "track": "non_record_16mb",
+  "hardware": "1H100 ran for ~30 mins due to no credits",
+  "date": "2026-04-30",
+  "name": "PRISM",
+  "author": "Sidhant Thole",
+  "github_id": "SPThole",
+  "val_bpb": 1.25050954,
+  "val_loss": 3.23019602,
+  "bytes_total": 5065877,
+  "category": [
+    "Universal transformer / depth recurrence",
+    "Learning adapters on fixed Q/K activation repartitions"
+  ],
+  "primary_model": {
+    "variant": "PRISM-WO",
+    "role": "submitted_best_shared_control",
+    "description": "Two physical transformer blocks are reused as a U-Net-style encoder/decoder over 11 virtual layers. Each virtual layer has learned diagonal adapters, but Q/K activation channels remain identity.",
+    "seed": 42,
+    "metrics": {
+      "pre_quant": {
+        "val_loss": 3.17782056,
+        "val_bpb": 1.23023337
+      },
+      "quantized": {
+        "val_loss": 3.23019602,
+        "val_bpb": 1.25050954,
+        "bytes_total": 5065877
+      }
+    }
+  },
+  "architecture": {
+    "physical_blocks": 2,
+    "virtual_layers": 11,
+    "weight_sharing": "shared encoder block and shared decoder block",
+    "u_net_skips": true,
+    "virtual_adapters": [
+      "attn_scale",
+      "mlp_scale",
+      "resid_mix_delta",
+      "q_gain_mult"
+    ],
+    "qk_repartition_scope": "Q/K activations after W_Q/W_K projection; W_Q and W_K are not duplicated or mutated",
+    "not_repartitioned": [
+      "V activations",
+      "attn.c_v.weight",
+      "attn.proj.weight"
+    ],
+    "quantization": {
+      "matrix_bits": 6,
+      "embedding_bits": 8,
+      "compressor": "brotli",
+      "method": "GPTQ INT6 weights + INT8 embeddings"
+    }
+  },
+  "experimentation": {
+    "summary": "The sweep compares a no-repartition shared-adapter control against PRISM variants that repartition Q/K activations after projection. Raw random repartitioning hurts, while adaptive blending recovers part of the loss and points to fixed 50/50 identity/permutation blending.",
+    "variants": [
+      {
+        "variant": "PRISM-WO",
+        "role": "no_repartition_control",
+        "qk_activation_repartition": false,
+        "adaptive_blend": false,
+        "seed": 42,
+        "metrics": {
+          "pre_quant": {
+            "val_loss": 3.17782056,
+            "val_bpb": 1.23023337
+          },
+          "quantized": {
+            "val_loss": 3.23019602,
+            "val_bpb": 1.25050954,
+            "bytes_total": 5065877
+          }
+        },
+        "takeaway": "Best shared-weight submission in this sweep; virtual diagonal adapters provide the strongest quality/size tradeoff."
+      },
+      {
+        "variant": "PRISM-WT",
+        "role": "random_qk_activation_repartition",
+        "qk_activation_repartition": true,
+        "adaptive_blend": false,
+        "seed": 42,
+        "metrics": {
+          "pre_quant": {
+            "val_loss": 3.19207968,
+            "val_bpb": 1.23575352
+          },
+          "quantized": {
+            "val_loss": 3.24554749,
+            "val_bpb": 1.25645257,
+            "bytes_total": 5066820
+          }
+        },
+        "takeaway": "Random Q/K activation permutations add layer diversity but pay an attention alignment tax and worsen quality versus PRISM-WO."
+      },
+      {
+        "variant": "PRISM-Adapt Partial4",
+        "role": "adaptive_identity_permutation_blend",
+        "qk_activation_repartition": true,
+        "adaptive_blend": true,
+        "seed": 42,
+        "metrics": {
+          "pre_quant": {
+            "val_loss": 3.18104406,
+            "val_bpb": 1.23148129
+          },
+          "quantized": {
+            "val_loss": 3.23742662,
+            "val_bpb": 1.25330873,
+            "bytes_total": 5077436
+          }
+        },
+        "takeaway": "Learned routing collapses toward a static 50/50 identity/permutation blend, partially recovering WT losses and motivating fixed-alpha structured repartition."
+      }
+    ],
+    "aggregate_results": {
+      "PRISM-WO": {
+        "pre_quant_val_bpb_mean": 1.2310,
+        "quantized_val_bpb": 1.2512,
+        "quant_penalty_mBpb": 20.2
+      },
+      "PRISM-WT": {
+        "pre_quant_val_bpb_mean": 1.2353,
+        "quantized_val_bpb": 1.2568,
+        "quant_penalty_mBpb": 21.5
+      },
+      "PRISM-Adapt": {
+        "pre_quant_val_bpb_mean": 1.2328,
+        "quantized_val_bpb": 1.2538,
+        "quant_penalty_mBpb": 21.0
+      }
+    }
+  },
+  "notes": {
+    "submission_choice": "PRISM-WO seed 42 is used for the top-level submission metrics because it has the best quantized BPB among the shared-weight variants in the sweep.",
+    "important_precision": "PRISM repartitions Q/K activations after projection, not W_Q/W_K weight matrices."
+  }
+}
