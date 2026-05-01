@@ -1,0 +1,16 @@
+{
+  "ARTIFACT_BUDGET_STRICT": "0",
+  "CANDIDATE_IMPL": "autoregressive_gpt",
+  "DATA_PATH": "/workspace/parameter-golf/data/datasets/fineweb10B_sp1024",
+  "MAX_WALLCLOCK_SECONDS": "600",
+  "QK_GAIN_INIT": "5.25",
+  "RUN_ID": "h100_batch_20260501T002059Z_01_best4x_ttt_disabled_qk525",
+  "SKIP_PRE_QUANT_FINAL_EVAL": "1",
+  "SUBMISSION_CODE_PATHS": "/workspace/parameter-golf/train_gpt.py,/workspace/parameter-golf/candidates,/workspace/parameter-golf/fastest/scripts/artifact_budget_analyzer.py",
+  "TOKENIZER_PATH": "/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+  "TRAIN_BATCH_TOKENS": "2097152",
+  "TRAIN_LOG_EVERY": "100",
+  "TTT_ENABLED": "0",
+  "VAL_LOSS_EVERY": "0",
+  "VOCAB_SIZE": "1024"
+}
