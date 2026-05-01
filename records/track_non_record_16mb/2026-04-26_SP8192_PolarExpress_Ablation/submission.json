@@ -6,6 +6,9 @@
   "date": "2026-04-26",
   "track": "non_record_16mb",
   "base_pr": 1809,
+  "base_pr_author": "PranavViswanath",
+  "upstream_fork_pr": 1493,
+  "upstream_fork_author": "bigbag",
   "variants": {
     "baseline_fixed_ns": {
       "val_bpb": 1.08130,

@@ -24,7 +24,7 @@ The fixed coefficients `(3.4445, -4.775, 2.0315)` are a single-point approximati
 
 ### Why test on #1809?
 
-PR #1809 by @bigbag holds a top leaderboard position (claimed val_bpb 1.08079) using an SP8192 tokenizer with a 3-layer depth-recurrence stack, INT5 mixed-precision QAT, zstd compression, and aggressive test-time training. It uses 5 NS steps in Muon. We tested whether PE could improve these NS steps.
+PR #1809 by @PranavViswanath (forking #1493 by @bigbag) holds a top leaderboard position (claimed val_bpb 1.08079) using an SP8192 tokenizer with a 3-layer depth-recurrence stack, INT5 mixed-precision QAT, zstd compression, and aggressive test-time training. It uses 5 NS steps in Muon. We tested whether PE could improve these NS steps.
 
 ### What we changed
 
@@ -38,13 +38,15 @@ Everything else (architecture, hyperparameters, data, seed, hardware) was held c
 
 ## Key Finding
 
-**Polar Express does NOT improve #1809's architecture.** The degradation is small (+0.00024 BPB with TTT) but consistent across all evaluation modes. Possible explanations:
+**This is a negative result for PE at the same 5-step count.** The degradation is small (+0.00024 BPB with TTT) but consistent across all evaluation modes.
+
+**Important limitation:** This ablation does *not* test the hypothesis that PE is useful because it enables fewer NS steps (e.g., 4 instead of 5), which saves optimizer wall time and yields more training steps within the 600s budget. As @PranavViswanath [noted](https://github.com/openai/parameter-golf/pull/1831#issuecomment-4322493813), the throughput gain from fewer steps — not better per-step orthogonalization — is the primary mechanism by which PE improves BPB in #1809.
+
+Possible explanations for the same-step-count regression:
 
 1. **The fixed coefficients are already well-tuned** for the spectral distribution encountered during #1809's training.
 2. **PE's spectral radius estimation via Frobenius norm** may introduce noise that slightly degrades convergence.
 3. **5 NS steps already provide sufficient orthogonalization** — the marginal improvement from optimal coefficients doesn't overcome the estimation overhead.
-
-This is a negative result but a useful data point: PE is not a universal improvement and its benefit may depend on the specific architecture and training regime.
 
 ## Methodology
 
@@ -55,7 +57,8 @@ This is a negative result but a useful data point: PE is not a universal improve
 
 ## Attribution
 
-- **@bigbag** — PR #1809 (base architecture and training recipe)
+- **@PranavViswanath** — PR #1809 (base architecture and training recipe, forking #1493)
+- **@bigbag** — PR #1493 (upstream fork base)
 - **@orangekame3** — Polar Express concept (PR #1344)
 - **@nprime06** — PE integration in parameter-golf (PR #1787)
 
@@ -70,6 +73,19 @@ This is a negative result but a useful data point: PE is not a universal improve
 | Self-contained artifact | ✅ |
 
 **Note:** This is a non-record submission. The baseline reproduction (1.08130) does not match #1809's claimed 1.08079, likely due to non-determinism across different H100 pod configurations. The ablation comparison is valid because both runs used the same pod setup and seed.
+
+## Attempted Follow-Up (not executed)
+
+Following @PranavViswanath's [methodology critique](https://github.com/openai/parameter-golf/pull/1831#issuecomment-4322493813), we prepared a partial follow-up ablation to test PE at the same 4-step count:
+
+- **R1_fixed4_Gram** — fixed coefficients `(3.4445, -4.7750, 2.0315)`, 4 NS steps, Gram-NS on
+- **R2_PE4_Gram** — Polar Express last-4 coefficients, 4 NS steps, Gram-NS on
+
+This would isolate whether PE coefficients improve orthogonalization quality at the 4-step budget that #1809 actually uses. Note: this is a *partial* decomposition. The full suggested design (`fixed5 vs fixed4 vs PE4`) would also require a `fixed5` control to separate the step-count effect from the coefficient effect; `fixed5` was deferred due to time budget.
+
+**Status:** Code was prepared and validated but the run was not executed. An 8×H100 SXM reservation was attempted on 2026-05-01 and failed with SUPPLY_CONSTRAINT on both SECURE and COMMUNITY clouds. No data was collected, no charges were incurred ($77.62 balance unchanged). The follow-up remains ready to execute when hardware becomes available.
+
+**Conclusions remain limited to the PE5 vs fixed5 comparison above.**
 
 ## Files
 
