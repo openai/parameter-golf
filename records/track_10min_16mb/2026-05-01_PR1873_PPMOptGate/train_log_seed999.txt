@@ -1,0 +1,155 @@
+W0501 03:52:02.803000 223763 torch/distributed/run.py:803] 
+W0501 03:52:02.803000 223763 torch/distributed/run.py:803] *****************************************
+W0501 03:52:02.803000 223763 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0501 03:52:02.803000 223763 torch/distributed/run.py:803] *****************************************
+/usr/local/lib/python3.12/dist-packages/torch/distributed/distributed_c10d.py:4876: UserWarning: barrier(): using the device under current context. You can specify `device_id` in `init_process_group` to mute this warning.
+  warnings.warn(  # warn only once
+[rank0]:[W501 03:52:13.750837395 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /workspace/pgolf/data/
+  datasets_dir: /workspace/pgolf/data/datasets/fineweb10B_sp10240_casefold
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/pr1873_optgate_s999.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  ppm_conf: 0.7
+  ppm_enabled: True
+  ppm_lhi: 0.99
+  ppm_llo: 0.3
+  ppm_order: 5
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: pr1873_optgate_s999
+  scalar_lr: 0.02
+  seed: 999
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/pgolf/data/tokenizers/fineweb_10240_casefold_bpe.model
+  train_batch_tokens: 786432
+  train_files: /workspace/pgolf/data/datasets/fineweb10B_sp10240_casefold/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 4
+  ttt_lr: 0.008
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: /workspace/pgolf/data/datasets/fineweb10B_sp10240_casefold/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 10240
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 101
+val_tokens: 49999872
+model_params:36993112
+gptq:reserving 12s, effective=588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.2313 val_bpb: 3.3641
+1/20000 train_loss: 9.2304 train_time: 0.0m tok/s: 4035684
+2/20000 train_loss: 12.2774 train_time: 0.0m tok/s: 3881378
+3/20000 train_loss: 10.8329 train_time: 0.0m tok/s: 3668631
+4/20000 train_loss: 9.3334 train_time: 0.0m tok/s: 3576813
+5/20000 train_loss: 8.6247 train_time: 0.0m tok/s: 3525967
+500/20000 train_loss: 3.4736 train_time: 2.0m tok/s: 3295221
+layer_loop:enabled step:863 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+1000/20000 train_loss: 3.3071 train_time: 4.1m tok/s: 3198928
+1500/20000 train_loss: 3.2327 train_time: 6.5m tok/s: 3008168
+2000/20000 train_loss: 3.1401 train_time: 9.0m tok/s: 2923246
+2172/20000 val_loss: 3.0386 val_bpb: 1.1073
+stopping_early: wallclock_cap train_time: 588140ms step: 2172/20000
+peak memory allocated: 39441 MiB reserved: 39552 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:3.04224194 val_bpb:1.10864779 eval_time:7261ms
+Serialized model: 137528185 bytes
+Code size: 54183 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 13.1s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int7): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 15947896 bytes
+Total submission size quantized+brotli: 16002079 bytes
+/usr/local/lib/python3.12/dist-packages/torch/distributed/distributed_c10d.py:4876: UserWarning: barrier(): using the device under current context. You can specify `device_id` in `init_process_group` to mute this warning.
+  warnings.warn(  # warn only once
+quantized val_loss:3.07787794 val_bpb:1.12163419 eval_time:9981ms
+quantized_sliding_window val_loss:3.03421682 val_bpb:1.10572329 eval_time:125146ms
+ttt:start chunks=1526 ttt_lr=0.008 ttt_epochs=4
+ppm:mix
+ppm_mix val_bpb:0.80052360
+quantized_ttt_sliding_window val_loss:3.02116490 val_bpb:1.10096693 eval_time:3205070ms
+quantized_ttt_ppm_sliding_window val_bpb:0.80052360
