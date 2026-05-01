@@ -1,0 +1,10 @@
+Recomputed locally after replacing the undeclared pyminify CLI shell-out with the declared python_minifier API:
+
+source_code_bytes: 160964
+compressed_wrapper_code_bytes: 31947
+compressed_model_bytes: 15962574
+counted_total_bytes: 15994521
+artifact_cap_margin_bytes: 5479
+
+Command shape:
+.venv/bin/python -c "import base64, pathlib, brotli, python_minifier; code=pathlib.Path('records/track_non_record_16mb/2026-05-01_StageB_ScalarControlQ_NoTTT_1.07468/train_gpt.py').read_text(); minified=python_minifier.minify(code, rename_locals=False, hoist_literals=False, remove_literal_statements=True, remove_asserts=True, prefer_single_line=True).encode(); comp=brotli.compress(minified, quality=11); enc=base64.b85encode(comp); wrapper=b'import brotli as R,base64 as B\nexec(R.decompress(B.b85decode(\"'+enc+b'\")))\n'; print(len(code.encode()), len(wrapper))"

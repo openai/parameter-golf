@@ -1,0 +1,13 @@
+--extra-index-url https://pypi.org/simple
+--extra-index-url https://download.pytorch.org/whl/cu128
+--find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/
+torch==2.9.1
+flash_attn_3
+numpy
+sentencepiece
+brotli
+zstandard
+einops
+triton
+python-minifier
+ninja

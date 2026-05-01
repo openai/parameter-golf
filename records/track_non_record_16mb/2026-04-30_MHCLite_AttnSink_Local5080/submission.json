@@ -1,0 +1,67 @@
+{
+  "name": "mHC-lite Residual Mixing + Attention Sink Local Probe",
+  "track": "track_non_record_16mb",
+  "author": "Kbediako",
+  "github_id": "Kbediako",
+  "date": "2026-04-30",
+  "val_bpb": 1.42462304,
+  "val_bpb_std": 0.00145948,
+  "score_scope": "local RTX 5080 smoke train shard plus full validation; not an official leaderboard score",
+  "official_8xh100_val_bpb": null,
+  "bytes_total": 13363475,
+  "hardware": "1x NVIDIA RTX 5080 local WSL",
+  "seeds": [
+    42,
+    1337,
+    2025
+  ],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.42542064,
+      "val_loss_nats": 2.40676305,
+      "train_wallclock_s": 598.341,
+      "eval_wallclock_s": 40.017,
+      "train_steps": 516,
+      "artifact_bytes": 13332695
+    },
+    "1337": {
+      "val_bpb": 1.42551199,
+      "val_loss_nats": 2.40691728,
+      "train_wallclock_s": 598.587,
+      "eval_wallclock_s": 38.697,
+      "train_steps": 518,
+      "artifact_bytes": 13335887
+    },
+    "2025": {
+      "val_bpb": 1.42293649,
+      "val_loss_nats": 2.40256866,
+      "train_wallclock_s": 598.504,
+      "eval_wallclock_s": 40.256,
+      "train_steps": 522,
+      "artifact_bytes": 13363475
+    }
+  },
+  "blurb": "Clean-neural local probe adding optional mHC-lite softmax residual mixing and a causal per-head attention sink to the root sp1024 scaffold. No TTT, casefold, PPM, byte sidecar, external binary, or network dependency during evaluation. Two 8xH100 Runpod attempts exited before producing a score, so this is submitted as a non-record local-evidence package.",
+  "compliance": {
+    "record_claim": false,
+    "artifact_under_16mb": true,
+    "train_under_600s_local": true,
+    "eval_under_600s_local": true,
+    "official_8xh100_verified": false,
+    "no_validation_training": true,
+    "no_ttt": true,
+    "no_casefold": true,
+    "no_ppm": true,
+    "self_contained_eval": true
+  },
+  "runpod_attempts": [
+    {
+      "run_id": "runpod_sinkm65_cap598_seed42_20260430T062654Z",
+      "status": "pod exited during compile before score"
+    },
+    {
+      "run_id": "runpod_sinkm65_cap300_seed42_20260430T063624Z",
+      "status": "pod exited after training step 250 before score"
+    }
+  ]
+}

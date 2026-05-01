@@ -1,0 +1,73 @@
+{
+  "artifacts": {
+    "final_model.int6.ptz": {
+      "bytes": 16013191,
+      "sha256": "78ee1a5c0893b7f32dd2fa157de89ba4def2056b2fded2a574d339aa84efc298"
+    },
+    "final_model.pt": {
+      "bytes": 135417533,
+      "sha256": "ae73382050cc276ea0450a0849573b3a50a476dc9175edcb2f5aef5f3c0adb0d"
+    },
+    "stageb_s42_wd082_qkg5125_clipcal_20260501T1235AEST_train_nottt.txt": {
+      "bytes": 169157,
+      "sha256": "ab67343c40f2b9db9d79a8ec72ef2431870a09629b6ad1d5f230dc11f5f606c1"
+    }
+  },
+  "decision": "stop_before_ttt",
+  "env": {
+    "ATTN_CLIP_SIGMAS": "13.0",
+    "EMBED_CLIP_SIGMAS": "14.5",
+    "GPTQ_CALIBRATION_BATCHES": "20",
+    "GPTQ_RESERVE_SECONDS": "8.0",
+    "MATRIX_CLIP_SIGMAS": "12.65",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_CLIP_SIGMAS": "11.75",
+    "NPROC_PER_NODE": "8",
+    "PHASED_TTT_NUM_PHASES": "3",
+    "QK_GAIN_INIT": "5.125",
+    "SPARSE_ATTN_GATE_SCALE": "0.75",
+    "WARMDOWN_FRAC": "0.82"
+  },
+  "run_id_base": "stageb_s42_wd082_qkg5125_clipcal_20260501T1235AEST",
+  "run_id_train": "stageb_s42_wd082_qkg5125_clipcal_20260501T1235AEST_train_nottt",
+  "run_id_ttt": "stageb_s42_wd082_qkg5125_clipcal_20260501T1235AEST_ttt_eval",
+  "seed": 42,
+  "stage": "train_gated",
+  "stop_reasons": [
+    "artifact_over_cap"
+  ],
+  "thresholds": {
+    "artifact_cap_bytes": 16000000,
+    "post_ttt_stop_bpb": 1.0613,
+    "prequant_stop_bpb": 1.0653,
+    "quantized_stop_bpb": 1.0738
+  },
+  "train": {
+    "compressed_model_bytes": 16013191,
+    "exists": true,
+    "path": "logs/stageb_s42_wd082_qkg5125_clipcal_20260501T1235AEST_train_nottt.log",
+    "post_ttt_bpb": null,
+    "post_ttt_eval_time_ms": null,
+    "prequant_bpb": 1.06448128,
+    "prequant_eval_time_ms": 7338,
+    "quantized_bpb": 1.0733959,
+    "quantized_eval_time_ms": 60808,
+    "real_s": 1197.38,
+    "total_submission_bytes": 16045826,
+    "train_wallclock_s": 592.136
+  },
+  "ttt": {
+    "compressed_model_bytes": null,
+    "exists": false,
+    "path": "logs/stageb_s42_wd082_qkg5125_clipcal_20260501T1235AEST_ttt_eval.log",
+    "post_ttt_bpb": null,
+    "post_ttt_eval_time_ms": null,
+    "prequant_bpb": null,
+    "prequant_eval_time_ms": null,
+    "quantized_bpb": null,
+    "quantized_eval_time_ms": null,
+    "real_s": null,
+    "total_submission_bytes": null,
+    "train_wallclock_s": null
+  }
+}
