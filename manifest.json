@@ -1,0 +1,7 @@
+{
+  "submission_name": "Text_diffusion_MDLM",
+  "author": "laox5",
+  "is_record_attempt": false,
+  "description": "Masked Diffusion Language Models (MDLMs) generate text through an iterative denoising process that starts with a fully masked sequence and progressively unmask tokens in parallel until the complete sequence is restored.",
+  "technique": "MDLM Training + Muon Optimizer"
+}
