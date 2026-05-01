@@ -1,0 +1,25 @@
+{
+    "name": "Modified Mamba SSM + Byte260",
+    "author": "nicholasbailey",
+    "github_id": "nicholasbailey",
+    "val_bpb": 1.4816,
+    "val_loss": 1.0266,
+    "architecture": "mamba",
+    "vocab_size": 260,
+    "num_layers": 12,
+    "d_model": 512,
+    "d_inner": 1024,
+    "d_state": 64,
+    "d_conv": 4,
+    "tokenizer": "byte260",
+    "track": "non_record_16mb",
+    "hardware": "8xH100 SXM 80GB",
+    "seed_results": {
+        "42":   {"val_bpb": 1.4807, "val_loss": 1.0260, "steps": 1987, "artifact_bytes": 16653170},
+        "1337": {"val_bpb": 1.4732, "val_loss": 1.0208, "steps": 1989, "artifact_bytes": 16814037},
+        "314":  {"val_bpb": 1.4910, "val_loss": 1.0331, "steps": 1985, "artifact_bytes": 16880791}
+    },
+    "step_avg_ms": 302,
+    "paper": "https://arxiv.org/abs/2509.17514",
+    "notes": "First SSM submission. Modified Mamba-2 SSD with Achilles Heel residual bypass fix (https://arxiv.org/abs/2509.17514) + byte-level tokenization. Non-record: artifact slightly exceeds 16,000,000 byte cap after int8+zlib (16.6-16.9MB depending on seed)."
+}

@@ -81,6 +81,7 @@ Happy training!
 |-----|------:|--------|---------|------|------|
 | 1 Bit Quantization | 1.1239 | Ciprian-Florin Ifrim | 106M params quantized to 1 bit + misc arch changes + 2hr training | 2026-03-24 | [info](records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md) |
 | 4-Hour Baseline | 1.2074 | Will DePue | Testing unlimited compute, 4 hours on 8xH100 | 2026-03-18 | [info](records/track_non_record_16mb/2026-03-18_Quasi10Bfrom50B_SP1024_9x512_KV4_4h_pgut3/README.md) |
+| Modified Mamba SSM + Byte260 | 1.4816 | nicholasbailey | First SSM submission: Mamba-2 SSD + Achilles Heel fix + byte260 tokenization | 2026-04-04 | [info](records/track_non_record_16mb/2026-04-02_MambaSSM_Byte260/README.md) |
 
 #### Requests for PRs
 
@@ -95,7 +96,7 @@ We'd love to see weird & creative ideas in the challenge, since you never know w
 - [ ] H-net tokenization
 - [ ] Universal transformer - [We have lots of depth recurrence submissions, but I'd love to see one 4 hour
 - [ ] Megakernels
-- [ ] State-space models, E2E TTT, super long context for evaluation or training 
+- [x] State-space models, E2E TTT, super long context for evaluation or training - [implementation](records/track_non_record_16mb/2026-04-02_MambaSSM_Byte260/README.md)
 - [ ] Learning adapters on random linear maps
 
 ## Getting Started
