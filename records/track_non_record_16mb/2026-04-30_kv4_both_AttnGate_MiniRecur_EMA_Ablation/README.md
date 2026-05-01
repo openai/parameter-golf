@@ -3,9 +3,9 @@
 
 ## About me
 
-I'm a software engineer at Cisco. My team works on a enterprise cloud VPN product (remote-access VPN on AWS), mostly Kubernetes and Go. Distributed systems, not ML.
+I'm a software engineer at Cisco, working on an enterprose cloud VPN product - mostly K8's, Go and distributed systems
 
-I did deep learning coursework during my master's (graduated December 2021), but hadn't really touched ML since. Parameter Golf seemed like a reasonable way to get back into it — a scoped challenge with a clear metric and a deadline. I worked on this on evenings and weekends over the last month of the challenge, mostly on a single rented H100, with a few 8×H100 runs at the end to confirm the results.
+Parameter Golf seemed like a reasonable way to get back into ML training, the hands-on way. I worked on it over the evenings and weekends for the last month of the challenge, mostly on one H100, with a few 8xH100 runs at the end to confirm the final numbers.
 
 I went in knowing I wouldn't be competitive with the leaderboard frontier. I just wanted to put together something reproducible, learn the stack, and submit one honest non-record entry. Most of this submission is standing on the shoulders of the PRs cited below.
 
@@ -44,7 +44,6 @@ Hardware:      8×H100 SXM, 600s training cap
 ```
 
 Improvement over README baseline (1.2244): **−0.0631 BPB**.
-Improvement over same stack without EMA: **−0.00828 BPB** (real, matches leaderboard evidence).
 
 ---
 
