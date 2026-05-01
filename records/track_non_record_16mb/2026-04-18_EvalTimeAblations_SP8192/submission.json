@@ -1,0 +1,75 @@
+{
+  "author": "himanshudongre",
+  "github_id": "himanshudongre",
+  "name": "Ablation Report: Eval-time lever analysis on SP8192 absolute-RoPE stack",
+  "date": "2026-04-18",
+  "track": "non_record_16mb",
+  "related_record_pr": "https://github.com/openai/parameter-golf/pull/1716",
+  "summary": "Structured ablations behind the 2026-04-18 SP8192 + BigramHash d=32 + Path A v3 record (val_bpb 1.07882, 3-seed mean). Documents what was tested, what worked (d=32 bigram, Path A v3 aggressive passthrough quantization), what was killed (TTT_EPOCHS=4 saturated, EVAL_SEQ_LEN=4096 OOD on sliding, QAT v3 x score-first-TTT catastrophic interaction, Adaptive Hadamard null on Muon weights), and the architectural reasons behind each null result. Primary contribution: documentation and mechanism analysis for the design space around eval-time compute on absolute-position RoPE models.",
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "methodology": {
+    "protocol": "single-seed probe first, 3-seed validation only on 2-sigma winners",
+    "seed_for_probes": 42,
+    "baseline_reference": "record PR #1716 seed 42 (TTT val_bpb 1.07886574, total artifact 15,991,203 B)"
+  },
+  "findings": {
+    "confirmed_positive": {
+      "bigram_dim_32": {
+        "vs_d48": "pre-quant -0.0002 bpb, consistent across retrains",
+        "artifact_side_effect": "bigram.proj shrinks from 24576 to 16384 params, enabling Path A v3 int8 threshold"
+      },
+      "path_a_v3_passthrough_quant": {
+        "mechanism": "per-tensor int8 on 5 control-tensor families + per-row int8 on 3 small 2D matrices + LZMA code wrapper",
+        "artifact_savings": "~40 KB at 0 bpb cost (5 d.p.)",
+        "bpb_roundtrip_cost": "0.00000 measurable (identical to baseline at 5 decimal places)"
+      }
+    },
+    "confirmed_null": {
+      "ttt_epochs_4": {
+        "delta_bpb": -8.96e-5,
+        "sigma_multiple": 0.06,
+        "verdict": "saturated"
+      },
+      "eval_seq_len_4096_stride_128": {
+        "pre_quant_delta": -0.00509,
+        "quant_delta": -0.00334,
+        "sliding_delta": 0.00555,
+        "ttt_delta": 0.00033,
+        "verdict": "OOD query-phase tax at sliding-tail positions dominates context gain",
+        "architectural_implication": "requires training-time change (ALiBi/SWA/longer train_seq_len) to unlock"
+      },
+      "qat_v3_matrices_only": {
+        "pre_quant_drift": 0.015,
+        "ttt_result": 1.48169,
+        "verdict": "catastrophic QAT x score-first-TTT interaction",
+        "mechanism": "SGD during TTT pushes weights off-lattice; QAT-trained model highly sensitive to this"
+      },
+      "adaptive_hadamard_gptq_on_muon": {
+        "verdict": "no MSE reduction; Muon produces sub-Gaussian per-row weights that are already smooth",
+        "literature_note": "SpinQuant/QuaRot benefits do not transfer to Muon-trained small models"
+      }
+    }
+  },
+  "tokenization_advisory": {
+    "issue": "SP8192 shards found on some RunPod volumes are tokenized with a different SP8192 BPE model than the one in the canonical tokenizer file, causing a ~5.6% val_bpb-scale shift",
+    "fingerprint": "random-init step-0 val_bpb should be ~3.487 on canonical data; numbers far from this indicate a tokenization mismatch",
+    "resolution": "regenerate tokenizer + shards via download_hf_docs_and_tokenize.py --variant sp8192"
+  },
+  "compliance": {
+    "issue_1017_track_a_permitted": "eval-time sliding-window patterns, KV-cache strategies, inference optimizations without updating model state",
+    "issue_1017_track_b_permitted": "score-first TTT (score chunk, then train on it)",
+    "no_slot": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "no_pre_quant_ttt": true,
+    "no_condition_violations_in_any_probe": true
+  },
+  "future_directions_ranked": [
+    "SWA training (flash_attn_3 window_size) to unlock eval-time KV chain",
+    "TRAIN_SEQ_LEN=4096 direct training",
+    "Position-dropout at training time",
+    "Legitimate FLA / GatedDeltaNet with rigorous byte-accounting",
+    "Per-document LoRA TTT over score-first legal TTT"
+  ]
+}
