@@ -1,0 +1,100 @@
+{
+  "author": "himanshudongre",
+  "github_id": "himanshudongre",
+  "name": "SP8192 + BigramHash d=32 + AttnOutputGate + SmearGate + Path A v3 Aggressive Passthrough Quantization + Legal Score-First TTT",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": 1.07882,
+  "val_bpb_std": 0.000143,
+  "seeds": [
+    42,
+    314,
+    999
+  ],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.07886574,
+      "val_loss": 2.78662485,
+      "sliding_val_bpb": 1.08014601,
+      "quantized_val_bpb": 1.09678081,
+      "pre_quant_post_ema_val_bpb": 1.08584188,
+      "artifact_bytes": 15991203,
+      "train_time_ms": 588110,
+      "ttt_time_ms": 336109,
+      "sliding_time_ms": 120470,
+      "quantized_time_ms": 23829,
+      "eval_time_ms_total": 480408
+    },
+    "314": {
+      "val_bpb": 1.07892882,
+      "val_loss": 2.78678778,
+      "sliding_val_bpb": 1.08023616,
+      "quantized_val_bpb": 1.09679203,
+      "pre_quant_post_ema_val_bpb": 1.08579894,
+      "artifact_bytes": 15994170,
+      "train_time_ms": 588031,
+      "ttt_time_ms": 335468,
+      "sliding_time_ms": 119913,
+      "quantized_time_ms": 24114,
+      "eval_time_ms_total": 479495
+    },
+    "999": {
+      "val_bpb": 1.07865582,
+      "val_loss": 2.78608265,
+      "sliding_val_bpb": 1.07998003,
+      "quantized_val_bpb": 1.09662297,
+      "pre_quant_post_ema_val_bpb": 1.08561033,
+      "artifact_bytes": 15996103,
+      "train_time_ms": 588029,
+      "ttt_time_ms": 333575,
+      "sliding_time_ms": 120053,
+      "quantized_time_ms": 24096,
+      "eval_time_ms_total": 477724
+    }
+  },
+  "mean_bpb": 1.07881679,
+  "std_bpb": 0.00014293,
+  "sliding_bpb_mean": 1.08012073,
+  "quantized_bpb_mean": 1.09673194,
+  "pre_quant_post_ema_bpb_mean": 1.08575038,
+  "mean_val_loss_nats": 2.78649843,
+  "vs_merged_sota": {
+    "merged_sota_bpb": 1.081,
+    "delta_bpb": 0.002183,
+    "delta_nats_per_token": 0.005639,
+    "threshold_nats": 0.005,
+    "threshold_bpb_at_our_ratio": 0.001936,
+    "mean_bpb_required_to_clear_threshold": 1.079064,
+    "one_sided_z_statistic": -2.9982,
+    "one_sided_p_value": 0.001358,
+    "cleared_threshold_at_p_lt_0_01": true,
+    "merged_sota_source": "records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT/ (by @bigbag)"
+  },
+  "tokenizer": "SentencePiece BPE 8192 (trained from 1M canonical fineweb docs)",
+  "architecture": "11L/512d/8H/4KV, MLP 4x, LeakyReLU(0.5)^2, Partial RoPE 16d, Depth-recurrence (loop layers 3-5 from frac=0.35), Parallel residuals (layer 7+), QK-Gain 5.0, Skip gates, AttnOutputGate (width 12), SmearGate (width 12), BigramHashEmbedding (16384 buckets x d=32), tied embeddings, logit softcap 30",
+  "platform": "RunPod 8xH100 80GB SXM, PyTorch 2.9.1+cu128, CUDA 12.8",
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + BigramHash d=32 + AttnOutputGate + SmearGate + Depth recurrence (L3-5) + Parallel residuals (L7+) + QK-Gain 5.0 + MuonEq-R + SDClip GPTQ + Path A v3 aggressive int8 passthrough (control tensors + small matrices) + Legal Score-First TTT + LZMA code pack + Brotli",
+  "compliance": {
+    "artifact_under_16mb": true,
+    "training_under_600s": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_embeds_sdclip_muoneqr_depth_recur": "@clarkkev (PR #1394)",
+    "three_layer_depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "qk_gain": "@clarkkev (PR #1394 default 4.0; raised to 5.0 as a tune on top)",
+    "legal_ttt_framework": "@Christopher-Lee-McClendon (PR #461), @abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "attn_output_gate": "@MarioPaerle (PR #1667)",
+    "bigbag_base_sp8192_record": "@bigbag, records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT/ (3-seed mean 1.08100)"
+  },
+  "our_contribution": "Two changes on top of @bigbag 2026-04-09's SP8192 stack: (1) BigramHashEmbedding dimension d=32 (vs 48); (2) Path A v3 aggressive passthrough quantization (int8 per-tensor for control scalars + int8 per-row for small 2-D matrices that were fp16 passthrough) + LZMA self-extracting code wrapper. Net artifact savings ~40 KB + 35 KB, enabling int8 token embeddings to fit under 16 MB with ~6 KB margin while preserving the full BPB of the baseline recipe. 3-seed mean 1.07882 (std 0.000143) clears the 0.005-nat threshold at p=0.0018."
+}
