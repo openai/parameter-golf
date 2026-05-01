@@ -1,0 +1,62 @@
+{
+  "author": "Max Rubin",
+  "github_id": "max-rubin",
+  "name": "LoopFullAttnRes + LoopQ + XSA",
+  "blurb": "Leaderboard-format 10-minute / 16MB submission exploring recurrent weight tying with a prelude-core-coda layout, full attention residual history mixing, loop-specific learned depth queries, and exclusive self-attention in the recurrent core. Not a SOTA claim.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 3.07055080,
+  "val_bpb": 1.18870590,
+  "val_loss_std": 0.00028691,
+  "val_bpb_std": 0.00011107,
+  "pre_quant_val_loss": 3.05590000,
+  "pre_quant_val_bpb": 1.18303333,
+  "pre_quant_val_loss_std": 0.00030000,
+  "pre_quant_val_bpb_std": 0.00015275,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42": {
+      "pre_quant_val_loss": 3.0562,
+      "pre_quant_val_bpb": 1.1832,
+      "val_loss": 3.07067205,
+      "val_bpb": 1.18875284,
+      "artifact_bytes": 14179856,
+      "counted_bytes": 14236084,
+      "steps": 5507,
+      "step_avg_ms": 108.96
+    },
+    "1337": {
+      "pre_quant_val_loss": 3.0559,
+      "pre_quant_val_bpb": 1.1830,
+      "val_loss": 3.07075719,
+      "val_bpb": 1.18878580,
+      "artifact_bytes": 14182414,
+      "counted_bytes": 14238642,
+      "steps": 5510,
+      "step_avg_ms": 108.90
+    },
+    "2025": {
+      "pre_quant_val_loss": 3.0556,
+      "pre_quant_val_bpb": 1.1829,
+      "val_loss": 3.07022317,
+      "val_bpb": 1.18857907,
+      "artifact_bytes": 14176192,
+      "counted_bytes": 14232420,
+      "steps": 5511,
+      "step_avg_ms": 108.88
+    }
+  },
+  "artifact_bytes_mean": 14179487.33,
+  "artifact_bytes_max": 14182414,
+  "bytes_total": 14238642,
+  "code_bytes": 56228,
+  "train_steps_mean": 5509.33,
+  "step_avg_ms_mean": 108.91,
+  "hardware": "8xH100 80GB SXM",
+  "git_commit": "1f0a0c343bd4fc91f0aa2420287271e1fda839f7",
+  "data": "fineweb10B_sp8192",
+  "tokenizer": "fineweb_8192_bpe.model",
+  "technique_summary": "Prelude-core-coda recurrence + full attention residual history mixing + loop-query depth routing + exclusive self-attention + tied embeddings + int8 zlib serialization",
+  "sota_claim": false,
+  "reproducibility_notes": "Stage canonical SP8192 data with: huggingface-cli download LightSpeedUp/parameter-golf-data --include \"fineweb_sp8192/*\" --local-dir /workspace/data. The canonical tokenizer from that export is included at tokenizers/fineweb_8192_bpe.model. Run train_gpt.py from this records folder with DATA_PATH=../../../data/datasets/fineweb10B_sp8192, TOKENIZER_PATH=./tokenizers/fineweb_8192_bpe.model, VOCAB_SIZE=8192, TRAIN_SEQ_LEN=2048, TRAIN_BATCH_TOKENS=524288, VAL_BATCH_SIZE=1048576, GRAD_ACCUM_STEPS=8, MAX_WALLCLOCK_SECONDS=600, TORCH_COMPILE=1, and torchrun --standalone --nproc_per_node=8."
+}
