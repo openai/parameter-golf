@@ -2,7 +2,7 @@
   "author": "Kbediako",
   "github_id": "Kbediako",
   "name": "StageB v2 Scalar-Control Quant + LQER Top-1 + CaseOps Phased TTT",
-  "blurb": "Under-cap accepted-family StageB v2 stack with scalar/control quantization, LQER top-1 asymmetric recovery, BOS-safe SmearGate/SparseAttnGate lineage, Brotli-only self-contained compression, and phased score-first LoRA TTT. Seed 42 reached 1.06099764 BPB; forced seed confirmation gave a 3-seed mean of 1.06149165, so this should be framed only as a single-run score with disclosed multi-seed variance and timing caveats.",
+  "blurb": "Under-cap accepted-family StageB v2 stack with scalar/control quantization, LQER top-1 asymmetric recovery, BOS-safe SmearGate/SparseAttnGate lineage, Brotli-only self-contained compression, and phased score-first LoRA TTT. Seed 42 reached 1.06099764 BPB; official-reference seeds 42/0/1234 averaged 1.06161026 BPB and the best auxiliary 3-seed mean was 1.06147953 BPB, so this should be framed only as a single-run score with disclosed multi-seed variance and timing caveats.",
   "date": "2026-05-01",
   "track": "10min_16mb",
   "val_loss": 2.32185611,
@@ -21,9 +21,20 @@
     }
   },
   "confirmation_results": {
+    "three_seed_mean_bpb_official_reference_42_0_1234": 1.06161026,
     "three_seed_mean_bpb_rank80_p2500": 1.06149165,
     "three_seed_mean_bpb_best_seed999_rescue": 1.06147953,
     "seeds": {
+      "0": {
+        "val_bpb": 1.06162560,
+        "val_loss": 2.32323033,
+        "prequant_val_bpb": 1.06542461,
+        "quantized_val_bpb": 1.07509476,
+        "artifact_bytes": 15992241,
+        "ttt_eval_time_s": 526.704,
+        "ttt_process_real_s": 712.18,
+        "artifact_sha256": "5a10168ae0cb7f34f89521c6ef4a40315f6684f1a96352e394e674473fb5abaf"
+      },
       "314": {
         "val_bpb": 1.06100570,
         "artifact_bytes": 15995151,
@@ -35,6 +46,16 @@
         "artifact_bytes": 15986471,
         "ttt_eval_time_s": 454.766,
         "ttt_process_real_s": 581.81
+      },
+      "1234": {
+        "val_bpb": 1.06220754,
+        "val_loss": 2.32450383,
+        "prequant_val_bpb": 1.06581926,
+        "quantized_val_bpb": 1.07530838,
+        "artifact_bytes": 15994552,
+        "ttt_eval_time_s": 461.001,
+        "ttt_process_real_s": 584.04,
+        "artifact_sha256": "e87cbb4581c6a605b23f9de14dacd3ffda5565f8af786fd6a47faa4ef98019a7"
       },
       "999_rank128_p2000_rescue": {
         "val_bpb": 1.06243525,
@@ -64,9 +85,9 @@
     "three_seed_top2_mean": false
   },
   "known_risks": [
-    "Seed42 and seed314 shell process real time exceeds 600s despite script-reported TTT eval timers under 600s.",
-    "3-seed mean does not clear accepted top2 target due to seed999 variance.",
-    "Final PR must disclose accepted lineage and Python dependency requirements."
+    "Seed42, seed0, seed314, and the best seed999 rescue shell process real time exceeds 600s despite script-reported TTT eval timers under 600s.",
+    "3-seed means do not clear accepted top2 target on either official-reference seeds 42/0/1234 or auxiliary seeds 42/314/999.",
+    "Final PR must disclose accepted lineage and Python dependency requirements including FlashAttention 3."
   ],
   "attribution": {
     "accepted_stageb_caseops_ttt_lineage": "Accepted PR #1855 and its credited predecessor PRs",

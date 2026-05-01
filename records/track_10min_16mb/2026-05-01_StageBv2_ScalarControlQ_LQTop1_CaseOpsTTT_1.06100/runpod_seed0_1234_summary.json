@@ -1,0 +1,47 @@
+{
+  "run_id": "runpod_8xh100_stageb_v2_seed0_1234_confirm_20260501",
+  "pod_id": "dp44o07ta5lobp",
+  "pod_deleted": true,
+  "gpu_type": "8x NVIDIA H100 80GB HBM3 SXM Runpod IN",
+  "package_path": "runs/stageb_v2_seed_forced_20260501/package",
+  "remote_path": "/workspace/pg_stageb_v2_seed0_1234",
+  "local_result_dir": "runs/stageb_v2_seed0_1234_confirm_20260501/remote_pull",
+  "known_seed42_bpb": 1.06099764,
+  "seed0": {
+    "val_bpb": 1.06162560,
+    "val_loss_nats": 2.32323033,
+    "train_wallclock_s": 591.697,
+    "ttt_eval_time_ms": 526704,
+    "ttt_real_wall_s": 712.18,
+    "artifact_bytes": 15992241,
+    "artifact_sha256": "5a10168ae0cb7f34f89521c6ef4a40315f6684f1a96352e394e674473fb5abaf",
+    "summary_path": "runs/stageb_v2_seed0_1234_confirm_20260501/remote_pull/seed0/stageb_v2_seed_forced_summary.jsonl",
+    "outer_log_path": "runs/stageb_v2_seed0_1234_confirm_20260501/remote_pull/seed0_forced_outer.log"
+  },
+  "seed1234": {
+    "val_bpb": 1.06220754,
+    "val_loss_nats": 2.32450383,
+    "train_wallclock_s": 591.658,
+    "ttt_eval_time_ms": 461001,
+    "ttt_real_wall_s": 584.04,
+    "artifact_bytes": 15994552,
+    "artifact_sha256": "e87cbb4581c6a605b23f9de14dacd3ffda5565f8af786fd6a47faa4ef98019a7",
+    "summary_path": "runs/stageb_v2_seed0_1234_confirm_20260501/remote_pull/seed1234/stageb_v2_seed_forced_summary.jsonl",
+    "outer_log_path": "runs/stageb_v2_seed0_1234_confirm_20260501/remote_pull/seed1234_forced_outer.log"
+  },
+  "means": {
+    "seed42_0_1234_mean_bpb": 1.06161026,
+    "seed42_314_999best_mean_bpb": 1.06147953,
+    "accepted_top1_mean_bpb": 1.06107587,
+    "accepted_top2_mean_bpb": 1.06141,
+    "seed42_0_1234_top2_gap_bpb": 0.00020026,
+    "best_available_three_seed_top2_gap_bpb": 0.00006953
+  },
+  "decision": "official-reference seeds 0/42/1234 do not reach accepted top2; best available 42/314/999 mean also misses accepted top2. Keep PR #2121 as transparent single-run/top1-mean posture unless revised.",
+  "runpod_balance_before_usd": 256.1873607575,
+  "runpod_balance_after_delete_usd": 229.9918752835,
+  "estimated_runpod_cost_usd": 26.195485474,
+  "runpod_current_spend_after_usd_per_hr": 0,
+  "flywheel_node_id": "1450c4a2-7893-4a09-ab33-c5b4bee7e380",
+  "flywheel_execution_id": "159e253f-b7a8-44dc-bc0b-0084ba29c429"
+}
