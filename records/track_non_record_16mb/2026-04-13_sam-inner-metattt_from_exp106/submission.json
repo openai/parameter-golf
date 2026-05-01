@@ -1,0 +1,51 @@
+{
+  "experiment": "exp107_sam-inner-metattt_from_exp106",
+  "description": "SAM inner loop for FOMAML meta-TTT. Replaces exp106's MetaSGD (which converged to uniform 1.0) with Sharpness-Aware Minimization in the inner adaptation step. SAM computes the gradient at an ascent-perturbed point (banks + rho*g/||g||), finding flatter adapted banks. Keeps cross-chunk split (A) and delta-loss (B) from exp106. RESULT: TTT delta invariant at ~0.023 bpb (4th consecutive experiment confirming the architecture-limited ceiling). SAM added +0.7 GB memory vs predicted -6.5 GB. Verdict: SAM hurts — discard.",
+  "non_record": true,
+  "experiment_type": "meta-ttt-exploration",
+  "track": "10min_16mb",
+  "hardware": "1xH100_80GB_SXM",
+  "wallclock_seconds": 4800,
+  "seed": 42,
+  "parent": "exp106_metasgd-crosschunk-delta_from_exp101",
+  "parent_arch": "11L XSA-all · BigramHash 4096x64 pos-conditional · VE7-10 · partial RoPE 16/64 · FOMAML every=4 cross-chunk + delta-loss + MetaSGD · SGD+cosine TTT · int6 GPTQ+lzma",
+  "changes_from_parent": {
+    "removed": "MetaSGD (66 learned per-layer LR scales — converged to uniform 1.0, +8.6 GB peak memory)",
+    "added": "SAM inner loop (rho=0.05, vanilla SAM — gradient at ascent-perturbed point)"
+  },
+  "meta_ttt_config": {
+    "A_cross_chunk_split": true,
+    "B_delta_loss_weight": 0.3,
+    "C_metasgd_enabled": false,
+    "D_sam_enabled": true,
+    "D_sam_rho": 0.05,
+    "D_sam_adaptive": false
+  },
+  "training": {
+    "steps_completed": 6597,
+    "steps_planned": 7500,
+    "stop_reason": "wallclock_cap",
+    "per_step_ms": 728,
+    "peak_memory_mib": 32397,
+    "warmdown_triggered_at_step": 2200
+  },
+  "val_bpb": 1.11898178,
+  "val_bpb_note": "int6+lzma canonical TTT (full 947/947 chunks); post-EMA float baseline: 1.1384",
+  "pre_quant_val_bpb": 1.1384,
+  "int6_roundtrip_val_bpb": 1.14235518,
+  "legal_ttt_val_bpb": 1.11898178,
+  "ttt_delta_bpb": -0.02337,
+  "submission_size_bytes": 15884642,
+  "submission_size_mb": 15.88,
+  "actual_memory_peak_mib": 32397,
+  "actual_steps": 6597,
+  "memory_prediction_error": "Predicted -6.5 GB vs exp106; actual was +0.7 GB. SAM forward activations cost ~3.3 GB (vs 2.0 GB estimated) because all 11 layers are held simultaneously for autograd.grad.",
+  "decision_thresholds": {
+    "ttt_delta_better_than_minus0.026": "SAM helps — integrate",
+    "ttt_delta_minus0.024_to_minus0.026": "Marginal — try rho sweep",
+    "ttt_delta_minus0.023_to_minus0.024": "Same ceiling — architecture-limited confirmed",
+    "ttt_delta_worse_than_minus0.023": "SAM hurts — discard"
+  },
+  "verdict": "SAM hurts — discard. TTT delta -0.0234 bpb, same as all prior experiments. Absolute legal_ttt 1.1190 is worse than exp106 (1.11469 float) and exp105a (1.11624 int6). SAM adds +0.7 GB memory and -89 training steps with zero TTT improvement. The TTT ceiling is architecture-limited: bank_dim=64 × TTT_epochs=4. Meta-TTT line of investigation closed after 4 experiments (exp101, exp105a, exp106, exp107).",
+  "conclusion": "TTT delta (~0.023 bpb) invariant across all inner-loop formulations (vanilla SGD same-batch, vanilla SGD cross-chunk+delta-loss+MetaSGD, SAM SGD). The ceiling is set by bank architecture (rank × dim), not by optimizer. SAM specifically fails because: (1) bank geometry is already isotropic (SV uniformity 0.999) — no sharpness to avoid; (2) 4-epoch TTT overshoots any initialization bias; (3) 128× step-count gap between meta inner loop and eval TTT erases initialization signal. Weight-space analysis confirms exp107 stays in the same basin as exp106 (bank cosine 0.2025, midpoint ratio 0.839 < 1.0 = flat valley). Recommend pivoting to bank_dim expansion or TTT optimizer swap (AdaGrad/RMSProp)."
+}
