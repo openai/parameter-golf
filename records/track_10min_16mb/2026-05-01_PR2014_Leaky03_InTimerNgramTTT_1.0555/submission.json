@@ -1,0 +1,70 @@
+{
+  "author": "Simon Bissonnette",
+  "github_id": "simon-marcus",
+  "name": "PR #2014 + LeakyReLU 0.3 + strict in-timer n-gram TTT",
+  "blurb": "3-seed result on top of the PR #2014 strict-compliance CaseOps stack. Adds LeakyReLU-square slope 0.3 and the PR #2018 in-timer online causal n-gram tilt inside the measured TTT eval timer. 3-seed mean post-TTT val_bpb: 1.05601155, max eval_time: 583.1s, max artifact: 15,997,965 bytes.",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "status": "complete_3_seed",
+  "val_loss": 2.31095067,
+  "val_bpb": 1.05601155,
+  "val_loss_std": 0.00114047,
+  "val_bpb_std": 0.00052115,
+  "seeds": [
+    42,
+    314,
+    0
+  ],
+  "seed_results": {
+    "42": {
+      "train_steps": 4875,
+      "train_time_s": 596.142,
+      "prequant_val_loss": 2.31906221,
+      "prequant_val_bpb": 1.05971819,
+      "quantized_val_loss": 2.33648862,
+      "quantized_val_bpb": 1.06768136,
+      "ttt_val_loss": 2.30935268,
+      "ttt_val_bpb": 1.05528133,
+      "eval_time_s": 580.667,
+      "artifact_bytes": 15997965
+    },
+    "314": {
+      "train_steps": 4879,
+      "train_time_s": 596.003,
+      "prequant_val_loss": 2.32082993,
+      "prequant_val_bpb": 1.06052597,
+      "quantized_val_loss": 2.33888469,
+      "quantized_val_bpb": 1.06877627,
+      "ttt_val_loss": 2.31156036,
+      "ttt_val_bpb": 1.05629015,
+      "eval_time_s": 583.138,
+      "artifact_bytes": 15992681
+    },
+    "0": {
+      "train_steps": 4877,
+      "train_time_s": 596.061,
+      "prequant_val_loss": 2.3218959,
+      "prequant_val_bpb": 1.06101308,
+      "quantized_val_loss": 2.33918024,
+      "quantized_val_bpb": 1.06891132,
+      "ttt_val_loss": 2.31193897,
+      "ttt_val_bpb": 1.05646316,
+      "eval_time_s": 545.161,
+      "artifact_bytes": 15996288
+    }
+  },
+  "comparison_baseline_bpb": 1.06107587,
+  "delta_vs_merged_leader_bpb": -0.00506432,
+  "artifact_bytes_mean": 15995645,
+  "artifact_bytes_max": 15997965,
+  "bytes_total": 15997965,
+  "train_steps_mean": 4877.0,
+  "train_time_s_mean": 596.069,
+  "eval_time_s_mean": 569.655,
+  "eval_time_s_max": 583.138,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "technique_summary": "PR #2014 progressive-context CaseOps stack + LeakyReLU-square slope 0.3 + strict in-timer online causal n-gram tilt during TTT eval. PHASED_TTT_PREFIX_DOCS=2500, TTT_CHUNK_SIZE=64, NGRAM_HINT_PRECOMPUTE_OUTSIDE=0."
+}
