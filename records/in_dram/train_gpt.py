@@ -40,23 +40,23 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 class Hyperparameters:
     # Data paths are shard globs produced by the existing preprocessing pipeline.
-    data_path = os.environ.get("DATA_PATH", "../data/datasets/fineweb10B_sp1024")
+    data_path = os.environ.get("DATA_PATH", "../../data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
     val_files = os.path.join(data_path, "fineweb_val_*.bin")
-    tokenizer_path = os.environ.get("TOKENIZER_PATH", "../data/tokenizers/fineweb_1024_bpe.model")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", "../../data/tokenizers/fineweb_1024_bpe.model")
     run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
     seed = int(os.environ.get("SEED", 1337))
 
     # Validation cadence and batch size. Validation always uses the full fineweb_val split.
-    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 262144))
-    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524288))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 2000))
     train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 1))
 
     # Training length.
-    iterations = int(os.environ.get("ITERATIONS", 20000))
+    iterations = int(os.environ.get("ITERATIONS", 200000))
     warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
-    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 262144))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 2400.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
