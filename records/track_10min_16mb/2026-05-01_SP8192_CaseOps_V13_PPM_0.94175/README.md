@@ -67,6 +67,18 @@ The included `train_seed*.log` files are the full source training logs for the t
 
 A fresh end-to-end v13 rerun with these defaults was started on the 8xH100 box while this PR was prepared; these logs can replace the paired evidence as soon as they finish.
 
+Update: the fresh seed-42 rerun finished cleanly as `fresh_seed42_v13_submit.log`:
+
+```text
+stopping_early: wallclock_cap train_time: 599686ms step: 4773/20000
+Total submission size quantized+pergroup: 15987305 bytes
+diagnostic quantized val_loss:2.35586432 val_bpb:1.07646816 eval_time:10407ms
+ppm_mixer val_bpb:0.94182660 eval_time:462353ms order=5 H=0.999 L=0.18 T=0.8 N_tokens=47851520 N_sidecar_bytes=151074499
+ppm_sliding val_loss:2.36677335 val_bpb:0.94182660 eval_time:507652ms
+```
+
+That fresh end-to-end score is slightly worse than the original seed-42 eval-only evidence, so the headline 3-seed mean is left unchanged until the queued fresh seed-314 run also finishes.
+
 ## Exact final lines
 
 Seed 42:
@@ -95,6 +107,7 @@ ppm_sliding val_loss:2.36740764 val_bpb:0.94192810 eval_time:497643ms
 - `train_gpt.py` - exact submitted script, with v13 PPM defaults set to `0.999/0.18/0.80`
 - `train_seed42.log`, `train_seed314.log`, `train_seed999.log` - source training logs for the three artifacts
 - `eval_seed42_v13_ppm.log`, `eval_seed314_v13_ppm.log`, `eval_seed999_v13_ppm.log` - exact v13 PPM score logs
+- `fresh_seed42_v13_submit.log` - fresh end-to-end v13 seed-42 rerun with the submitted defaults
 - `submission.json` - leaderboard metadata
 - `LEGALITY_AUDIT.md` - compliance audit
 - `REFERENCES.md` - public PR and component lineage notes
