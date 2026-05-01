@@ -1,39 +1,44 @@
-# LongCtx No-QV QK5.25 + AsymLogit + LQER g32/top4 + TTT-local 0.80 + GlobalTTT LR 0.0008
+# LongCtx No-QV QK5.25 + AsymLogit + LQER g32/top4 + TTT-local 0.80 + Prefix3500 GlobalTTT LR 0.0008
 
-Probe candidate based on PR #2060:
+Non-record follow-up on PR #2060:
 
 - Base recipe: `2026-05-01_LongCtx_NoQV_QK525_AsymLogit_LQERg32top4_TTTlocal080_1.0579`
-- Only intended change vs #2060: `GLOBAL_TTT_LR=0.0008` instead of the train_gpt.py default `0.001`
-- `PHASED_TTT_PREFIX_DOCS` stays at `3000`
-- `TTT_LOCAL_LR_MULT` stays at `0.80`
-- Dataset, tokenizer, training, quantizer, compressor, and TTT mask are unchanged
+- Change vs #2060: `PHASED_TTT_PREFIX_DOCS=3000 -> 3500`
+- Change vs #2060: `GLOBAL_TTT_LR=0.001 -> 0.0008`
+- The five #2060 tuning knobs are retained: `MATRIX_LR=0.028`, `LQER_RANK=2`, `LQER_ASYM_GROUP=32`, `LQER_TOP_K=4`, `TTT_LOCAL_LR_MULT=0.80`
+- Dataset, tokenizer, architecture, quantizer, compressor, and TTT mask are unchanged.
+
+## Result
+
+Single seed-42 run on 8x H100:
+
+| Metric | Value |
+|---|---:|
+| Pre-quant BPB | 1.06172454 |
+| Quantized BPB | 1.06984890 |
+| Quantized phased-TTT BPB | 1.05807364 |
+| Train wallclock | 596.082 s |
+| TTT eval time | 498.781 s |
+| Total submission size | 15,977,802 B |
+
+This is not a record claim. It is a small TTT follow-up experiment. Relative to
+#2060 seed 42 (`1.05781454`), this setting is worse by `+0.00025910 BPB`, but
+it is still useful as a documented negative/near-neutral result for the
+longer-prefix + lower-global-LR direction.
 
 ## Why
 
-The earlier `prefix2750` experiment on the #1953-style stack spent more eval time but did not improve BPB, suggesting larger phased-TTT prefixes can saturate or over-adapt if the full-model global TTT step is too strong.
-
-This probe first tests a smaller global full-parameter TTT step at the same #2060 prefix length. If it does not hurt seed 42, it becomes a safer base for later `prefix3500 + lower GLOBAL_TTT_LR` testing.
-
-## Decision Rule
-
-Run seed 42 first and compare to #2060 seed 42:
-
-- #2060 seed 42: `val_bpb=1.05781454`, TTT eval `397.125s`
-- Continue only if this candidate is at least neutral or better, ideally `<=1.0578`
-- Stop if it worsens by more than about `0.0003 BPB`
+The motivation was to test whether a larger phased-TTT prefix could benefit from
+a lower full-parameter global TTT step. The run showed that the TTT gain relative
+to the quantized model increased, but the trained/quantized base for this seed
+started worse, so the final BPB did not beat #2060 seed 42.
 
 ## Reproduce
 
-Download the prebuilt CaseOps data once:
+Download CaseOps data:
 
 ```bash
 python3 download_caseops_data.py --local-dir /workspace/caseops_data
-```
-
-For a quick path/layout smoke test, download only one shard each:
-
-```bash
-python3 download_caseops_data.py --local-dir /tmp/caseops_smoke --train-shards 1 --val-shards 1
 ```
 
 Run seed 42:
@@ -41,7 +46,7 @@ Run seed 42:
 ```bash
 SEED=42 \
 CASEOPS_ROOT=/workspace/caseops_data \
-RUN_ID=global0008_seed42 \
+RUN_ID=prefix3500_global0008_seed42 \
 ./run_current_candidate.sh
 ```
 
@@ -51,6 +56,6 @@ The script launches:
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-## Notes
+## Log
 
-This is not a record claim yet. It is a controlled single-knob probe to decide whether lower global TTT LR should be combined with larger phased prefixes.
+- `train_seed42_prefix3500_global0008.log` contains the complete seed-42 run.

@@ -56,7 +56,8 @@ export EVAL_SEQ_LEN=2560
 export TTT_EVAL_SEQ_LEN=2560
 export PHASED_TTT_ENABLED=1
 export PHASED_TTT_NUM_PHASES=3
-export PHASED_TTT_PREFIX_DOCS=3000
+# follow-up vs PR #2060: longer phased-TTT prefix with a lower global TTT LR
+export PHASED_TTT_PREFIX_DOCS=3500
 export GLOBAL_TTT_LR=0.0008
 export TTT_MASK=no_qv
 # delta vs parent (#2007): TTT_LOCAL_LR_MULT 0.75 -> 0.80
