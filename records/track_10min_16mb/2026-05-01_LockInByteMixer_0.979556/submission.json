@@ -1,0 +1,32 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-05-01",
+  "name": "LockInByteMixer_0.979556",
+  "author": "Anmar Hindi",
+  "github_id": "anmarhindi",
+  "val_bpb": 0.979556,
+  "val_bpb_std": 6.9e-05,
+  "val_bpb_per_seed": {
+    "42": 0.97949078,
+    "1337": 0.97954725,
+    "314": 0.97962885
+  },
+  "diagnostic_pre_ema_3seed_mean": 1.080004,
+  "diagnostic_quantized_3seed_mean": 1.092764,
+  "diagnostic_sliding_window_3seed_mean": 1.101347,
+  "headline_metric": "quantized_cond_ppm",
+  "headline_metric_description": "Lock-In Byte Mixer (LBM): high-confidence-only byte-level mixture of NN softmax (proper byte_0 marginal + chain-rule remainder) and PPM-D byte conditional, gated by lambda = 1 - sigmoid(alpha*(PPM_conf - beta)) with alpha=25.0 beta=0.9999 (very sharp gate; only mixes PPM when its top-symbol probability is near-certain). Run on FULL CaseOps validation set (all 47,851,520 tokens / 164,594,398 canonical bytes per seed). Forensic evidence: 'cond_ppm tokens=47851520 bytes=164594398' line in each train_seed*.log.",
+  "artifact_bytes_max": 15758573,
+  "wrapped_code_bytes": 51885,
+  "total_submission_bytes_max": 15810458,
+  "compliant_under_16mb": true,
+  "seeds": [
+    42,
+    1337,
+    314
+  ],
+  "hardware": "8xH100 80GB SXM",
+  "eval_full_val_verified": true,
+  "eval_token_count_per_seed": 47851520,
+  "eval_canonical_byte_count_per_seed": 164594398
+}
