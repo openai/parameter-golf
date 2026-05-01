@@ -1,6 +1,6 @@
 # Record candidate: PR #1855 stack + MP3 marker-pair fusion + alias smear boundary
 
-**val_bpb: 1.06042** (1-seed reference on author's DGX H100 box, phased TTT eval) | ~16.74 MB on DGX *(see Note on size)* | target environment: 8×H100 SXM, 600 s wallclock | TTT (phased)
+**val_bpb: TBD** (3-seed mean on runpod; 1-seed DGX reference 1.06042) | size: TBD (3-seed runpod; expected ~15.9 MB based on PR #1855 baseline) | 8×H100 SXM, 600 s wallclock | TTT (phased)
 
 3-seed verification on runpod (SEEDS=42, 0, 1234) — see `train_seed*.log` after the run.
 
@@ -202,21 +202,35 @@ bash run_3seed.sh
 
 ### Single-seed reference command
 
+The PR #1855 9-hparam stack must be passed explicitly (the values here
+mirror the PR #1855 reproduce command); the only additions are
+`MARKER_PAIR_*` and `ALIAS_PREV_SMEAR_SCALE=0.0`:
+
 ```bash
 SEED=42 \
 CASEOPS_ENABLED=1 \
 DATA_PATH=./data/datasets/fineweb10B_sp8192_caseops_marker_pair_v3 \
 TOKENIZER_PATH=./tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model \
+ITERATIONS=20000 MAX_WALLCLOCK_SECONDS=600 \
+PHASED_TTT_ENABLED=1 PHASED_TTT_PREFIX_DOCS=2500 PHASED_TTT_NUM_PHASES=3 \
+EMBED_BITS=7 MATRIX_LR=0.026 MIN_LR=0.1 \
+MLP_CLIP_SIGMAS=11.5 ATTN_CLIP_SIGMAS=13.0 EMBED_CLIP_SIGMAS=14.0 \
+GRAD_CLIP_NORM=0.3 TTT_CHUNK_SIZE=48 WARMUP_STEPS=20 MUON_BACKEND_STEPS=5 \
+GLOBAL_TTT_MOMENTUM=0.9 WARMDOWN_FRAC=0.85 BETA2=0.99 \
+TTT_BETA2=0.99 TTT_WEIGHT_DECAY=0.5 TTT_LORA_RANK=80 \
+SPARSE_ATTN_GATE_SCALE=0.5 \
+GPTQ_RESERVE_SECONDS=0.5 GPTQ_CALIBRATION_BATCHES=16 VAL_LOSS_EVERY=0 \
+GATED_ATTN_QUANT_GATE=1 SPARSE_ATTN_GATE_ENABLED=1 GATE_WINDOW=12 \
+SMEAR_GATE_ENABLED=1 \
+LQER_ENABLED=1 LQER_ASYM_ENABLED=1 LQER_RANK=4 LQER_FACTOR_BITS=4 LQER_ASYM_GROUP=64 LQER_TOP_K=3 \
+FUSED_CE_ENABLED=1 COMPRESSOR=pergroup NCCL_NET=Socket \
 MARKER_PAIR_MODE=1 \
 MARKER_PAIR_W_SPACE=0.4 MARKER_PAIR_W_TITLE=0.6 \
 ALIAS_PREV_SMEAR_SCALE=0.0 \
-COMPRESSOR=pergroup NCCL_NET=Socket \
 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
-All other PR #1855 hyperparameters (TTT, LQER, SparseAttnGate, MIN_LR floor,
-GPTQ calibration, 9-hparam stack overrides, etc.) use the defaults baked
-into `train_gpt.py`, which match the PR #1855 published configuration.
+`run_3seed.sh` wraps this command and iterates over the seed list.
 
 ## Hardware / environment
 
@@ -226,17 +240,14 @@ into `train_gpt.py`, which match the PR #1855 published configuration.
 
 ## Note on size
 
-Author's DGX H100 box and the official runpod 8×H100 SXM environment
-produce slightly different artifact sizes for the same code:
-
-- PR #1855 author on runpod (no MP3): 15,897,259 B (15.90 MB) — VALID
-- This submission on DGX (PR #1855 + MP3, 1-seed seed 42): 16,739,873 B (16.74 MB)
-- PR #1855 unmodified on DGX (1-seed seed 42): 16,746,582 B (16.75 MB)
-
-The ~840 KB delta between the two environments is reproduced even *without*
-the MP3 patch, so it is environmental (likely `lrzip` ZPAQ version /
-numerical state) rather than a consequence of MP3. The 3-seed runpod
-verification is the authoritative size measurement for this submission.
+The 3-seed runpod measurements in the *Submission status* table below are
+the authoritative size figures for this submission. Earlier internal DGX
+measurements showed an inflated artifact (~16.74 MB) caused by a missing
+`EMBED_BITS=7` override (the code default is 8, which makes `tok_emb`
+quantize to int8 instead of int7 and adds ~500 KB). `run_3seed.sh` and
+the single-seed reference command above explicitly set the full PR #1855
+9-hparam stack including `EMBED_BITS=7`, so the runpod runs land within
+the 16,000,000-byte cap.
 
 ## Submission status
 
