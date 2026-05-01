@@ -1,0 +1,25 @@
+{
+  "author": "am-commits",
+  "github_id": "am-commits",
+  "name": "SP8192 + BOS-Fix SmearGate + LQER Asym + Phased TTT (10L)",
+  "blurb": "PR #1851 SOTA stack (BOS-fixed SmearGate + LQER Asymmetric + Phased TTT + layer looping) with SP8192 tokenizer. 10 layers instead of 11 to fit under 16MB with larger 8192-vocab embedding table.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.07170518,
+  "pre_quant_val_bpb": 1.07398921,
+  "step_stop": 5218,
+  "wallclock_seconds": 596,
+  "bytes_total": 15373365,
+  "gpu": "8xH100-80GB-SXM",
+  "seed": 314,
+  "vocab_size": 8192,
+  "num_layers": 10,
+  "comparison_baseline_pr": 1851,
+  "metrics": {
+    "pre_quant_post_ema_val_bpb": 1.07398921,
+    "post_quant_val_bpb": 1.08251175,
+    "post_ttt_val_bpb": 1.07170518,
+    "gptq_time_s": 10.0,
+    "ttt_eval_time_s": 487
+  }
+}
