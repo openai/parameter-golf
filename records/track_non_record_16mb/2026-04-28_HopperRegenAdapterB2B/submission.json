@@ -67,6 +67,11 @@
     "smart_roles_regression_vs_base_only_bpb": 0.37096012,
     "interpretation": "Skipping Q/K helps, but the current regenerated-adapter design remains much worse than base-only at matched updates."
   },
+  "lineage": {
+    "parent_record": "records/track_non_record_16mb/2026-04-18_HopperPersistentSeededLowRankGEMM",
+    "parent_val_bpb": 1.42375499,
+    "parent_summary": "Validated seeded Rademacher LoRA at rank 8 with base seed 1729; reached val_bpb 1.42375499 on full WSL Ubuntu 24.04 + RTX 4090 validation. This submission swaps to Rule-30 + Achlioptas {1/4, 1/2, 1/4} ternary regen at rank 16, restructures the adapter as a B2B (back-to-back) micro-GEMM Y = X@W^T + alpha*(X@A^T)@B^T, and adds a CUTLASS WGMMA / WMMA bridge kernel prototype on H100. The composite went backwards at matched 297-step 1xH100 ablations."
+  },
   "artifact_limit_bytes": 16000000,
   "line_count_train_gpt_py": 1440,
   "included_files": [
@@ -101,6 +106,17 @@
     "train_gpt_under_1500_lines": true,
     "non_record_submission": true
   },
-  "compute_note": "Further progress would require targeted H100 ablations and a real fused-kernel validation pass. This PR provides technical justification only; any formal compute-credit request should use OpenAI's grant form."
+  "compute_request": {
+    "needed_for": "8xH100 SXM5 production gate plus targeted rank/alpha/placement ablations to confirm-or-refute the 297-step 1xH100 negative result at production batch and step counts.",
+    "specific_runs": [
+      "Rank sweep at smart-role placement: REGEN_RANK in {4, 8, 16, 32} x 3 seeds = 12 runs",
+      "Alpha sweep at best rank: REGEN_ALPHA_INIT in {0.0625, 0.125, 0.25} x 3 seeds = 9 runs",
+      "Placement sweep at best rank/alpha: all / smart-role / mlp-only / attn-only x 3 seeds = 12 runs",
+      "Best-config 8xH100 600s production gate x 3 seeds = 3 runs"
+    ],
+    "estimated_cost": "~36 runs at ~10 min each = ~6 8xH100-hours = ~$120 of compute at Runpod 8xH100 SXM rates.",
+    "rationale": "Local hardware is one RTX 4090 (24 GB) and hourly Runpod 1xH100 rentals; the leaderboard validation gate needs 8xH100 SXM that I cannot self-fund. The 297-step 1xH100 ablation is a convergence signal at partial-batch step count, not the production regime.",
+    "channel": "Any formal compute-credit request would go through OpenAI's grant form. This PR is the technical justification."
+  }
 }
 
