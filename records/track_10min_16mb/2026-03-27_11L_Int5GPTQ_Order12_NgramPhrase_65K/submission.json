@@ -1,0 +1,20 @@
+{
+  "author": "callithyia",
+  "github_id": "callithyia",
+  "name": "11L Int5 GPTQ + Order-12 N-gram + Phrase Cache + 65K Chunks",
+  "blurb": "Fully-trained 11L 512d base model (pre-quant 1.14 BPB) with order-12 backoff n-gram cache, long phrase cache, entropy-adaptive alpha, temperature sharpening (T=0.85), and 65K-token chunks. Full Hessian GPTQ int5 + LZMA. Eval approach from PR #913 adapted with 65K chunk size for properly trained models where 131K exceeds eval budget.",
+  "date": "2026-03-27",
+  "val_bpb": 0.08808,
+  "val_bpb_std": 0.00041,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": {"val_bpb": 0.08855, "pre_quant_val_bpb": 1.1383, "train_s": 600.132, "eval_s": 567.5, "bytes_total": 13018464},
+    "42": {"val_bpb": 0.08793, "pre_quant_val_bpb": 1.1385, "train_s": 600.091, "eval_s": 572.4, "bytes_total": 12992096},
+    "2024": {"val_bpb": 0.08777, "pre_quant_val_bpb": 1.1391, "train_s": 600.113, "eval_s": 563.4, "bytes_total": 13032072}
+  },
+  "artifact_bytes_max": 13032072,
+  "train_time_seconds_max": 600.132,
+  "eval_time_seconds_max": 572.4,
+  "hardware": "8xH100 SXM (RunPod)",
+  "track": "track_10min_16mb"
+}
