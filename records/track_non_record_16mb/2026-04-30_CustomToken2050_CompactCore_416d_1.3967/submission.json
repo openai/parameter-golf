@@ -1,0 +1,18 @@
+{
+  "author": "Carter",
+  "github_id": "NestedTech-net",
+  "name": "Non-record: CustomToken2050 Compact Core 416d",
+  "blurb": "A non-record compact custom-token modeling experiment. The proprietary tokenizer implementation is excluded; the submitted result uses pre-tokenized IDs with a 416d compact dense model. This is an early two-day proof of direction focused on small-model memory headroom rather than SOTA leaderboard score.",
+  "date": "2026-04-30T00:00:00Z",
+  "val_loss": 1.9260,
+  "val_bpb": 1.396683,
+  "bytes_total_estimate": 13823545,
+  "bytes_model_int8_zlib_estimate": 13823545,
+  "parameter_count": 14108260,
+  "record_type": "non_record",
+  "hardware": "1x H100 SXM",
+  "steps": 6000,
+  "batch_tokens": 1048576,
+  "vocab_size": 2050,
+  "model_shape": "416/4/9/1kv MLP3"
+}
