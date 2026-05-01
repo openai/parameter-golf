@@ -32,7 +32,7 @@ All three logs evaluate the full CaseOps validation shard target set:
 
 The training script explicitly keeps the validation tail via `EVAL_INCLUDE_TAIL=1`. This avoids the older multiple-of-context truncation and makes the standard diagnostic eval and quantized TTT eval agree on the same target count.
 
-The tokenizer, CaseOps transform, training shards, validation shard, and byte sidecar format are the same as the merged PR #1855 CaseOps setup. If a reviewer already has the #1855 data staged, those same staged shards can be reused here; the included tokenizer/prep files are present only to make this submission self-contained.
+The tokenizer, CaseOps transform, training shards, validation shard, and byte sidecar format are the same canonical HF-hosted CaseOps export used by the merged PR #1855 setup. If a reviewer already has the clean #1855/HF CaseOps data staged, those same staged shards can be reused here. The included tokenizer/prep files are present only to make this submission self-contained; the preferred reproduction path is to download the canonical HF CaseOps export directly.
 
 ## What changed vs PR #1855
 
@@ -84,7 +84,37 @@ The short-doc TTT schedule does **not** train on future validation tokens. It on
 
 Install the dependencies in `requirements.txt`. FlashAttention 3 and the `lrzip` system binary are noted there because they require separate install paths.
 
-This submission uses the same CaseOps tokenizer and shards as merged PR #1855. If you don't have them, prepare the CaseOps SP8192 data and byte sidecars with the included `prepare_caseops_data.py`, `lossless_caps.py`, and tokenizer. Then run one seed at a time, replacing `DATA_PATH` and `TOKENIZER_PATH` with the staged CaseOps paths.
+This submission uses the clean canonical CaseOps SP8192 export hosted on Hugging Face. The logs were produced from a 50,000-document validation split with 80 training shards (`train_shards: 80`, `ttt_phased: total_docs:50000`, and `val_tokens == target_tokens == 47853343` in every included log).
+
+Preferred data setup:
+
+```bash
+python3 - <<'PY'
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    repo_id="romeerp/parameter-golf-caseops-v1",
+    repo_type="dataset",
+    local_dir="./data/datasets/fineweb10B_sp8192_caseops",
+    allow_patterns=[
+        "datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/*",
+        "datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model",
+    ],
+    max_workers=8,
+)
+PY
+```
+
+Then set:
+
+```bash
+DATA_PATH=./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+TOKENIZER_PATH=./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+```
+
+Fallback local rebuild: if the HF export is unavailable, rebuild from the canonical `docs_selected.jsonl` with the included `prepare_caseops_data.py`, `lossless_caps.py`, and tokenizer. Use `--val-docs 50000` and write into a fresh output directory. The prep script now defaults to 50,000 validation docs and refuses to write over existing `fineweb_*.bin` shards unless `--overwrite` is passed, to avoid accidentally mixing stale validation shards with a new train split.
+
+Run one seed at a time, replacing `DATA_PATH` and `TOKENIZER_PATH` with the staged CaseOps paths:
 
 ```bash
 for SEED in 42 314 0; do
@@ -167,7 +197,7 @@ done
 - `submission.json` - structured metadata and per-seed results.
 - `README.md` - this file.
 - `requirements.txt` - Python dependencies plus notes for FA3 and `lrzip`.
-- `prepare_caseops_data.py` - CaseOps dataset/token/byte-sidecar preparation, same lineage as PR #1855.
+- `prepare_caseops_data.py` - fallback CaseOps dataset/token/byte-sidecar preparation; defaults to the canonical 50,000-doc validation split and refuses mixed/stale output directories by default.
 - `lossless_caps.py` - reversible CaseOps transform, same as the PR #1855 CaseOps setup.
 - `tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model` - SentencePiece tokenizer used by the logs; identical CaseOps tokenizer lineage as PR #1855.
 

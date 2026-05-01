@@ -37,7 +37,13 @@ Usage:
     python3 prepare_caseops_data.py \\
         --docs ./fineweb10B_raw/docs_selected.jsonl \\
         --out  ./data/datasets/fineweb10B_sp8192_caseops/datasets \\
-        --sp   ./tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+        --sp   ./tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model \\
+        --val-docs 50000
+
+The canonical CaseOps split uses the first 50,000 documents for validation.
+Run this exporter into a fresh output directory; by default it refuses to write
+over existing shards so stale validation shards cannot accidentally mix with a
+new train split.
 
 Requirements: sentencepiece, numpy. CPU-only. Runs once; reused across seeds.
 """
@@ -116,13 +122,29 @@ def main() -> None:
     ap.add_argument("--docs", required=True, type=pathlib.Path, help="Path to docs_selected.jsonl")
     ap.add_argument("--out",  required=True, type=pathlib.Path, help="Output datasets dir")
     ap.add_argument("--sp",   required=True, type=pathlib.Path, help="Path to CaseOps SP model")
-    ap.add_argument("--val-docs", type=int, default=10_000, help="Validation docs count")
+    ap.add_argument("--val-docs", type=int, default=50_000, help="Validation docs count")
+    ap.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Delete existing fineweb_*.bin shards in the output dataset before writing",
+    )
     args = ap.parse_args()
 
     sp = spm.SentencePieceProcessor(model_file=str(args.sp))
     print(f"loaded sp: vocab={sp.vocab_size()}", flush=True)
 
     train_out = args.out / "datasets" / "fineweb10B_sp8192_lossless_caps_caseops_v1_reserved"
+    existing_shards = sorted(train_out.glob("fineweb_*.bin")) if train_out.exists() else []
+    if existing_shards:
+        if not args.overwrite:
+            sample = existing_shards[0]
+            raise RuntimeError(
+                f"Refusing to write into non-empty output dataset {train_out}. "
+                f"Found existing shard {sample}. Use a fresh --out directory or pass "
+                "--overwrite after verifying this is not a mixed/stale CaseOps export."
+            )
+        for path in existing_shards:
+            path.unlink()
     train_out.mkdir(parents=True, exist_ok=True)
 
     val_buf_tokens: list[int] = []
