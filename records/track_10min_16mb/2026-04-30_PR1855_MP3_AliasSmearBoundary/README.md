@@ -102,9 +102,18 @@ E[alias_donor] = 0.4·E[▁] + 0.6·E[marker], renormalized to ‖E[marker]‖
 Hparams: `MARKER_PAIR_W_SPACE=0.4`, `MARKER_PAIR_W_TITLE=0.6`,
 `MARKER_PAIR_NORM_TARGET=title`.
 
-## Why this works (NLL distance breakdown vs. CaseOps base)
+## Why this works
 
-Per-position NLL bucketed by distance from the most recent alias position:
+**Token saving (training-side win)**: replacing the three `[▁, MARKER]`
+2-grams with single alias donor tokens reduces the train stream by **8.47 %**
+(15.02 B → 13.75 B train tokens; val: 9.66 M → 8.82 M tokens). With the same
+600 s wallclock budget, the model effectively sees more *unique* documents
+per training step. Bytes lossless: the val sidecar byte sum is unchanged
+(BPB is computed on canonical pre-transform UTF-8 byte counts), so this is a
+free token-side compression — not a metric trick.
+
+**NLL distance breakdown (eval-side win)**: per-position NLL bucketed by
+distance from the most recent alias position (DGX measurement, int6 level):
 
 | distance | MP1 (single TITLE pair) | **MP3 (3 marker pairs, this work)** |
 |---|---|---|
