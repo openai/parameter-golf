@@ -1,6 +1,6 @@
 # Hybrid nGPT / GPT / Mamba Submission
 
-3-seed mean val_bpb = 1.162
+3-seed mean val_bpb = 1.173
 
 This submission is a hybrid model mixing nGPT transformer layers, standard GPT layers, and Mamba2 layers.
 
