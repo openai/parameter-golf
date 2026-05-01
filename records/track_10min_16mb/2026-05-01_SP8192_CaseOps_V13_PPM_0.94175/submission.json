@@ -1,0 +1,46 @@
+{
+  "author": "NewyorkDev, Claude, and Codex",
+  "github_id": "NewyorkDev",
+  "name": "SP8192 CaseOps v13 PPM tuned gate",
+  "blurb": "A v13 consolidation of the SP8192 CaseOps transformer lane with SmearGate BOS masking, per-group lrzip compression, and a sidecar-aware causal PPM order-5 evaluator. The final change is an evaluation-gate retune to H=0.999, L=0.18, T=0.80. Three-seed mean ppm_sliding val_bpb is 0.94174862.",
+  "date": "2026-05-01T03:55:00Z",
+  "val_bpb": 0.94174862,
+  "val_bpb_std": 0.00021474,
+  "val_bpb_by_seed": {
+    "42": 0.94151072,
+    "314": 0.94180705,
+    "999": 0.94192810
+  },
+  "artifact_bytes_by_seed": {
+    "42": 15942636,
+    "314": 15946930,
+    "999": 15937542
+  },
+  "bytes_total_max_with_current_code_wrapper": 15995881,
+  "eval_time_ms_max": 510410,
+  "eval_time_ms_by_seed": {
+    "42": 510410,
+    "314": 500300,
+    "999": 497643
+  },
+  "train_time_ms_by_seed": {
+    "42": 599546,
+    "314": 599583,
+    "999": 599657
+  },
+  "config": {
+    "CASEOPS_ENABLED": "1",
+    "VOCAB_SIZE": "8192",
+    "TTT_ENABLED": "0",
+    "NGRAM_TILT_ENABLED": "1",
+    "PPM_MIXER_ENABLED": "1",
+    "PPM_ORDER": "5",
+    "PPM_H": "0.999",
+    "PPM_L": "0.18",
+    "PPM_T": "0.80",
+    "EVAL_SEQ_LEN": "2048",
+    "EVAL_STRIDE": "512",
+    "COMPRESSOR": "pergroup",
+    "SMEAR_GATE_ENABLED": "1"
+  }
+}
