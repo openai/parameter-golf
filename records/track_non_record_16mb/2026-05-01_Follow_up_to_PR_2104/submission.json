@@ -1,0 +1,11 @@
+{
+	"track": "non_record_16mb",
+	"date": "2026-05-01",
+	"name": "Non-record: Corrected ZerO initialization + Follow up to PR 2104",
+	"author": "Alston Tang",
+	"github_id": "AlstonTang",
+	"val_bpb": 1.24938225,
+	"val_loss": 2.10952960,
+	"bytes_total": 15221665
+  }
+  
