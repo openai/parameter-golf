@@ -1,0 +1,125 @@
+# QUANTUM-FUSION-PLUS: 完整配置文件
+
+# ==================== 模型配置 ====================
+model:
+  name: "QuantumFusionGPT"
+  vocab_size: 8192              # SP8192词表扩展
+  hidden_size: 512              # 隐层维度
+  num_layers: 11                # 层数
+  num_attention_heads: 8        # 注意力头数
+  num_kv_heads: 4               # KV头数(GQA)
+  intermediate_size: 2048       # MLP中间维度
+  max_seq_length: 1024          # 最大序列长度
+  tie_embeddings: true          # 嵌入绑定
+  dropout: 0.0                  # Dropout率
+  layer_norm_eps: 1e-6          # LayerNorm epsilon
+
+# ==================== 递归配置 ====================
+recurrence:
+  enabled: true                 # 启用递归
+  recurrent_layers: [4, 5]      # 第4-5层循环
+  num_recurrence: 3             # 循环3次
+  parallel_residual: true       # 并行残差
+  residual_weight_init: 0.5     # 残差权重初始值
+  qk_gain: 5.25                 # QK增益
+
+# ==================== 量化配置 ====================
+quantization:
+  enabled: true                 # 启用量化
+  hadamard_rotation: true       # Hadamard旋转
+  awq_aware: true               # AWQ显著性
+  hessian_aware: true           # Hessian感知
+  layer_wise_precision:
+    embedding: 8                # Int8
+    attention_q: 8              # Int8
+    attention_k: 8              # Int8
+    attention_v: 8              # Int8
+    attention_out: 8            # Int8
+    mlp_fc1: 6                  # Int6
+    mlp_fc2: 6                  # Int6
+    residual: 4                 # Int4
+  kv_cache_precision: 6         # Int6
+  calibration_batches: 100      # 校准批次
+  symmetric_quantization: true  # 对称量化
+
+# ==================== 训练配置 ====================
+training:
+  batch_size: 128               # 批大小
+  learning_rate: 0.002          # 初始学习率
+  num_epochs: 1                 # 训练轮数
+  total_steps: 5500             # 总步数
+  warmup_steps: 500             # Warmup步数
+  warmdown_steps: 3500          # Warmdown步数
+  weight_decay: 0.090           # 权重衰减
+  gradient_clip: 1.0            # 梯度裁剪
+  optimizer: "muon"             # 优化器类型
+  scheduler: "warmdown"         # 调度器类型
+  ema_decay: 0.99               # EMA衰减系数
+  ema_update_freq: 1            # EMA更新频率
+  qat_enabled: true             # 启用QAT
+  qat_ratio: 0.15               # QAT占比
+  qat_learning_rate_scale: 0.1  # QAT学习率缩放
+  mixed_precision: false        # 混合精度
+  gradient_checkpointing: false # 梯度检查点
+  seed: 42                      # 随机种子
+
+# ==================== 推理配置 ====================
+inference:
+  ttt_enabled: true             # 启用TTT
+  ttt_score_threshold: 0.8      # 分数阈值
+  ttt_learning_rate: 0.0001     # TTT学习率
+  ttt_update_freq: 5            # TTT更新频率
+  ttt_max_updates: 10           # TTT最大更新次数
+  kvlinc_enabled: true          # 启用KVLinC
+  use_cache: true               # 使用KV缓存
+  max_new_tokens: 100           # 最大生成token数
+
+# ==================== 数据配置 ====================
+data:
+  dataset_name: "fineweb"       # 数据集名称
+  variant: "sp8192"             # 词表变体
+  train_shards: 10              # 训练分片数
+  val_split: 0.1                # 验证集比例
+  tokenizer_path: "./data/tokenizers/sp8192.model"
+  cache_dir: "./data/cache"
+  num_workers: 4                # 数据加载进程数
+  pin_memory: true              # 固定内存
+  prefetch_factor: 2            # 预加载因子
+
+# ==================== 压缩配置 ====================
+compression:
+  bit_packing: true             # Bit Packing
+  zstd_compression: true        # Zstd压缩
+  zstd_level: 22                # 压缩级别(1-22)
+  target_size_mb: 16            # 目标大小(MB)
+
+# ==================== 日志配置 ====================
+logging:
+  log_level: "INFO"
+  log_dir: "./logs"
+  log_file: "training.log"
+  log_freq: 100                 # 日志频率(步)
+  tensorboard: false            # TensorBoard
+  tensorboard_dir: "./logs/tensorboard"
+
+# ==================== 检查点配置 ====================
+checkpoint:
+  save_dir: "./checkpoints"
+  save_freq: 1000               # 保存频率(步)
+  keep_best: true               # 保存最佳模型
+  keep_last: true               # 保存最后模型
+  resume_from: null             # 从检查点恢复
+
+# ==================== 评估配置 ====================
+evaluation:
+  eval_freq: 1000               # 评估频率(步)
+  eval_batches: 100             # 评估批次
+  metrics: ["loss", "perplexity", "bpb"]
+  save_predictions: false
+
+# ==================== 硬件配置 ====================
+hardware:
+  device: "cuda"                # 设备类型
+  num_gpus: 8                   # GPU数量
+  distributed: true             # 分布式训练
+  backend: "nccl"               # 分布式后端
