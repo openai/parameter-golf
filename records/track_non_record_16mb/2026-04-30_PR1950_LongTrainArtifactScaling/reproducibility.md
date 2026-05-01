@@ -7,38 +7,37 @@
 - Python 3.10+, PyTorch 2.x with CUDA, flash-attn v3, sentencepiece, brotli, lrzip
 - Access to `romeerp/parameter-golf-caseops-v1` on Hugging Face (public dataset)
 
-## Reproducing the Training (6h continuation)
+## Reproducing the Training (exact 6h artifact path)
 
-The 6h artifact was produced by a two-phase training process:
+The PR artifact was **not** produced by a single uninterrupted 360-minute pod. The exact artifact path was a two-pod continuation:
 
-### Phase 1: Initial 4h training
+1. **Seed run / downloaded restart point**
+   - Local snapshot: `results/8h_longtrain_final/resume_snapshot_step_36452/`
+   - Files: `resume_manifest.json` + `resume_rank{0..3}_step36452.pt`
+   - Manifest state: `step=36452`, `training_time_ms=18000630.06`, `world_size=4`, `exported_minutes=[60,120,180,240,300]`
+   - This is the authoritative 300-minute restart point that was pulled back from the first live pod before it expired.
 
-```bash
-export RUNPOD_API_KEY=<your-key>
-python3 scripts/run_longtrain_scaling.py \
-  --num-gpus 4 --max-wallclock 14400 --max-minutes 330 \
-  --iterations 200000 --enable-resume \
-  --resume-save-minutes "210,240,270,300,330" \
-  --export-minutes 240 \
-  --train-script records/track_non_record_16mb/2026-04-30_PR1950_LongTrainArtifactScaling/train_gpt.py \
-  --results-dir results/4h_longtrain
-```
+2. **Resumed 6h-horizon continuation**
+   - Output directory: `results/resumed_6h_horizon_continuation_step36452/`
+   - Submission artifact: `final_model.int6.360min.ptz`
+   - Export metadata: `checkpoint_360min.json` reports `train_steps=49765`, `train_wallclock_seconds=21600.15`, `artifact_bytes=15926271`
+   - Continuation log confirms:
+     - `schedule_horizon_seconds: 21600.0`
+     - `RESUME: restored step=36452, training_time=18000.6s, exported_minutes=[60, 120, 180, 240, 300]`
+     - resume saves at 330 min (`step=43125`) and 360 min (`step=49765`)
 
-### Phase 2: 6h continuation from 4h checkpoint
+3. **Later safety snapshot captured during pre-quant follow-up**
+   - Local snapshot: `results/prequant_360min_from_step36452/resume_snapshot_step_43062/`
+   - Files: `resume_manifest.json` + `resume_rank{0..3}_step43062.pt`
+   - Manifest state: `step=43062`, `training_time_ms=19800085.99`, `world_size=4`
+   - This was a fallback 330-minute snapshot captured in a separate follow-up pod; it was **not** the artifact-producing continuation run.
 
-```bash
-python3 scripts/run_longtrain_scaling.py \
-  --num-gpus 4 --continuation-label resumed_6h_horizon \
-  --max-wallclock 28800 --schedule-horizon 21600 \
-  --export-minutes 360 \
-  --resume-save-minutes "330,360,390,420,450,479" \
-  --iterations 200000 --max-minutes 720 \
-  --resume-from results/4h_longtrain/resume_snapshot_step_36452 \
-  --enable-resume \
-  --train-script records/track_non_record_16mb/2026-04-30_PR1950_LongTrainArtifactScaling/train_gpt.py \
-  --results-dir results/resumed_6h_horizon_continuation_step36452 \
-  --run-ttt-sweep-after-train
-```
+### Reproduction requirements
+
+- Resume on **4 GPUs only**. Do not migrate the saved 4-rank snapshot to 8 GPUs.
+- Keep the **schedule horizon at 21600s** for the continuation so LR/warmdown semantics remain faithful to the original 6-hour run.
+- Reproduce the same two-stage chain: seed run -> download `resume_snapshot_step_36452` -> 4-GPU continuation from that snapshot.
+- The later NCCL timeout in the continuation log happened **after** the 360-minute export and 360-minute resume save were written, so it does not affect the submission artifact.
 
 ## Reproducing the TTT Sweep (eval-only)
 
@@ -120,7 +119,7 @@ python3 scripts/run_longtrain_scaling.py \
 ```bash
 python3 scripts/run_longtrain_scaling.py \
   --num-gpus 4 --max-minutes 60 \
-  --resume-from <path-to-300min-resume-snapshot> \
+  --resume-from results/8h_longtrain_final/resume_snapshot_step_36452 \
   --resume-decompose-only \
   --results-dir results/300min_decompose
 ```
@@ -130,11 +129,14 @@ python3 scripts/run_longtrain_scaling.py \
 ```bash
 python3 scripts/run_longtrain_scaling.py \
   --num-gpus 4 --max-minutes 90 \
-  --resume-from <path-to-330min-resume-snapshot> \
+  --resume-from results/8h_longtrain_final/resume_snapshot_step_36452 \
   --prequant-only \
   --max-wallclock 21600 --schedule-horizon 21600 \
-  --results-dir results/prequant_360min
+  --results-dir results/prequant_360min_from_step36452
 ```
+
+This pre-quant recovery run also produced a fallback 330-minute snapshot at
+`results/prequant_360min_from_step36452/resume_snapshot_step_43062/`.
 
 ## Expected Results
 

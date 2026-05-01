@@ -1,4 +1,4 @@
-# [Non-Record] 6h Long-Train Scaling + TTT Hyperparameter Sweep
+# [Non-Record] 6h Long-Train Scaling + TTT Hyperparameter Sweep  val_bpb=1.03387
 
 ## Summary
 
@@ -27,6 +27,25 @@ All durations use the identical PR #1950/1934 recipe. Metrics differ by evaluati
 
 *training_val_bpb at step ~48000 (last logged); †3-seed mean from record submission  
 TTT gain = quantized_bpb - post_ttt_bpb = 1.04273 - 1.03387 = **0.00886 BPB** (v7 no-Q/V ablation)
+
+### How the 6h artifact was actually produced (two RunPod sessions)
+
+The 360-minute artifact in this PR was **not** trained in one uninterrupted pod. We split the run across two 4xH100 NVL RunPod sessions using the repo's manifest-driven rank-local resume path, then ran later eval-only follow-ups from the saved snapshots.
+
+| Phase | Pod | Persistent checkpoint/export state | What it was used for |
+|-------|-----|------------------------------------|----------------------|
+| Initial live training run | `y3ulfm7pb5kqyt` | Downloaded `results/8h_longtrain_final/resume_snapshot_step_36452/` containing `resume_manifest.json` + `resume_rank{0..3}_step36452.pt`; manifest reports `step=36452`, `training_time_ms=18000630.06`, `world_size=4`, `exported_minutes=[60,120,180,240,300]` | This is the authoritative 300-minute restart point that was pulled back to HPC before the original pod expired |
+| Resumed 6h-horizon continuation | `mu4c253h9yoiy3` | Wrote `results/resumed_6h_horizon_continuation_step36452/final_model.int6.360min.ptz` and `checkpoint_360min.json` (`train_steps=49765`, `train_wallclock_seconds=21600.15`, `artifact_bytes=15926271`); pod log also shows resume saves at 330 min (`step=43125`) and 360 min (`step=49765`) | This continuation produced the 360-minute submission artifact and the original 6h post-TTT result |
+| Later pre-quant follow-up safety capture | `h2fkfy6usuw72n` | Downloaded `results/prequant_360min_from_step36452/resume_snapshot_step_43062/` with manifest + all 4 rank files; manifest reports `step=43062`, `training_time_ms=19800085.99`, `world_size=4` | This was a fallback 330-minute restart snapshot captured while recovering the matched 360-minute pre-quant EMA comparator |
+
+What was done, exactly:
+
+1. We first let the original 4-GPU live pod run until a full 300-minute resume snapshot existed, then downloaded **all four rank-local checkpoint files plus the manifest** to HPC under `results/8h_longtrain_final/resume_snapshot_step_36452/`.
+2. We resumed from that downloaded snapshot on **4 GPUs only**. The continuation log confirms `RESUME: restored step=36452, training_time=18000.6s, exported_minutes=[60, 120, 180, 240, 300]`.
+3. The resumed pod used a longer hard stop than 6h, but kept `SCHEDULE_HORIZON_SECONDS=21600`, so LR warmdown / schedule-dependent behavior still followed the original 6-hour horizon. This is a **faithful continuation of the 6h schedule**, not a fresh longer-horizon rerun.
+4. The submission artifact for this PR is the 360-minute export from the resumed pod: `results/resumed_6h_horizon_continuation_step36452/final_model.int6.360min.ptz`. That export completed before the later NCCL timeout seen in the continuation log, so the timeout does **not** invalidate the 360-minute artifact used here.
+5. The 330-minute step differs slightly between the main continuation (`43125`) and the later pre-quant follow-up snapshot (`43062`) because those are **different resumed pods** launched from the same 300-minute seed snapshot for different purposes.
+6. Reproducibility note: to reproduce this PR artifact exactly, reproduce the **same two-stage chain** — initial run to the downloaded 300-minute snapshot, then a 4-GPU continuation from `resume_snapshot_step_36452` with schedule horizon fixed at 21600s. An uninterrupted single-pod 360-minute run is **not** what generated the artifact in this PR.
 
 ### TTT/LoRA Sweep (on 360-min quantized artifact)
 
