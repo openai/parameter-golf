@@ -1,0 +1,23 @@
+{
+  "author": "aquariouseworkman",
+  "github_id": "aquariouseworkman",
+  "name": "Gated XSA + token-only n-gram TTT + GPTQ_RESERVE=2.0 + corrected CaseOps data",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "val_bpb": 1.04350,
+  "val_bpb_std": 0.00062,
+  "seeds": [42, 1234, 314],
+  "seed_results": {
+    "42": {"val_bpb": 1.04295382, "prequant_val_bpb": 1.04683461, "artifact_bytes": 15985754, "steps": 5002, "train_time_ms": 598095, "eval_time_ms": 515414},
+    "1234": {"val_bpb": 1.04337520, "prequant_val_bpb": 1.04727308, "artifact_bytes": 15986801, "steps": 4977, "train_time_ms": 598038, "eval_time_ms": 536320},
+    "314": {"val_bpb": 1.04417999, "prequant_val_bpb": 1.04814609, "artifact_bytes": 15983248, "steps": 4982, "train_time_ms": 598035, "eval_time_ms": 577665}
+  },
+  "extended_seeds": [42, 1234, 314, 7, 2026, 0],
+  "extended_mean": 1.04428,
+  "extended_std": 0.00120,
+  "hardware": "8xH100 SXM 80GB",
+  "pytorch_version": "2.9.1+cu128",
+  "compressor": "pergroup",
+  "artifact_bytes_max": 15993334,
+  "technique_summary": "PR #2018 lineage (Gated XSA + token-only n-gram tilt + LQER top-1 + AWQ-lite + AsymLogit) with GPTQ_RESERVE_SECONDS=2.0 and corrected CaseOps data preparation (--val-docs=10000 train shards + 50k val eval)"
+}
