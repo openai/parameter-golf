@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-21",
+  "name": "No-looping ablation on SP8192 SOTA stack (5 shards, 1×H100 screening)",
+  "author": "Gautam Naik",
+  "github_id": "gautamnaik",
+  "val_bpb": 1.2921,
+  "val_loss": 3.3511,
+  "bytes_total": 16034265
+}
+
