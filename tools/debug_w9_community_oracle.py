@@ -531,7 +531,7 @@ def main() -> int:
     for item in results:
         print(
             f"ORACLE {item['run_id']} "
-            f"val_bpb={float(item.get('validation', {}).get('current_eval_bpb', float('nan'))):.4f} "
+            f"val_bpb={format_optional_float(item.get('validation', {}).get('current_eval_bpb'))} "
             f"w9_within={float(item['w9_recomputed']['metrics_seed0']['within_affinity_fraction']):.4f} "
             f"cf_within={float(item['community_finder']['metrics_seed0']['within_affinity_fraction']):.4f} "
             f"cf_to_w9={float(item['community_finder']['similarity_to_w9_seed0']):.4f}"
