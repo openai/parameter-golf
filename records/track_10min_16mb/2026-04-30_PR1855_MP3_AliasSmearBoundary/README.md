@@ -1,8 +1,10 @@
 # Record candidate: PR #1855 stack + MP3 marker-pair fusion + alias smear boundary
 
-**val_bpb: 1.05917838** (3-seed mean of 42, 0, 314; phased TTT on runpod) | size_max 15,907,150 bytes (15.17 MiB) | 8×H100 SXM, 600 s wallclock | TTT (phased)
+**val_bpb: 1.05858203** (3-seed mean of 42, 0, 314; phased TTT, canonical 50 K-val-doc on DGX) | size_max 15,906,335 bytes (15.17 MiB) | 8×H100 80 GB SXM, 600 s wallclock | TTT (phased)
 
-Beats PR #1855's 3-seed mean **1.06108** by **−0.00190 BPB** (3-seed mean).
+Beats PR #1855's 3-seed mean **1.06108** by **−0.00250 BPB** (3-seed mean).
+
+> Note: the originally submitted numbers (runpod, val_tokens 36,562,944) were updated to this **DGX corrected canonical reproduction** (val_tokens 43,767,808) using the byte-identical `train_gpt.py` and identical seeds/hparams. See the PR comment for the val-partition correction story.
 
 ## Base record extended by this submission
 
@@ -53,7 +55,7 @@ is unambiguous).
 | **MP3 marker-pair fusion** | Fuse `[▁,TITLE]`/`[▁,ALLCAPS]`/`[▁,CAPNEXT]` 2-grams into single alias donor tokens; warm-init `0.4·E[▁]+0.6·E[marker]`; word X preserved | Dominant. 8.47 % train-token saving (more unique docs per step at fixed wallclock); reshapes per-position NLL distribution to compound d=4+ wins (see "Why this works" below) |
 | **Alias smear boundary (`scale=0.0`)** | At positions immediately following an alias token, SmearGate's previous-position contribution is fully disabled; regular non-alias positions unchanged | Mostly a *story / robustness* contribution rather than a decisive bpb win on this stack — it keeps the model agnostic to the choice of an arbitrary dampening constant rather than inheriting PR #1855's default 0.25 |
 
-Headline on canonical runpod (3-seed mean of 42, 0, 314): **1.05917838** — beats PR #1855's 3-seed mean **1.06108** by **−1.90 mbpb** (combined effect of the two components above).
+Headline on canonical DGX (3-seed mean of 42, 0, 314): **1.05858203** — beats PR #1855's 3-seed mean **1.06108** by **−2.50 mbpb** (combined effect of the two components above).
 
 ## Architecture
 
@@ -225,21 +227,25 @@ torchrun --standalone --nproc_per_node=8 train_gpt.py
 
 ## Hardware / environment
 
-- 8 × H100 80 GB SXM (NVLink), 600 s wallclock budget
-- PyTorch 2.9.1+cu128, CUDA 12.8, FlashAttention 3 (Hopper kernels)
-- `lrzip` system binary (used by `COMPRESSOR=pergroup`)
+Reported reproduction (3-seed mean above): 8 × H100 80 GB SXM (DGX), 600 s wallclock per seed.
+
+- driver 535.247.01
+- Python 3.12.3
+- PyTorch 2.9.1+cu128 / CUDA 12.8 / cuDNN 91002
+- flash_attn_3 3.0.0+20260303 (Hopper kernels) / flash_attn 2.8.3
+- lrzip 0.660 / numpy 2.4.3 / brotli 1.2.0
+
+Both the runpod (originally submitted) and DGX (corrected canonical) runs use the same toolchain class (8×H100 80 GB SXM, PyTorch 2.9.1+cu128, FA3, lrzip).
 
 ## Submission status
 
+Reported numbers below are the **DGX corrected canonical reproduction** (canonical 50 K val docs, val_tokens 43,767,808). The originally submitted runpod numbers had a non-canonical val partition (val_tokens 36,562,944) due to a 4-way parallel data-prep step; see the PR comment for the full root-cause + correction story. Code (`train_gpt.py`), seeds, and hyperparameters are byte-identical between the two; only the val partition differs.
+
 | Seed | val_bpb (phased TTT) | val_loss | size (bytes) | step_avg (ms) | steps |
 |---|---|---|---|---|---|
-| 42   | **1.05889359** | 2.52537040 | 15,899,656 | 120.08 | 4993 |
-| 0    | **1.05961546** | 2.52709199 | 15,901,016 | 120.62 | 4971 |
-| 314  | **1.05902610** | 2.52568641 | 15,907,150 | 120.53 | 4974 |
-| **3-seed mean (42, 0, 314)** | **1.05917838** | **2.52604960** | **15,907,150 (max)** | **120.41** | **4979** |
+| 42   | **1.05840959** | 2.53238452 | 15,898,576 | 118.96 | 5041 |
+| 0    | **1.05841119** | 2.53238835 | 15,906,335 | 119.10 | 5034 |
+| 314  | **1.05892531** | 2.53361844 | 15,904,260 | 118.97 | 5040 |
+| **3-seed mean (42, 0, 314)** | **1.05858203** | **2.53279710** | **15,906,335 (max)** | **119.01** | **5038** |
 
-All 3 reported seeds were run on the canonical runpod environment. Seeds 0 and 314 ran post-deadline; the seed-42 result alone was already in the PR before the deadline.
-
-`train_seed1234.log` is also in this directory: an additional run with seed 1234 (val_bpb 1.05990626) that is not part of the reported 3-seed mean — the reported set is {42, 0, 314}.
-
-**Seed 42 only — phased TTT OOM and re-run.** On the very first run of seed 42, training, GPTQ, post-quant eval, and phase 1 of phased TTT all completed; the eval pass then OOMed at the phase 1→2 boundary (`dist.all_reduce` in `train_val_ttt_global_sgd_distributed`). We re-ran the eval pass only (`TTT_EVAL_ONLY=1`) with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` to avoid memory fragmentation across phase boundaries — completed cleanly. `train_seed42.log` is therefore a merged log: training (+ initial OOM-aborted eval trimmed) plus the successful eval re-run. Seeds 0, 1234 and 314 launched with `expandable_segments:True` from the start and did not hit this OOM.
+For reference, the originally submitted runpod 3-seed mean was 1.05917838 (same method, smaller non-canonical val partition).
