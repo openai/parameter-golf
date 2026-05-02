@@ -35,6 +35,10 @@ def env_bool(name: str, default: bool) -> bool:
     return bool(int(os.environ.get(name, "1" if default else "0")))
 
 
+def env_str(name: str, default: str) -> str:
+    return os.environ.get(name, default)
+
+
 @dataclass
 class Hyperparameters:
     data_path: str = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
@@ -93,6 +97,7 @@ class Hyperparameters:
 
     stable_lr: float = env_float("STABLE_LR", 2e-4)
     outer_lr: float = env_float("OUTER_LR", 1e-4)
+    episodic_trainable: str = env_str("EPISODIC_TRAINABLE", "outer_only")
     weight_decay: float = env_float("WEIGHT_DECAY", 0.01)
     grad_clip_norm: float = env_float("GRAD_CLIP_NORM", 1.0)
     lm_objective_alpha_start: float = env_float("LM_OBJECTIVE_ALPHA_START", 0.8)
@@ -216,6 +221,8 @@ class Hyperparameters:
             raise ValueError("Budgeted PsyArbor v0.1 fixes TRAIN_SEQ_LEN=256 to match the episode spec")
         if self.retention_gate_mode not in {"growth_or_probe", "growth_only", "probe_only", "last_gate"}:
             raise ValueError(f"Unsupported RETENTION_GATE_MODE: {self.retention_gate_mode}")
+        if self.episodic_trainable not in {"outer_only", "base_and_outer", "base_lm_only", "all", "freeze_router_plasticity"}:
+            raise ValueError(f"Unsupported EPISODIC_TRAINABLE: {self.episodic_trainable}")
         if self.community_count <= 0 or self.community_count > self.num_assemblies:
             raise ValueError("COMMUNITY_COUNT must be positive and no larger than NUM_ASSEMBLIES")
         if self.community_target_size <= 0:
@@ -544,26 +551,28 @@ def pinball_quantile_update(threshold: float, value: float, q: float, lr: float)
 
 
 def log_det_cov_entropy(probs_buffer: Tensor) -> float:
-    """0.5 * logdet(Cov) of a (T, K) buffer of probability vectors.
+    """Simplex-safe covariance dispersion of a (T, K) probability buffer.
 
     Adapted from rebus-lab's supervisor.compute_ensemble_entropy. Captures
     cross-step *dispersion* of the routing distribution rather than
-    instantaneous spread. Returns 0.0 if T < 2 or covariance is degenerate.
+    instantaneous spread. Probability rows live on a simplex, so their
+    covariance is rank-deficient by construction; using logdet makes the score
+    dominated by the ridge floor. The trace keeps the same monotonic dispersion
+    signal without that numerical artifact.
     """
     if probs_buffer.dim() != 2 or probs_buffer.shape[0] < 2:
         return 0.0
-    centered = probs_buffer.detach().float() - probs_buffer.detach().float().mean(dim=0, keepdim=True)
+    probs = probs_buffer.detach().float()
+    if not torch.isfinite(probs).all():
+        return 0.0
+    centered = probs - probs.mean(dim=0, keepdim=True)
     denom = float(max(probs_buffer.shape[0] - 1, 1))
     cov = centered.T @ centered / denom
     cov = 0.5 * (cov + cov.T)
-    cov = cov + 1e-9 * torch.eye(cov.shape[0], device=cov.device, dtype=cov.dtype)
-    try:
-        sign, logdet = torch.linalg.slogdet(cov)
-    except Exception:
+    trace = float(torch.trace(cov).item())
+    if not math.isfinite(trace) or trace < 0.0:
         return 0.0
-    if float(sign.item()) <= 0.0 or not math.isfinite(float(logdet.item())):
-        return 0.0
-    return float(0.5 * logdet.item())
+    return trace
 
 
 def huber_clip_attribute(loss_value: float, active_count: float, M: float) -> float:
@@ -714,25 +723,34 @@ def eval_val(
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
+    was_training = model.training
+    snapshot_fn = getattr(model, "snapshot_runtime_buffers", None)
+    restore_fn = getattr(model, "restore_runtime_buffers", None)
+    buffer_snapshot = snapshot_fn() if callable(snapshot_fn) and callable(restore_fn) else None
     model.eval()
-    with torch.inference_mode():
-        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
-            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
-            with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=(device.type == "cuda")):
-                batch_loss = model(x, y).detach()
-            batch_token_count = float(y.numel())
-            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
-            val_token_count += batch_token_count
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
-            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
-            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
-            val_byte_count += token_bytes.to(torch.float64).sum()
+    try:
+        with torch.inference_mode():
+            for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+                batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+                raw_start = batch_seq_start * args.train_seq_len
+                raw_end = batch_seq_end * args.train_seq_len + 1
+                local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+                x = local[:-1].reshape(-1, args.train_seq_len)
+                y = local[1:].reshape(-1, args.train_seq_len)
+                with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=(device.type == "cuda")):
+                    batch_loss = model(x, y).detach()
+                batch_token_count = float(y.numel())
+                val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+                val_token_count += batch_token_count
+                prev_ids = x.reshape(-1)
+                tgt_ids = y.reshape(-1)
+                token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+                token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
+    finally:
+        if buffer_snapshot is not None and callable(restore_fn):
+            restore_fn(buffer_snapshot)
+        model.train(was_training)
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
@@ -742,7 +760,6 @@ def eval_val(
     val_loss = val_loss_sum / val_token_count
     bits_per_token = val_loss.item() / math.log(2.0)
     tokens_per_byte = val_token_count.item() / val_byte_count.item()
-    model.train()
     return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
 
 
@@ -2034,6 +2051,7 @@ class PsyArborLM(nn.Module):
         self.register_buffer("calibration_filled", torch.zeros((), dtype=torch.bool))
         self.register_buffer("h_grow_threshold", torch.zeros((), dtype=torch.float32))
         self.register_buffer("h_recover_threshold", torch.zeros((), dtype=torch.float32))
+        self.register_buffer("online_quantile_initialized", torch.zeros((), dtype=torch.bool))
         self.register_buffer("sparse_active_count_sum", torch.zeros((), dtype=torch.float32))
         self.register_buffer("sparse_active_step_count", torch.zeros((), dtype=torch.long))
         self.register_buffer("route_probs_buffer", torch.zeros(int(args.rebus_dispersion_window), int(args.num_assemblies), dtype=torch.float32))
@@ -2321,9 +2339,12 @@ class PsyArborLM(nn.Module):
             if int(self.route_probs_buffer_cursor.item()) >= window:
                 self.route_probs_buffer_filled.fill_(True)
 
-    def _compute_dispersion_entropy(self) -> float:
-        """Log-det-cov entropy over the recently-recorded route_probs_buffer.
-        Returns 0.0 if the buffer doesn't yet have at least 2 valid rows."""
+    def _compute_dispersion_entropy(self) -> float | None:
+        """Covariance-dispersion score over the recently-recorded route buffer.
+
+        Returns None until the buffer has at least 2 valid rows. A true zero is
+        a valid dispersion score and should not trigger the softmax fallback.
+        """
         with torch.no_grad():
             window = int(self.route_probs_buffer.shape[0])
             cursor = int(self.route_probs_buffer_cursor.item())
@@ -2331,7 +2352,7 @@ class PsyArborLM(nn.Module):
                 buf = self.route_probs_buffer
             else:
                 if cursor < 2:
-                    return 0.0
+                    return None
                 buf = self.route_probs_buffer[:cursor]
             value = log_det_cov_entropy(buf)
             self.dispersion_entropy_last.fill_(float(value))
@@ -2339,18 +2360,26 @@ class PsyArborLM(nn.Module):
 
     def _update_thresholds_online(self, value: float) -> None:
         """Online pinball-loss subgradient update for h_grow / h_recover.
-        Initialized lazily from the first observation if thresholds are still
-        at their default 0.0 from buffer init."""
+        Initialized lazily from the first observation with a finite margin so
+        first-sample noise cannot immediately trip the FSM into GROW."""
         with torch.no_grad():
             lr = float(self.args.rebus_pinball_lr)
             q_grow = float(self.args.rebus_h_grow_quantile)
             q_recover = float(self.args.rebus_h_recover_quantile)
             current_grow = float(self.h_grow_threshold.item())
             current_recover = float(self.h_recover_threshold.item())
-            if current_grow == 0.0 and current_recover == 0.0:
-                # cold start: both thresholds anchor at the first observed value
-                current_grow = float(value)
-                current_recover = float(value)
+            if not bool(self.online_quantile_initialized.item()):
+                margin = max(abs(float(value)) * 0.05, lr, 1e-6)
+                if self.args.rebus_grow_direction == "high":
+                    current_grow = float(value) + margin
+                    current_recover = float(value) - margin
+                else:
+                    current_grow = float(value) - margin
+                    current_recover = float(value) + margin
+                self.h_grow_threshold.fill_(float(current_grow))
+                self.h_recover_threshold.fill_(float(current_recover))
+                self.online_quantile_initialized.fill_(True)
+                return
             new_grow = pinball_quantile_update(current_grow, value, q_grow, lr)
             new_recover = pinball_quantile_update(current_recover, value, q_recover, lr)
             # Enforce polarity ordering with a small epsilon margin.
@@ -2483,7 +2512,8 @@ class PsyArborLM(nn.Module):
                 noise_std = float(d_param.detach().float().std().item()) if d_param.numel() > 1 else 0.0
                 noise = torch.randn_like(d_param) * (scale * max(noise_std, 1e-6))
                 r_param.data.copy_(d_param.data + noise.to(dtype=r_param.dtype))
-            self.assembly_health[recipient_idx] = float(max(self.args.rebus_transient_reset_floor, 1.0))
+            reset_floor = min(max(float(self.args.rebus_transient_reset_floor), 0.0), 1.5)
+            self.assembly_health[recipient_idx] = reset_floor
             self.growth_event_count_buf.add_(1)
         return {"recipient": int(recipient_idx), "donor": int(donor_idx), "donor_community": int(recipient_community)}
 
@@ -2501,10 +2531,12 @@ class PsyArborLM(nn.Module):
         self._record_route_probs(fine_route_probs_pre_mask.detach().float().reshape(-1))
         # Choose the supervisor input signal
         if self.args.rebus_use_dispersion_entropy:
-            entropy_value = self._compute_dispersion_entropy()
+            dispersion_value = self._compute_dispersion_entropy()
             # Fall back to softmax entropy until the buffer has enough samples
-            if entropy_value == 0.0:
+            if dispersion_value is None:
                 entropy_value = softmax_entropy
+            else:
+                entropy_value = float(dispersion_value)
         else:
             entropy_value = softmax_entropy
         self._update_assembly_health(active_mask)
@@ -2572,14 +2604,91 @@ class PsyArborLM(nn.Module):
             "h_recover": h_recover,
         }
 
+    def snapshot_runtime_buffers(self) -> dict[str, Tensor]:
+        return {name: buf.detach().clone() for name, buf in self.named_buffers()}
+
+    def restore_runtime_buffers(self, snapshot: dict[str, Tensor]) -> None:
+        with torch.no_grad():
+            for name, buf in self.named_buffers():
+                if name not in snapshot:
+                    continue
+                saved = snapshot[name].to(device=buf.device, dtype=buf.dtype)
+                if saved.shape != buf.shape:
+                    raise ValueError(f"buffer shape changed during eval for {name}: {tuple(saved.shape)} -> {tuple(buf.shape)}")
+                buf.copy_(saved)
+
+    @staticmethod
+    def parameter_bucket(name: str) -> str:
+        if name.startswith("tok_emb") or name.startswith("lm_head"):
+            return "embedding_output"
+        if "norm" in name or "rope" in name or "rotary" in name or "pos" in name:
+            return "norm_positional"
+        if name.startswith(("coarse_router", "router", "plasticity_controller")):
+            return "router_controller"
+        if name.startswith(("branch_slot_emb", "edge_slot_emb", "branch_hyper", "edge_hyper", "adapter_bank")):
+            return "adaptation_plasticity"
+        if name.startswith("assemblies"):
+            adaptation_tokens = (
+                "branch_gate_net",
+                "edge_gate_net",
+                "stable_branch_scale",
+                "stable_edge_gates",
+                "stable_branch",
+                "stable_edge_ops",
+                "branch_slot_basis",
+                "edge_slot_basis",
+            )
+            if any(token in name for token in adaptation_tokens):
+                return "adaptation_plasticity"
+            return "core_sequence"
+        return "other"
+
+    @classmethod
+    def trainability_matches(cls, name: str, mode: str) -> bool:
+        bucket = cls.parameter_bucket(name)
+        if mode in {"all", "pretrain"}:
+            return True
+        if mode == "base_and_outer":
+            return bucket in {
+                "embedding_output",
+                "core_sequence",
+                "norm_positional",
+                "router_controller",
+                "adaptation_plasticity",
+            }
+        if mode == "base_lm_only":
+            return bucket in {"embedding_output", "core_sequence", "norm_positional"}
+        if mode == "freeze_router_plasticity":
+            return bucket not in {"router_controller", "adaptation_plasticity", "supervisor_state"}
+        if mode == "outer_only":
+            return bucket in {"router_controller", "adaptation_plasticity"}
+        raise ValueError(f"Unsupported trainability mode: {mode}")
+
+    def trainable_parameters_for_mode(self, mode: str) -> list[nn.Parameter]:
+        if mode == "outer_only":
+            return self.outer_parameters()
+        return [param for name, param in self.named_parameters() if self.trainability_matches(name, mode)]
+
     def set_training_phase(self, phase: str) -> None:
-        outer_ids = {id(param) for param in self.outer_parameters()}
+        if phase == "pretrain":
+            mode = "all"
+            ids = {id(param) for param in self.pretrain_parameters()}
+        elif phase == "episodic":
+            mode = self.args.episodic_trainable
+            ids = {id(param) for param in self.trainable_parameters_for_mode(mode)}
+        else:
+            mode = phase
+            ids = {id(param) for param in self.trainable_parameters_for_mode(mode)}
         for param in self.parameters():
-            param.requires_grad = phase == "pretrain" or id(param) in outer_ids
+            param.requires_grad = id(param) in ids
         self.training_phase = phase
+        self.training_trainable = mode
 
     def pretrain_parameters(self) -> list[nn.Parameter]:
         return [param for param in self.parameters()]
+
+    def episodic_parameters(self) -> list[nn.Parameter]:
+        return self.trainable_parameters_for_mode(self.args.episodic_trainable)
 
     def outer_parameters(self) -> list[nn.Parameter]:
         params: list[nn.Parameter] = []
@@ -3229,6 +3338,10 @@ def build_optimizer(params: list[nn.Parameter], args: Hyperparameters, lr: float
         weight_decay=args.weight_decay,
         fused=(device.type == "cuda"),
     )
+
+
+def optimizer_parameters(optimizer: torch.optim.Optimizer) -> list[nn.Parameter]:
+    return [param for group in optimizer.param_groups for param in group["params"]]
 
 
 def build_support_debug_record(
@@ -4267,6 +4380,9 @@ def run_self_tests() -> None:
     assert recipient_changed, "recipient weights did not change after clone-and-perturb"
     assert donor_unchanged, "donor weights changed after clone-and-perturb"
     assert float(rebus_model.assembly_health[0].item()) >= rebus_args.rebus_transient_reset_floor, "recipient health was not reset"
+    assert abs(float(rebus_model.assembly_health[0].item()) - rebus_args.rebus_transient_reset_floor) < 1e-6, (
+        "recipient health reset should honor REBUS_TRANSIENT_RESET_FLOOR exactly"
+    )
 
     # 5. test_w6_self_tests_pass_with_kill_switch: kill-switch reproduces W6 cadence path
     kill_args = Hyperparameters()
@@ -4321,9 +4437,50 @@ def run_self_tests() -> None:
     info_d = flip_model.supervisor_step(high_probs, 1.0, active_mask_full)
     assert info_d["mode"] == "CLOSED", f"low-polarity: expected CLOSED from RECOVER after sustained high entropy, got {info_d['mode']}"
 
+    # 7. test_training_phase_trainability: production path supports diagnostics trainability buckets
+    trainability_args = Hyperparameters()
+    trainability_model = PsyArborLM(trainability_args).to(device)
+    trainability_model.args.episodic_trainable = "outer_only"
+    trainability_model.set_training_phase("episodic")
+    assert not trainability_model.tok_emb.weight.requires_grad, "outer_only should keep token embeddings frozen"
+    assert any(param.requires_grad for param in trainability_model.router.parameters()), "outer_only should train router params"
+    trainability_model.args.episodic_trainable = "base_and_outer"
+    trainability_model.set_training_phase("episodic")
+    assert trainability_model.tok_emb.weight.requires_grad, "base_and_outer should train token embeddings"
+    assert any(param.requires_grad for param in trainability_model.router.parameters()), "base_and_outer should train router params"
+    assert len(trainability_model.episodic_parameters()) > len(trainability_model.outer_parameters()), (
+        "base_and_outer optimizer set should include more than the legacy outer-only params"
+    )
+    test_optimizer = torch.optim.SGD(trainability_model.episodic_parameters(), lr=0.1)
+    assert {id(param) for param in optimizer_parameters(test_optimizer)} == {
+        id(param) for param in trainability_model.episodic_parameters()
+    }, "gradient clipping should cover the same episodic params as the optimizer"
+
+    # 8. test_eval_snapshot_restore: eval-time runtime mutations can be restored exactly
+    snapshot_model = PsyArborLM(Hyperparameters()).to(device)
+    snapshot_model.train()
+    before = snapshot_model.snapshot_runtime_buffers()
+    snapshot_model.eval()
+    with torch.inference_mode():
+        probs = torch.softmax(torch.randn(snapshot_model.args.num_assemblies), dim=-1)
+        snapshot_model.supervisor_step(probs, 1.0, torch.ones(snapshot_model.args.num_assemblies, dtype=torch.float32))
+    mutated = any(
+        not torch.equal(buf.detach().cpu(), before[name].detach().cpu())
+        for name, buf in snapshot_model.named_buffers()
+        if name in before
+    )
+    assert mutated, "supervisor eval probe should mutate runtime buffers before restore"
+    snapshot_model.restore_runtime_buffers(before)
+    restored = all(
+        torch.equal(buf.detach().cpu(), before[name].detach().cpu())
+        for name, buf in snapshot_model.named_buffers()
+        if name in before
+    )
+    assert restored, "runtime buffer snapshot/restore did not restore eval mutations"
+
     # ----- W9 rebus-lab calculation self-tests -----
 
-    # 7. test_pinball_quantile_convergence
+    # 9. test_pinball_quantile_convergence
     rng_pin = np.random.default_rng(0)
     samples = rng_pin.normal(loc=2.0, scale=0.5, size=2000).tolist()
     target_q = 0.85
@@ -4333,7 +4490,7 @@ def run_self_tests() -> None:
     expected_q = float(np.quantile(samples, target_q))
     assert abs(h - expected_q) < 0.15, f"pinball_quantile_update did not converge: {h} vs {expected_q}"
 
-    # 8. test_log_det_cov_entropy
+    # 10. test_log_det_cov_entropy
     # near-uniform probs over 4 buckets -> low cov, low log-det
     uniform = torch.full((6, 4), 0.25, dtype=torch.float32)
     uniform += 1e-3 * torch.randn(uniform.shape)
@@ -4349,10 +4506,12 @@ def run_self_tests() -> None:
     ], dtype=torch.float32)
     h_high = log_det_cov_entropy(spread)
     assert h_high > h_low, f"log_det_cov_entropy: spread {h_high} should exceed near-uniform {h_low}"
+    assert 0.0 <= h_low < 1e-4, f"near-uniform dispersion should be close to zero: {h_low}"
+    assert 0.05 < h_high < 1.0, f"spread dispersion should have a finite trace-scale value: {h_high}"
     # buffer < 2 rows: returns 0.0
     assert log_det_cov_entropy(torch.zeros(1, 4, dtype=torch.float32)) == 0.0
 
-    # 9. test_huber_clip_attribute
+    # 11. test_huber_clip_attribute
     # delta inside band: passes through
     val_inside = huber_clip_attribute(2.0, 4.0, M=1.0)  # delta = 0.5
     assert abs(val_inside - 0.5) < 1e-9, f"in-band Huber attribution should pass through: {val_inside}"
@@ -4364,7 +4523,7 @@ def run_self_tests() -> None:
     # non-finite loss: returns 0
     assert huber_clip_attribute(float("nan"), 4.0, M=1.0) == 0.0
 
-    # 10. test_moving_block_bootstrap_ci
+    # 12. test_moving_block_bootstrap_ci
     rng_bs = np.random.default_rng(1)
     series = rng_bs.normal(loc=5.0, scale=0.2, size=80).tolist()
     lo, hi = moving_block_bootstrap_ci(series, n_bootstrap=300, block_len=4, seed=1)
@@ -4375,7 +4534,7 @@ def run_self_tests() -> None:
     # empty series: returns (0, 0)
     assert moving_block_bootstrap_ci([], seed=0) == (0.0, 0.0)
 
-    # 11. test_fit_kappa_envelope
+    # 13. test_fit_kappa_envelope
     # noiseless y = 2.0 * x: kappa should be ~2.0 at q=0.5 (median fit)
     x_test = np.arange(1, 101, dtype=float).tolist()
     y_test = [2.0 * x for x in x_test]
@@ -4387,7 +4546,7 @@ def run_self_tests() -> None:
     kappa_env = fit_kappa_envelope(y_noisy, x_test, q=0.85, n_iters=300, lr=0.001)
     assert kappa_env > 2.0, f"q=0.85 envelope kappa should exceed 2.0 with positive noise: got {kappa_env}"
 
-    # 12. test_w9_dispersion_supervisor_step (integration: dispersion entropy + online quantiles)
+    # 14. test_w9_dispersion_supervisor_step (integration: dispersion entropy + online quantiles)
     w9_args = Hyperparameters()
     w9_args.rebus_supervisor_enabled = True
     w9_args.rebus_use_dispersion_entropy = True
@@ -4411,7 +4570,11 @@ def run_self_tests() -> None:
     w9_model = PsyArborLM(w9_args).to(device)
     w9_model.train()
     # Push 20 steps of probability vectors to populate the buffer and exercise online quantile updates
-    for step in range(20):
+    first_probs = torch.softmax(torch.randn(w9_args.num_assemblies) * 0.1, dim=-1)
+    first_info = w9_model.supervisor_step(first_probs, 1.0, torch.ones(w9_args.num_assemblies, dtype=torch.float32))
+    assert first_info["mode"] == "CLOSED", f"online quantile cold-start should not immediately enter GROW: {first_info}"
+    assert bool(w9_model.online_quantile_initialized.item()), "online quantile cold-start flag was not set"
+    for step in range(1, 20):
         probs = torch.full((w9_args.num_assemblies,), 1.0 / float(w9_args.num_assemblies))
         # introduce mild variation
         probs = torch.softmax(torch.randn(w9_args.num_assemblies) * (0.1 + 0.05 * step), dim=-1)
@@ -4517,7 +4680,7 @@ def main() -> None:
     episode_loader = EpisodeLoader(args, args.train_files, rank=0, world_size=1, device=device)
     memory = EpisodicMemory(args.memory_size, args.model_dim, args.num_assemblies)
     pretrain_optimizer = build_optimizer(base_model.pretrain_parameters(), args, args.stable_lr, device)
-    outer_optimizer = build_optimizer(base_model.outer_parameters(), args, args.outer_lr, device)
+    outer_optimizer = build_optimizer(base_model.episodic_parameters(), args, args.outer_lr, device)
 
     n_params = sum(param.numel() for param in base_model.parameters())
     run_summary = RunSummaryAccumulator(args.num_assemblies, args.community_count)
@@ -4526,6 +4689,7 @@ def main() -> None:
     log0(f"assemblies:{args.num_assemblies} model_dim:{args.model_dim} stable_degree:{args.stable_degree}")
     log0(f"branch_budget:{args.branch_budget} edge_budget:{args.edge_budget} memory_size:{args.memory_size}")
     log0(f"support_blocks:{args.support_blocks} query_blocks:{args.query_blocks} pretrain_episodes:{args.pretrain_episodes}")
+    log0(f"episodic_trainable:{args.episodic_trainable} stable_lr:{args.stable_lr} outer_lr:{args.outer_lr}")
     log0(f"seed:{args.seed}")
 
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
@@ -4571,7 +4735,7 @@ def main() -> None:
             loss = torch.stack(loss_terms).mean()
             loss.backward()
             if args.grad_clip_norm > 0:
-                torch.nn.utils.clip_grad_norm_(base_model.pretrain_parameters(), args.grad_clip_norm)
+                torch.nn.utils.clip_grad_norm_(optimizer_parameters(pretrain_optimizer), args.grad_clip_norm)
             pretrain_optimizer.step()
             train_metrics = {
                 "phase": "pretrain",
@@ -4678,7 +4842,7 @@ def main() -> None:
                 outer_loss = lm_weight * query_lm_loss + episodic_weight * episodic_regularizer
             outer_loss.backward()
             if args.grad_clip_norm > 0:
-                torch.nn.utils.clip_grad_norm_(base_model.outer_parameters(), args.grad_clip_norm)
+                torch.nn.utils.clip_grad_norm_(optimizer_parameters(outer_optimizer), args.grad_clip_norm)
             outer_optimizer.step()
             base_model.update_query_ema(query_lm_loss.detach())
             for query_trace in query_traces:
