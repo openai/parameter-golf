@@ -1,0 +1,21 @@
+{
+  "name": "LeakyReLU(0.75)² + MTP-2 Funnel + Legal TTT + Parallel Muon + Tuned LR",
+  "val_bpb": null,
+  "val_bpb_seeds": [],
+  "bytes_total": null,
+  "author": "Michael Winczuk",
+  "github_id": "michaelwinczuk",
+  "date": "2026-03-28",
+  "description": "Added Multi-Token Prediction (MTP_NUM_HEADS=2, weight=0.1) as auxiliary training signal — forces backbone to learn richer representations by predicting 2 tokens ahead. MTP heads discarded at export (zero 16MB impact). Validated -0.0037 BPB improvement on test pod. Discovered via multi-agent think tank swarm research chain (8 missions + Grok + Gemini cross-validation).",
+  "changes_from_prior": [
+    "MTP_NUM_HEADS: 0 -> 2",
+    "MTP_LOSS_WEIGHT: 0.2 -> 0.1 (lighter touch, less gradient stealing)"
+  ],
+  "changes_from_sota": [
+    "negative_slope: 0.5 -> 0.75",
+    "MATRIX_LR: 0.025 -> 0.027",
+    "WARMDOWN_ITERS: 3500 -> 3700",
+    "MTP_NUM_HEADS: 0 -> 2",
+    "MTP_LOSS_WEIGHT: 0.2 -> 0.1"
+  ]
+}
