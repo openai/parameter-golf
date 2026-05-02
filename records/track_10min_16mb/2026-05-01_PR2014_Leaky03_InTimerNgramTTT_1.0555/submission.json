@@ -1,0 +1,71 @@
+{
+  "author": "Simon Bissonnette",
+  "github_id": "simon-marcus",
+  "name": "PR #2014 + LeakyReLU 0.3 + token-only in-timer n-gram TTT",
+  "blurb": "Corrected 3-seed token-only result on top of the PR #2014 strict-compliance CaseOps stack. Adds LeakyReLU-square slope 0.3 and the PR #2018 in-timer online causal token-only n-gram tilt inside the measured TTT eval timer. 3-seed mean post-TTT val_bpb: 1.05701907, max eval_time: 553.5s, max artifact: 15,989,637 bytes.",
+  "date": "2026-05-02",
+  "track": "10min_16mb",
+  "status": "corrected_3_seed",
+  "val_loss": 2.31315552,
+  "val_bpb": 1.05701907,
+  "val_loss_std": 0.00224551,
+  "val_bpb_std": 0.00102611,
+  "seeds": [
+    42,
+    0,
+    314
+  ],
+  "seed_results": {
+    "42": {
+      "train_steps": 4901,
+      "train_time_s": 596.069,
+      "prequant_val_loss": 2.31773315,
+      "prequant_val_bpb": 1.05911087,
+      "quantized_val_loss": 2.33545972,
+      "quantized_val_bpb": 1.0672112,
+      "ttt_val_loss": 2.31072442,
+      "ttt_val_bpb": 1.05590816,
+      "eval_time_s": 506.254,
+      "artifact_bytes": 15989637
+    },
+    "0": {
+      "train_steps": 4861,
+      "train_time_s": 596.182,
+      "prequant_val_loss": 2.32243873,
+      "prequant_val_bpb": 1.06126113,
+      "quantized_val_loss": 2.34211201,
+      "quantized_val_bpb": 1.07025102,
+      "ttt_val_loss": 2.31614048,
+      "ttt_val_bpb": 1.05838308,
+      "eval_time_s": 553.458,
+      "artifact_bytes": 15985432
+    },
+    "314": {
+      "train_steps": 4855,
+      "train_time_s": 596.099,
+      "prequant_val_loss": 2.31997987,
+      "prequant_val_bpb": 1.06013753,
+      "quantized_val_loss": 2.33736937,
+      "quantized_val_bpb": 1.06808383,
+      "ttt_val_loss": 2.31260166,
+      "ttt_val_bpb": 1.05676598,
+      "eval_time_s": 473.217,
+      "artifact_bytes": 15983433
+    }
+  },
+  "comparison_baseline_bpb": 1.06107587,
+  "delta_vs_merged_leader_bpb": -0.0040568,
+  "artifact_bytes_mean": 15986167,
+  "artifact_bytes_max": 15989637,
+  "bytes_total": 15989637,
+  "train_steps_mean": 4872.333333333333,
+  "train_time_s_mean": 596.1166666666667,
+  "eval_time_s_mean": 510.97633333333334,
+  "eval_time_s_max": 553.458,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "technique_summary": "PR #2014 progressive-context CaseOps stack + LeakyReLU-square slope 0.3 + token-only in-timer online causal n-gram tilt during TTT eval. PHASED_TTT_PREFIX_DOCS=2500, TTT_CHUNK_SIZE=64, NGRAM_HINT_PRECOMPUTE_OUTSIDE=0, WITHIN_BOOST=0.0, WORD_BOOST=0.0, AGREE_ADD_BOOST=0.0.",
+  "correction_note": "This supersedes the initial #2140 submitted state, which accidentally restored within-word, word-start, and agreement n-gram channels. Corrected eval diagnostics report within_gate=0, word_gate=0, and agree2plus=0."
+}
