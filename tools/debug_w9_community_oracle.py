@@ -447,6 +447,18 @@ def correlation_report(results: list[dict[str, Any]]) -> dict[str, Any]:
     return {"available": len(results) >= 2, "with_val_bpb": {key: pearson(values, bpbs) for key, values in series.items()}}
 
 
+def format_optional_float(value: Any, digits: int = 4) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "n/a"
+    if not math.isfinite(numeric):
+        return "n/a"
+    return f"{numeric:.{digits}f}"
+
+
 def write_markdown(path: Path, payload: dict[str, Any]) -> None:
     lines = [
         "# W9 Community Oracle Summary",
@@ -462,7 +474,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
         val_bpb = item.get("validation", {}).get("current_eval_bpb")
         lines.append(
             f"| {item['run_id']} "
-            f"| {float(val_bpb):.4f} "
+            f"| {format_optional_float(val_bpb)} "
             f"| {float(item['current']['metrics']['within_affinity_fraction']):.4f} "
             f"| {float(item['w9_recomputed']['metrics_seed0']['within_affinity_fraction']):.4f} "
             f"| {float(item['community_finder']['metrics_seed0']['within_affinity_fraction']):.4f} "

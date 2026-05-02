@@ -139,7 +139,7 @@ class Hyperparameters:
     lambda_struct_compute: float = env_float("LAMBDA_STRUCT_COMPUTE", 0.25)
 
     lambda_stress_msg: float = env_float("LAMBDA_STRESS_MSG", 1.0)
-    lambda_stress_attn: float = env_float("LAMBDA_STRESS_ATT", 0.5)
+    lambda_stress_attn: float = env_float("LAMBDA_STRESS_ATTN", env_float("LAMBDA_STRESS_ATT", 0.5))
     lambda_stress_loss: float = env_float("LAMBDA_STRESS_LOSS", 0.5)
 
     beta1: float = env_float("BETA1", 0.9)
