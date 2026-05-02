@@ -1,0 +1,10 @@
+{
+  "checkpoint_minute": 45,
+  "train_steps": 12135,
+  "train_wallclock_seconds": 2700.18,
+  "artifact_bytes": 15955847,
+  "quant_file_bytes": 15921377,
+  "export_seconds": 143.69,
+  "seed": 42,
+  "export_mode": "light"
+}

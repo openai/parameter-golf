@@ -1,0 +1,14 @@
+{
+  "control_id": "240min_ttt_only_control",
+  "description": "TTT-only follow-up on the existing 240-minute quantized artifact using the PR #1979 control parameters",
+  "pre_quant_bpb": 1.03545673,
+  "quantized_bpb": 1.04485881,
+  "post_ttt_bpb": 1.03539272,
+  "quantization_tax_bpb": 0.00940208,
+  "ttt_gain_bpb": 0.00946609,
+  "post_ttt_minus_prequant_bpb": -0.00006401,
+  "eval_seconds": 799.34,
+  "total_wallclock_seconds": 1031.9,
+  "peak_memory_mib": 47769,
+  "status": "success"
+}
