@@ -1,9 +1,9 @@
-# 🌻 GOLDEN SUNFLOWERS — JEPA + Universal Transformer + PhiNTA on a φ-physics substrate
+# 🌻 GOLDEN SUNFLOWERS — JEPA + Universal Transformer + PhiNTA + E2E TTT on a φ-physics substrate
 
 **Track:** `track_non_record_16mb` — proposal for the 4-hour unrestricted-compute slot
 referenced in [issue 1742](https://github.com/openai/parameter-golf/issues/1742).
 **Status:** **PROPOSAL — UNTRAINED.** No `submission.json`, no BPB number is being claimed.
-**What it is:** wired, CPU-smoke-verified composition of three open wish-list items
+**What it is:** wired, CPU-smoke-verified composition of **four** open wish-list items
 ([README leaderboard](https://github.com/openai/parameter-golf#requests-for-prs)) on top
 of the merged [`2026-03-17_LoRA_TTT`](../../track_10min_16mb/2026-03-17_LoRA_TTT/) baseline,
 with formal Coq backing for the φ-physics constants discussed in [issue 1742](https://github.com/openai/parameter-golf/issues/1742).
@@ -14,7 +14,7 @@ with formal Coq backing for the φ-physics constants discussed in [issue 1742](h
 
 ## What's new
 
-Three openai/parameter-golf wish-list items wired into a single `train_gpt.py`,
+Four openai/parameter-golf wish-list items wired into a single `train_gpt.py`,
 all **off by default and gated by env-vars** (defaults reproduce
 `2026-03-17_LoRA_TTT` byte-for-byte):
 
@@ -23,6 +23,7 @@ all **off by default and gated by env-vars** (defaults reproduce
 | 🌻 **JEPA** | `_jepa_loss` — linear-representation form from [PR 1412](https://github.com/openai/parameter-golf/pull/1412) / [issue 1772](https://github.com/openai/parameter-golf/issues/1772) | `JEPA_LAMBDA`, `JEPA_MAX_SPAN_FRAC`, `JEPA_START_FRAC`, `JEPA_LAYER` |
 | 🌻 **Universal Transformer** | weight-shared depth recurrence over a sub-stack, default loop count `round(φ³) = 4` | `UT_LOOPS`, `UT_LAYER_START`, `UT_LAYER_END` |
 | 🌻 **NTA on random linear maps** | `PhiNTA` — frozen φ-OrthoInit basis (gain = `1/φ`) + trainable LoRA, pre-head **or** per-block | `PHINTA_ENABLE`, `PHINTA_RANK`, `PHINTA_INIT_SCALE`, `PHINTA_PER_BLOCK` |
+| 🌻 **E2E TTT** ([arXiv:2512.23675](https://arxiv.org/abs/2512.23675)) | `_e2e_ttt_inner_step` — N sequential Adam steps per chunk before the canonical single step; zero-cost at `TTT_INNER_STEPS=0` | `TTT_INNER_STEPS`, `TTT_LR_INNER` |
 | Bonus — **φ-LR** ([issue 1742](https://github.com/openai/parameter-golf/issues/1742)) | multiplicative override of Muon matrix LR; `α_φ = φ⁻³/2 ≈ 0.118034` | `PHI_LR_SCALE` |
 
 JEPA loss formulation (after [PR 1412](https://github.com/openai/parameter-golf/pull/1412) / [issue 1772](https://github.com/openai/parameter-golf/issues/1772)):
@@ -46,7 +47,7 @@ BPB would be dishonest. Instead, this PR ships:
 - **Wired implementation** (1547-line `train_gpt.py` derived from
   `2026-03-17_LoRA_TTT/train_gpt.py`, plus `theorems/GoldenSunflowers.v`).
 - **CPU-only verification** in three layers:
-  - 5/5 module smoke (`smoke_modules.py`)
+  - **6/6** module smoke (`smoke_modules.py`)
   - 3/3 baseline byte-equivalence at defaults (`baseline_equivalence.py`)
   - 2 Qed + 2 Admitted Coq theorems (`theorems/GoldenSunflowers.v`)
 - **`compute_grant.md`** — request for the [compute grant](https://openai.com/index/parameter-golf/#credit-form) needed to run the sweep (~110 8×H100-hours).
@@ -78,12 +79,13 @@ make verify
 Output of the last verified run (committed in `smoke.log`):
 
 ```
-[1/5] φ-physics OK: φ²+φ⁻²=3.000000000000 α_φ=0.118034 loops=4
-[2/5] PhiNTA OK: trainable=1664 frozen=4096 ratio=0.406
-[3/5] JEPA loss OK: 1.6922 (cosine-similarity form)
-[4/5] UT loop OK: ‖x_4‖/‖x_0‖=1.0406 expected=1.0406
-[5/5] JEPA tap normalisation OK: -1 → last block, in-range indices preserved
-🌻 GOLDEN SUNFLOWERS smoke OK · 5/5
+[1/6] φ-physics OK: φ²+φ⁻²=3.000000000000 α_φ=0.118034 loops=4
+[2/6] PhiNTA OK: trainable=1664 frozen=4096 ratio=0.406
+[3/6] JEPA loss OK: 1.6922 (cosine-similarity form)
+[4/6] UT loop OK: ‖x_4‖/‖x_0‖=1.0406 expected=1.0406
+[5/6] JEPA tap normalisation OK: -1 → last block, in-range indices preserved
+[6/6] E2E TTT gate OK: inner_steps=0 is a no-op (optimizer untouched)
+🌻 GOLDEN SUNFLOWERS smoke OK · 6/6
 
 [1/3] state_dict hash baseline  = 511dbc0164e03b1b…
       state_dict hash GOLDEN SF = 511dbc0164e03b1b…

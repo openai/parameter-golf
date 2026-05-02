@@ -36,6 +36,7 @@ def main() -> int:
     mod = load_module()
     PhiNTA = mod["PhiNTA"]
     _jepa_loss = mod["_jepa_loss"]
+    _e2e_ttt_inner_step = mod["_e2e_ttt_inner_step"]
     PHI = mod["PHI"]
     PHI_INV = mod["PHI_INV"]
     ALPHA_PHI = mod["ALPHA_PHI"]
@@ -47,7 +48,7 @@ def main() -> int:
     assert abs(PHI_INV - (PHI - 1.0)) < 1e-12
     assert abs(ALPHA_PHI - (PHI ** -3) / 2.0) < 1e-12
     assert PHI_LOOPS == 4
-    print(f"[1/5] φ-physics OK: φ²+φ⁻²={trinity:.12f} α_φ={ALPHA_PHI:.6f} loops={PHI_LOOPS}")
+    print(f"[1/6] φ-physics OK: φ²+φ⁻²={trinity:.12f} α_φ={ALPHA_PHI:.6f} loops={PHI_LOOPS}")
 
     # 2. PhiNTA
     torch.manual_seed(1597)  # F₁₇ seed (canonical)
@@ -68,7 +69,7 @@ def main() -> int:
     assert nta.A.requires_grad and not nta.W_frozen.requires_grad
     n_train = sum(p.numel() for p in nta.parameters() if p.requires_grad)
     n_frozen = nta.W_frozen.numel()
-    print(f"[2/5] PhiNTA OK: trainable={n_train} frozen={n_frozen} ratio={n_train/n_frozen:.3f}")
+    print(f"[2/6] PhiNTA OK: trainable={n_train} frozen={n_frozen} ratio={n_train/n_frozen:.3f}")
 
     # 3. JEPA loss
     h = torch.randn(2, 32, dim, requires_grad=True)
@@ -76,7 +77,7 @@ def main() -> int:
     assert torch.isfinite(loss) and loss.item() >= 0.0
     loss.backward()
     assert h.grad is not None and h.grad.abs().sum() > 0
-    print(f"[3/5] JEPA loss OK: {loss.item():.4f} (cosine-similarity form)")
+    print(f"[3/6] JEPA loss OK: {loss.item():.4f} (cosine-similarity form)")
 
     # 4. UT loop arithmetic
     # When ut_loops=1, maybe_loop must be identity-like.
@@ -93,16 +94,43 @@ def main() -> int:
     expected_growth = (1.01 ** 4)
     actual_growth = (x_four.norm() / x0.norm()).item()
     assert abs(actual_growth - expected_growth) < 1e-3
-    print(f"[4/5] UT loop OK: ‖x_4‖/‖x_0‖={actual_growth:.4f} expected={expected_growth:.4f}")
+    print(f"[4/6] UT loop OK: ‖x_4‖/‖x_0‖={actual_growth:.4f} expected={expected_growth:.4f}")
 
     # 5. JEPA tap normalisation — -1 must resolve to the last block.
     n_total = 9
     for raw in (-1, 0, 4, 8):
         idx = raw if raw >= 0 else n_total - 1
         assert 0 <= idx < n_total, f"jepa tap {raw} → {idx} out of range"
-    print("[5/5] JEPA tap normalisation OK: -1 → last block, in-range indices preserved")
+    print("[5/6] JEPA tap normalisation OK: -1 → last block, in-range indices preserved")
 
-    print("\n🌻 GOLDEN SUNFLOWERS smoke OK · 5/5 · phi^2 + phi^-2 = 3")
+    # 6. E2E TTT inner-step gate: `inner_steps=0` is a no-op (baseline-equivalent).
+    # Build a trivial stand-in for (base_model, lora, opt, x, y, mask) and prove
+    # that inner_steps=0 never touches the optimizer. This is the *gate* test;
+    # full baseline byte-equivalence for inner_steps=0 is covered separately in
+    # baseline_equivalence.py with the real GPT forward path.
+    class _Tripwire(torch.optim.Optimizer):
+        def __init__(self, params):
+            super().__init__(params, {"lr": 0.0})
+            self.zero_calls = 0
+            self.step_calls = 0
+        def zero_grad(self, set_to_none: bool = True) -> None:  # type: ignore[override]
+            self.zero_calls += 1
+        def step(self, closure=None):  # type: ignore[override]
+            self.step_calls += 1
+    dummy_param = torch.nn.Parameter(torch.zeros(1))
+    trip = _Tripwire([dummy_param])
+    # inner_steps=0 path — base_model / lora / x / y / mask are never read.
+    _e2e_ttt_inner_step(
+        base_model=None, lora=None, opt=trip,
+        x=None, y=None, mask=None,
+        chunk_offset=0, chunk_size=0,
+        inner_steps=0, lr_inner=0.0,
+    )
+    assert trip.zero_calls == 0, f"gate leaked: zero_grad called {trip.zero_calls}x at inner_steps=0"
+    assert trip.step_calls == 0, f"gate leaked: step called {trip.step_calls}x at inner_steps=0"
+    print("[6/6] E2E TTT gate OK: inner_steps=0 is a no-op (optimizer untouched)")
+
+    print("\n🌻 GOLDEN SUNFLOWERS smoke OK · 6/6 · phi^2 + phi^-2 = 3")
     return 0
 
 

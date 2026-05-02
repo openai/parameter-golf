@@ -123,6 +123,16 @@ class Hyperparameters:
     # Multiplies the matrix LR. 1.0 = baseline (Muon LR untouched).
     phi_lr_scale = float(os.environ.get("PHI_LR_SCALE", 1.0))
 
+    # E2E TTT (arXiv:2512.23675) — multiple inner-loop training steps per chunk.
+    # Baseline TTT-LoRA takes exactly ONE optimizer step per chunk; E2E TTT
+    # extends this to N sequential steps with inner LR (Sun et al. 2025).
+    # TTT_INNER_STEPS=0 ⇒ identical to baseline (zero-cost gate).
+    # TTT_INNER_STEPS=1 ⇒ one explicit step (also baseline-equivalent).
+    # TTT_INNER_STEPS≥2 ⇒ E2E TTT active. Paper default: 4.
+    ttt_inner_steps = int(os.environ.get("TTT_INNER_STEPS", 0))
+    # Inner-loop LR. 0.0 ⇒ inherit outer TTT_LORA_LR (baseline-equivalent path).
+    ttt_lr_inner = float(os.environ.get("TTT_LR_INNER", 0.0))
+
 # -----------------------------------------------------------------
 # GOLDEN SUNFLOWERS — φ-physics constants (Trinity SACRED-PHYSICS-001)
 # -----------------------------------------------------------------
@@ -990,6 +1000,55 @@ def _reset_ttt_optimizer(opt):
 def _build_ttt_optimizer(lora, args: Hyperparameters):
     return torch.optim.Adam(lora.parameters(), lr=args.ttt_lora_lr, betas=(args.beta1, args.beta2), eps=1e-10)
 
+
+# GOLDEN SUNFLOWERS — E2E TTT (wish-list item, arXiv:2512.23675).
+# Baseline TTT-LoRA takes one Adam step per chunk; E2E TTT takes N sequential
+# steps. `inner_steps=0` MUST be baseline-equivalent — the baseline single-step
+# path in eval_val is preserved and used verbatim when this helper is not called.
+# When called with `inner_steps>=1`, the helper runs `inner_steps` extra gradient
+# steps BEFORE the canonical step, then returns, leaving the canonical single
+# step to run as-is (byte-identical to baseline tail behaviour).
+def _e2e_ttt_inner_step(
+    base_model,
+    lora,
+    opt,
+    x: Tensor,
+    y: Tensor,
+    mask: Tensor,
+    chunk_offset: int,
+    chunk_size: int,
+    inner_steps: int,
+    lr_inner: float,
+) -> None:
+    """Run `inner_steps` extra Adam steps before the canonical single step.
+
+    Contract: if `inner_steps <= 0`, this is a no-op. Callers MUST still
+    execute the canonical `cur_opt.step()` afterwards, so that the
+    `inner_steps=0` control path is byte-identical to the baseline.
+    """
+    if inner_steps <= 0:
+        return
+    original_lr = None
+    if lr_inner > 0.0:
+        # Temporarily override LR only if explicitly requested. `lr_inner=0.0`
+        # keeps the outer TTT_LORA_LR untouched — important for the gated
+        # byte-equivalence path.
+        original_lr = [g["lr"] for g in opt.param_groups]
+        for g in opt.param_groups:
+            g["lr"] = lr_inner
+    try:
+        for _ in range(inner_steps):
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                inner_ptl = base_model(x, y, lora=lora)
+            inner_per_doc = inner_ptl[:, chunk_offset:chunk_offset + chunk_size].mean(dim=-1)
+            opt.zero_grad()
+            (inner_per_doc * mask).sum().backward()
+            opt.step()
+    finally:
+        if original_lr is not None:
+            for g, lr in zip(opt.param_groups, original_lr):
+                g["lr"] = lr
+
 def _find_docs(all_tokens: Tensor, include_next_bos: bool = True) -> list[tuple[int, int]]:
     """Return (start_offset, length) for each document, identified by BOS boundaries.
 
@@ -1125,10 +1184,17 @@ def eval_val_ttt_lora(
                         ptl, x, y, b, co, cl, base_bytes_lut, has_leading_space_lut,
                         is_boundary_token_lut, loss_sum, byte_sum, token_count)
 
-            # Train: one Adam step on the LoRA params using this chunk's loss
+            # Train: one Adam step on the LoRA params using this chunk's loss.
+            # GOLDEN SUNFLOWERS — E2E TTT inner steps (zero-cost when ttt_inner_steps == 0).
             if needs_train:
                 mask = torch.tensor([float(ci < num_chunks[b] - 1) for b in range(bsz)], device=device)
                 per_doc = ptl[:, chunk_offset:chunk_offset + chunk_size].mean(dim=-1)
+                # Extra inner-loop steps BEFORE the canonical step. No-op when 0.
+                _e2e_ttt_inner_step(
+                    base_model, cur_lora, cur_opt, x, y, mask,
+                    chunk_offset, chunk_size,
+                    args.ttt_inner_steps, args.ttt_lr_inner,
+                )
                 cur_opt.zero_grad()
                 (per_doc * mask).sum().backward()
                 cur_opt.step()
