@@ -30,6 +30,7 @@ Happy training!
 
 | Run | Score | Author | Summary | Date | Info |
 |-----|------:|--------|---------|------|------|
+| Calib32 Token-Only N-gram + AsymLogit Stack | 1.0565 | codemath3000 | On PR #2135: pre-cutoff PR #2130 architecture rerun on clean canonical CaseOps data with GPTQ_CALIBRATION_BATCHES=32; 3-seed mean 1.05651 under grace policy (p=0.014 vs PR #2014) | 2026-05-01 | [info](https://github.com/openai/parameter-golf/pull/2135) |
 | Progressive Context Growth + Short-Doc Score-First TTT | 1.0576 | simonbissonnette | On PR #2014: PR #1855/#1953 CaseOps stack with progressive context growth to 3k plus short-doc score-first TTT on the AWQ-lite/AsymLogit lineage; 3-seed mean 1.05759 (p=0.011 vs PR #1953) | 2026-04-30 | [info](https://github.com/openai/parameter-golf/pull/2014) |
 | Long-Context No-Q/V TTT + QK-Gain 5.25 | 1.0586 | andrewbaggio1 | On PR #1953: PR #1945 V21 base with 2560 eval/TTT context, no-Q/V TTT mask, TTT LR 0.75, and QK_GAIN_INIT=5.25; 3-seed mean 1.05855 (p=0.063 vs PR #1945 V21 v2) | 2026-04-30 | [info](https://github.com/openai/parameter-golf/pull/1953) |
 | AWQ-Lite GPTQ + AsymLogit on PR1855 Stack | 1.0594 | alertcat | On PR #1945 commit 70067534: PR #1855 stack plus PR #1908 AWQ-lite mixed GPTQ and PR #1923 AsymLogit; V21 v2 3-seed mean 1.05943 after strict seed-42 rerun (p=0.034 vs PR #1855) | 2026-04-29 | [info](https://github.com/openai/parameter-golf/pull/1945), [commit](https://github.com/openai/parameter-golf/pull/1945/commits/7006753424886886bc27a17f839f6afd01962a08) |
