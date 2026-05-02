@@ -4,18 +4,18 @@
   "name": "LockInByteMixer_0.979556",
   "author": "Anmar Hindi",
   "github_id": "anmarhindi",
-  "val_bpb": 0.979556,
-  "val_bpb_std": 6.9e-05,
+  "val_bpb": 1.067219,
+  "val_bpb_std": 7.6e-05,
   "val_bpb_per_seed": {
-    "42": 0.97949078,
-    "1337": 0.97954725,
-    "314": 0.97962885
+    "42": 1.067148,
+    "1337": 1.067210,
+    "314": 1.067299
   },
   "diagnostic_pre_ema_3seed_mean": 1.080004,
   "diagnostic_quantized_3seed_mean": 1.092764,
   "diagnostic_sliding_window_3seed_mean": 1.101347,
   "headline_metric": "quantized_cond_ppm",
-  "headline_metric_description": "Lock-In Byte Mixer (LBM): high-confidence-only byte-level mixture of NN softmax (proper byte_0 marginal + chain-rule remainder) and PPM-D byte conditional, gated by lambda = 1 - sigmoid(alpha*(PPM_conf - beta)) with alpha=25.0 beta=0.9999 (very sharp gate; only mixes PPM when its top-symbol probability is near-certain). Run on FULL CaseOps validation set (all 47,851,520 tokens / 164,594,398 canonical bytes per seed). Forensic evidence: 'cond_ppm tokens=47851520 bytes=164594398' line in each train_seed*.log.",
+  "headline_metric_description": "Lock-In Byte Mixer (LBM): high-confidence-only byte-level mixture of NN softmax (proper byte_0 marginal + chain-rule remainder) and PPM-D byte conditional, gated by lambda = 1 - sigmoid(alpha*(PPM_conf - beta)) with alpha=25.0 beta=0.9999 (very sharp gate; only mixes PPM when its top-symbol probability is near-certain). Run on FULL CaseOps validation set (47,851,520 scored tokens / 151,074,309 canonical raw-text bytes per seed, from val_bytes sidecar fineweb_val_bytes_*.bin per PR #1729 convention).",
   "artifact_bytes_max": 15758573,
   "wrapped_code_bytes": 51885,
   "total_submission_bytes_max": 15810458,
@@ -28,5 +28,19 @@
   "hardware": "8xH100 80GB SXM",
   "eval_full_val_verified": true,
   "eval_token_count_per_seed": 47851520,
-  "eval_canonical_byte_count_per_seed": 164594398
+  "eval_canonical_byte_count_per_seed": 151074309,
+  "errata": {
+    "date": "2026-05-02",
+    "summary": "Originally reported val_bpb 0.979556 used SP-piece UTF-8 bytes (164,594,398 per seed, includes 3-byte CaseOps sentinels U+E001..U+E004) as the BPB denominator instead of the canonical raw-text sidecar (151,074,309 per seed) used by every other CaseOps-lineage record per PR #1729 convention. Corrected algebraically: new_bpb = old_bpb * 164594398 / 151074309 = old_bpb * 1.089493. Per-token NLL is invariant under denominator change, so no re-eval was required; logs and artifact are forensic records of the original run. See README.md Errata section for source-line citations and per-seed table.",
+    "originally_reported_val_bpb": 0.979556,
+    "originally_reported_val_bpb_per_seed": {
+      "42": 0.97949078,
+      "1337": 0.97954725,
+      "314": 0.97962885
+    },
+    "originally_reported_byte_count_per_seed": 164594398,
+    "denominator_inflation_ratio": 1.089493,
+    "credit": "Reported by @codemath3000 on PR #2138.",
+    "fix_branch": "cond-ppm-stack on https://github.com/anmarhindi/parameter-golf-a"
+  }
 }
