@@ -1,0 +1,4 @@
+2. Kolmogorov-Arnold Network (KAN) layers for the feed-forward path
+Why it’s a killer: KANs use learnable splines instead of fixed ReLU+linear. They are dramatically more expressive per parameter (especially in the 5–30 M param regime). One 3×KAN layer often beats a 6×MLP in compression tasks while using the same byte count after int6 quant.
+Haven’t been tried: Zero mentions of KAN or spline activations anywhere in the repo or X. Everyone is still on classic MLP3x.
+Efficiency hack: Use the tiny kan package (or even pure PyTorch with B-splines) — it’s <100 lines, trains in the same 60 ms/step as MLP because the grid is coarse (grid=5). Stack KAN only on every other layer + keep one MLP for stability. Expected win: +capacity without size creep.

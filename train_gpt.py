@@ -27,6 +27,12 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+try:
+    import wandb
+    _WANDB_OK = True
+except ImportError:
+    _WANDB_OK = False
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -85,6 +91,9 @@ class Hyperparameters:
     beta2 = float(os.environ.get("BETA2", 0.95))
     adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
     grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+
+    # Multi-Token Prediction (MTP): predict multiple future tokens for richer training signal.
+    mtp_enabled = bool(int(os.environ.get("MTP_ENABLED", "0")))
 
 # -----------------------------
 # MUON OPTIMIZER 
@@ -697,7 +706,7 @@ class GPT(nn.Module):
             if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
                 nn.init.zeros_(module.weight)
 
-    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+    def forward(self, input_ids: Tensor, target_ids: Tensor, mtp_weights: Tensor | None = None) -> Tensor:
         x = self.tok_emb(input_ids)
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
@@ -721,7 +730,20 @@ class GPT(nn.Module):
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
-        return F.cross_entropy(logits.float(), targets, reduction="mean")
+
+        # Multi-Token Prediction: weighted CE for predicting 1,2,3 tokens ahead.
+        # mtp_weights is a (3,) tensor: [w1, w2, w3]. w2=w3=0 means standard next-token.
+        if mtp_weights is None:
+            return F.cross_entropy(logits.float(), targets, reduction="mean")
+
+        n_tokens = targets.size(0)
+        usable = n_tokens - 2  # trim last 2 so targets[+1] and targets[+2] exist
+        if usable <= 0:
+            return F.cross_entropy(logits.float(), targets, reduction="mean")
+        loss = mtp_weights[0] * F.cross_entropy(logits[:usable].float(), targets[:usable], reduction="mean")
+        loss = loss + mtp_weights[1] * F.cross_entropy(logits[:usable].float(), targets[1:1+usable], reduction="mean")
+        loss = loss + mtp_weights[2] * F.cross_entropy(logits[:usable].float(), targets[2:2+usable], reduction="mean")
+        return loss / mtp_weights.sum()  # normalize to keep gradient magnitude constant
 
 
 # -----------------------------
@@ -754,7 +776,7 @@ def main() -> None:
     device = torch.device("cuda", local_rank)
     torch.cuda.set_device(device)
     if distributed:
-        dist.init_process_group(backend="nccl", device_id=device)
+        dist.init_process_group(backend="nccl")
         dist.barrier()
     master_process = rank == 0
 
@@ -909,6 +931,27 @@ def main() -> None:
     )
     log0(f"seed:{args.seed}")
 
+    # WANDB
+    _use_wandb = master_process and _WANDB_OK and os.environ.get("WANDB_MODE") != "disabled"
+    if _use_wandb:
+        wandb.init(
+            project=os.environ.get("WANDB_PROJECT", "parameter-golf"),
+            name=args.run_id,
+            config={
+                "num_layers": args.num_layers, "model_dim": args.model_dim,
+                "num_heads": args.num_heads, "num_kv_heads": args.num_kv_heads,
+                "vocab_size": args.vocab_size, "logit_softcap": args.logit_softcap,
+                "adam_eps": args.adam_eps, "warmdown_iters": args.warmdown_iters,
+                "iterations": args.iterations, "train_batch_tokens": args.train_batch_tokens,
+                "matrix_lr": args.matrix_lr, "scalar_lr": args.scalar_lr,
+                "n_params": n_params, "seed": args.seed,
+            },
+        )
+
+    def wlog(data, step=None):
+        if _use_wandb:
+            wandb.log(data, step=step)
+
     # -----------------------------
     # DATA LOADER & MODEL WARMUP
     # -----------------------------
@@ -966,6 +1009,7 @@ def main() -> None:
 
     training_time_ms = 0.0
     stop_after_step: int | None = None
+    _mtp_w = torch.tensor([1.0, 0.0, 0.0], device=device) if args.mtp_enabled else None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
 
@@ -993,6 +1037,7 @@ def main() -> None:
                 f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
                 f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
             )
+            wlog({"val_loss": val_loss, "val_bpb": val_bpb, "train_time_ms": training_time_ms}, step=step)
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 
@@ -1006,6 +1051,19 @@ def main() -> None:
 
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         scale = lr_mul(step, elapsed_ms)
+
+        # MTP weight schedule: 3-phase from modded-nanogpt
+        if args.mtp_enabled:
+            frac_done = step / max(args.iterations, 1)
+            if frac_done < 0.333:
+                t = frac_done / 0.333
+                _mtp_w[0], _mtp_w[1], _mtp_w[2] = 1.0, 0.5, 0.25 * (1 - t)
+            elif frac_done < 0.666:
+                t = (frac_done - 0.333) / 0.333
+                _mtp_w[0], _mtp_w[1], _mtp_w[2] = 1.0, 0.5 * (1 - t), 0.0
+            else:
+                _mtp_w[0], _mtp_w[1], _mtp_w[2] = 1.0, 0.0, 0.0
+
         zero_grad_all()
         train_loss = torch.zeros((), device=device)
         for micro_step in range(grad_accum_steps):
@@ -1013,7 +1071,7 @@ def main() -> None:
                 model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
             x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                loss = model(x, y)
+                loss = model(x, y, mtp_weights=_mtp_w)
             train_loss += loss.detach()
             (loss * grad_scale).backward()
         train_loss /= grad_accum_steps
@@ -1044,6 +1102,7 @@ def main() -> None:
                 f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
                 f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
             )
+            wlog({"train_loss": train_loss.item(), "lr_scale": scale, "step_avg_ms": approx_training_time_ms / step}, step=step)
 
         # Needed to sync whether we've reached the wallclock cap.
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
@@ -1117,6 +1176,10 @@ def main() -> None:
         f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
     )
     log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    if master_process:
+        wlog({"final_q_val_loss": q_val_loss, "final_q_val_bpb": q_val_bpb})
+    if _use_wandb:
+        wandb.finish()
 
     if distributed:
         dist.destroy_process_group()

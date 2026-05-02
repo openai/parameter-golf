@@ -1,0 +1,22 @@
+#!/bin/bash
+# Exp 012: 5 unique blocks x 3 loops = 15 effective, dim=768 (PR #31 style)
+cd /home/ubuntu/parameter-golf
+export WANDB_API_KEY=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
+export WANDB_PROJECT=parameter-golf
+export CUDA_VISIBLE_DEVICES=0
+export ITERATIONS=2000
+export MAX_WALLCLOCK_SECONDS=0
+export VAL_LOSS_EVERY=500
+export TRAIN_LOG_EVERY=100
+export RUN_ID=exp012_5x3_d768
+export NUM_UNIQUE_BLOCKS=5
+export NUM_LOOPS=3
+export EVAL_NUM_LOOPS=3
+export MODEL_DIM=768
+export NUM_HEADS=12
+export NUM_KV_HEADS=6
+export LOGIT_SOFTCAP=15
+export ADAM_EPS=1e-10
+export QAT_ENABLED=0
+export WARMDOWN_ITERS=1200
+python3 train_gpt_recurrent.py

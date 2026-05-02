@@ -1,0 +1,6 @@
+#!/bin/bash
+cd /home/ubuntu/parameter-golf
+export ITERATIONS=5000 RUN_ID=exp021_5x2_d704_5k
+export NUM_UNIQUE_BLOCKS=5 NUM_LOOPS=2 EVAL_NUM_LOOPS=2 MODEL_DIM=704 NUM_HEADS=8 NUM_KV_HEADS=4
+export LOGIT_SOFTCAP=15 ADAM_EPS=1e-10 QAT_ENABLED=0 WARMDOWN_ITERS=1200
+python3 train_gpt_recurrent.py

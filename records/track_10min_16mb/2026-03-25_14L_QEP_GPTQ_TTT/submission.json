@@ -1,0 +1,15 @@
+{
+  "author": "himanalot",
+  "github_id": "himanalot",
+  "name": "14L QEP GPTQ + Per-Window SGD TTT",
+  "blurb": "14-layer 512d GQA(8/4) transformer at critical depth. QEP-aware GPTQ int6 quantization (sequential block calibration with error propagation). Online score-first per-window SGD TTT at stride=76. EMA(0.997), Muon WD=0.09, leaky_relu(0.5)^2, BigramHash(8192x64), brotli-11 compression.",
+  "date": "2026-03-25",
+  "val_bpb_mean": 1.1135,
+  "val_bpb_std": 0.0003,
+  "seeds": {
+    "1337": {"val_bpb": 1.1132, "bytes_total": 15802049, "eval_time_s": 575},
+    "42": {"val_bpb": 1.1134, "bytes_total": 15723991, "eval_time_s": 553},
+    "7": {"val_bpb": 1.1138, "bytes_total": 15678221, "eval_time_s": 553}
+  },
+  "platform": "8xH100 80GB HBM3 SXM (RunPod)"
+}
