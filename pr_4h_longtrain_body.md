@@ -48,22 +48,23 @@ All durations use the same PR #1950 / PR #1934 recipe. To avoid mixing live-trai
 
 | Duration | Source | Export / endpoint step | Live training val_bpb near export | Artifact |
 |----------|--------|------------------------|-----------------------------------|----------|
-| 60 min | PR #1979 | 16,001 | 1.0615 | 15,944 KB |
-| 240 min | standalone 4h run | ~30K final stop/export | ~1.0600 live | 15,933 KB |
-| **360 min** | resumed 6h chain | 49,765 | 1.0599* | **15,926 KB** |
+| 60 min | PR #1979 (8xH100 SXM) | 16,001 | 1.0615 | 15,944 KB |
+| 240 min | standalone 4h run (4xH100 NVL) | 29,888 (wallclock stop) | 1.0600 | 15,933 KB |
+| 300 min | seed snapshot for continuation | 36,452 | 1.0871 | 15,937 KB |
+| **360 min** | resumed 6h chain (4xH100 NVL) | 49,765 | 1.0599* | **15,926 KB** |
 
-*Last logged live validation BPB near the 360-min export; the matched 360-min EMA / quantized / post-TTT comparator chain is reported later.
+*Last logged live validation BPB near the 360-min export; the matched 360-min EMA / quantized / post-TTT comparator chain is reported later. The 60-min row is a separate 8xH100 run (PR #1979), not the same pod as the 240/300/360 chain.
 
 ### Live training trajectory around saved/exported checkpoints
 
-This table reports the **last logged live training metrics near each saved/exported checkpoint**, not matched EMA/quantized/post-TTT evals. The 60/120/180/240 rows come from the standalone 4h run; the 300/360 rows come from the resume chain that produced the final 6h artifact.
+This table reports the **last logged live training metrics near each saved/exported checkpoint**, not matched EMA/quantized/post-TTT evals. The 60/120/180/240 rows come from the standalone 4h run (4xH100 NVL); the 300/360 rows come from the resume chain that produced the final 6h artifact. Note: the PR #1979 60-min artifact (step 16,001, 8xH100 SXM) in the summary table above is a different run from the 60-min checkpoint here (step 10,488, standalone 4h).
 
 | Checkpoint minute | Source run | Saved/exported step | Last logged train_loss near checkpoint | Last logged live val_loss | Last logged live val_bpb |
 |-------------------|------------|---------------------|----------------------------------------|---------------------------|--------------------------|
 | 60 | standalone 4h run | 10,488 | 2.4241 (step 10,000) | 2.5649 (step 8,000) | 1.1720 |
 | 120 | standalone 4h run | 17,480 | 2.5575 (step 17,000) | 2.4924 (step 16,000) | 1.1389 |
 | 180 | standalone 4h run | 23,418 | 2.4389 (step 23,000) | 2.4474 (step 20,000) | 1.1183 |
-| 240 | standalone 4h run | ~30K final stop/export | 2.3156 (step 29,500) | 2.3199 (step 29,888) | 1.0600 |
+| 240 | standalone 4h run | 29,888 (wallclock stop) | 2.3156 (step 29,500) | 2.3199 (step 29,888) | 1.0600 |
 | 300 | downloaded seed snapshot for continuation | 36,452 | 2.4071 (step 36,000) | 2.3792 (step 36,000) | 1.0871 |
 | 360 | resumed 6h continuation | 49,765 | 2.2774 (step 48,000) | 2.3197 (step 48,000) | 1.0599 |
 
@@ -118,7 +119,7 @@ This table is the easiest way to see how the post-TTT endpoint moves with traini
 Interpretation:
 
 - The sliding-window control isolates the TTT contribution on the same 360-minute artifact.
-- `v7` improves on the control while using **~4.2 GiB less peak memory** than the full-target `v0` recipe.
+- `v7` improves on the control while using **4.2 GB less peak memory** (43.6 vs 47.8 GB) than the full-target `v0` recipe.
 - `v12` is interesting because it nearly matches the original 3-phase control while using much less global-TTT compute.
 
 ## Matched decomposition and comparator chain
