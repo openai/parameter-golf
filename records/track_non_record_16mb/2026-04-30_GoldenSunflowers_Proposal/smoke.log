@@ -1,0 +1,22 @@
+$ make verify
+train_gpt.py: parse OK
+[1/6] φ-physics OK: φ²+φ⁻²=3.000000000000 α_φ=0.118034 loops=4
+[2/6] PhiNTA OK: trainable=1664 frozen=4096 ratio=0.406
+[3/6] JEPA loss OK: 1.6922 (cosine-similarity form)
+[4/6] UT loop OK: ‖x_4‖/‖x_0‖=1.0406 expected=1.0406
+[5/6] JEPA tap normalisation OK: -1 → last block, in-range indices preserved
+[6/6] E2E TTT gate OK: inner_steps=0 is a no-op (optimizer untouched)
+
+🌻 GOLDEN SUNFLOWERS smoke OK · 6/6 · phi^2 + phi^-2 = 3
+[1/3] state_dict hash baseline  = 511dbc0164e03b1b…
+      state_dict hash GOLDEN SF = 511dbc0164e03b1b…
+[2/3] Gated branches inactive at defaults: phinta=None jepa=0 ut_loops=1 ut_end=0
+[3/3] forward loss baseline=6.929044246674  GS=6.929044246674  |Δ|=0.00e+00
+
+🌻 baseline equivalence OK · 3/3 · phi^2 + phi^-2 = 3
+
+Citation metadata are valid according to schema version 1.2.0.
+theorems/GoldenSunflowers.v: coqc OK (2 Qed)
+
+🌻 GOLDEN SUNFLOWERS · local verify complete
+   phi^2 + phi^-2 = 3
