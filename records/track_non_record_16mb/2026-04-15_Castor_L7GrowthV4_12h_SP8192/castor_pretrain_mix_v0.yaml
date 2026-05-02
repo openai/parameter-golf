@@ -1,0 +1,34 @@
+version: 1
+name: castor_pretrain_mix_v0
+description: |
+  Conversion des sources JSONL Castor vers le format .bin attendu par l7.grow.
+
+tokenizer_path: data/tokenizers/fineweb_8192_bpe.model
+vocab_size: 8192
+output_dir: data/datasets/castor_pretrain_sp8192_v0
+shard_size_tokens: 100000000
+val_ratio: 0.005
+append_eos: false
+batch_size: 1024
+seed: 1337
+
+sources:
+  - name: fineweb_en_v0
+    glob: data/pretrain/raw/fineweb_en_v0/shards/*.jsonl
+    required: true
+    kind: text
+
+  - name: fineweb2_fr_v0
+    glob: data/pretrain/raw/fineweb2_fr_v0/shards/*.jsonl
+    required: true
+    kind: text
+
+  - name: fineweb_edu_en_v0
+    glob: data/pretrain/raw/fineweb_edu_en_v0/shards/*.jsonl
+    required: true
+    kind: text
+
+  - name: commitpack_code_v0
+    glob: data/pretrain/raw/commitpack_code_v0/**/*.jsonl
+    required: false
+    kind: code
