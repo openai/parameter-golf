@@ -1,0 +1,85 @@
+logs/exp106_metasgd-crosschunk-delta_from_exp101_seed42.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26961057
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+ema:initialized decay=0.998 update_every=10 decay_eff=0.980179
+step:0/7500 val_loss:6.9290 val_bpb:4.1037 train_time:0ms step_avg:0.02ms
+step:1/7500 train_loss:6.9298 train_time:1171ms step_avg:1171.15ms
+step:2/7500 train_loss:8.3821 train_time:1784ms step_avg:892.08ms
+step:3/7500 train_loss:7.4634 train_time:2466ms step_avg:822.02ms
+step:4/7500 train_loss:7.6105 train_time:3144ms step_avg:786.03ms
+step:5/7500 train_loss:7.4728 train_time:4192ms step_avg:838.44ms
+step:6/7500 train_loss:7.1414 train_time:4822ms step_avg:803.70ms
+step:7/7500 train_loss:6.8109 train_time:5498ms step_avg:785.40ms
+step:8/7500 train_loss:6.6487 train_time:6168ms step_avg:771.00ms
+step:9/7500 train_loss:6.4284 train_time:7221ms step_avg:802.31ms
+step:10/7500 train_loss:6.1233 train_time:7925ms step_avg:792.52ms
+step:500/7500 train_loss:2.3105 train_time:371835ms step_avg:743.67ms
+step:1000/7500 train_loss:2.2619 train_time:742656ms step_avg:742.66ms
+step:1500/7500 train_loss:2.1360 train_time:1113843ms step_avg:742.56ms
+step:2000/7500 train_loss:2.0513 train_time:1485804ms step_avg:742.90ms
+adaptive_warmdown:triggered step:2200 loss_ema:2.113060 improvement:-0.000157
+step:2500/7500 train_loss:2.0953 train_time:1857430ms step_avg:742.97ms
+step:3000/7500 train_loss:2.0737 train_time:2229129ms step_avg:743.04ms
+step:3000/7500 val_loss:2.0685 val_bpb:1.2251 train_time:2229318ms step_avg:743.11ms
+step:3500/7500 train_loss:2.0580 train_time:2604685ms step_avg:744.20ms
+step:4000/7500 train_loss:2.1169 train_time:2980205ms step_avg:745.05ms
+step:4500/7500 train_loss:2.1019 train_time:3340327ms step_avg:742.29ms
+step:5000/7500 train_loss:2.0041 train_time:3672378ms step_avg:734.48ms
+late_qat:enabled step:5110 scale:0.2500
+swa:start step:5300
+step:5500/7500 train_loss:2.0004 train_time:4003717ms step_avg:727.95ms
+step:6000/7500 train_loss:1.9013 train_time:4337143ms step_avg:722.86ms
+step:6000/7500 val_loss:1.9300 val_bpb:1.1431 train_time:4337436ms step_avg:722.91ms
+step:6500/7500 train_loss:2.0162 train_time:4670936ms step_avg:718.61ms
+step:6686/7500 val_loss:1.9203 val_bpb:1.1373 train_time:4800655ms step_avg:718.02ms
+stopping_early: wallclock_cap train_time:4800655ms step:6686/7500
+peak memory allocated: 31695 MiB reserved: 32472 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9209 val_bpb:1.1377 eval_time:17343ms
+export_excluding_meta_sgd_params:66
+Serialized model: 106028345 bytes
+Code size: 122683 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 64 sequences in 176.7s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+selective_prune: 4125636 +/-1 candidates, unpruned=15.13MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 15746820 bytes
+Total submission size int6+lzma: 15869503 bytes
+Traceback (most recent call last):
+  File "/workspace/parameter-golf/records/track_10min_16mb/exp106_metasgd-crosschunk-delta_from_exp101/train_gpt.py", line 2396, in <module>
+    main()
+  File "/workspace/parameter-golf/records/track_10min_16mb/exp106_metasgd-crosschunk-delta_from_exp101/train_gpt.py", line 2372, in main
+    eval_model.load_state_dict(deq_state, strict=True)
+  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 2629, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for GPT:
+	Missing key(s) in state_dict: "meta_sgd_qo", "meta_sgd_kv", "meta_sgd_up", "meta_sgd_down". 

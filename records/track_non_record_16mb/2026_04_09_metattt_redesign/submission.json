@@ -1,0 +1,53 @@
+{
+  "author": "Sidhant Thole",
+  "github_id": "SPThole",
+  "name": "MetaSGD + Cross-Chunk Split + Delta-Loss Meta-TTT (exp106)",
+  "blurb": "Three-part redesign of exp101's FOMAML meta-TTT to fix same-batch inner/outer leakage: (A) cross-chunk split — inner/outer draw from different sequences (different fineweb10B docs); (B) delta-loss outer objective L_meta=(w_post+w_delta)*L_post - w_delta*L_pre, explicitly rewarding improvement from inner step; (C) MetaSGD — learned per-layer-per-bank inner-loop LR scales (~66 scalars, excluded from 16MB export). Training stopped early at step 6686/7500 (wall-clock). In-script int6 eval crashed (meta_sgd strict load); standalone ttt_from_checkpoint.py used instead. Float-path TTT (QAT off): baseline 1.13767→1.11469 (delta -0.02299). Int6 canonical TTT partial (80%): 1.14160→1.11800. TTT delta ~0.023 bpb — invariant to all meta-TTT formulations. MetaSGD scales converged to ~1.0 (no per-layer LR differentiation learned). Peak GPU 31.7GB vs 23GB for exp101 due to MetaSGD gradient storage.",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "val_loss": 1.87933,
+  "val_bpb": 1.11469,
+  "val_bpb_note": "float-path TTT (QAT off); canonical int6+QAT path partial at 80%: ~1.118",
+  "pre_quant_val_loss": 1.9209,
+  "pre_quant_val_bpb": 1.1377,
+  "int6_roundtrip_val_bpb": null,
+  "int6_roundtrip_note": "in-script eval crashed (RuntimeError: Missing key meta_sgd_qo); see ttt_from_checkpoint.py for standalone eval",
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb_float_ttt": 1.11469,
+      "val_bpb_float_baseline": 1.13767,
+      "float_ttt_delta": -0.02299,
+      "val_bpb_int6_ttt_partial_80pct": 1.11800,
+      "val_bpb_int6_baseline": 1.14160,
+      "pre_quant_val_bpb": 1.1377,
+      "artifact_bytes": 15869503,
+      "model_bytes": 15746820,
+      "code_bytes": 122683,
+      "steps": 6686,
+      "step_avg_ms": 718.02,
+      "wallclock_s": 4800,
+      "meta_sgd_params_excluded": 66,
+      "late_qat_step": 5110,
+      "swa_start_step": 5300,
+      "adaptive_warmdown_step": 2200,
+      "peak_gpu_mib": 31695
+    }
+  },
+  "hardware": "1×H100 80GB SXM",
+  "gptq_calibration": "AR self-generated (64 seqs × 2048 tokens, temp=0.8)",
+  "gptq_layers": 68,
+  "selective_prune_candidates": 4125636,
+  "selective_prune_applied": false,
+  "non_record": true,
+  "experiment_type": "exploration",
+  "parent_arch": "11L XSA-all · BigramHash 4096×64 pos-conditional (ws/non-ws split) · trigram · VE7-10 · FOMAML every=4 · SGD+cosine TTT · int6 GPTQ+lzma · legal_ttt 1.11588",
+  "meta_ttt_changes": {
+    "A_cross_chunk_split": "batch-dim (different documents), fallback seq-half if B<2",
+    "B_delta_loss_weight": 0.3,
+    "C_meta_sgd_enabled": true,
+    "C_meta_sgd_params": 66,
+    "C_meta_sgd_lr": 0.0
+  },
+  "conclusion": "TTT delta (~0.023 bpb) invariant to meta-TTT formulation. MetaSGD scales converge to uniform (~1.0). Meta-training signal too weak relative to main task gradient at META_TTT_EVERY=4."
+}
