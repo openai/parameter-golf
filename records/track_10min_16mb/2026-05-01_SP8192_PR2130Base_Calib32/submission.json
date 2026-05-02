@@ -2,23 +2,20 @@
   "author": "Benjamin Hadad",
   "github_id": "codemath3000",
   "name": "PR #1797 base + n-gram tilt + AsymLogit + #2060 levers + NUM_PHASES=1 + GPTQ_CALIBRATION_BATCHES=32",
-  "blurb": "Single-knob refinement on top of PR #2130: GPTQ_CALIBRATION_BATCHES=32. Every other hyperparameter, env var, and code path is byte-for-byte the PR #2130 reproduction command. 3-seed mean val_bpb 1.05651 (sample std 3.58e-04), beats PR #2130's 1.05670 by 0.00019 BPB. Full validation target coverage preserved (val_tokens == target_tokens == 47851520).",
+  "blurb": "11L 512d SP8192 CaseOps stack with LQER asymmetric rank-4 correction, SparseAttnGate, BOS-fixed SmearGate, AsymLogit Rescale, token-only n-gram tilt (per merged PR #1514), per-group compression, single-phase quantized phased score-first TTT (LoRA RANK=80, K-off), with GPTQ calibration batches doubled from 16 to 32. Full validation target coverage preserved: val_tokens == target_tokens == 47,851,520 in all included logs.",
   "date": "2026-05-01",
   "track": "10min_16mb",
   "val_loss": 2.31203043,
   "val_bpb": 1.05650768,
   "val_loss_std": 0.00077803,
   "val_bpb_std": 0.00035573,
-  "seeds": [
-    314,
-    42,
-    0
-  ],
+  "seeds": [314, 42, 0],
   "seed_results": {
     "314": {
       "val_loss": 2.31227656,
       "val_bpb": 1.05662016,
       "artifact_bytes": 15945305,
+      "steps": 4983,
       "step_avg_ms": 120.32,
       "train_wallclock_ms": 599593,
       "eval_time_s": 567.1,
@@ -31,6 +28,7 @@
       "val_loss": 2.31115900,
       "val_bpb": 1.05610947,
       "artifact_bytes": 15947490,
+      "steps": 5001,
       "step_avg_ms": 119.91,
       "train_wallclock_ms": 599672,
       "eval_time_s": 540.1,
@@ -43,6 +41,7 @@
       "val_loss": 2.31265572,
       "val_bpb": 1.05679341,
       "artifact_bytes": 15942822,
+      "steps": 4997,
       "step_avg_ms": 119.99,
       "train_wallclock_ms": 599608,
       "eval_time_s": 567.1,
@@ -52,32 +51,36 @@
       "quantized_val_bpb": 1.06939370
     }
   },
-  "comparison_baseline": "PR #2130",
-  "comparison_baseline_bpb": 1.0566953,
-  "delta_vs_baseline_bpb": -0.00018762,
-  "merged_leaderboard_baseline": "PR #1855",
-  "merged_leaderboard_baseline_bpb": 1.06107587,
+  "comparison_baseline": "PR #1855 merged leaderboard record",
+  "comparison_baseline_bpb": 1.06107587,
+  "comparison_baseline_loss": 2.32202732,
   "delta_vs_leaderboard_bpb": -0.00456819,
+  "delta_vs_leaderboard_nats": -0.00999689,
+  "artifact_bytes_mean": 15945206,
   "artifact_bytes_max": 15947490,
+  "bytes_total": 15947490,
+  "train_steps_mean": 4993.67,
+  "train_wallclock_ms_mean": 599624,
   "train_wallclock_ms_max": 599672,
   "step_avg_ms_mean": 120.07,
   "eval_time_s_mean": 558.1,
   "eval_time_s_max": 567.1,
   "hardware": "8xH100 80GB SXM",
   "pytorch_version": "2.11.0+cu130",
-  "lever_changes": [
-    {
-      "name": "GPTQ_CALIBRATION_BATCHES",
-      "from": 16,
-      "to": 32
-    }
-  ],
+  "technique_summary": "PR #2130 stack (token-only n-gram tilt + AsymLogit Rescale + #2060 hp levers + NUM_PHASES=1 on PR #1797 / PR #1855 lineage) with a single hyperparameter change: GPTQ_CALIBRATION_BATCHES doubled from 16 to 32. All other code paths and env vars are byte-for-byte identical to the PR #2130 reproduction.",
   "compliance": {
     "artifact_under_16mb": true,
-    "train_under_600s": true,
+    "train_under_600s_strict": true,
     "eval_under_600s": true,
-    "n_seeds": 3,
+    "three_seeds": true,
     "full_validation_targets": true,
+    "score_before_update": "Quantized phased TTT scores each validation chunk before the LoRA update; inherited unchanged from PR #2130. Within-word and word-start n-gram channels are explicitly disabled (logs confirm within_gate=0 word_gate=0 agree2plus=0).",
+    "no_validation_training_leak": true,
     "val_tokens_equal_target_tokens": true
+  },
+  "logs": {
+    "seed314": "train_seed314.log",
+    "seed42": "train_seed42.log",
+    "seed0": "train_seed0.log"
   }
 }

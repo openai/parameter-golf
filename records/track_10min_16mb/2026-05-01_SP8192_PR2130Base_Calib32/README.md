@@ -1,24 +1,24 @@
-# Record candidate: PR #1797 base + Token-only n-gram tilt + AsymLogit Rescale + #2060 levers + NUM_PHASES=1 + GPTQ_CALIBRATION_BATCHES=32 — val_bpb 1.05651 (3-seed mean)
+# Record candidate: PR #1797 base + Token-only n-gram tilt + AsymLogit Rescale + #2060 levers + NUM_PHASES=1 + GPTQ_CALIBRATION_BATCHES=32
 
-**val_bpb: 1.05651** (3-seed mean, sample std 3.58e-04) | **15.95 MB max** | 8xH100 SXM | 600s train / 600s eval
+**val_bpb: 1.05651** (3-seed mean, std 0.00036) | **val_loss: 2.31203 nats** (std 0.00078) | **15.95 MB max** | 8xH100 SXM | 600s train / 600s eval
 
-**Improvement over comparison baseline PR #2130 (1.05670 BPB):** -0.00019 BPB
-**Improvement over merged PR #1855 leaderboard record (1.06108 BPB):** -0.00457 BPB
+**Improvement over merged PR #1855 leaderboard record (1.06107587 BPB):**
+**-0.00457 BPB / -0.01000 nats**
 
 This submission keeps the PR #2130 architecture/training stack identical and only changes: **GPTQ_CALIBRATION_BATCHES=32**. Every other hyperparameter, env var, and code path is byte-for-byte the PR #2130 reproduction command.
 
 ## Results
 
-| Seed | Pre-quant BPB | Quant BPB | Post-TTT BPB | TTT eval s | Artifact bytes |
-|------|---------------|-----------|--------------|------------|----------------|
-| 0    | 1.06105556    | 1.06939370 | **1.05679341** | 567.1     | 15,942,822    |
-| 42   | 1.06026908    | 1.06867913 | **1.05610947** | 540.1     | 15,947,490    |
-| 314  | 1.06091124    | 1.06921334 | **1.05662016** | 567.1     | 15,945,305    |
-| **Mean** | **1.06074529** | **1.06909539** | **1.05650768** | **558.1** | **15,945,206** |
+| Seed | Steps | ms/step | Train ms | Pre-quant BPB | Quant BPB | **Post-TTT BPB** | TTT eval s | Artifact bytes |
+|-----:|------:|--------:|---------:|--------------:|----------:|-----------------:|-----------:|---------------:|
+| 0    | 4,997 | 120.0   | 599,608  | 1.06105556    | 1.06939370 | **1.05679341**   | 567.1      | 15,942,822     |
+| 42   | 5,001 | 119.9   | 599,672  | 1.06026908    | 1.06867913 | **1.05610947**   | 540.1      | 15,947,490     |
+| 314  | 4,983 | 120.3   | 599,593  | 1.06091124    | 1.06921334 | **1.05662016**   | 567.1      | 15,945,305     |
+| **Mean** | **4,994** | **120.1** | **599,624** | **1.06074529** | **1.06909539** | **1.05650768** | **558.1** | **15,945,206** |
 
-3-seed sample std (n−1): 3.58e-04 BPB / 7.78e-04 nats.
+3-seed sample std: **0.00035573 BPB / 0.00077803 nats**.
 
-All seeds under the 16,000,000-byte artifact cap and 600s train/eval budgets.
+All seeds under the 16,000,000-byte artifact cap and 600s train/eval budgets. Maximum artifact is **15,947,490 bytes** and the maximum eval pass is **567.1s**.
 
 ## Full validation coverage
 
