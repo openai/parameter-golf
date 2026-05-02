@@ -2,7 +2,7 @@
 
 **val_bpb: 1.16362299**
 
-Five improvements over the naive baseline, each contributing independently to the final score.
+Five improvements over the naive baseline, found via ~200 automated experiments using [Karpathy's autoresearch framework](https://github.com/karpathy/autoresearch) on 1×H100.
 
 ### Changes from Baseline
 
