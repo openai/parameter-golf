@@ -1,0 +1,17 @@
+{
+  "author": "lock757",
+  "github_id": "lock757",
+  "name": "Ghost v7C ResFormerSparse Leaky LaCT experimental",
+  "blurb": "Experimental non-record branch: sparse ResFormer-style value residual learning, LeakyReLU(0.5)^2, LaCT-style score-first TTT, no-QV TTT mask, corrected quant/dequant roundtrip, clean export before TTT, and corrected per-token sliding eval. CPU micro-simulation included; full official 8xH100 validation pending.",
+  "date": "2026-04-30",
+  "record_claim": false,
+  "experimental_non_record": true,
+  "val_loss": null,
+  "val_bpb": null,
+  "step_stop": null,
+  "wallclock_seconds": null,
+  "bytes_total": null,
+  "bytes_model_compressed": null,
+  "bytes_code": null,
+  "notes": "Do not treat as a leaderboard record unless real challenge logs are added. CPU micro-sim only validates core mechanics."
+}
