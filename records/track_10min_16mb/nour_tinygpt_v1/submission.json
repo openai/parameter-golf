@@ -1,0 +1,13 @@
+{
+  "name": "nour_tinygpt_v1",
+  "description": "Lightweight GPT model optimized for speed on FineWeb sp1024 dataset (Parameter Golf challenge).",
+  "entry_point": "train.py",
+  "framework": "pytorch",
+  "hardware": "gpu",
+  "optimizations": [
+    "reduced model size",
+    "smaller context length",
+    "cosine learning rate schedule",
+    "gradient clipping"
+  ]
+}

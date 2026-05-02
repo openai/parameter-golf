@@ -1,0 +1,7 @@
+{
+  "name": "Nour Masmoudi",
+  "github_id": "Nour-Masmoudi25",
+  "run_name": "nour_tinygpt_v1",
+  "val_bpb": 1.20,
+  "description": "TinyGPT baseline with weight tying and compact transformer"
+}
