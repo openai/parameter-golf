@@ -1,0 +1,67 @@
+{
+  "author": "Eren Akbulut",
+  "github_id": "eren23",
+  "name": "JEPA-on-LM 14-run Ablation (negative result, baseline-tying recipe)",
+  "blurb": "Non-record ablation of JEPA auxiliary objectives on a 17.06M-param BaselineGPT (9x512, KV4, MLP_MULT=2, sp1024, FineWeb 10B, promotion preset, 50K steps). 14 configs spanning lambda in [0.0001, 0.2], V-JEPA covariance, VICReg variance reg, predictor injection, chunk depth, two seeds. Cleanest recipe (Path-A MSE only with alpha=0.001, VAR_WEIGHT=0) ties baseline exactly at val_bpb=1.2311. Same-seed JEPA-vs-baseline gap of +0.0007 to +0.0009 is below the cross-seed 0.0022 noise floor. Quant pipeline NOT run for this submission - reporting pre-quant val_bpb at step 50K to document the ablation finding.",
+  "date": "2026-05-02T09:36:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.0786,
+  "val_bpb": 1.2311,
+  "pre_quant_val_loss": 2.0786,
+  "pre_quant_val_bpb": 1.2311,
+  "step_stop": 50000,
+  "wallclock_seconds": 6281.365,
+  "bytes_total": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": 14347,
+  "extra": {
+    "submission_kind": "ablation-finding",
+    "best_variant": "jepa-var-zero",
+    "best_variant_config": {
+      "MODEL_FAMILY": "jepa_lm",
+      "JEPA_ALPHA": 0.001,
+      "JEPA_BETA": 0.0,
+      "JEPA_VAR_WEIGHT": 0.0,
+      "JEPA_COVAR_WEIGHT": 0.0,
+      "JEPA_CHUNK": 8,
+      "JEPA_PREDICTOR_DIM": 64,
+      "JEPA_INJECTION": 0,
+      "SEED": 1337
+    },
+    "baseline_at_same_seed": {
+      "name": "baseline-promo",
+      "seed": 1337,
+      "val_bpb": 1.2311,
+      "val_loss": 2.0786
+    },
+    "baseline_at_alt_seed": {
+      "name": "baseline-seed42",
+      "seed": 42,
+      "val_bpb": 1.2289,
+      "val_loss": 2.0723
+    },
+    "param_count_baseline": 17059912,
+    "param_count_jepa": 17125448,
+    "predictor_overhead_pct": 0.4,
+    "n_runs": 14,
+    "lambda_sweep": [0.0001, 0.0005, 0.001, 0.005, 0.2],
+    "ablation_table": [
+      {"run": "baseline-seed42",      "seed": 42,   "config": "control",                                                "step": 50000, "val_bpb": 1.2289},
+      {"run": "tiny-lambda-seed42",   "seed": 42,   "config": "alpha=0.001",                                            "step": 50000, "val_bpb": 1.2298},
+      {"run": "var-zero",             "seed": 1337, "config": "alpha=0.001 VAR_WEIGHT=0",                               "step": 50000, "val_bpb": 1.2311},
+      {"run": "baseline-promo",       "seed": 1337, "config": "control",                                                "step": 50000, "val_bpb": 1.2311},
+      {"run": "tiny-lambda-v3",       "seed": 1337, "config": "alpha=0.001",                                            "step": 50000, "val_bpb": 1.2318},
+      {"run": "half-lambda",          "seed": 1337, "config": "alpha=0.0005",                                           "step": 50000, "val_bpb": 1.2318},
+      {"run": "chunk16",              "seed": 1337, "config": "alpha=0.001 JEPA_CHUNK=16",                              "step": 50000, "val_bpb": 1.2318},
+      {"run": "aux+token-tiny",       "seed": 1337, "config": "alpha=0.001 beta=0.001",                                 "step": 50000, "val_bpb": 1.2361},
+      {"run": "tenth-lambda",         "seed": 1337, "config": "alpha=0.0001",                                           "step": 40000, "val_bpb": 1.2362},
+      {"run": "covar-v3",             "seed": 1337, "config": "alpha=0.005 COVAR_WEIGHT=0.05",                          "step": 50000, "val_bpb": 1.2374},
+      {"run": "token-only-tiny",      "seed": 1337, "config": "beta=0.001",                                             "step": 40000, "val_bpb": 1.2408},
+      {"run": "injection-v2",         "seed": 1337, "config": "alpha=0.005 INJECTION=1",                                "step": 40000, "val_bpb": 1.2456},
+      {"run": "aux-v1",               "seed": 1337, "config": "alpha=0.2 (v1 default - too high)",                      "step": 50000, "val_bpb": 1.2492},
+      {"run": "aux-low-v2",           "seed": 1337, "config": "alpha=0.005",                                            "step": 30000, "val_bpb": 1.2553}
+    ],
+    "tap_finding_url": "https://github.com/eren23/crucible-community-tap/tree/main/findings/parameter-golf-jepa-ablation",
+    "tap_architecture_url": "https://github.com/eren23/crucible-community-tap/tree/main/architectures/jepa_lm"
+  }
+}
