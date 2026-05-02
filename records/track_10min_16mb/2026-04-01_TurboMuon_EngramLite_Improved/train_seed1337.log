@@ -1,0 +1,35 @@
+model_params:31617116
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.03 scalar_lr:0.03
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+gptq:reserving 9000ms from training budget (effective cap: 591000ms)
+step:1/20000 train_loss:6.9328 train_time:4225ms step_avg:4224.89ms
+step:10/20000 train_loss:5.5569 train_time:5083ms step_avg:508.26ms
+step:500/20000 train_loss:2.3693 train_time:56744ms step_avg:113.49ms
+step:1000/20000 train_loss:2.2425 train_time:110050ms step_avg:110.05ms
+step:1500/20000 train_loss:2.1567 train_time:163250ms step_avg:108.83ms
+step:2000/20000 train_loss:2.0093 train_time:216386ms step_avg:108.19ms
+step:2500/20000 train_loss:2.1145 train_time:269427ms step_avg:107.77ms
+step:3000/20000 train_loss:2.0952 train_time:322402ms step_avg:107.47ms
+step:3500/20000 train_loss:2.1025 train_time:375359ms step_avg:107.25ms
+step:4000/20000 train_loss:1.8944 train_time:428276ms step_avg:107.07ms
+step:4500/20000 train_loss:2.0390 train_time:481187ms step_avg:106.93ms
+swa:start step:4650
+late_qat:enabled step:4856 scale:0.1498 soft_round=True est_steps:674
+step:5000/20000 train_loss:2.0136 train_time:534109ms step_avg:106.82ms
+step:5500/20000 train_loss:1.9302 train_time:587032ms step_avg:106.73ms
+step:5538/20000 train_time:591105ms step_avg:106.74ms
+stopping_early: wallclock_cap train_time:591105ms step:5538/20000
+peak memory allocated: 24793 MiB reserved: 24806 MiB
+swa:applying averaged 18 checkpoints (source=raw)
+mixed_precision: int5:66 (0 groups promoted)
+selective_prune: pruning 2585273/12560353 values (20.6%) to fit 16.00MB
+Serialized model int6+brotli: 15842252 bytes
+Total submission size int6+brotli: 15988293 bytes
+final_int6_roundtrip val_loss:1.9683 val_bpb:1.1657
+final_int6_roundtrip_exact val_loss:1.96830942 val_bpb:1.16574371
+final_int6_sliding_window val_loss:1.9290 val_bpb:1.1425 stride:64
+final_int6_sliding_window_exact val_loss:1.92898083 val_bpb:1.14245413
