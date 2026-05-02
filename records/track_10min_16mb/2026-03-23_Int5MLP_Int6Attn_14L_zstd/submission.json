@@ -1,0 +1,8 @@
+{
+    "name": "Edison Duong",
+    "github": "edidishenge",
+    "val_bpb": 1.1996,
+    "artifact_bytes": 15961747,
+    "date": "2026-03-23",
+    "summary": "11 layers, mlp_mult=3, int5 MLP + int6 attention + zstd-22 compression"
+}
