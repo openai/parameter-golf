@@ -1,24 +1,26 @@
-# Record: PR #2014 stack + LeakyReLU 0.3 + strict in-timer n-gram TTT (val_bpb 1.05601)
+# Corrected: PR #2014 stack + LeakyReLU 0.3 + token-only in-timer n-gram TTT (val_bpb 1.05702)
 
-**3-seed mean: val_bpb 1.05601155** | **max 15,997,965 bytes** | 8xH100 SXM | 600s train + in-timer eval
+**Corrected 3-seed mean: val_bpb 1.05701907** | **max 15,989,637 bytes** | 8xH100 SXM | 600s train + in-timer eval
+
+This commit corrects the originally submitted #2140 state. The initial #2140 logs accidentally restored the within-word, word-start, and agreement n-gram channels. The corrected run uses the intended PR #2018 posture: token-only n-gram tilt, with the target-token-gated channels disabled.
 
 ## Results
 
 | Seed | Train steps | Pre-quant val_bpb | Quantized val_bpb | Post-TTT val_bpb | Train time | Eval time | Artifact bytes | Notes |
 |------|------------:|------------------:|------------------:|-----------------:|-----------:|----------:|---------------:|-------|
-| 42 | 4,875 | 1.05971819 | 1.06768136 | **1.05528133** | 596.1s | 580.7s | 15,997,965 | in-timer n-gram hints, prefix=2500, chunk=64 |
-| 314 | 4,879 | 1.06052597 | 1.06877627 | **1.05629015** | 596.0s | 583.1s | 15,992,681 | in-timer n-gram hints, prefix=2500, chunk=64 |
-| 0 | 4,877 | 1.06101308 | 1.06891132 | **1.05646316** | 596.1s | 545.2s | 15,996,288 | in-timer n-gram hints, prefix=2500, chunk=64 |
-| **Mean** | **4877** | **1.06041908** | **1.06845632** | **1.05601155** | **596.1s** | **569.7s** | **15,997,965 max** | 3 seeds |
+| 42 | 4,901 | 1.05911087 | 1.06721120 | **1.05590816** | 596.1s | 506.3s | 15,989,637 | token-only in-timer n-gram hints, prefix=2500, chunk=64 |
+| 0 | 4,861 | 1.06126113 | 1.07025102 | **1.05838308** | 596.2s | 553.5s | 15,985,432 | token-only in-timer n-gram hints, prefix=2500, chunk=64 |
+| 314 | 4,855 | 1.06013753 | 1.06808383 | **1.05676598** | 596.1s | 473.2s | 15,983,433 | token-only in-timer n-gram hints, prefix=2500, chunk=64 |
+| **Mean** | **4872.3** | **1.06016984** | **1.06851535** | **1.05701907** | **596.1s** | **511.0s** | **15,989,637 max** | 3 corrected seeds |
 
-Compared with the last merged leaderboard record (#1855, 1.06107587 BPB), this 3-seed mean improves val_bpb by **0.00506432**.
+Compared with the last merged leaderboard record (#1855, 1.06107587 BPB), this corrected 3-seed mean improves val_bpb by **0.00405680**.
 
 ## Summary
 
-This submission starts from the PR #2014 strict-compliance stack and adds two changes:
+This corrected submission starts from the PR #2014 strict-compliance stack and adds two changes:
 
 1. **LeakyReLU-square slope 0.3.** PR #2014 inherited the older LeakyReLU(0.5)^2 MLP slope. This changes the fused/eager LeakyReLU-square path to slope 0.3, following the later PR #1967 lineage.
-2. **Strict in-timer online n-gram tilt during TTT eval.** This ports the in-timer online n-gram tilt approach we introduced in PR #2018 into the PR #2014 progressive-context / short-doc TTT path. Hints are built causally from validation tokens inside the measured TTT eval timer (`NGRAM_HINT_PRECOMPUTE_OUTSIDE=0`) and applied as a scoring-time posterior adjustment to per-token NLL.
+2. **Token-only in-timer online n-gram tilt during TTT eval.** This ports the in-timer online n-gram tilt approach we introduced in PR #2018 into the PR #2014 progressive-context / short-doc TTT path. Hints are built causally from validation tokens inside the measured TTT eval timer (`NGRAM_HINT_PRECOMPUTE_OUTSIDE=0`) and applied as a scoring-time posterior adjustment to per-token NLL. The within-word, word-start, and agreement channels are disabled (`WITHIN_BOOST=0.0`, `WORD_BOOST=0.0`, `AGREE_ADD_BOOST=0.0`).
 
 The n-gram path does not add model parameters and has no artifact-size cost beyond source files. The run keeps the PR #2014 global prefix phase (`PHASED_TTT_PREFIX_DOCS=2500`) and uses larger TTT chunks to fit hint construction and scoring inside the 600s eval budget.
 
@@ -28,19 +30,20 @@ The n-gram path does not add model parameters and has no artifact-size cost beyo
 |-----------|----------|-----------------|
 | Base stack | Progressive 3k context growth + ShortDoc TTT + CaseOps + LQER + AWQ-lite | Same |
 | LeakyReLU-square slope | 0.5 | 0.3 |
-| Eval-time n-gram tilt | off | on, causal, in timer |
+| Eval-time n-gram tilt | off | token-only, causal, in timer |
 | N-gram hint timing | n/a | `NGRAM_HINT_PRECOMPUTE_OUTSIDE=0` |
 | Global phased TTT prefix | 2500 docs | 2500 docs |
 | TTT chunking | 48 / short 24 | 64 / short 32 |
-| Artifact | PR #2014 per-group compressed artifact | same compression path, 15,997,965 bytes max |
+| Artifact | PR #2014 per-group compressed artifact | same compression path, 15,989,637 bytes max |
 
 ## Compliance notes
 
-- **Training cap:** all three seeds stopped under 600s (`596.142s`, `596.003s`, `596.061s`).
-- **Eval cap:** all three final TTT evals are under 600s (`580.667s`, `583.138s`, `545.161s`). All use `NGRAM_HINT_PRECOMPUTE_OUTSIDE=0`, so n-gram hint generation is inside the measured eval timer.
-- **Artifact cap:** max observed `Total submission size quantized+pergroup` is 15,997,965 bytes, under 16 MB.
+- **Training cap:** all three corrected seeds stopped under 600s (`596.069s`, `596.182s`, `596.099s`).
+- **Eval cap:** all three corrected final TTT evals are under 600s (`506.254s`, `553.458s`, `473.217s`). All use `NGRAM_HINT_PRECOMPUTE_OUTSIDE=0`, so n-gram hint generation is inside the measured eval timer.
+- **Artifact cap:** max observed `Total submission size quantized+pergroup` is 15,989,637 bytes, under 16 MB.
 - **Score-first TTT:** the LoRA TTT path scores each chunk before any per-doc update. The global prefix SGD phase runs after the prefix docs have already been scored.
-- **N-gram causality:** hints are generated by a single left-to-right pass over validation tokens and aligned to target positions. The tilt uses prefix-derived hint IDs and boosts; it does not inspect future tokens for the scored position.
+- **N-gram causality:** hints are generated by a single left-to-right pass over validation tokens and aligned to target positions. The tilt uses prefix-derived token hint IDs and boosts; it does not inspect future tokens for the scored position.
+- **Token-only diagnostic:** all corrected evals report `ngram_tilt:hints total=47853343 gated=628156 token_gate=628156 within_gate=0 word_gate=0 agree2plus=0`.
 
 ## Key settings
 
@@ -83,12 +86,12 @@ TOKEN_ORDER=16
 TOKEN_THRESHOLD=0.800
 TOKEN_BOOST=2.625
 WITHIN_TAU=0.450
-WITHIN_BOOST=0.750
+WITHIN_BOOST=0.0
 WORD_ORDER=4
 WORD_NORMALIZE=strip_punct_lower
 WORD_TAU=0.650
-WORD_BOOST=0.750
-AGREE_ADD_BOOST=0.500
+WORD_BOOST=0.0
+AGREE_ADD_BOOST=0.0
 
 WARMDOWN_FRAC=0.85
 BETA2=0.99
@@ -128,11 +131,10 @@ VAL_LOSS_EVERY=0
 
 - `train_gpt.py` — full script for the candidate.
 - `online_ngram_tilt.py`, `online_ngram_state.c` — online causal n-gram hint builder and scoring-time tilt helper, from the PR #2018 in-timer n-gram tilt work.
-- `train_seed42.log` — seed-42 training + quantization log for the artifact reused by the eval sweep.
-- `eval_seed42_ngram_p0_c64.log` — earlier seed-42 in-timer n-gram TTT eval log with prefix disabled.
-- `eval_seed42_ngram_p2500_c64.log` — seed-42 frozen-settings in-timer n-gram TTT eval log.
-- `train_eval_seed314.log` — seed-314 training, quantization, and in-timer TTT eval log.
-- `train_eval_seed0.log` — seed-0 training, quantization, and in-timer TTT eval log.
+- `train_eval_seed42_corrected_token_only.log` — corrected seed-42 token-only in-timer TTT eval log, using the corrected seed-42 training artifact.
+- `train_eval_seed0_corrected_token_only.log` — corrected seed-0 training, quantization, and token-only in-timer TTT eval log.
+- `train_eval_seed314_corrected_token_only.log` — corrected seed-314 training, quantization, and token-only in-timer TTT eval log.
+- `train_seed42.log`, `eval_seed42_ngram_p0_c64.log`, `eval_seed42_ngram_p2500_c64.log`, `train_eval_seed314.log`, `train_eval_seed0.log` — superseded initial #2140 logs retained for transparency; these used the accidental within-word / word-start / agreement n-gram channels and are not the corrected token-only result.
 - `prepare_caseops_data.py`, `lossless_caps.py`, `tokenizers/...model` — CaseOps data/tokenizer helpers from the merged #1855 lineage.
 - `submission.json` — structured 3-seed metadata.
 
@@ -147,7 +149,7 @@ SEED=42 DATA_PATH=./data/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_res
 For the eval-only sweep used here, load the saved quantized artifact and run with:
 
 ```bash
-TTT_EVAL_ONLY=1 NGRAM_TILT_ENABLED=1 NGRAM_HINT_PRECOMPUTE_OUTSIDE=0 PHASED_TTT_PREFIX_DOCS=2500 TTT_CHUNK_SIZE=64 TTT_SHORT_CHUNK_SIZE=32 TTT_SHORT_SCORE_FIRST_STEPS=256:16,2000:32 torchrun --standalone --nproc_per_node=8 train_gpt.py
+TTT_EVAL_ONLY=1 NGRAM_TILT_ENABLED=1 NGRAM_HINT_PRECOMPUTE_OUTSIDE=0 WITHIN_BOOST=0.0 WORD_BOOST=0.0 AGREE_ADD_BOOST=0.0 PHASED_TTT_PREFIX_DOCS=2500 TTT_CHUNK_SIZE=64 TTT_SHORT_CHUNK_SIZE=32 TTT_SHORT_SCORE_FIRST_STEPS=256:16,2000:32 torchrun --standalone --nproc_per_node=8 train_gpt.py
 ```
 
 ## Credits

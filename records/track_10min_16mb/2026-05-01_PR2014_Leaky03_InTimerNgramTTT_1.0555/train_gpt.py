@@ -486,12 +486,12 @@ class Hyperparameters:
     token_threshold = float(os.environ.get("TOKEN_THRESHOLD", "0.800"))
     token_boost = float(os.environ.get("TOKEN_BOOST", "2.625"))
     within_tau = float(os.environ.get("WITHIN_TAU", "0.450"))
-    within_boost = float(os.environ.get("WITHIN_BOOST", "0.750"))
+    within_boost = float(os.environ.get("WITHIN_BOOST", "0.0"))
     word_order = int(os.environ.get("WORD_ORDER", "4"))
     word_normalize = os.environ.get("WORD_NORMALIZE", "strip_punct_lower")
     word_tau = float(os.environ.get("WORD_TAU", "0.650"))
-    word_boost = float(os.environ.get("WORD_BOOST", "0.750"))
-    agree_add_boost = float(os.environ.get("AGREE_ADD_BOOST", "0.500"))
+    word_boost = float(os.environ.get("WORD_BOOST", "0.0"))
+    agree_add_boost = float(os.environ.get("AGREE_ADD_BOOST", "0.0"))
     ngram_hint_precompute_outside = bool(int(os.environ.get("NGRAM_HINT_PRECOMPUTE_OUTSIDE", "1")))
     # === ML INTERN PR #2014-EVOLUTION TRANSPLANTS (2026-05-01) ===
     # T1. Skylight Muon u/w floor (modded-nanogpt PR #269, merged 2026-04-30).

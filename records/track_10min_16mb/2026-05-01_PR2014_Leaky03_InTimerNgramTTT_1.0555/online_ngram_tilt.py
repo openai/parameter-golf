@@ -229,10 +229,10 @@ def build_piece_luts(*, tokenizer_path, vocab_size):
 def build_hints_for_targets(
     *, target_token_ids_np, tokenizer_path, vocab_size, log0=print,
     token_order=16, token_threshold=0.800, token_boost=2.625,
-    within_tau=0.450, within_boost=0.750,
+    within_tau=0.450, within_boost=0.0,
     word_order=4, word_normalize="strip_punct_lower",
-    word_tau=0.650, word_boost=0.750,
-    agree_add_boost=0.500,
+    word_tau=0.650, word_boost=0.0,
+    agree_add_boost=0.0,
 ):
     """Single L->R pass. Returns dict with hint_ids, gate_mask, boost_per_pos.
 
@@ -265,25 +265,39 @@ def build_hints_for_targets(
     token_table_bits = suggest_table_bits(total, load_factor=0.55)
     within_table_bits = suggest_table_bits(max(total // 2, 1), load_factor=0.60)
     online_lib = ensure_online_ngram_lib(log0)
+    within_enabled = within_boost > 0.0
+    word_enabled = word_boost > 0.0
+    agree_enabled = agree_add_boost > 0.0
+    within_starts_new_word_lut = starts_new_word_lut if within_enabled else np.ones_like(starts_new_word_lut)
+    within_boundary_lut = boundary_lut if within_enabled else np.ones_like(boundary_lut)
+
     ngram_state = OnlineNgramState(
         lib=online_lib,
         token_ctx_len=max(token_order - 1, 0),
         token_table_bits=token_table_bits,
         within_table_bits=within_table_bits,
-        starts_new_word_lut=starts_new_word_lut,
-        boundary_lut=boundary_lut,
+        starts_new_word_lut=within_starts_new_word_lut,
+        boundary_lut=within_boundary_lut,
         seed_prefix_token=int(target_token_ids_np[0]),
     )
-    word_state = WordStartState(sp=sp, order=word_order, normalize_mode=word_normalize)
 
     token_top_tok, token_top_prob, within_top_tok, within_top_prob, within_valid = (
         ngram_state.process_chunk(target_token_ids_np)
     )
-    word_top_tok, word_top_prob = word_state.process_chunk(
-        target_token_ids_np,
-        starts_new_word_lut=starts_new_word_lut,
-        boundary_lut=boundary_lut,
-    )
+    if not within_enabled:
+        within_top_tok.fill(0)
+        within_top_prob.fill(0.0)
+        within_valid.fill(False)
+    if word_enabled:
+        word_state = WordStartState(sp=sp, order=word_order, normalize_mode=word_normalize)
+        word_top_tok, word_top_prob = word_state.process_chunk(
+            target_token_ids_np,
+            starts_new_word_lut=starts_new_word_lut,
+            boundary_lut=boundary_lut,
+        )
+    else:
+        word_top_tok = np.zeros(total, dtype=np.uint16)
+        word_top_prob = np.zeros(total, dtype=np.float32)
 
     def _expected_gain(p_top, boost):
         # E[ -log p'(y) under -log p(y)] when y ~ p
@@ -293,8 +307,8 @@ def build_hints_for_targets(
         return p_top * boost - log_norm
 
     token_gate = token_top_prob >= np.float32(token_threshold)
-    within_gate = within_valid & (within_top_prob >= np.float32(within_tau))
-    word_gate = word_top_prob >= np.float32(word_tau)
+    within_gate = within_valid & (within_top_prob >= np.float32(within_tau)) if within_enabled else np.zeros(total, dtype=bool)
+    word_gate = word_top_prob >= np.float32(word_tau) if word_enabled else np.zeros(total, dtype=bool)
 
     token_gain = np.where(token_gate, _expected_gain(token_top_prob.astype(np.float64), token_boost), -np.inf)
     within_gain = np.where(within_gate, _expected_gain(within_top_prob.astype(np.float64), within_boost), -np.inf)
@@ -318,18 +332,22 @@ def build_hints_for_targets(
     hint_ids[any_gate] = hint_per_expert[rows[any_gate], best_idx[any_gate]]
     boost[any_gate] = base_boost_per_expert[best_idx[any_gate]]
 
-    # Agreement bonus: if 2+ experts agree on the same hint as best, add agree_add_boost
-    gate_mask_each = np.stack([token_gate, within_gate, word_gate], axis=1)
-    expert_hints = hint_per_expert.copy()
-    expert_hints[~gate_mask_each] = -1
-    agreements = (expert_hints == hint_ids[:, None]).sum(axis=1)
-    agreement_extra = np.where(agreements >= 2, np.float32(agree_add_boost), np.float32(0.0))
-    boost = (boost + agreement_extra).astype(np.float32)
+    # Agreement bonus is a separate channel; keep it fully off when boost is 0.
+    if agree_enabled:
+        gate_mask_each = np.stack([token_gate, within_gate, word_gate], axis=1)
+        expert_hints = hint_per_expert.copy()
+        expert_hints[~gate_mask_each] = -1
+        agreements = (expert_hints == hint_ids[:, None]).sum(axis=1)
+        agreement_extra = np.where(agreements >= 2, np.float32(agree_add_boost), np.float32(0.0))
+        boost = (boost + agreement_extra).astype(np.float32)
+        agree2plus = int((agreements >= 2).sum())
+    else:
+        agree2plus = 0
 
     log0(
         f"ngram_tilt:hints total={total} gated={int(any_gate.sum())} "
         f"token_gate={int(token_gate.sum())} within_gate={int(within_gate.sum())} word_gate={int(word_gate.sum())} "
-        f"agree2plus={int((agreements >= 2).sum())}"
+        f"agree2plus={agree2plus}"
     )
 
     return {
