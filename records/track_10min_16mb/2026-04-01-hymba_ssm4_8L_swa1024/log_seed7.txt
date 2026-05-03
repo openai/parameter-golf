@@ -1,0 +1,144 @@
+W0402 01:49:11.542000 35765 torch/distributed/run.py:774] 
+W0402 01:49:11.542000 35765 torch/distributed/run.py:774] *****************************************
+W0402 01:49:11.542000 35765 torch/distributed/run.py:774] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0402 01:49:11.542000 35765 torch/distributed/run.py:774] *****************************************
+logs/54e572f9-2ca1-43df-9c82-9f6589a3272f.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:61997056
+model_params:31357512
+world_size:8 grad_accum_steps:1
+attention_mode:gqa num_heads:8 num_kv_heads:4
+num_layers:8 mlp_mult:4 kv_share_every:1 meta_tokens:0 sliding_window:1024
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:524288 train_seq_len:32768 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:7
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1481: UserWarning: Dynamo does not know how to trace the builtin `selective_scan_cuda.PyCapsule.fwd.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1481: UserWarning: Dynamo does not know how to trace the builtin `selective_scan_cuda.PyCapsule.fwd.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1481: UserWarning: Dynamo does not know how to trace the builtin `selective_scan_cuda.PyCapsule.fwd.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1481: UserWarning: Dynamo does not know how to trace the builtin `selective_scan_cuda.PyCapsule.fwd.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1481: UserWarning: Dynamo does not know how to trace the builtin `selective_scan_cuda.PyCapsule.fwd.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1481: UserWarning: Dynamo does not know how to trace the builtin `selective_scan_cuda.PyCapsule.fwd.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1481: UserWarning: Dynamo does not know how to trace the builtin `selective_scan_cuda.PyCapsule.fwd.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+/usr/local/lib/python3.12/dist-packages/torch/_dynamo/variables/functions.py:1481: UserWarning: Dynamo does not know how to trace the builtin `selective_scan_cuda.PyCapsule.fwd.` This function is either a Python builtin (e.g. _warnings.warn) or a third-party C/C++ Python extension (perhaps created with pybind).
+If it is a Python builtin, please file an issue on GitHub so the PyTorch team can add support for it and see the next case for a workaround.
+If it is a third-party C/C++ Python extension, please either wrap it into a PyTorch-understood custom operator (see https://pytorch.org/tutorials/advanced/custom_ops_landing_page.html for more details) or, if it is traceable, use `torch.compiler.allow_in_graph`.
+  torch._dynamo.utils.warn_once(explanation + "\n" + "\n".join(hints))
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9315 val_bpb:4.1051 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9315 train_time:94ms step_avg:94.43ms
+step:2/20000 train_loss:6.3233 train_time:189ms step_avg:94.47ms
+step:3/20000 train_loss:5.2393 train_time:281ms step_avg:93.55ms
+step:4/20000 train_loss:5.0511 train_time:372ms step_avg:93.10ms
+step:5/20000 train_loss:4.7096 train_time:472ms step_avg:94.40ms
+step:6/20000 train_loss:4.9125 train_time:564ms step_avg:94.06ms
+step:7/20000 train_loss:4.5486 train_time:655ms step_avg:93.58ms
+step:8/20000 train_loss:4.5080 train_time:751ms step_avg:93.86ms
+step:9/20000 train_loss:4.4467 train_time:848ms step_avg:94.25ms
+step:10/20000 train_loss:4.4442 train_time:948ms step_avg:94.80ms
+step:200/20000 train_loss:2.6543 train_time:18103ms step_avg:90.51ms
+step:400/20000 train_loss:2.1993 train_time:36500ms step_avg:91.25ms
+step:600/20000 train_loss:2.4409 train_time:54511ms step_avg:90.85ms
+step:800/20000 train_loss:2.1782 train_time:72533ms step_avg:90.67ms
+step:1000/20000 train_loss:2.2933 train_time:90562ms step_avg:90.56ms
+step:1000/20000 val_loss:2.2471 val_bpb:1.3308 train_time:90566ms step_avg:90.57ms
+step:1200/20000 train_loss:2.3128 train_time:108575ms step_avg:90.48ms
+step:1400/20000 train_loss:2.3453 train_time:126584ms step_avg:90.42ms
+step:1600/20000 train_loss:2.0176 train_time:145014ms step_avg:90.63ms
+step:1800/20000 train_loss:2.1309 train_time:163024ms step_avg:90.57ms
+step:2000/20000 train_loss:2.1791 train_time:181037ms step_avg:90.52ms
+step:2000/20000 val_loss:2.1629 val_bpb:1.2810 train_time:181041ms step_avg:90.52ms
+step:2200/20000 train_loss:2.0023 train_time:199042ms step_avg:90.47ms
+step:2400/20000 train_loss:2.1233 train_time:217044ms step_avg:90.43ms
+step:2600/20000 train_loss:2.3455 train_time:235534ms step_avg:90.59ms
+step:2800/20000 train_loss:2.1613 train_time:253558ms step_avg:90.56ms
+step:3000/20000 train_loss:2.1314 train_time:271580ms step_avg:90.53ms
+step:3000/20000 val_loss:2.1009 val_bpb:1.2443 train_time:271585ms step_avg:90.53ms
+step:3200/20000 train_loss:2.0917 train_time:289592ms step_avg:90.50ms
+step:3400/20000 train_loss:2.0567 train_time:307595ms step_avg:90.47ms
+step:3600/20000 train_loss:1.9899 train_time:325693ms step_avg:90.47ms
+step:3800/20000 train_loss:2.0946 train_time:344161ms step_avg:90.57ms
+step:4000/20000 train_loss:2.0494 train_time:362316ms step_avg:90.58ms
+step:4000/20000 val_loss:2.0405 val_bpb:1.2084 train_time:362316ms step_avg:90.58ms
+step:4200/20000 train_loss:2.0313 train_time:380539ms step_avg:90.60ms
+step:4400/20000 train_loss:1.9513 train_time:398713ms step_avg:90.62ms
+step:4600/20000 train_loss:1.8113 train_time:416915ms step_avg:90.63ms
+step:4800/20000 train_loss:2.0919 train_time:435498ms step_avg:90.73ms
+step:5000/20000 train_loss:1.8337 train_time:453687ms step_avg:90.74ms
+step:5000/20000 val_loss:1.9765 val_bpb:1.1706 train_time:453691ms step_avg:90.74ms
+step:5200/20000 train_loss:1.9925 train_time:471860ms step_avg:90.74ms
+step:5400/20000 train_loss:1.9918 train_time:490039ms step_avg:90.75ms
+step:5600/20000 train_loss:1.9726 train_time:508203ms step_avg:90.75ms
+step:5800/20000 train_loss:1.9230 train_time:526346ms step_avg:90.75ms
+step:6000/20000 train_loss:2.0098 train_time:544841ms step_avg:90.81ms
+step:6000/20000 val_loss:1.9247 val_bpb:1.1399 train_time:544845ms step_avg:90.81ms
+step:6200/20000 train_loss:1.8690 train_time:563016ms step_avg:90.81ms
+step:6400/20000 train_loss:1.9413 train_time:581181ms step_avg:90.81ms
+step:6600/20000 train_loss:1.9069 train_time:599480ms step_avg:90.83ms
+step:6606/20000 val_loss:1.9164 val_bpb:1.1350 train_time:600042ms step_avg:90.83ms
+stopping_early: wallclock_cap train_time:600042ms step:6606/20000
+peak memory allocated: 18321 MiB reserved: 18742 MiB
+ema:applying EMA weights
+Serialized model: 123061651 bytes
+Code size: 85305 bytes
+Total submission size: 123146956 bytes
+Serialized model int8+zstd-22: 15267947 bytes (payload:32444704 raw_torch:32512335 payload_ratio:3.79x)
+Total submission size int8+zstd-22: 15353252 bytes
+ttt:start chunks=119 chunk_tokens=524288 seq_len=32768 ttt_lr=0.002 ttt_epochs=25 freeze_blocks=0
+ttt:params unfrozen=31357512 frozen=0
+  ttt_chunk [1/119] bpb=1.199367 time=5.6s
+  ttt_chunk [11/119] bpb=1.150787 time=54.8s
+  ttt_chunk [21/119] bpb=1.157237 time=103.9s
+  ttt_chunk [31/119] bpb=1.152513 time=153.1s
+  ttt_chunk [41/119] bpb=1.156302 time=202.3s
+  ttt_chunk [51/119] bpb=1.149433 time=251.4s
+  ttt_chunk [61/119] bpb=1.148131 time=300.6s
+  ttt_chunk [71/119] bpb=1.148091 time=349.8s
+  ttt_chunk [81/119] bpb=1.145053 time=398.9s
+  ttt_chunk [91/119] bpb=1.144114 time=448.1s
+  ttt_chunk [101/119] bpb=1.144540 time=497.2s
+  ttt_chunk [111/119] bpb=1.144048 time=546.4s
+  ttt_chunk [119/119] bpb=1.142749 time=580.8s
+ttt:done val_loss=1.936326 val_bpb=1.146774 elapsed=581.0s
+final_int8_zlib_roundtrip val_loss:1.9363 val_bpb:1.1468 eval_mode:score_first_ttt eval_time:581041ms
+final_int8_zlib_roundtrip_exact val_loss:1.93632611 val_bpb:1.14677405
