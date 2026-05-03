@@ -1,0 +1,13 @@
+{
+  "author": "SkywardSyntax",
+  "github_id": "SkywardSyntax",
+  "name": "Depth Recurrence via Layer Sharing (3 shared blocks, 9 virtual layers)",
+  "blurb": "ALBERT-style weight sharing: 3 unique transformer blocks cycled over 9 virtual layers matches baseline BPB at 1/3 the parameters (6M vs 17M). Frees ~10MB of artifact budget for wider models, MLP 3x expansion, or larger vocabularies. Validated locally on Apple Silicon with mini FineWeb shards. Awaiting H100 compute for full evaluation.",
+  "date": "2026-03-19T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null,
+  "track": "track_non_record_16mb",
+  "status": "awaiting_compute"
+}
