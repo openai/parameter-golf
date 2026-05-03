@@ -1,0 +1,49 @@
+{
+  "batch_id": "stage3_2_state_controller",
+  "phase": "sanity",
+  "slot": "H205",
+  "name": "alternating_objective",
+  "role": "candidate",
+  "family": "ALTERNATING_OBJECTIVE",
+  "lane": "controller",
+  "label": "20260325_133832",
+  "gpu_spec": "6",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H205"
+  ],
+  "compare_to": "R0A",
+  "why": "If deploy alignment is helpful late but poisonous when applied continuously, sparse pulses should recover the benefit at lower throughput cost.",
+  "validates": "Alternating late objective pressure beats static always-on pressure.",
+  "falsifies": "Sparse pulses are too weak; only continuous objective shaping works.",
+  "patches": [
+    "state_controller"
+  ],
+  "notes": [
+    "Lead family H205.",
+    "Uses pulses rather than a permanent secondary objective."
+  ],
+  "env": {
+    "CTRL_ENABLE": "1",
+    "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.6,0.8],\"phase_defaults\":{\"early\":{},\"mid\":{},\"late\":{\"ema_decay\":0.9985,\"checkpoint_capture_rate\":100}},\"snapshot\":{\"every\":100,\"start_frac\":0.74,\"last_k\":6,\"score\":\"deployed\",\"mode\":\"ema\"},\"pulse\":{\"every\":8,\"late_start\":0.72,\"mode\":\"export_surrogate\",\"weight\":0.0007}}",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

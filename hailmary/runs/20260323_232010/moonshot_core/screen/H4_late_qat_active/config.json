@@ -1,0 +1,53 @@
+{
+  "batch_id": "hailmary_r1",
+  "pack": "moonshot_core",
+  "scope": "moonshot_core",
+  "phase": "screen",
+  "slot": "H4",
+  "name": "late_qat_active",
+  "role": "candidate",
+  "family": "export_alignment",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patches": [
+    "late_qat_active"
+  ],
+  "label": "20260323_232010",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "H4"
+  ],
+  "compare_to": "H0",
+  "why": "Pushes training late into export-aware weight states instead of only raw fp32 quality.",
+  "validates": "Active late QAT closes a real deployment gap.",
+  "falsifies": "The current export mismatch is too small or this route is too disruptive.",
+  "notes": [],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_ENABLE": "1",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "180",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "user_instructions": "Test the pg_enigma campaign harness itself on frontier_rebase/pr1394/train_gpt_human.py. The goal is the same: minimize credible val_bpb on this real frontier-rebase base. Produce only consequential hypothesis families. Prefer executable-now families that honestly map to the current search_harness catalog; if a family needs new machinery, mark it blocked or deferred instead of faking executability. Treat the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack as th...",
+  "objective": "{'target_script': 'frontier_rebase/pr1394/train_gpt_human.py', 'goal': 'minimize credible val_bpb', 'primary_metric': 'downstream score_bpb from quantized_sliding_window when present', 'secondary_metrics': ['pre-quant val_bpb', 'control spread', 'artifact size only as a tie-breaker'], 'notes': ['The fixed frontier b...",
+  "exploration": {
+    "trajectory_count": 0,
+    "families_per_trajectory": 4
+  },
+  "verification": {
+    "min_keep": 2,
+    "min_consequence_score": 4,
+    "min_falsifiability_score": 3,
+    "min_implementation_honesty_score": 3
+  },
+  "focus_files": [
+    "frontier_rebase/pr1394/train_gpt_human.py"
+  ],
+  "evidence_files": [
+    "frontier_rebase/pr1394/README.md",
+    "frontier_rebase/pr1394/submission.json",
+    "parameter-golf/findings.md"
+  ],
+  "reference_doc_paths": [
+    "parameter-golf/findings.md",
+    "parameter-golf/search_strategy_catalog.md",
+    "parameter-golf/search_strategy_meta_prompt.md",
+    "parameter-golf/search_verifier_codex.md",
+    "parameter-golf/pg_enigma/self_check_rubric.md",
+    "frontier_rebase/pr1394/README.md",
+    "frontier_rebase/pr1394/submission.json"
+  ]
+}

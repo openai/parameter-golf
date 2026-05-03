@@ -1,0 +1,215 @@
+{
+  "slots": [
+    {
+      "slot": "C0",
+      "role": "control",
+      "family": "control_base",
+      "base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": null,
+      "patches": [],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Baseline frontier-rebase control on the canonical comparison seed.",
+        "broken_invariant": "none",
+        "probe": "Unmodified pr1394 base with seed 1337.",
+        "family_group": "control_canonical"
+      },
+      "env": {
+        "SEED": "1337",
+        "RUN_ID": "pr1394-c0-base"
+      },
+      "nproc_per_slot": 8
+    },
+    {
+      "slot": "C1",
+      "role": "control",
+      "family": "control_base",
+      "base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": null,
+      "patches": [],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Noise-band control on a second leaderboard seed.",
+        "broken_invariant": "none",
+        "probe": "Unmodified pr1394 base with seed 2025.",
+        "family_group": "control_noise"
+      },
+      "env": {
+        "SEED": "2025",
+        "RUN_ID": "pr1394-c1-base"
+      },
+      "nproc_per_slot": 8
+    },
+    {
+      "slot": "H1",
+      "role": "candidate",
+      "family": "loop_ramp",
+      "base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "pr1394_catalog/patches.py",
+      "patches": [
+        "loop_ramp"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Turn shared-depth recurrence on progressively instead of a single full late switch.",
+        "broken_invariant": "The best recurrence schedule is an abrupt 0-to-full activation event.",
+        "probe": "Ramp loop repeats from 0 to 1 to 2 across training fractions 0.16 to 0.52.",
+        "family_group": "loop_ramp"
+      },
+      "env": {
+        "SEED": "1337",
+        "RUN_ID": "pr1394-h1-loop-ramp",
+        "LOOP_RAMP_START": "0.16",
+        "LOOP_RAMP_FULL": "0.52"
+      },
+      "nproc_per_slot": 8
+    },
+    {
+      "slot": "H2",
+      "role": "candidate",
+      "family": "skip_gate_schedule",
+      "base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "pr1394_catalog/patches.py",
+      "patches": [
+        "skip_gate_schedule"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Bias skip pathways closed early, then let them open as recurrent depth pressure grows.",
+        "broken_invariant": "Neutral skip mixing from step 0 is already the right regime for SP8192 recurrence.",
+        "probe": "Start skip gates at a strong closed bias and anneal the bias away by the late-mid phase.",
+        "family_group": "skip_gate_schedule"
+      },
+      "env": {
+        "SEED": "1337",
+        "RUN_ID": "pr1394-h2-skip-gates",
+        "SKIP_GATE_BIAS_INIT": "4.0",
+        "SKIP_GATE_BIAS_END": "0.0",
+        "SKIP_GATE_BIAS_FULL_AT": "0.58"
+      },
+      "nproc_per_slot": 8
+    },
+    {
+      "slot": "H3",
+      "role": "candidate",
+      "family": "ema_selector",
+      "base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "pr1394_catalog/patches.py",
+      "patches": [
+        "ema_selector"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Choose the export state from raw, base EMA, fast EMA, and slow EMA instead of trusting one decay.",
+        "broken_invariant": "A single fixed EMA decay is always the best checkpoint for this base.",
+        "probe": "Maintain fast and slow EMA branches and select the lowest final pre-quant val_bpb state.",
+        "family_group": "ema_selector"
+      },
+      "env": {
+        "SEED": "1337",
+        "RUN_ID": "pr1394-h3-ema-selector",
+        "EMA_FAST_DECAY": "0.992",
+        "EMA_SLOW_DECAY": "0.9985"
+      },
+      "nproc_per_slot": 8
+    },
+    {
+      "slot": "H4",
+      "role": "candidate",
+      "family": "quant_clip_anneal",
+      "base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "pr1394_catalog/patches.py",
+      "patches": [
+        "quant_clip_anneal"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Shape tails toward the final GPTQ clip envelope during late training rather than only at export time.",
+        "broken_invariant": "End-of-run GPTQ can absorb tail structure without any training-time pressure.",
+        "probe": "Late annealed projection toward row-wise clip envelopes for matrix and embedding weights.",
+        "family_group": "quant_clip_anneal"
+      },
+      "env": {
+        "SEED": "1337",
+        "RUN_ID": "pr1394-h4-quant-clip",
+        "QUANT_CLIP_ANNEAL_START": "0.55",
+        "QUANT_CLIP_ANNEAL_FULL_AT": "0.92",
+        "QUANT_CLIP_ANNEAL_ALPHA": "0.08",
+        "QUANT_EMBED_ANNEAL_ALPHA": "0.03"
+      },
+      "nproc_per_slot": 8
+    },
+    {
+      "slot": "H5",
+      "role": "candidate",
+      "family": "sensitivity_bits",
+      "base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "pr1394_catalog/patches.py",
+      "patches": [
+        "sensitivity_bits"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Allocate matrix bits by Hessian sensitivity instead of forcing uniform int6 across large matrices.",
+        "broken_invariant": "Uniform matrix bitwidth is close to optimal for this frontier-rebase model.",
+        "probe": "Promote the most sensitive matrices to int7 and demote the least sensitive to int5 under the same size budget.",
+        "family_group": "sensitivity_bits"
+      },
+      "env": {
+        "SEED": "1337",
+        "RUN_ID": "pr1394-h5-sensitivity-bits",
+        "SENSITIVITY_BITS_ENABLED": "1",
+        "SENSITIVITY_TOPK": "3",
+        "SENSITIVITY_BOTTOMK": "3",
+        "SENSITIVITY_HIGH_BITS": "7",
+        "SENSITIVITY_LOW_BITS": "5"
+      },
+      "nproc_per_slot": 8
+    },
+    {
+      "slot": "H6",
+      "role": "candidate",
+      "family": "phase_split_optim",
+      "base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "pr1394_catalog/patches.py",
+      "patches": [
+        "phase_split_optim"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Retune optimizer families after recurrence turns on so shared loop blocks adapt faster than tokens and scalar controls.",
+        "broken_invariant": "The same token/head/scalar/matrix LR mix remains optimal before and after loop activation.",
+        "probe": "Boost matrix adaptation in the looped phase while cooling token/head/scalar groups and increasing Muon WD.",
+        "family_group": "phase_split_optim"
+      },
+      "env": {
+        "SEED": "1337",
+        "RUN_ID": "pr1394-h6-phase-split",
+        "LOOP_MATRIX_LR_SCALE": "1.12",
+        "LOOP_SCALAR_LR_SCALE": "0.80",
+        "LOOP_TOKEN_LR_SCALE": "0.60",
+        "LOOP_HEAD_LR_SCALE": "0.75",
+        "LOOP_MUON_WD_SCALE": "1.15"
+      },
+      "nproc_per_slot": 8
+    }
+  ],
+  "selection": {
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": [
+      "C0",
+      "C1"
+    ],
+    "max_control_spread": 0.03,
+    "top_k": 2
+  }
+}

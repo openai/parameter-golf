@@ -1,0 +1,594 @@
+{
+  "families": [
+    {
+      "family": "countinit_bigram",
+      "base_script": "train_gpt.py",
+      "patch_module": "hailmary/patches.py",
+      "patches": [
+        "countinit_bigram"
+      ],
+      "stage": "hailmary",
+      "patch_function": "patch_countinit_bigram"
+    },
+    {
+      "family": "curriculum_shard_order",
+      "base_script": "train_gpt.py",
+      "patch_module": "hailmary/patches.py",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "stage": "hailmary",
+      "patch_function": "patch_curriculum_shard_order"
+    },
+    {
+      "family": "ema_export",
+      "base_script": "train_gpt.py",
+      "patch_module": "hailmary/patches.py",
+      "patches": [
+        "ema_export"
+      ],
+      "stage": "hailmary",
+      "patch_function": "patch_ema_export"
+    },
+    {
+      "family": "exact_overlap_eval",
+      "base_script": "train_gpt.py",
+      "patch_module": "hailmary/patches.py",
+      "patches": [
+        "exact_overlap_eval"
+      ],
+      "stage": "hailmary",
+      "patch_function": "patch_exact_overlap_eval"
+    },
+    {
+      "family": "full_gptq",
+      "base_script": "train_gpt.py",
+      "patch_module": "hailmary/patches.py",
+      "patches": [
+        "full_gptq"
+      ],
+      "stage": "hailmary",
+      "patch_function": "patch_full_gptq"
+    },
+    {
+      "family": "late_qat_active",
+      "base_script": "train_gpt.py",
+      "patch_module": "hailmary/patches.py",
+      "patches": [
+        "late_qat_active"
+      ],
+      "stage": "hailmary",
+      "patch_function": "patch_late_qat_active"
+    },
+    {
+      "family": "xsa_all",
+      "base_script": "train_gpt.py",
+      "patch_module": "hailmary/patches.py",
+      "patches": [
+        "xsa_all"
+      ],
+      "stage": "hailmary",
+      "patch_function": "patch_xsa_all"
+    },
+    {
+      "family": "bootstrap_handoff",
+      "base_script": "hm2/base_train_gpt.py",
+      "patch_module": "hm2/patches.py",
+      "patches": [
+        "bootstrap_handoff"
+      ],
+      "stage": "hm2",
+      "patch_function": "patch_bootstrap_handoff"
+    },
+    {
+      "family": "checkpoint_selection",
+      "base_script": "hm2/base_train_gpt.py",
+      "patch_module": "hm2/patches.py",
+      "patches": [
+        "checkpoint_selection"
+      ],
+      "stage": "hm2",
+      "patch_function": "patch_checkpoint_selection"
+    },
+    {
+      "family": "countinit_bigram",
+      "base_script": "hm2/base_train_gpt.py",
+      "patch_module": "hm2/patches.py",
+      "patches": [
+        "countinit_bigram"
+      ],
+      "stage": "hm2",
+      "patch_function": "patch_countinit_bigram"
+    },
+    {
+      "family": "late_qat_active",
+      "base_script": "hm2/base_train_gpt.py",
+      "patch_module": "hm2/patches.py",
+      "patches": [
+        "late_qat_active"
+      ],
+      "stage": "hm2",
+      "patch_function": "patch_late_qat_active"
+    },
+    {
+      "family": "phase_diagnostics",
+      "base_script": "hm2/base_train_gpt.py",
+      "patch_module": "hm2/patches.py",
+      "patches": [
+        "phase_diagnostics"
+      ],
+      "stage": "hm2",
+      "patch_function": "patch_phase_diagnostics"
+    },
+    {
+      "family": "pre_quant_ttt",
+      "base_script": "hm2/base_train_gpt.py",
+      "patch_module": "hm2/patches.py",
+      "patches": [
+        "pre_quant_ttt"
+      ],
+      "stage": "hm2",
+      "patch_function": "patch_pre_quant_ttt"
+    },
+    {
+      "family": "curriculum_shard_order",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_curriculum_shard_order"
+    },
+    {
+      "family": "ema",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "ema"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_ema"
+    },
+    {
+      "family": "fa3",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "fa3"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_fa3"
+    },
+    {
+      "family": "fp16_embedding_export",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "fp16_embedding_export"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_fp16_embedding_export"
+    },
+    {
+      "family": "gptq_lite",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "gptq_lite"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_gptq_lite"
+    },
+    {
+      "family": "grad_centralization",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "grad_centralization"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_grad_centralization"
+    },
+    {
+      "family": "leaky_relu_sq",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "leaky_relu_sq"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_leaky_relu_sq"
+    },
+    {
+      "family": "ln_scale",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "ln_scale"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_ln_scale"
+    },
+    {
+      "family": "muon_weight_decay",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "muon_weight_decay"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_muon_weight_decay"
+    },
+    {
+      "family": "partial_rope",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "partial_rope"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_partial_rope"
+    },
+    {
+      "family": "sliding_eval",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "sliding_eval"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_sliding_eval"
+    },
+    {
+      "family": "weight_perturbation",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_weight_perturbation"
+    },
+    {
+      "family": "xsa4",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "xsa4"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_xsa4"
+    },
+    {
+      "family": "xsa_all",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "xsa_all"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_xsa_all"
+    },
+    {
+      "family": "zstd_export",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage2_1/patches.py",
+      "patches": [
+        "zstd_export"
+      ],
+      "stage": "stage2_1",
+      "patch_function": "patch_zstd_export"
+    },
+    {
+      "family": "adaptive_ns_steps",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage3/patches.py",
+      "patches": [
+        "adaptive_ns_steps"
+      ],
+      "stage": "stage3",
+      "patch_function": "patch_adaptive_ns_steps"
+    },
+    {
+      "family": "grad_centralization",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage3/patches.py",
+      "patches": [
+        "grad_centralization"
+      ],
+      "stage": "stage3",
+      "patch_function": "patch_grad_centralization"
+    },
+    {
+      "family": "nuclear_norm",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage3/patches.py",
+      "patches": [
+        "nuclear_norm"
+      ],
+      "stage": "stage3",
+      "patch_function": "patch_nuclear_norm"
+    },
+    {
+      "family": "weight_perturbation",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage3/patches.py",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "stage": "stage3",
+      "patch_function": "patch_weight_perturbation"
+    },
+    {
+      "family": "zloss",
+      "base_script": "train_gpt.py",
+      "patch_module": "stage3/patches.py",
+      "patches": [
+        "zloss"
+      ],
+      "stage": "stage3",
+      "patch_function": "patch_zloss"
+    },
+    {
+      "family": "best_checkpoint",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "best_checkpoint"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_best_checkpoint"
+    },
+    {
+      "family": "byte_weighted_loss",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "byte_weighted_loss"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_byte_weighted_loss"
+    },
+    {
+      "family": "companding",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "companding"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_companding"
+    },
+    {
+      "family": "fisher_bits",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "fisher_bits"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_fisher_bits"
+    },
+    {
+      "family": "gptq_post_ttt",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "gptq_post_ttt"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_gptq_post_ttt"
+    },
+    {
+      "family": "int4_embed",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "int4_embed"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_int4_embed"
+    },
+    {
+      "family": "quant_anneal",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "quant_anneal"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_quant_anneal"
+    },
+    {
+      "family": "sdclip_sweep",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "sdclip_sweep"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_sdclip_sweep"
+    },
+    {
+      "family": "sparsify_before_quant",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "sparsify_before_quant"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_sparsify_before_quant"
+    },
+    {
+      "family": "staged_objective",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "staged_objective"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_staged_objective"
+    },
+    {
+      "family": "tapered_mlp",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "tapered_mlp"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_tapered_mlp"
+    },
+    {
+      "family": "ttt_aggressive",
+      "base_script": "stage3_1/base_train_gpt.py",
+      "patch_module": "stage3_1/patches.py",
+      "patches": [
+        "ttt_aggressive"
+      ],
+      "stage": "stage3_1",
+      "patch_function": "patch_ttt_aggressive"
+    },
+    {
+      "family": "state_controller",
+      "base_script": "stage3_2/base_train_gpt.py",
+      "patch_module": "stage3_2/patches.py",
+      "patches": [
+        "state_controller"
+      ],
+      "stage": "stage3_2",
+      "patch_function": "patch_state_controller"
+    },
+    {
+      "family": "ema_distill",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "ema_distill"
+      ],
+      "stage": "stage3_3",
+      "patch_function": "patch_ema_distill"
+    },
+    {
+      "family": "muon_adam_switch",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "muon_adam_switch"
+      ],
+      "stage": "stage3_3",
+      "patch_function": "patch_muon_adam_switch"
+    },
+    {
+      "family": "ns_steps_adaptive",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "ns_steps_adaptive"
+      ],
+      "stage": "stage3_3",
+      "patch_function": "patch_ns_steps_adaptive"
+    },
+    {
+      "family": "per_family_decay",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "per_family_decay"
+      ],
+      "stage": "stage3_3",
+      "patch_function": "patch_per_family_decay"
+    },
+    {
+      "family": "phase_seq_len",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "phase_seq_len"
+      ],
+      "stage": "stage3_3",
+      "patch_function": "patch_phase_seq_len"
+    },
+    {
+      "family": "step_lr",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "step_lr"
+      ],
+      "stage": "stage3_3",
+      "patch_function": "patch_step_lr"
+    },
+    {
+      "family": "stochastic_depth",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "stochastic_depth"
+      ],
+      "stage": "stage3_3",
+      "patch_function": "patch_stochastic_depth"
+    },
+    {
+      "family": "velocity_gate",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "velocity_gate"
+      ],
+      "stage": "stage3_3",
+      "patch_function": "patch_velocity_gate"
+    },
+    {
+      "family": "late_branch_finishers",
+      "base_script": "stage3_4/base_train_gpt.py",
+      "patch_module": "stage3_4/patches.py",
+      "patches": [
+        "late_branch_finishers"
+      ],
+      "stage": "stage3_4",
+      "patch_function": "patch_late_branch_finishers"
+    },
+    {
+      "family": "ngram_bias",
+      "base_script": "stage3_4/base_train_gpt.py",
+      "patch_module": "stage3_4/patches.py",
+      "patches": [
+        "ngram_bias"
+      ],
+      "stage": "stage3_4",
+      "patch_function": "patch_ngram_bias"
+    },
+    {
+      "family": "slot_basic",
+      "base_script": "stage3_4/base_train_gpt.py",
+      "patch_module": "stage3_4/patches.py",
+      "patches": [
+        "slot_basic"
+      ],
+      "stage": "stage3_4",
+      "patch_function": "patch_slot_basic"
+    },
+    {
+      "family": "ttt_aggressive",
+      "base_script": "stage3_4/base_train_gpt.py",
+      "patch_module": "stage3_4/patches.py",
+      "patches": [
+        "ttt_aggressive"
+      ],
+      "stage": "stage3_4",
+      "patch_function": "patch_ttt_aggressive"
+    },
+    {
+      "family": "event_branch_tournament",
+      "base_script": "stage3_5/base_train_gpt.py",
+      "patch_module": "stage3_5/patches.py",
+      "patches": [
+        "event_branch_tournament"
+      ],
+      "stage": "stage3_5",
+      "patch_function": "patch_event_branch_tournament"
+    }
+  ]
+}

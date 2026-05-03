@@ -1,0 +1,46 @@
+{
+  "batch_id": "stage2_h100_matrix_r1",
+  "slot": "S2-E4",
+  "name": "trunk_fp16_embed_plus_muon_wd",
+  "role": "extension",
+  "family": "muon_weight_decay",
+  "implementation_state": "ready",
+  "label": "h100",
+  "nproc_per_node": 8,
+  "lineage": [
+    "S2-B0",
+    "S2-E2",
+    "S2-E4"
+  ],
+  "why": "Tests whether the public top-2 Muon WD claim transfers without also requiring depth/init changes.",
+  "validates": "Muon WD helps final score or shrinks quant gap on the strong trunk.",
+  "falsifies": "No real gain over the simpler fp16-export stack.",
+  "notes": [
+    "Public-recipe transfer experiment."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "INT8_KEEP_TOK_EMB_FP16": "1",
+    "MATRIX_LR": "0.02",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_HIDDEN": "992",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "MUON_WEIGHT_DECAY": "0.02",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "393216",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "4096",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

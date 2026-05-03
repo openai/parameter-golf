@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage3_4_branch_finishers",
+  "phase": "sanity",
+  "slot": "H403",
+  "name": "late_dual_branch",
+  "role": "candidate",
+  "family": "SHARED_TRUNK_DUAL_BRANCH_LATE",
+  "lane": "branching",
+  "label": "20260325_142305",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H403"
+  ],
+  "compare_to": "R0A",
+  "why": "The main trade is breadth versus depth. Two stronger finishers may beat three shallow ones.",
+  "validates": "Finisher budget per branch matters more than branching breadth.",
+  "falsifies": "Late-branch depth is not the bottleneck.",
+  "patches": [
+    "late_branch_finishers"
+  ],
+  "notes": [
+    "Breadth-vs-depth test."
+  ],
+  "env": {
+    "BRANCH_ENABLE": "1",
+    "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.80,\"finishers\":[{\"name\":\"ema_heavy\",\"ema_decay\":0.9995,\"use_ema\":1},{\"name\":\"deploy_qat\",\"ema_decay\":0.999,\"qat_alpha\":0.55,\"export_surrogate_weight\":0.0007,\"use_ema\":1}]}",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

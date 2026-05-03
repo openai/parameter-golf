@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage3_5_event_branch_tournament",
+  "phase": "sanity",
+  "slot": "H503",
+  "name": "plateau_gated_aggressive",
+  "role": "candidate",
+  "family": "PLATEAU_GATED_AGGRESSIVE",
+  "lane": "branch_tournament",
+  "label": "20260325_144114",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H503"
+  ],
+  "compare_to": "R0A",
+  "why": "Branching should buy permission to swing harder in the late stage because bad branches can be discarded.",
+  "validates": "Branching enables materially harder late swings.",
+  "falsifies": "Even with discardable branches, conservative endings dominate.",
+  "patches": [
+    "event_branch_tournament"
+  ],
+  "notes": [
+    "High-variance swing."
+  ],
+  "env": {
+    "BRANCH_ENABLE": "1",
+    "BRANCH_SPEC_JSON": "{\"trigger\":{\"min_frac\":0.60,\"max_frac\":0.80,\"scale_below\":0.18,\"plateau_tol\":0.006},\"finishers\":[{\"kind\":\"ema_heavy\",\"name\":\"ema_heavy\",\"export_modes\":[\"ema\",\"raw\"]},{\"kind\":\"aggressive_qat\",\"name\":\"aggressive_qat\",\"export_modes\":[\"ema\",\"raw\"]},{\"kind\":\"matrix_push\",\"name\":\"matrix_push\",\"export_modes\":[\"ema\",\"raw\"]}]}",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

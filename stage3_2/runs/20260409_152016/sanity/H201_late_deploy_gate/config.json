@@ -1,0 +1,49 @@
+{
+  "batch_id": "stage3_2_state_controller",
+  "phase": "sanity",
+  "slot": "H201",
+  "name": "late_deploy_gate",
+  "role": "candidate",
+  "family": "LATE_DEPLOY_GATE",
+  "lane": "controller",
+  "label": "20260409_152016",
+  "gpu_spec": "2",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H201"
+  ],
+  "compare_to": "R0A",
+  "why": "Deploy-facing pressure is likely harmful early and valuable late. The controller should internalize deploy alignment only after the representation is mostly formed.",
+  "validates": "Late gated deploy alignment beats the static default.",
+  "falsifies": "Static late-QAT behavior is already sufficient and controller timing does not matter.",
+  "patches": [
+    "state_controller"
+  ],
+  "notes": [
+    "Lead family H201.",
+    "Primary question: does timing deploy pressure help more than static late-QAT alone?"
+  ],
+  "env": {
+    "CTRL_ENABLE": "1",
+    "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.58,0.82],\"phase_defaults\":{\"early\":{\"ema_decay\":0.997},\"mid\":{\"ema_decay\":0.9975,\"checkpoint_capture_rate\":200},\"late\":{\"ema_decay\":0.999,\"checkpoint_capture_rate\":100,\"checkpoint_selection_mode\":\"ema\",\"export_surrogate_weight\":0.0005,\"qat_alpha\":0.35}},\"snapshot\":{\"every\":100,\"start_frac\":0.76,\"last_k\":6,\"score\":\"deployed\",\"mode\":\"ema\"}}",
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

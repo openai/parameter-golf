@@ -1,0 +1,60 @@
+{
+  "batch_id": "hailmary_r2",
+  "pack": "tournament_finalists",
+  "scope": "tournament",
+  "phase": "finalists_long",
+  "slot": "T7",
+  "name": "mix_full_gptq_geometry",
+  "role": "candidate",
+  "family": "tournament_mix",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patches": [
+    "full_gptq",
+    "weight_perturbation"
+  ],
+  "label": "drycheck2",
+  "gpu_spec": "7",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T7"
+  ],
+  "compare_to": "T0",
+  "why": "Tests whether the strongest export patch and the best geometry-based deploy-quality patch reinforce each other.",
+  "validates": "Export alignment and geometry-driven flatness/compressibility are complementary in the moonshot lane.",
+  "falsifies": "One lane dominates enough that the composition is not worth the complexity.",
+  "notes": [
+    "synthetic_composite=G1+N2"
+  ],
+  "env": {
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GPTQ_BITS": "6",
+    "GPTQ_BLOCK_SIZE": "128",
+    "GPTQ_CALIB_BATCHES": "256",
+    "GPTQ_ENABLE": "1",
+    "GPTQ_LZMA_PRESET": "6",
+    "GRAD_CLIP_NORM": "0.3",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SCALAR_LR": "0.025",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500",
+    "WEIGHT_PERTURB_SCALE": "0.01"
+  }
+}

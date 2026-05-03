@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["slots", "selection"],
+  "additionalProperties": false,
+  "properties": {
+    "slots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "slot",
+          "role",
+          "family",
+          "base_script",
+          "patch_module",
+          "patches",
+          "metric_path",
+          "selector_metric_path",
+          "metadata",
+          "env"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "slot": { "type": "string" },
+          "role": { "type": "string", "enum": ["control", "candidate"] },
+          "family": { "type": "string" },
+          "base_script": { "type": "string" },
+          "patch_module": { "type": ["string", "null"] },
+          "patches": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "metric_path": { "type": "string" },
+          "selector_metric_path": { "type": "string" },
+          "metadata": {
+            "type": "object",
+            "required": [
+              "purpose",
+              "broken_invariant",
+              "probe",
+              "family_group"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "purpose": { "type": "string" },
+              "broken_invariant": { "type": "string" },
+              "probe": { "type": "string" },
+              "family_group": { "type": "string" }
+            }
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [],
+            "properties": {}
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": ["primary_metric_path", "goal", "control_slots", "max_control_spread", "top_k"],
+      "additionalProperties": false,
+      "properties": {
+        "primary_metric_path": { "type": "string" },
+        "goal": { "type": "string", "enum": ["minimize", "maximize"] },
+        "control_slots": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "max_control_spread": { "type": ["number", "null"] },
+        "top_k": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

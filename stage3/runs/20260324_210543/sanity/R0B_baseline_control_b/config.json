@@ -1,0 +1,35 @@
+{
+  "batch_id": "stage3_original_screen",
+  "phase": "sanity",
+  "slot": "R0B",
+  "name": "baseline_control_b",
+  "role": "control",
+  "family": "baseline_control_repeat",
+  "label": "20260324_210543",
+  "gpu_spec": "1",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0B"
+  ],
+  "compare_to": null,
+  "why": "Noise floor calibration.",
+  "validates": "Short-run variance is small enough for pruning.",
+  "falsifies": "Screen is too noisy.",
+  "patches": [],
+  "notes": [
+    "R0A vs R0B spread calibrates kill thresholds."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

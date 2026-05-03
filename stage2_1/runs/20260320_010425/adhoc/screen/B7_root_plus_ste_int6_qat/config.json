@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage2_1_patch_portfolio_r1",
+  "pack": "train_arch",
+  "scope": "adhoc",
+  "phase": "screen",
+  "slot": "B7",
+  "name": "root_plus_ste_int6_qat",
+  "role": "candidate",
+  "family": "export_internalization",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": "P203",
+  "patches": [
+    "ste_qat"
+  ],
+  "label": "20260320_010425",
+  "gpu_spec": "7",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "B0",
+    "B7"
+  ],
+  "compare_to": "B0",
+  "why": "Strongest export-internalization family and one of the repeated missing five.",
+  "validates": "Quant-gap shrinks enough to matter.",
+  "falsifies": "Training slowdown or instability dominates.",
+  "notes": [
+    "Judge primarily on quant-gap reduction, not raw pre-quant gain."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MAX_WALLCLOCK_SECONDS": "180",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "STE_QAT_BITS": "6",
+    "STE_QAT_ENABLE": "1",
+    "STE_QAT_START_STEP": "0",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "1024",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

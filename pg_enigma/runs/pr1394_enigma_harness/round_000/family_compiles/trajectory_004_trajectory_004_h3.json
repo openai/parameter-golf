@@ -1,0 +1,107 @@
+{
+  "candidate_id": "trajectory_004/trajectory_004_h3",
+  "family_group": "recurrence_handoff_program",
+  "lane": "training",
+  "phase_window": "mid",
+  "pack_kind": "mid_training_pack",
+  "verdict": "READY",
+  "summary": "Two honest blocked realizations preserve the same mechanism: replace fixed `ENABLE_LOOPING_AT` recurrence activation with a one-shot state-triggered handoff program on the frozen pr1394 base. Both require a new runtime primitive for observing mid-train signals and switching recurrence on without changing the base stack.",
+  "compiler_pass_k": 2,
+  "realizations": [
+    {
+      "realization_id": "trajectory_004_h3_r1",
+      "realization_key": "trajectory_004/trajectory_004_h3/trajectory_004_h3_r1",
+      "title": "Loss-Plateau Triggered Recurrence Handoff",
+      "mechanism_preservation": "Keeps the family mechanism intact by making recurrence activation a one-shot state-conditioned handoff program; only the trigger signal differs from the family sibling realization.",
+      "implementation_target": "needs_new_primitive",
+      "lane": "training",
+      "phase_window": "mid",
+      "pack_kind": "mid_training_pack",
+      "instructions": "Add a runtime primitive to `frontier_rebase/pr1394/train_gpt_human.py` that can compute a smoothed short-window training-loss slope during the non-recurrent trunk phase and flip recurrence on exactly once when the slope enters a bounded plateau regime. Keep the published pr1394 base frozen: same SP8192 tokenizer/data, GPTQ embeddings, layers 4-5 loop topology, MuonEq-R, SDClip, export path, and downstream scoring contract. Materialize a mid-training pack with 2 controls and 2 family probes: control A is the published fixed `ENABLE_LOOPING_AT` behavior, control B is a replay-equivalent duplicate, probe 1 is a coarse late phase-rule handoff, and probe 2 is this loss-plateau trigger. The primitive should expose: window length, minimum steps before trigger eligibility, maximum trigger step, slope smoothing mode, plateau predicate, and a one-shot activation latch. Do not search arbitrary extra actions: the only action is enabling the existing recurrence block once. Record the exact trigger step, pre-trigger slope history, post-trigger slope history, and whether the trigger fired before timeout. Judge promotion only on downstream `quantized_sliding_window` `score_bpb`, with pre-quant post-handoff trajectory used only as supporting diagnosis or early kill evidence.",
+      "control_plan": [
+        "Freeze the entire published pr1394 stack except the recurrence activation policy.",
+        "Use 2 controls in-pack: published fixed handoff and an exact replay-equivalent clone.",
+        "Include one coarse late-handoff probe as the non-stateful comparator so the pack tests policy class, not just instrumentation."
+      ],
+      "admission_rules": [
+        "Do not admit if the trigger never fires within the bounded eligible window.",
+        "Do not admit if downstream `score_bpb` fails to beat the paired-control band.",
+        "Require that any claimed win is accompanied by a cleaner post-handoff pre-quant slope than the fixed-handoff control.",
+        "Reject runs that change wall-clock budget or effective training length relative to controls."
+      ],
+      "metric_plan": [
+        "Primary metric: downstream `score_bpb` from `quantized_sliding_window`.",
+        "Secondary metric: pre-quant `val_bpb` trajectory before and after the handoff.",
+        "Diagnostic metric: trigger step, smoothed slope trace, and post-trigger loss-slope delta versus controls.",
+        "Tie-break only after downstream agreement: artifact size."
+      ],
+      "implementation_notes": [
+        "This is blocked on a new primitive: runtime computation of smoothed loss-slope features plus one-shot recurrence activation.",
+        "The primitive should be generic enough to support future state-trigger families, but this realization should only wire the loss-slope signal.",
+        "Do not couple this realization to checkpoint/export selector logic in the first probe.",
+        "Keep trigger parameters bounded and serializable so the handoff policy can become a searchable program later."
+      ],
+      "composition_tags": [
+        "state_triggered",
+        "recurrence",
+        "transition_program",
+        "loss_slope_trigger",
+        "blocked_primitive"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "slope_window_refinement",
+        "eligibility_window_refinement",
+        "dual-condition_plateau_plus_stability_trigger"
+      ]
+    },
+    {
+      "realization_id": "trajectory_004_h3_r2",
+      "realization_key": "trajectory_004/trajectory_004_h3/trajectory_004_h3_r2",
+      "title": "Update-Stability Triggered Recurrence Handoff",
+      "mechanism_preservation": "Preserves the same family mechanism of one-shot state-triggered recurrence activation, but realizes it through optimizer-state stabilization signals instead of loss-slope signals.",
+      "implementation_target": "needs_new_primitive",
+      "lane": "training",
+      "phase_window": "mid",
+      "pack_kind": "mid_training_pack",
+      "instructions": "Add a runtime primitive to `frontier_rebase/pr1394/train_gpt_human.py` that observes cheap optimizer-side stability features during the trunk phase and enables recurrence once when update dynamics stabilize. Keep everything else frozen to the published pr1394 base contract. The primitive should expose one or two bounded signals derived from already-available training quantities, such as normalized update norm, gradient norm, or Muon-related step statistics, along with smoothing windows, eligibility bounds, and a one-shot latch. Materialize a mid-training pack with 2 controls and 2 family probes: control A is the published fixed `ENABLE_LOOPING_AT` behavior, control B is a replay-equivalent duplicate, probe 1 is a coarse late phase-rule handoff, and probe 2 is this update-stability trigger. The action remains identical across all slots: only turn on the existing recurrence path once. Persist trigger diagnostics per run: feature traces, trigger step, fired/not-fired, and immediate post-trigger trajectory. Promotion still depends on downstream `quantized_sliding_window` `score_bpb`; optimizer-side traces are only evidence that the handoff policy is causally distinct from a fixed time fraction.",
+      "control_plan": [
+        "Use the same frozen published base and same loop span as the controls.",
+        "Retain 2 controls in every pack to estimate pack-local control spread.",
+        "Keep the coarse late-handoff probe in the pack so this realization is compared against both fixed-time and non-stateful alternatives."
+      ],
+      "admission_rules": [
+        "Do not admit if the trigger is equivalent in practice to a fixed step across seeds without improved downstream results.",
+        "Do not admit if downstream `score_bpb` does not clear the paired-control band.",
+        "Require a coherent post-trigger stabilization story in the diagnostic traces, not just a downstream fluke.",
+        "Reject any realization that changes optimizer hyperparameters themselves rather than the recurrence handoff timing."
+      ],
+      "metric_plan": [
+        "Primary metric: downstream `score_bpb` from `quantized_sliding_window`.",
+        "Secondary metric: pre-quant `val_bpb` after handoff relative to matched controls.",
+        "Diagnostic metric: update-norm or optimizer-stability traces, trigger timing distribution, and post-trigger trajectory shift.",
+        "Tie-break only after downstream agreement: artifact size."
+      ],
+      "implementation_notes": [
+        "This is also blocked on a new primitive: runtime exposure of optimizer-stability features to a handoff controller and one-shot recurrence activation.",
+        "Keep the feature set cheap and already derivable from the training loop; do not introduce a new optimizer family.",
+        "This realization is distinct from the loss-slope version because it keys the handoff on update-dynamics stabilization rather than loss-curve shape.",
+        "The first executable probe should stay minimal: one signal family, one action, bounded trigger window."
+      ],
+      "composition_tags": [
+        "state_triggered",
+        "recurrence",
+        "transition_program",
+        "update_stability_trigger",
+        "blocked_primitive"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "feature_choice_refinement",
+        "stability_hysteresis_refinement",
+        "multi-signal_and_trigger"
+      ]
+    }
+  ],
+  "dropped_realizations": []
+}

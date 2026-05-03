@@ -1,0 +1,130 @@
+{
+  "trajectory_id": "trajectory_002",
+  "worldview": "The pr1394 harness should search explicit transition and selection programs on a frozen SP8192/GPTQ/recurrence/MuonEq-R/SDClip base. The biggest missed upside is likely not another scalar retune, but correcting the unit of search and the lane contract so downstream quantized_sliding_window signal can survive admission and promotion.",
+  "hypotheses": [
+    {
+      "id": "trajectory_002_h1",
+      "candidate_id": "trajectory_002/trajectory_002_h1",
+      "name": "Artifact-selector programs can beat both last-step and best-prequant export on the fixed pr1394 training trace",
+      "search_level": "program_family",
+      "lane": "downstream_quantized_sliding_window",
+      "mechanism": "The downstream winner may be an earlier or differently selected checkpoint whose weights quantize and compress more favorably than the terminal training winner. A bounded selector program over a fixed late-checkpoint pool can target quantization robustness directly instead of assuming the final or best-prequant checkpoint is the right artifact.",
+      "broken_invariant": "On pr1394, the last checkpoint or the lowest pre-quant checkpoint is an adequate proxy for the downstream sliding-window winner.",
+      "consequence_axes": [
+        "artifact_selection",
+        "deployment_path"
+      ],
+      "not_local_tuning_reason": "This changes the searched object from training scalars to an explicit artifact-selection program over the same run, which is a first-order change in what the harness is optimizing.",
+      "measurement_plan": "At least one selector consistently picks a non-control checkpoint that improves downstream `score_bpb` while pre-quant rank is unchanged or inverted.",
+      "smallest_decisive_probe": "On one frozen training trace with dense late saves, run an 8-slot bakeoff: 2 controls (`last_step`, `best_prequant`) plus 6 selector programs that choose one checkpoint from the same pool using late-slope, quant-proxy, and stability signals.",
+      "expected_observable": "At least one selector consistently picks a non-control checkpoint that improves downstream `score_bpb` while pre-quant rank is unchanged or inverted.",
+      "falsifier": "Across matched traces or seeds, no selector beats the best control beyond control spread, and selector choices collapse back to `last_step` or `best_prequant`.",
+      "novelty_vs_history": "This keeps the published base fixed but breaks from static patch chasing by making artifact choice itself the family. It is distinct from direct training mutations and aligns with the repo\u2019s repeated selector/portfolio theme.",
+      "implementation_mode": "catalog_executable_now",
+      "implementation_basis": "catalog_executable_now",
+      "family_group": "artifact_selector_programs",
+      "self_scores": {
+        "consequence": 4,
+        "novelty": 4,
+        "falsifiability": 4,
+        "lane_integrity": 5,
+        "implementation_honesty": 4
+      },
+      "self_check_summary": "Consequential because it directly changes artifact selection on the real downstream lane; falsifiable with same-trace controls; honest as an export/selector family rather than a hidden training stack."
+    },
+    {
+      "id": "trajectory_002_h2",
+      "candidate_id": "trajectory_002/trajectory_002_h2",
+      "name": "Bounded handoff controllers can outperform a single static regime on pr1394",
+      "search_level": "program_family",
+      "lane": "regime_transition_to_downstream",
+      "mechanism": "The fixed pr1394 stack may need explicit phase transitions between aggressive early fitting and conservative late stabilization. A small controller that switches among predeclared phase presets based on cheap state signals could recover downstream bpb that a one-regime schedule leaves on the table.",
+      "broken_invariant": "A single static optimizer/schedule regime with fixed warmup and warmdown is sufficient for the whole run on the frontier base.",
+      "consequence_axes": [
+        "regime_transition",
+        "compute_allocation"
+      ],
+      "not_local_tuning_reason": "The proposal is not a threshold nudge; it changes the search unit to a state-conditioned transition program that decides when the training regime changes.",
+      "measurement_plan": "Surviving controllers separate themselves by transition timing, showing improved late pre-quant slope and at least directional support on downstream sliding-window bpb.",
+      "smallest_decisive_probe": "Compare 2 static controls against 6 bounded controllers that choose among three existing phase presets using only cheap signals such as step fraction, train-loss slope, and update-norm trend.",
+      "expected_observable": "Surviving controllers separate themselves by transition timing, showing improved late pre-quant slope and at least directional support on downstream sliding-window bpb.",
+      "falsifier": "Controllers do not beat matched static presets, or their transition decisions show no stable relationship to either late pre-quant behavior or downstream outcome.",
+      "novelty_vs_history": "This is the hm2/stage3_2 idea applied honestly to the real pr1394 base: search the handoff policy, not another patch slate.",
+      "implementation_mode": "needs_new_primitive",
+      "implementation_basis": "needs_new_primitive",
+      "family_group": "state_handoff_controllers",
+      "self_scores": {
+        "consequence": 5,
+        "novelty": 4,
+        "falsifiability": 4,
+        "lane_integrity": 4,
+        "implementation_honesty": 5
+      },
+      "self_check_summary": "Strongly consequential because it changes regime transitions themselves; falsifiable with bounded controllers and matched static controls; blocked honestly because the active campaign harness may not yet expose state-conditioned controller primitives."
+    },
+    {
+      "id": "trajectory_002_h3",
+      "candidate_id": "trajectory_002/trajectory_002_h3",
+      "name": "Shared-trunk late-branch portfolios can beat single-finisher commitment",
+      "search_level": "composition",
+      "lane": "late_branch_downstream",
+      "mechanism": "The last segment of training likely has several incompatible finishers that trade off pre-quant fit, quantization robustness, and export quality. Forking a shared trunk into a small late-branch portfolio and selecting downstream can spend compute where uncertainty is highest instead of paying for multiple full runs.",
+      "broken_invariant": "Once the trunk is fixed, there is one best late finisher worth committing to for the entire run.",
+      "consequence_axes": [
+        "compute_allocation",
+        "artifact_selection"
+      ],
+      "not_local_tuning_reason": "This reallocates compute structurally from full-run variants to branch portfolios and changes the comparison object from a single run to a shared-trunk composition.",
+      "measurement_plan": "Branching creates real spread among late outcomes, and the best branch beats the best single committed finisher without needing a different base contract.",
+      "smallest_decisive_probe": "From one matched trunk checkpoint, run 2 control finishers and 6 branch finishers under equal late-step budgets, then select only by downstream `quantized_sliding_window` score.",
+      "expected_observable": "Branching creates real spread among late outcomes, and the best branch beats the best single committed finisher without needing a different base contract.",
+      "falsifier": "Late branches do not create outcome spread beyond control noise, or branch overhead erases any gain so the portfolio cannot beat the best control.",
+      "novelty_vs_history": "This is distinct from handoff controllers and selector-only families: it treats branching itself as the compute allocation primitive, matching stage3_4/stage3_5\u2019s core claim without pretending the current harness already proves it.",
+      "implementation_mode": "needs_new_primitive",
+      "implementation_basis": "needs_new_primitive",
+      "family_group": "late_branch_portfolios",
+      "self_scores": {
+        "consequence": 5,
+        "novelty": 4,
+        "falsifiability": 3,
+        "lane_integrity": 4,
+        "implementation_honesty": 5
+      },
+      "self_check_summary": "Consequential because it changes compute allocation and artifact selection together; still falsifiable with a minimal shared-trunk branch pack; honestly marked blocked because branch-resume portfolio machinery may not yet be runnable in the active catalog."
+    },
+    {
+      "id": "trajectory_002_h4",
+      "candidate_id": "trajectory_002/trajectory_002_h4",
+      "name": "Lane-split admission will produce more credible downstream winners than pooled ranking",
+      "search_level": "metric_lane",
+      "lane": "metric_lane_integrity",
+      "mechanism": "Training-side and export-side families attack different causal bottlenecks. If the harness ranks them together too early, it destroys real signal through metric inversion between pre-quant loss and downstream sliding-window bpb. Running lane-pure admission while keeping downstream `score_bpb` as the final promotion target should improve survivor credibility.",
+      "broken_invariant": "A single pooled tournament score can fairly admit and promote both training families and artifact families from the first pack.",
+      "consequence_axes": [
+        "search_strategy_reset"
+      ],
+      "not_local_tuning_reason": "This changes the search protocol and evidence contract for the entire campaign rather than tuning any model scalar or family parameter.",
+      "measurement_plan": "Lower control inversion, tighter top-2 survivor agreement across repeats, and fewer cases where a pre-quant winner washes out on the downstream target.",
+      "smallest_decisive_probe": "Take the same 6-candidate plus 2-control slate and evaluate it as two matched subpacks: training-side candidates admitted by lane-pure pre-quant evidence, artifact-side candidates admitted by same-checkpoint downstream evidence, with final comparison still on downstream `score_bpb`.",
+      "expected_observable": "Lower control inversion, tighter top-2 survivor agreement across repeats, and fewer cases where a pre-quant winner washes out on the downstream target.",
+      "falsifier": "Lane-split admission does not improve control stability or survivor reproducibility relative to pooled ranking on the same slate.",
+      "novelty_vs_history": "This directly attacks the repo\u2019s documented single-metric failure mode and is orthogonal to selector, controller, and branch families because it changes the harness contract itself.",
+      "implementation_mode": "catalog_executable_now",
+      "implementation_basis": "catalog_executable_now",
+      "family_group": "metric_lane_reset",
+      "self_scores": {
+        "consequence": 5,
+        "novelty": 5,
+        "falsifiability": 4,
+        "lane_integrity": 5,
+        "implementation_honesty": 4
+      },
+      "self_check_summary": "This is a real metric-lane move, not a patch family. It is easy to falsify with matched packs and directly targets the harness failure mode most likely to hide true downstream winners."
+    }
+  ],
+  "rejected_lines": [
+    "Retune `MUON_MOMENTUM_WARMUP_STEPS`, `BETA2`, or `GRAD_CLIP_NORM` inside the published stack: local scalar exploitation, not a consequential family.",
+    "Move `loop_start` or `loop_end` by one layer without changing the regime logic: topology retune inside the existing recurrence family, not a new search move.",
+    "Search only the SDClip row-std multiplier: deployment-path scalar tuning without a new selector or lane contract, so it should not enter round-0 ontology search."
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage3_4_branch_finishers",
+  "phase": "sanity",
+  "slot": "H406",
+  "name": "aggressive_tri_branch",
+  "role": "candidate",
+  "family": "AGGRESSIVE_TRI_BRANCH",
+  "lane": "branching",
+  "label": "20260325_142305",
+  "gpu_spec": "7",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H406"
+  ],
+  "compare_to": "R0A",
+  "why": "If branching works, it gives permission to swing harder in the finishers because the run can discard bad branches afterward.",
+  "validates": "Branching enables harder late finisher policies than a single committed run would tolerate.",
+  "falsifies": "Even with branching, mild finishers remain superior.",
+  "patches": [
+    "late_branch_finishers"
+  ],
+  "notes": [
+    "Aggression test."
+  ],
+  "env": {
+    "BRANCH_ENABLE": "1",
+    "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.72,\"finishers\":[{\"name\":\"ema_heavy\",\"ema_decay\":0.9995,\"use_ema\":1},{\"name\":\"deploy_qat_aggr\",\"ema_decay\":0.999,\"qat_alpha\":0.7,\"export_surrogate_weight\":0.0009,\"use_ema\":1},{\"name\":\"family_split_aggr\",\"ema_decay\":0.9985,\"token_lr_mult\":0.0,\"head_lr_mult\":0.35,\"scalar_lr_mult\":0.55,\"matrix_lr_mult\":1.2,\"use_ema\":1}]}",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

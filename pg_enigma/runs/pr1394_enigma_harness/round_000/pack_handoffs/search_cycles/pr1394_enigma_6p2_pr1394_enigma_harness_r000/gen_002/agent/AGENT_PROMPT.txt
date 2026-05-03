@@ -1,0 +1,1 @@
+Read `parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/search_cycles/pr1394_enigma_6p2_pr1394_enigma_harness_r000/gen_002/agent/AGENT_INSTRUCTIONS.md` and complete the task fully. Write the required JSON files, run the dry-run command, and leave the generation folder ready to execute.

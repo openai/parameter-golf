@@ -1,0 +1,70 @@
+{
+  "families": [
+    {
+      "family": "ema_selector",
+      "family_group": "ema_selector",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "ema_selector"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_ema_selector"
+    },
+    {
+      "family": "loop_ramp",
+      "family_group": "loop_ramp",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "loop_ramp"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_loop_ramp"
+    },
+    {
+      "family": "phase_split_optim",
+      "family_group": "phase_split_optim",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "phase_split_optim"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_phase_split_optim"
+    },
+    {
+      "family": "quant_clip_anneal",
+      "family_group": "quant_clip_anneal",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "quant_clip_anneal"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_quant_clip_anneal"
+    },
+    {
+      "family": "sensitivity_bits",
+      "family_group": "sensitivity_bits",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "sensitivity_bits"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_sensitivity_bits"
+    },
+    {
+      "family": "skip_gate_schedule",
+      "family_group": "skip_gate_schedule",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "skip_gate_schedule"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_skip_gate_schedule"
+    }
+  ]
+}

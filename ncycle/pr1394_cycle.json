@@ -1,0 +1,109 @@
+{
+  "cycle_id": "pr1394_frontier_6p2",
+  "history_window": 4,
+  "max_generations": 12,
+  "gpu_pool": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+  ],
+  "workspace": {
+    "root": "../search_cycles",
+    "sync_mode": "results_only"
+  },
+  "prompts": {
+    "generator": "search_reset_agent_prompt.md",
+    "verifier": "search_verifier_codex.md",
+    "compiler": null
+  },
+  "base": {
+    "default_base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+    "default_patch_module": null,
+    "default_entrypoint": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node={nproc_per_slot} {script}",
+    "defaults": {
+      "PYTHONUNBUFFERED": "1",
+      "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+      "DATA_DIR": "/data/parameter-golf/data",
+      "VOCAB_SIZE": "8192",
+      "TRAIN_LOG_EVERY": "500",
+      "VAL_LOSS_EVERY": "4000",
+      "MAX_WALLCLOCK_SECONDS": "600"
+    }
+  },
+  "codex": {
+    "bin": "codex",
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "profile": null,
+    "sandbox": "workspace-write",
+    "cd": ".",
+    "catalog_root": "pr1394_catalog",
+    "max_attempts": 6,
+    "compiled_schema": "search_harness_compiled_generation_schema.json",
+    "verifier_schema": "search_harness_verifier_report_schema.json",
+    "full_auto": true,
+    "skip_git_repo_check": true,
+    "extra_args": []
+  },
+  "admission": {
+    "mode": "survival",
+    "require_single_base": true,
+    "require_unique_family_groups": true,
+    "require_predicate_audit": true,
+    "freeze_env_keys": [
+      "DATA_DIR",
+      "VOCAB_SIZE"
+    ],
+    "fixed_base_script": "../../frontier_rebase/pr1394/train_gpt_human.py",
+    "min_candidate_slots": 6,
+    "max_candidate_slots": 6
+  },
+  "hooks": {
+    "generator": {
+      "command": null,
+      "cwd": ".",
+      "env": {}
+    },
+    "verifier": {
+      "command": null,
+      "cwd": ".",
+      "env": {}
+    },
+    "compiler": {
+      "command": null,
+      "cwd": ".",
+      "env": {}
+    },
+    "extractor": {
+      "command": "python3 search_harness_pgolf_extractor.py --generation-dir {generation_dir} --output {results_index_json}",
+      "cwd": "..",
+      "env": {}
+    }
+  },
+  "selection": {
+    "pass_verdicts": [
+      "PASS",
+      "PASS_WITH_WARNINGS"
+    ],
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": [
+      "C0",
+      "C1"
+    ],
+    "max_control_spread": 0.03,
+    "top_k": 2
+  },
+  "remote": {
+    "enabled": false,
+    "ssh_target": "ubuntu@YOUR_GPU_HOST",
+    "rsync_target": "ubuntu@YOUR_GPU_HOST:/data/parameter-golf/search_cycles/pr1394_frontier_6p2",
+    "remote_python": "/data/pgolf_venv/bin/python",
+    "pre_command": "cd /data/parameter-golf"
+  }
+}

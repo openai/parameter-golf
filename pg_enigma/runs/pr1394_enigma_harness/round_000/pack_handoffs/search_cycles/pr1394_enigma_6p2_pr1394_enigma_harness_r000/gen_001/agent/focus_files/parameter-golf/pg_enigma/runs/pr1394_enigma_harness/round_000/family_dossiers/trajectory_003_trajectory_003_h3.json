@@ -1,0 +1,73 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives.",
+  "dominant_search_level": "reset",
+  "candidate_id": "trajectory_003/trajectory_003_h3",
+  "name": "Checkpoint And Export Selector Family",
+  "family_group": "checkpoint_export_selector",
+  "search_level": "program_family",
+  "lane": "selector",
+  "phase_window": "post_train",
+  "pack_kind": "selector_pack",
+  "implementation_mode": "catalog_executable_now",
+  "compiler_pass_k": 3,
+  "why_keep": "It is the cleanest consequential family that can run now: same-trace artifact choice may beat the default final checkpoint/export pair on downstream `score_bpb`.",
+  "minimal_probe": "From one training trace, evaluate a bounded late-checkpoint window against a fixed small export menu, with 2 controls carrying the published default checkpoint/export choice.",
+  "expected_signal": "A non-default checkpoint/export pair wins on downstream `score_bpb` by more than control spread, and the winner is not recoverable from final-step or pre-quant ranking alone.",
+  "composition_tags": [
+    "same_trace",
+    "artifact_selection",
+    "post_train",
+    "deployment_touchpoint"
+  ],
+  "incompatible_with": [],
+  "mutate_after_survival": [
+    "expand_late_checkpoint_window",
+    "expand_fixed_export_menu",
+    "selector_robustness_across_seeds"
+  ],
+  "pack_rationale": "Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.",
+  "source_candidate": {
+    "candidate_id": "trajectory_003/trajectory_003_h3",
+    "trajectory_id": "trajectory_003",
+    "hypothesis_id": "trajectory_003_h3",
+    "worldview": "The right pr1394_enigma harness test is to keep the published SP8192/GPTQ-embeddings/depth-recurrence/MuonEq-R/SDClip stack frozen as the control base and search over bounded transition or selection programs around it. The consequential opportunities are regime changes and artifact choice, not scalar nudges.",
+    "name": "Checkpoint And Export Selector Family",
+    "search_level": "program_family",
+    "lane": "artifact_selection",
+    "family_group": "checkpoint_export_selector",
+    "implementation_mode": "catalog_executable_now",
+    "consequence_axes": [
+      "artifact_selection",
+      "deployment_path"
+    ],
+    "broken_invariant": "The final/default checkpoint plus default export path is automatically the best artifact once the training run is fixed.",
+    "smallest_decisive_probe": "Use the same trained trajectory for a same-checkpoint bakeoff over a small late-checkpoint window and a small fixed menu of catalog export realizations, with downstream quantized_sliding_window as admission metric.",
+    "expected_observable": "If the family is real, the downstream winner will come from a non-default checkpoint/export pair, and the ranking will disagree with simple final-step or pre-quant ranking often enough to exceed control noise.",
+    "novelty_vs_history": "This directly tests a lane the repo keeps underusing: artifact choice as a first-order search object rather than an afterthought behind training patches.",
+    "self_scores": {
+      "consequence": 4,
+      "novelty": 5,
+      "falsifiability": 5,
+      "lane_integrity": 5,
+      "implementation_honesty": 4
+    }
+  },
+  "verifier_review": {
+    "candidate_id": "trajectory_003/trajectory_003_h3",
+    "verdict": "KEEP",
+    "consequence_score": 4,
+    "novelty_score": 5,
+    "falsifiability_score": 5,
+    "lane_integrity_score": 5,
+    "implementation_honesty_score": 4,
+    "reasons": [
+      "This is the cleanest artifact-selection family in the batch: the searchable object is explicit and first-order.",
+      "The same-trace checkpoint/export bakeoff gives a crisp falsifier with no lane mixing.",
+      "It stays close to currently plausible harness behavior because it only needs a bounded late checkpoint window and fixed export menu."
+    ],
+    "rewrite_instructions": []
+  },
+  "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json"
+}

@@ -1,0 +1,2361 @@
+{
+  "batch_id": "hailmary_r2",
+  "description": "Moonshot parameter-golf runner on the executable strong 8192-tokenizer local base. Active packs are process-split, TTT, and deploy-alignment experiments; larger frontier-rebase ideas remain explicitly deferred.",
+  "default_pack": "ttt_family",
+  "benchmarks": {
+    "ours_bpb": 1.1631,
+    "merged_sota_bpb": 1.1233,
+    "frontier_no_ttt_bpb": 1.1163,
+    "frontier_ttt_bpb": 0.6864
+  },
+  "defaults": {
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "8192",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MODEL_DIM": "512",
+    "NUM_LAYERS": "11",
+    "MLP_MULT": "3",
+    "TIE_EMBEDDINGS": "1",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp8192",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_8192_bpe.model",
+    "TRAIN_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TIED_EMBED_LR": "0.035",
+    "MATRIX_LR": "0.022",
+    "SCALAR_LR": "0.025",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "MUON_WD": "0.095",
+    "ADAM_WD": "0.04",
+    "GRAD_CLIP_NORM": "0.3",
+    "WARMDOWN_ITERS": "3500",
+    "EVAL_STRIDE": "64",
+    "QK_GAIN_INIT": "5.25",
+    "XSA_LAST_N": "11",
+    "ROPE_DIMS": "16",
+    "LN_SCALE": "1",
+    "BIGRAM_VOCAB_SIZE": "3072",
+    "BIGRAM_DIM": "112",
+    "VE_ENABLED": "1",
+    "VE_DIM": "128",
+    "VE_LAYERS": "9,10",
+    "SWA_ENABLED": "1",
+    "SWA_EVERY": "50",
+    "LATE_QAT_THRESHOLD": "0.15"
+  },
+  "tournament": {
+    "primary_packs": [
+      "ttt_family",
+      "phase_split",
+      "checkpoint_selection",
+      "staged_curriculum"
+    ],
+    "support_packs": [
+      "alternating_objective"
+    ],
+    "deferred_rebuild_packs": [
+      "parameter_family_split",
+      "context_stage"
+    ],
+    "control_slots": [
+      "P0",
+      "P1"
+    ],
+    "export_slots": [
+      "G1",
+      "G2"
+    ],
+    "final_pack": "tournament_finalists"
+  },
+  "packs": {
+    "ttt_family": [
+      "T0",
+      "T1",
+      "T2",
+      "T3",
+      "T4",
+      "T5",
+      "T6",
+      "T7"
+    ],
+    "phase_split": [
+      "P0",
+      "P1",
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+      "P7"
+    ],
+    "checkpoint_selection": [
+      "K0",
+      "K1",
+      "K2",
+      "K3",
+      "K4",
+      "K5",
+      "K6",
+      "K7"
+    ],
+    "staged_curriculum": [
+      "C0",
+      "C1",
+      "C2",
+      "C3",
+      "C4",
+      "C5",
+      "C6",
+      "C7"
+    ],
+    "parameter_family_split": [
+      "F0",
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6",
+      "F7"
+    ],
+    "context_stage": [
+      "X0",
+      "X1",
+      "X2",
+      "X3",
+      "X4",
+      "X5",
+      "X6",
+      "X7"
+    ],
+    "alternating_objective": [
+      "A0",
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7"
+    ],
+    "moonshot_core": [
+      "H0",
+      "H1",
+      "H2",
+      "H3",
+      "H4",
+      "H5",
+      "H6",
+      "H7"
+    ],
+    "moonshot_second_wave": [
+      "M0",
+      "M1",
+      "M2",
+      "M3",
+      "M4",
+      "M5",
+      "M6",
+      "M7"
+    ],
+    "moonshot_geometry": [
+      "N0",
+      "N1",
+      "N2",
+      "N3",
+      "N4",
+      "N5",
+      "N6",
+      "N7"
+    ],
+    "moonshot_throughput": [
+      "Q0",
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4",
+      "Q5",
+      "Q6",
+      "Q7"
+    ],
+    "reference": [
+      "R0",
+      "R1",
+      "R2",
+      "R3",
+      "R4",
+      "R5",
+      "R6",
+      "R7"
+    ],
+    "deferred_export": [
+      "G0",
+      "G1",
+      "G2"
+    ]
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "T0",
+      "name": "ttt_family_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "ttt_family_control",
+      "why": "Primary control for the rebased pre-quant TTT family pack.",
+      "validates": "TTT variants are measured against the same strong static trunk.",
+      "falsifies": "The TTT family pack lacks a stable reference.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "T1",
+      "name": "ttt_family_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "T0",
+      "family": "ttt_family_control_repeat",
+      "why": "Noise floor for the TTT family pack.",
+      "validates": "TTT deltas are large enough to rank confidently.",
+      "falsifies": "Short-horizon variation is too large for this lane.",
+      "env": {
+        "SEED": "42"
+      },
+      "notes": []
+    },
+    {
+      "slot": "T2",
+      "name": "ttt_last2_raw_state",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "pre_quant_ttt"
+      ],
+      "compare_to": "T0",
+      "family": "pre_quant_ttt",
+      "why": "Simplest TTT baseline: adapt only the last 2 blocks from the raw final state.",
+      "validates": "Even a narrow raw-state pre-quant TTT finisher is a live mechanism here.",
+      "falsifies": "The TTT lane needs stronger state selection or broader adaptation to matter.",
+      "env": {
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "3",
+        "PRE_QUANT_TTT_LR": "0.0005",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "9",
+        "PRE_QUANT_TTT_STRIDE": "256",
+        "PRE_QUANT_TTT_CHUNKS": "32",
+        "PRE_QUANT_TTT_BLOCK_LR_DECAY": "1.0"
+      },
+      "notes": []
+    },
+    {
+      "slot": "T3",
+      "name": "ttt_last2_ema_state",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "ema_export",
+        "pre_quant_ttt"
+      ],
+      "compare_to": "T2",
+      "family": "pre_quant_ttt_ema",
+      "why": "Tests whether the best simple TTT base object is EMA rather than the raw final checkpoint.",
+      "validates": "EMA remains the right precursor state for narrow pre-quant TTT.",
+      "falsifies": "TTT largely erases the raw-vs-EMA distinction for this simple finisher.",
+      "env": {
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "3",
+        "PRE_QUANT_TTT_LR": "0.0005",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "9",
+        "PRE_QUANT_TTT_STRIDE": "256",
+        "PRE_QUANT_TTT_CHUNKS": "32",
+        "PRE_QUANT_TTT_BLOCK_LR_DECAY": "1.0"
+      },
+      "notes": []
+    },
+    {
+      "slot": "T4",
+      "name": "ttt_last2_ema_longer",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "ema_export",
+        "pre_quant_ttt"
+      ],
+      "compare_to": "T3",
+      "family": "pre_quant_ttt_epochs",
+      "why": "Tests whether the TTT gain is limited more by horizon than by finisher form.",
+      "validates": "The late TTT lane is compute-starved and benefits from more adaptation even without changing the finisher law.",
+      "falsifies": "Extra TTT epochs mostly overfit or waste time.",
+      "env": {
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "6",
+        "PRE_QUANT_TTT_LR": "0.0005",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "9",
+        "PRE_QUANT_TTT_STRIDE": "256",
+        "PRE_QUANT_TTT_CHUNKS": "32",
+        "PRE_QUANT_TTT_BLOCK_LR_DECAY": "1.0"
+      },
+      "notes": []
+    },
+    {
+      "slot": "T5",
+      "name": "ttt_broad_dttt_tail",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "ema_export",
+        "pre_quant_ttt"
+      ],
+      "compare_to": "T3",
+      "family": "dttt_tail",
+      "why": "Broader upper-trunk adaptation with blockwise LR decay is the cleanest discriminative-TTT proxy we can support now.",
+      "validates": "The TTT law matters, not just whether TTT is on.",
+      "falsifies": "The broader tail adds cost without beating the simpler last-2 finisher.",
+      "env": {
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "4",
+        "PRE_QUANT_TTT_LR": "0.0005",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "2",
+        "PRE_QUANT_TTT_STRIDE": "256",
+        "PRE_QUANT_TTT_CHUNKS": "32",
+        "PRE_QUANT_TTT_BLOCK_LR_DECAY": "0.7"
+      },
+      "notes": []
+    },
+    {
+      "slot": "T6",
+      "name": "ttt_checkpoint_selected",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "checkpoint_selection",
+        "pre_quant_ttt"
+      ],
+      "compare_to": "T3",
+      "family": "checkpoint_selected_ttt",
+      "why": "Tests whether the best TTT start state should come from a late deployed-state bakeoff rather than plain EMA.",
+      "validates": "Checkpoint selection and TTT stack cleanly in the same lane.",
+      "falsifies": "The choice of starting state is mostly irrelevant once TTT runs.",
+      "env": {
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "8",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.72",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "3",
+        "PRE_QUANT_TTT_LR": "0.0005",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "9",
+        "PRE_QUANT_TTT_STRIDE": "256",
+        "PRE_QUANT_TTT_CHUNKS": "32",
+        "PRE_QUANT_TTT_BLOCK_LR_DECAY": "1.0"
+      },
+      "notes": []
+    },
+    {
+      "slot": "T7",
+      "name": "ttt_checkpoint_selected_plus_qat",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "checkpoint_selection",
+        "late_qat_active",
+        "pre_quant_ttt"
+      ],
+      "compare_to": "T6",
+      "family": "checkpoint_selected_ttt_plus_qat",
+      "why": "This is the strongest honest bridge from our existing deploy-alignment patches into the new pre-quant TTT lane.",
+      "validates": "Late deploy shaping still matters when the stage ends with TTT rather than plain export.",
+      "falsifies": "TTT absorbs most of the benefit and the extra late-QAT machinery is decorative.",
+      "env": {
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "8",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.72",
+        "LATE_QAT_ENABLE": "1",
+        "LATE_QAT_THRESHOLD": "0.15",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "4",
+        "PRE_QUANT_TTT_LR": "0.0005",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "2",
+        "PRE_QUANT_TTT_STRIDE": "256",
+        "PRE_QUANT_TTT_CHUNKS": "32",
+        "PRE_QUANT_TTT_BLOCK_LR_DECAY": "0.7"
+      },
+      "notes": []
+    },
+    {
+      "slot": "P0",
+      "name": "phase_split_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "phase_split_control",
+      "why": "Control for the lead phase-split hailmary pack.",
+      "validates": "Process-split candidates are measured against the current frontier-aligned default trunk.",
+      "falsifies": "The lead hailmary pack lacks a stable reference.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "P1",
+      "name": "phase_split_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "P0",
+      "family": "phase_split_control_repeat",
+      "why": "Noise floor for the lead phase-split pack.",
+      "validates": "Small phase-split deltas are interpretable.",
+      "falsifies": "This pack is too noisy for confident ranking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "P2",
+      "name": "phase_split_ema_export",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "ema_export"
+      ],
+      "compare_to": "P0",
+      "family": "phase_split_checkpoint",
+      "why": "Simplest runnable test that the late exported state should differ from the last raw checkpoint.",
+      "validates": "Late-state selection is first-order enough to headline a rebuild pack.",
+      "falsifies": "Checkpoint-state selection is too small to matter.",
+      "env": {
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "P3",
+      "name": "phase_split_late_qat",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "late_qat_active"
+      ],
+      "compare_to": "P0",
+      "family": "phase_split_deploy_alignment",
+      "why": "Internalizes export pressure only late instead of distorting the whole trajectory.",
+      "validates": "Late deploy alignment is a real lead mechanism.",
+      "falsifies": "Late export pressure is still too disruptive or too weak.",
+      "env": {
+        "LATE_QAT_ENABLE": "1",
+        "LATE_QAT_THRESHOLD": "0.15"
+      },
+      "notes": []
+    },
+    {
+      "slot": "P4",
+      "name": "phase_split_late_weight_perturbation",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "compare_to": "P0",
+      "family": "phase_split_flatness",
+      "why": "Tests a late-only compressibility-shaping regime instead of full-run geometry noise.",
+      "validates": "The right geometry intervention is phase-specific, not homogeneous across the run.",
+      "falsifies": "The geometry signal only pays if active throughout training.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "WEIGHT_PERTURB_START_FRAC": "0.70",
+        "WEIGHT_PERTURB_END_FRAC": "1.00"
+      },
+      "notes": []
+    },
+    {
+      "slot": "P5",
+      "name": "phase_split_ema_plus_late_qat",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "ema_export",
+        "late_qat_active"
+      ],
+      "compare_to": "P3",
+      "family": "phase_split_deploy_state",
+      "why": "Tests whether late deploy alignment and exported-state selection stack cleanly.",
+      "validates": "The rebuild should think in process plus state, not one or the other.",
+      "falsifies": "One of the two mechanisms mostly shadows the other.",
+      "env": {
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "LATE_QAT_ENABLE": "1",
+        "LATE_QAT_THRESHOLD": "0.15"
+      },
+      "notes": []
+    },
+    {
+      "slot": "P6",
+      "name": "phase_split_late_perturb_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation",
+        "ema_export"
+      ],
+      "compare_to": "P4",
+      "family": "phase_split_flatness_state",
+      "why": "Tests whether a late flatter basin and exported-state averaging reinforce each other.",
+      "validates": "Late geometry and late state selection attack different parts of the deployed gap.",
+      "falsifies": "EMA washes out the late geometry signal.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "WEIGHT_PERTURB_START_FRAC": "0.70",
+        "WEIGHT_PERTURB_END_FRAC": "1.00",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "P7",
+      "name": "phase_split_late_qat_plus_late_perturb",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "late_qat_active",
+        "weight_perturbation"
+      ],
+      "compare_to": "P3",
+      "family": "phase_split_deploy_flatness",
+      "why": "Tests a stronger late-only alignment regime that changes both exported robustness and basin geometry.",
+      "validates": "The strongest late-phase mechanisms are composable enough to become a real moonshot parent.",
+      "falsifies": "Late-phase mechanisms interact destructively instead of stacking.",
+      "env": {
+        "LATE_QAT_ENABLE": "1",
+        "LATE_QAT_THRESHOLD": "0.15",
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "WEIGHT_PERTURB_START_FRAC": "0.70",
+        "WEIGHT_PERTURB_END_FRAC": "1.00"
+      },
+      "notes": []
+    },
+    {
+      "slot": "K0",
+      "name": "checkpoint_selection_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "checkpoint_selection_control",
+      "why": "Control for deployed-checkpoint selection hypotheses.",
+      "validates": "Checkpoint-selection mechanisms are measured against the same base trunk.",
+      "falsifies": "This lane lacks a stable anchor.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "K1",
+      "name": "checkpoint_selection_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "K0",
+      "family": "checkpoint_selection_control_repeat",
+      "why": "Noise floor for checkpoint-selection work.",
+      "validates": "Small checkpoint-state deltas are interpretable.",
+      "falsifies": "The lane is too noisy to rank subtle state-selection ideas.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "K2",
+      "name": "checkpoint_selection_ema_export",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "ema_export"
+      ],
+      "compare_to": "K0",
+      "family": "checkpoint_selection_proxy",
+      "why": "Current runnable proxy for the broader checkpoint-selection family.",
+      "validates": "There is enough signal here to justify larger state-selection patches.",
+      "falsifies": "Checkpoint selection is too weak to deserve a lead rebuild lane.",
+      "env": {
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": [
+        "Proxy only. The real family is best-of-last-K deployed-state selection."
+      ]
+    },
+    {
+      "slot": "K3",
+      "name": "checkpoint_selection_best_of_last_k_raw",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "checkpoint_selection"
+      ],
+      "compare_to": "K0",
+      "family": "checkpoint_selection",
+      "why": "Tests whether the best deployed raw snapshot appears before the last step.",
+      "validates": "Last checkpoint is a false invariant.",
+      "falsifies": "The final step is already the right export target.",
+      "env": {
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "raw",
+        "SNAPSHOT_SELECT_SCORE": "raw",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.75"
+      },
+      "notes": []
+    },
+    {
+      "slot": "K4",
+      "name": "checkpoint_selection_best_of_last_k_ema_raw",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "checkpoint_selection",
+        "ema_export"
+      ],
+      "compare_to": "K3",
+      "family": "checkpoint_selection",
+      "why": "Tests raw-vs-EMA late-snapshot competition instead of assuming EMA is always right.",
+      "validates": "Export state selection must compare multiple tracked states, not just one.",
+      "falsifies": "EMA already saturates the useful state-selection story.",
+      "env": {
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "ema_vs_raw",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.75",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "K5",
+      "name": "checkpoint_selection_best_deployed_score",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "checkpoint_selection"
+      ],
+      "compare_to": "K0",
+      "family": "checkpoint_selection_deployed",
+      "why": "Selects the checkpoint by deployed GPTQ score instead of raw validation.",
+      "validates": "The true export target differs from the raw training optimum.",
+      "falsifies": "Deployed score peaks at the same point as the raw checkpoint.",
+      "env": {
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.75"
+      },
+      "notes": []
+    },
+    {
+      "slot": "K6",
+      "name": "checkpoint_selection_best_deployed_score_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "checkpoint_selection",
+        "ema_export"
+      ],
+      "compare_to": "K5",
+      "family": "checkpoint_selection_deployed",
+      "why": "Tests whether deployed GPTQ selection still matters after EMA is already tracked.",
+      "validates": "State selection is more than just 'turn EMA on'.",
+      "falsifies": "EMA already captures the best deployable state.",
+      "env": {
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.75",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "K7",
+      "name": "checkpoint_selection_dual_track_export",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "checkpoint_selection",
+        "ema_export"
+      ],
+      "compare_to": "K0",
+      "family": "checkpoint_selection_dual_track",
+      "why": "Tracks raw, EMA, and late-aligned variants in parallel and exports the best deployed artifact.",
+      "validates": "Export object selection is a real mechanism family, not a minor afterthought.",
+      "falsifies": "Parallel state tracking is not worth the added complexity.",
+      "env": {
+        "DUAL_TRACK_EXPORT_ENABLE": "1",
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "8",
+        "SNAPSHOT_SELECT_EVERY": "200",
+        "SNAPSHOT_SELECT_START_FRAC": "0.70",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "C0",
+      "name": "staged_curriculum_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "staged_curriculum_control",
+      "why": "Control for phase-split data-order hypotheses.",
+      "validates": "Curriculum-stage ideas have a stable reference.",
+      "falsifies": "This lane lacks an interpretable anchor.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "C1",
+      "name": "staged_curriculum_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "C0",
+      "family": "staged_curriculum_control_repeat",
+      "why": "Noise floor for staged curriculum.",
+      "validates": "Small data-order deltas are interpretable.",
+      "falsifies": "This lane is too noisy to rank.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "C2",
+      "name": "staged_curriculum_reverse_proxy",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "compare_to": "C0",
+      "family": "staged_curriculum_proxy",
+      "why": "Runnable proxy for the broader staged-curriculum family.",
+      "validates": "Data order is still first-order enough to deserve a lead rebuild lane.",
+      "falsifies": "Even a rough order change is too weak to matter.",
+      "env": {
+        "SHARD_ORDER": "reverse"
+      },
+      "notes": [
+        "Proxy only. The real family is phase-dependent order changes."
+      ]
+    },
+    {
+      "slot": "C3",
+      "name": "staged_curriculum_size_desc_proxy",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "compare_to": "C0",
+      "family": "staged_curriculum_proxy",
+      "why": "Second runnable proxy for the staged-curriculum family.",
+      "validates": "Simple curriculum heuristics are worth replacing with true phase splits.",
+      "falsifies": "The curriculum lane is too weak even before staging.",
+      "env": {
+        "SHARD_ORDER": "size_desc"
+      },
+      "notes": [
+        "Proxy only. The real family is phase-dependent order changes."
+      ]
+    },
+    {
+      "slot": "C4",
+      "name": "staged_curriculum_reverse_then_size_desc",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "staged_curriculum"
+      ],
+      "compare_to": "C0",
+      "family": "staged_curriculum",
+      "why": "Starts with broad coverage then shifts to denser/harder shards late.",
+      "validates": "One shard order for the whole run is a false invariant.",
+      "falsifies": "Static order is already good enough.",
+      "env": {
+        "STAGED_CURRICULUM_ENABLE": "1",
+        "STAGED_CURRICULUM_PHASE1": "reverse",
+        "STAGED_CURRICULUM_PHASE2": "size_desc",
+        "STAGED_CURRICULUM_SWITCH_FRAC": "0.65"
+      },
+      "notes": []
+    },
+    {
+      "slot": "C5",
+      "name": "staged_curriculum_easy_then_hard",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "staged_curriculum"
+      ],
+      "compare_to": "C0",
+      "family": "staged_curriculum",
+      "why": "Allocates early updates to easy shards and late updates to hard shards.",
+      "validates": "Difficulty staging matters more than one fixed global order.",
+      "falsifies": "The train cap is too short for a two-phase curriculum to pay off.",
+      "env": {
+        "STAGED_CURRICULUM_ENABLE": "1",
+        "STAGED_CURRICULUM_PHASE1": "easy",
+        "STAGED_CURRICULUM_PHASE2": "hard",
+        "STAGED_CURRICULUM_SWITCH_FRAC": "0.60"
+      },
+      "notes": []
+    },
+    {
+      "slot": "C6",
+      "name": "staged_curriculum_reverse_then_shuffle",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "staged_curriculum"
+      ],
+      "compare_to": "C0",
+      "family": "staged_curriculum",
+      "why": "Uses ordering only where it buys fast learning, then relaxes to avoid overfitting the order.",
+      "validates": "Curriculum should be stage-limited rather than permanent.",
+      "falsifies": "Once order helps, it should stay active throughout training.",
+      "env": {
+        "STAGED_CURRICULUM_ENABLE": "1",
+        "STAGED_CURRICULUM_PHASE1": "reverse",
+        "STAGED_CURRICULUM_PHASE2": "shuffle",
+        "STAGED_CURRICULUM_SWITCH_FRAC": "0.50"
+      },
+      "notes": []
+    },
+    {
+      "slot": "C7",
+      "name": "staged_curriculum_plus_late_qat",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "staged_curriculum",
+        "late_qat_active"
+      ],
+      "compare_to": "C4",
+      "family": "staged_curriculum_deploy_bridge",
+      "why": "Tests whether a better late data regime and late deploy alignment reinforce each other.",
+      "validates": "Process split should couple data order and late objective, not treat them independently.",
+      "falsifies": "Curriculum and late deploy pressure do not compose.",
+      "env": {
+        "STAGED_CURRICULUM_ENABLE": "1",
+        "STAGED_CURRICULUM_PHASE1": "reverse",
+        "STAGED_CURRICULUM_PHASE2": "size_desc",
+        "STAGED_CURRICULUM_SWITCH_FRAC": "0.65",
+        "LATE_QAT_ENABLE": "1",
+        "LATE_QAT_THRESHOLD": "0.15"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F0",
+      "name": "parameter_family_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "parameter_family_control",
+      "why": "Control for tensor-family split hypotheses.",
+      "validates": "Family-specific late rules are measured against the base trunk.",
+      "falsifies": "This lane lacks a stable anchor.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "F1",
+      "name": "parameter_family_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "F0",
+      "family": "parameter_family_control_repeat",
+      "why": "Noise floor for tensor-family split work.",
+      "validates": "Small family-split deltas are interpretable.",
+      "falsifies": "This lane is too noisy to rank.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "F2",
+      "name": "parameter_family_embeddings_head_late_freeze",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "F0",
+      "family": "parameter_family_freeze",
+      "why": "Stops the most fragile parameter families from drifting late while matrices keep consolidating.",
+      "validates": "Late adaptation should be specialized by tensor family.",
+      "falsifies": "Homogeneous late adaptation is already fine.",
+      "env": {
+        "FAMILY_FREEZE_ENABLE": "1",
+        "FAMILY_FREEZE_TARGETS": "embed,lm_head",
+        "FAMILY_FREEZE_START_FRAC": "0.75"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F3",
+      "name": "parameter_family_matrix_only_late_qat",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "F0",
+      "family": "parameter_family_deploy",
+      "why": "Applies late deploy pressure only to the matrix trunk where quantization damage concentrates.",
+      "validates": "Family-specific deploy alignment beats homogeneous late QAT.",
+      "falsifies": "Late deploy pressure needs to hit all trainable weights equally.",
+      "env": {
+        "FAMILY_LATE_QAT_ENABLE": "1",
+        "FAMILY_LATE_QAT_TARGETS": "matrices",
+        "FAMILY_LATE_QAT_START_FRAC": "0.85"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F4",
+      "name": "parameter_family_decay_split",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "F0",
+      "family": "parameter_family_schedule",
+      "why": "Gives embeddings/head/scalars different late regularization than the trunk.",
+      "validates": "One decay law for all families is a false invariant.",
+      "falsifies": "The current uniform late law is already near-optimal.",
+      "env": {
+        "FAMILY_DECAY_SPLIT_ENABLE": "1",
+        "FAMILY_DECAY_MATRIX": "0.04",
+        "FAMILY_DECAY_EMBED": "0.00",
+        "FAMILY_DECAY_SCALAR": "0.00"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F5",
+      "name": "parameter_family_lr_warmdown_split",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "F0",
+      "family": "parameter_family_schedule",
+      "why": "Lets different families decay into warmdown at different rates.",
+      "validates": "Warmdown should be specialized by tensor family.",
+      "falsifies": "A single warmdown law is already sufficient.",
+      "env": {
+        "FAMILY_WARMDOWN_SPLIT_ENABLE": "1",
+        "FAMILY_WARMDOWN_MATRIX": "1.00",
+        "FAMILY_WARMDOWN_EMBED": "0.50",
+        "FAMILY_WARMDOWN_SCALAR": "0.25"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F6",
+      "name": "parameter_family_value_live_trunk_freeze",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "F0",
+      "family": "parameter_family_specialization",
+      "why": "Keeps value-side or selected late-sensitive paths adapting after the rest of the trunk stabilizes.",
+      "validates": "Different matrix families should not share one late adaptation rule.",
+      "falsifies": "Selective late plasticity is unnecessary.",
+      "env": {
+        "FAMILY_SELECTIVE_LATE_ENABLE": "1",
+        "FAMILY_LIVE_TARGETS": "value,proj_out",
+        "FAMILY_FREEZE_OTHERS_START_FRAC": "0.80"
+      },
+      "notes": []
+    },
+    {
+      "slot": "F7",
+      "name": "parameter_family_freeze_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "F2",
+      "family": "parameter_family_state_bridge",
+      "why": "Tests whether family-specific late stabilization and exported-state selection stack.",
+      "validates": "Family specialization and state selection are complementary mechanisms.",
+      "falsifies": "The freeze gain does not survive export-state averaging.",
+      "env": {
+        "FAMILY_FREEZE_ENABLE": "1",
+        "FAMILY_FREEZE_TARGETS": "embed,lm_head",
+        "FAMILY_FREEZE_START_FRAC": "0.75",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "X0",
+      "name": "context_stage_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "context_stage_control",
+      "why": "Control for context-budget split hypotheses.",
+      "validates": "Context-stage work is measured against the same base trunk.",
+      "falsifies": "This lane lacks a stable anchor.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "X1",
+      "name": "context_stage_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "X0",
+      "family": "context_stage_control_repeat",
+      "why": "Noise floor for context-stage work.",
+      "validates": "Small context-stage deltas are interpretable.",
+      "falsifies": "This lane is too noisy to rank.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "X2",
+      "name": "context_stage_xsa_all_proxy",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all"
+      ],
+      "compare_to": "X0",
+      "family": "context_stage_proxy",
+      "why": "Runnable proxy for the broader context-stage family.",
+      "validates": "Context treatment is still first-order enough to deserve a lead rebuild lane.",
+      "falsifies": "Context changes are too weak even before staging.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all"
+      },
+      "notes": [
+        "Proxy only. The real family changes context policy by phase."
+      ]
+    },
+    {
+      "slot": "X3",
+      "name": "context_stage_xsa_all_plus_ema_proxy",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "ema_export"
+      ],
+      "compare_to": "X2",
+      "family": "context_stage_proxy",
+      "why": "Runnable bridge between context and state-selection lanes.",
+      "validates": "Context changes are worth carrying into the rebuilt context-stage family.",
+      "falsifies": "The current context signal is too brittle to survive export-state smoothing.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": [
+        "Proxy only. The real family changes context policy by phase."
+      ]
+    },
+    {
+      "slot": "X4",
+      "name": "context_stage_short_then_long",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "X0",
+      "family": "context_stage",
+      "why": "Allocates early budget to cheaper shorter-context learning, then turns on the heavy context regime late.",
+      "validates": "One context budget for the whole run is a false invariant.",
+      "falsifies": "The long-context regime should stay on the whole time.",
+      "env": {
+        "CONTEXT_STAGE_ENABLE": "1",
+        "CONTEXT_STAGE_PHASE1_SEQ": "1024",
+        "CONTEXT_STAGE_PHASE2_SEQ": "2048",
+        "CONTEXT_STAGE_SWITCH_FRAC": "0.60"
+      },
+      "notes": []
+    },
+    {
+      "slot": "X5",
+      "name": "context_stage_xsa_last4_then_all",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "X0",
+      "family": "context_stage",
+      "why": "Starts with a cheaper partial context specialization and only pays for XSA-all late.",
+      "validates": "Context specialization should itself be phased.",
+      "falsifies": "The best context stack should just be on from step zero.",
+      "env": {
+        "CONTEXT_STAGE_ENABLE": "1",
+        "CONTEXT_STAGE_PHASE1_XSA": "4",
+        "CONTEXT_STAGE_PHASE2_XSA": "all",
+        "CONTEXT_STAGE_SWITCH_FRAC": "0.65"
+      },
+      "notes": []
+    },
+    {
+      "slot": "X6",
+      "name": "context_stage_short_then_long_plus_late_qat",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "X4",
+      "family": "context_stage_deploy_bridge",
+      "why": "Pairs a phased context budget with late deploy alignment.",
+      "validates": "Context staging and late deploy pressure are complementary rather than competing for budget.",
+      "falsifies": "The two process splits do not compose.",
+      "env": {
+        "CONTEXT_STAGE_ENABLE": "1",
+        "CONTEXT_STAGE_PHASE1_SEQ": "1024",
+        "CONTEXT_STAGE_PHASE2_SEQ": "2048",
+        "CONTEXT_STAGE_SWITCH_FRAC": "0.60",
+        "LATE_QAT_ENABLE": "1",
+        "LATE_QAT_THRESHOLD": "0.15"
+      },
+      "notes": []
+    },
+    {
+      "slot": "X7",
+      "name": "context_stage_xsa_then_full_gptq",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "needs_patch",
+      "compare_to": "X0",
+      "family": "context_stage_export_bridge",
+      "why": "Tests whether phased context specialization is only worth it once paired with the strongest export lane.",
+      "validates": "Context-stage gains survive rebasing onto a serious deploy path.",
+      "falsifies": "The context-stage story is too weak to survive export alignment.",
+      "env": {
+        "CONTEXT_STAGE_ENABLE": "1",
+        "CONTEXT_STAGE_PHASE1_XSA": "4",
+        "CONTEXT_STAGE_PHASE2_XSA": "all",
+        "CONTEXT_STAGE_SWITCH_FRAC": "0.65",
+        "GPTQ_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "A0",
+      "name": "alternating_objective_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "alternating_objective_control",
+      "why": "Control for objective-microcycle hypotheses.",
+      "validates": "Alternating objective work is measured against the base trunk.",
+      "falsifies": "This lane lacks a stable anchor.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "A1",
+      "name": "alternating_objective_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "A0",
+      "family": "alternating_objective_control_repeat",
+      "why": "Noise floor for objective-microcycle work.",
+      "validates": "Small alternating-objective deltas are interpretable.",
+      "falsifies": "This lane is too noisy to rank.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "A2",
+      "name": "alternating_objective_late_qat_microcycle",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "alternating_objective"
+      ],
+      "compare_to": "A0",
+      "family": "alternating_objective",
+      "why": "Runs normal steps most of the time but interleaves sparse deploy-aligned steps late.",
+      "validates": "Alternating objectives beats one blended objective.",
+      "falsifies": "Sparse objective cycling is too weak or too disruptive.",
+      "env": {
+        "ALT_OBJECTIVE_ENABLE": "1",
+        "ALT_OBJECTIVE_MODE": "late_qat",
+        "ALT_OBJECTIVE_EVERY": "8",
+        "ALT_OBJECTIVE_START_FRAC": "0.75",
+        "ALT_OBJECTIVE_WEIGHT": "0.05"
+      },
+      "notes": []
+    },
+    {
+      "slot": "A3",
+      "name": "alternating_objective_weight_noise_microcycle",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "alternating_objective"
+      ],
+      "compare_to": "A0",
+      "family": "alternating_objective",
+      "why": "Alternates clean learning steps with sparse flatness-shaping steps instead of applying noise continuously.",
+      "validates": "The geometry story should be temporal and sparse, not homogeneous.",
+      "falsifies": "Continuous geometry pressure is still the only useful form.",
+      "env": {
+        "ALT_OBJECTIVE_ENABLE": "1",
+        "ALT_OBJECTIVE_MODE": "weight_perturb",
+        "ALT_OBJECTIVE_EVERY": "8",
+        "ALT_OBJECTIVE_START_FRAC": "0.70",
+        "ALT_WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": []
+    },
+    {
+      "slot": "A4",
+      "name": "alternating_objective_export_surrogate",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "alternating_objective"
+      ],
+      "compare_to": "A0",
+      "family": "alternating_objective",
+      "why": "Interleaves normal NLL with a sparse export-surrogate penalty instead of poisoning every step.",
+      "validates": "Export alignment should be pulsed rather than blended.",
+      "falsifies": "Export alignment needs to be continuously present to matter.",
+      "env": {
+        "ALT_OBJECTIVE_ENABLE": "1",
+        "ALT_OBJECTIVE_MODE": "export_surrogate",
+        "ALT_OBJECTIVE_EVERY": "8",
+        "ALT_OBJECTIVE_START_FRAC": "0.75",
+        "ALT_OBJECTIVE_WEIGHT": "0.03"
+      },
+      "notes": []
+    },
+    {
+      "slot": "A5",
+      "name": "alternating_objective_export_surrogate_soft",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "alternating_objective"
+      ],
+      "compare_to": "A0",
+      "family": "alternating_objective",
+      "why": "Uses a softer export-surrogate pulse late to test whether the objective needs to be gentler than A4.",
+      "validates": "The right alternating export pressure is sparse and low-amplitude.",
+      "falsifies": "Only a stronger export surrogate is worth keeping.",
+      "env": {
+        "ALT_OBJECTIVE_ENABLE": "1",
+        "ALT_OBJECTIVE_MODE": "export_surrogate",
+        "ALT_OBJECTIVE_EVERY": "8",
+        "ALT_OBJECTIVE_START_FRAC": "0.80",
+        "ALT_OBJECTIVE_WEIGHT": "0.01"
+      },
+      "notes": []
+    },
+    {
+      "slot": "A6",
+      "name": "alternating_objective_late_qat_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "alternating_objective",
+        "ema_export"
+      ],
+      "compare_to": "A2",
+      "family": "alternating_objective_state_bridge",
+      "why": "Pairs sparse late deploy-aligned steps with exported-state selection.",
+      "validates": "Alternating objectives and state selection are complementary.",
+      "falsifies": "The objective-cycling gain vanishes once export state is smoothed.",
+      "env": {
+        "ALT_OBJECTIVE_ENABLE": "1",
+        "ALT_OBJECTIVE_MODE": "late_qat",
+        "ALT_OBJECTIVE_EVERY": "8",
+        "ALT_OBJECTIVE_START_FRAC": "0.75",
+        "ALT_OBJECTIVE_WEIGHT": "0.05",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "A7",
+      "name": "alternating_objective_dual_pulse",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "alternating_objective"
+      ],
+      "compare_to": "A0",
+      "family": "alternating_objective_compound",
+      "why": "Alternates clean steps, sparse deploy-aligned steps, and sparse flatness-shaping steps in separate pulses.",
+      "validates": "The late run should be decomposed into multiple specialized step types.",
+      "falsifies": "A multi-regime microcycle is too complex for the 600s horizon.",
+      "env": {
+        "ALT_OBJECTIVE_ENABLE": "1",
+        "ALT_OBJECTIVE_MODE": "dual_pulse",
+        "ALT_OBJECTIVE_EVERY": "8",
+        "ALT_OBJECTIVE_START_FRAC": "0.70",
+        "ALT_OBJECTIVE_WEIGHT": "0.04",
+        "ALT_WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": []
+    },
+    {
+      "slot": "H0",
+      "name": "moonshot_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "control",
+      "why": "Frontier-aligned 11L control for the moonshot pack.",
+      "validates": "The pack has a stable baseline on the merged root train_gpt.py.",
+      "falsifies": "Root instability or scheduler issues invalidate moonshot comparisons.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "H1",
+      "name": "moonshot_control_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "H0",
+      "family": "control_repeat",
+      "why": "Noise floor for the core moonshot pack.",
+      "validates": "Small deltas are interpretable.",
+      "falsifies": "This pack is too noisy for fine ranking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "H2",
+      "name": "exact_overlap_eval",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "exact_overlap_eval"
+      ],
+      "compare_to": "H0",
+      "family": "eval_policy",
+      "why": "Directly attacks score_bpb by using exact overlap-aware sliding evaluation.",
+      "validates": "L_eval is still first-order for us.",
+      "falsifies": "The remaining gap is mostly not evaluation policy.",
+      "env": {
+        "EVAL_SEQ_LEN": "2048",
+        "EVAL_STRIDE": "64"
+      },
+      "notes": []
+    },
+    {
+      "slot": "H3",
+      "name": "ema_export",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "ema_export"
+      ],
+      "compare_to": "H0",
+      "family": "phase_alignment",
+      "why": "Tests whether deployed artifact selection beats raw checkpoint selection.",
+      "validates": "Late-phase averaging reduces deployed loss.",
+      "falsifies": "EMA does not move the deployed metric enough to matter.",
+      "env": {
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "H4",
+      "name": "late_qat_active",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "late_qat_active"
+      ],
+      "compare_to": "H0",
+      "family": "export_alignment",
+      "why": "Pushes training late into export-aware weight states instead of only raw fp32 quality.",
+      "validates": "Active late QAT closes a real deployment gap.",
+      "falsifies": "The current export mismatch is too small or this route is too disruptive.",
+      "env": {
+        "LATE_QAT_ENABLE": "1",
+        "LATE_QAT_THRESHOLD": "0.15"
+      },
+      "notes": []
+    },
+    {
+      "slot": "H5",
+      "name": "countinit_bigram",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "countinit_bigram"
+      ],
+      "compare_to": "H0",
+      "family": "explicit_prior",
+      "why": "Injects explicit short-range statistics the trunk may underfit in 600 seconds.",
+      "validates": "A low-order prior is still missing from the model class.",
+      "falsifies": "The trunk already absorbs this structure quickly enough.",
+      "env": {
+        "COUNTINIT_BIGRAM": "1",
+        "COUNTINIT_BIGRAM_TOKENS": "2000000"
+      },
+      "notes": []
+    },
+    {
+      "slot": "H6",
+      "name": "countinit_bigram_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "countinit_bigram",
+        "ema_export"
+      ],
+      "compare_to": "H5",
+      "family": "explicit_prior_child",
+      "why": "Tests whether explicit priors and deployed-checkpoint averaging stack cleanly.",
+      "validates": "The prior branch benefits from phase alignment rather than conflicting with it.",
+      "falsifies": "Any bigram win is too fragile to survive averaging.",
+      "env": {
+        "COUNTINIT_BIGRAM": "1",
+        "COUNTINIT_BIGRAM_TOKENS": "2000000",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "H7",
+      "name": "exact_overlap_eval_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "exact_overlap_eval",
+        "ema_export"
+      ],
+      "compare_to": "H3",
+      "family": "eval_phase_child",
+      "why": "Separates eval-policy gains from deployed-checkpoint gains and measures whether they add.",
+      "validates": "The score lift survives when both lanes are active.",
+      "falsifies": "One of the two is mostly shadowing the other.",
+      "env": {
+        "EVAL_SEQ_LEN": "2048",
+        "EVAL_STRIDE": "64",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "G0",
+      "name": "export_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "export_control",
+      "why": "Control for the deferred export lane.",
+      "validates": "The export-specific pack has a stable reference.",
+      "falsifies": "Export-only comparisons are too unstable to interpret.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "G1",
+      "name": "full_gptq_int6",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq"
+      ],
+      "compare_to": "G0",
+      "family": "export_alignment",
+      "why": "Highest-upside export patch from the moonshot curation.",
+      "validates": "Deployed quantization quality is the main remaining gap.",
+      "falsifies": "The deployment lane is not first-order for our setup.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6"
+      },
+      "notes": []
+    },
+    {
+      "slot": "G2",
+      "name": "full_gptq_int6_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "ema_export"
+      ],
+      "compare_to": "G1",
+      "family": "export_alignment_child",
+      "why": "Tests whether EMA and full GPTQ stack after the main GPTQ port exists.",
+      "validates": "Phase alignment still matters after a strong export patch.",
+      "falsifies": "GPTQ dominates enough that EMA is redundant here.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "M0",
+      "name": "moonshot_second_wave_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "second_wave_control",
+      "why": "Control for the second-wave moonshot pack.",
+      "validates": "The second-wave pack has a stable frontier-aligned base.",
+      "falsifies": "Second-wave comparisons are too noisy to trust.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "M1",
+      "name": "moonshot_second_wave_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "M0",
+      "family": "second_wave_control_repeat",
+      "why": "Noise floor for the second-wave moonshot pack.",
+      "validates": "Small second-wave deltas are interpretable.",
+      "falsifies": "This pack needs more repeats before ranking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "M2",
+      "name": "moonshot_xsa_all",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all"
+      ],
+      "compare_to": "M0",
+      "family": "context_specialization",
+      "why": "Promotes the architecture destination from XSA4 to XSA-all in the moonshot lane.",
+      "validates": "Broader context handling is a real high-upside lane.",
+      "falsifies": "The XSA-all story is overfit to upstream stacks.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all"
+      },
+      "notes": []
+    },
+    {
+      "slot": "M3",
+      "name": "moonshot_curriculum_reverse",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "compare_to": "M0",
+      "family": "curriculum",
+      "why": "Fast probe for whether shard order is first-order enough to matter in the moonshot lane.",
+      "validates": "The 600-second cap makes information order a real bottleneck.",
+      "falsifies": "Curriculum requires a smarter ranked schedule than simple reversal.",
+      "env": {
+        "SHARD_ORDER": "reverse"
+      },
+      "notes": []
+    },
+    {
+      "slot": "M4",
+      "name": "moonshot_curriculum_size_desc",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "curriculum_shard_order"
+      ],
+      "compare_to": "M0",
+      "family": "curriculum",
+      "why": "Cheap heuristic order probe without requiring an external ranking file.",
+      "validates": "A rough curriculum heuristic is already enough to move the endpoint.",
+      "falsifies": "The curriculum lane depends on smarter external ranking.",
+      "env": {
+        "SHARD_ORDER": "size_desc"
+      },
+      "notes": []
+    },
+    {
+      "slot": "M5",
+      "name": "moonshot_xsa_all_plus_curriculum",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "curriculum_shard_order"
+      ],
+      "compare_to": "M2",
+      "family": "cross_lane_second_wave",
+      "why": "Tests whether the two strongest newly promoted non-export lanes stack.",
+      "validates": "Context and training-order improvements are distinct enough to compose.",
+      "falsifies": "One of the lanes is mostly proxying the other.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "SHARD_ORDER": "reverse"
+      },
+      "notes": []
+    },
+    {
+      "slot": "M6",
+      "name": "moonshot_full_gptq_plus_xsa_all",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "xsa_all"
+      ],
+      "compare_to": "G1",
+      "family": "export_context_bridge",
+      "why": "Tests whether stronger export and broader context reinforce each other in one stack.",
+      "validates": "The architecture lane needs the deployment lane to fully pay off.",
+      "falsifies": "One lane dominates and the stack is not worth the extra complexity.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all"
+      },
+      "notes": []
+    },
+    {
+      "slot": "M7",
+      "name": "moonshot_full_gptq_xsa_all_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "xsa_all",
+        "ema_export"
+      ],
+      "compare_to": "M6",
+      "family": "export_context_phase_bridge",
+      "why": "Tests the main no-TTT moonshot composition now that all three pieces are runnable.",
+      "validates": "Export alignment, broader context, and EMA are jointly useful.",
+      "falsifies": "The stack is too interaction-sensitive to beat simpler children.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "N0",
+      "name": "moonshot_geometry_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "geometry_control",
+      "why": "Control for flat-minima and gradient-geometry moonshot screens.",
+      "validates": "The geometry moonshot pack has a stable frontier-aligned baseline.",
+      "falsifies": "This pack is too noisy to trust subtle deploy-quality effects.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "N1",
+      "name": "moonshot_geometry_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "N0",
+      "family": "geometry_control_repeat",
+      "why": "Noise floor for the geometry moonshot pack.",
+      "validates": "Small geometry deltas are interpretable.",
+      "falsifies": "This pack needs more repeats before ranking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "N2",
+      "name": "moonshot_weight_perturbation",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "compare_to": "N0",
+      "family": "flatness_geometry",
+      "why": "Biases training toward flatter minima that may quantize unusually well, even if fp32 validation is neutral.",
+      "validates": "The strongest new stage3 signal transfers into the moonshot lane.",
+      "falsifies": "The stage3 result was local and does not generalize to the moonshot base.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": []
+    },
+    {
+      "slot": "N3",
+      "name": "moonshot_grad_centralization",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "grad_centralization"
+      ],
+      "compare_to": "N0",
+      "family": "gradient_geometry",
+      "why": "Tests whether low-cost gradient preprocessing is a real remaining gain channel in the moonshot lane.",
+      "validates": "Gradient geometry can improve both learning and deployed quality without architectural changes.",
+      "falsifies": "The stage3 signal was too small to survive rebasing.",
+      "env": {
+        "GRAD_CENTRALIZATION": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "N4",
+      "name": "moonshot_late_weight_perturbation",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation"
+      ],
+      "compare_to": "N0",
+      "family": "flatness_geometry_late",
+      "why": "Tests the hypothesis that noise is most useful late, as a compressibility-shaping mechanism rather than a full-run optimizer.",
+      "validates": "Late-only flatness bias beats or matches full-run noise.",
+      "falsifies": "The geometry effect needs to act throughout training.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "WEIGHT_PERTURB_START_FRAC": "0.70",
+        "WEIGHT_PERTURB_END_FRAC": "1.00"
+      },
+      "notes": []
+    },
+    {
+      "slot": "N5",
+      "name": "moonshot_weight_perturbation_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation",
+        "ema_export"
+      ],
+      "compare_to": "N2",
+      "family": "flatness_phase_bridge",
+      "why": "Tests whether flatter minima and EMA-based export selection reinforce each other.",
+      "validates": "The flatness win persists and strengthens after export smoothing.",
+      "falsifies": "EMA washes out the geometry win or is redundant with it.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "N6",
+      "name": "moonshot_grad_centralization_plus_ema",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "grad_centralization",
+        "ema_export"
+      ],
+      "compare_to": "N3",
+      "family": "gradient_phase_bridge",
+      "why": "Tests whether the geometry-side gain from gradient centralization survives export smoothing.",
+      "validates": "Gradient geometry and EMA attack distinct parts of the pipeline.",
+      "falsifies": "The centralization gain is too weak to survive averaging.",
+      "env": {
+        "GRAD_CENTRALIZATION": "1",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997"
+      },
+      "notes": []
+    },
+    {
+      "slot": "N7",
+      "name": "moonshot_weight_perturbation_plus_grad_centralization",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "weight_perturbation",
+        "grad_centralization"
+      ],
+      "compare_to": "N0",
+      "family": "geometry_compound",
+      "why": "Tests whether the two geometry signals compose into a stronger deploy-quality improvement.",
+      "validates": "Flat-minima search and gradient preprocessing are distinct enough to stack.",
+      "falsifies": "One effect subsumes the other or the interaction is destabilizing.",
+      "env": {
+        "WEIGHT_PERTURB_SCALE": "0.01",
+        "GRAD_CENTRALIZATION": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R0",
+      "name": "reference_base_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "reference_control",
+      "why": "Reference control so the hailmary stage has a local anchor against strong assembled stacks.",
+      "validates": "Distance-to-frontier claims are measured against the same local trunk.",
+      "falsifies": "Reference anchor noise is too high to use for progress tracking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "Q0",
+      "name": "moonshot_throughput_base_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "throughput_control",
+      "why": "Baseline for isolating whether FA3 buys useful extra steps in the moonshot lane.",
+      "validates": "The FA3 lane can be measured against the unchanged moonshot trunk.",
+      "falsifies": "FA3 effects are too noisy to interpret here.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "Q1",
+      "name": "moonshot_throughput_base_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "fa3"
+      ],
+      "compare_to": "Q0",
+      "family": "throughput_base",
+      "why": "Tests whether FA3 matters on the plain moonshot trunk.",
+      "validates": "There is a kernel-only throughput win worth caring about.",
+      "falsifies": "FA3 is neutral even before rebasing.",
+      "env": {
+        "FA3_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "Q2",
+      "name": "moonshot_throughput_xsa_all_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "Q0",
+      "family": "throughput_xsa_control",
+      "why": "Broader-context stack without FA3, so the FA3 delta is measured on a heavier attention path.",
+      "validates": "The XSA-all lane is heavy enough for kernel speedups to matter.",
+      "falsifies": "This stack is still not attention-bound enough for FA3 to pay off.",
+      "patches": [
+        "xsa_all"
+      ],
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all"
+      },
+      "notes": []
+    },
+    {
+      "slot": "Q3",
+      "name": "moonshot_throughput_xsa_all_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "xsa_all",
+        "fa3"
+      ],
+      "compare_to": "Q2",
+      "family": "throughput_xsa",
+      "why": "Tests whether FA3 helps most once the attention path is heavier.",
+      "validates": "Kernel speedups grow in value on the XSA-all lane.",
+      "falsifies": "FA3 does not materially help even a broader attention stack.",
+      "env": {
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "FA3_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "Q4",
+      "name": "moonshot_throughput_full_gptq_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "Q0",
+      "family": "throughput_full_gptq_control",
+      "why": "Strong no-TTT export-aligned stack without FA3, to measure whether throughput survives rebasing.",
+      "validates": "The full-GPTQ lane is a meaningful place to test FA3.",
+      "falsifies": "The FA3 effect vanishes once the stack is strong.",
+      "patches": [
+        "full_gptq"
+      ],
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6"
+      },
+      "notes": []
+    },
+    {
+      "slot": "Q5",
+      "name": "moonshot_throughput_full_gptq_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "fa3"
+      ],
+      "compare_to": "Q4",
+      "family": "throughput_full_gptq",
+      "why": "Tests whether FA3 still helps when the main moonshot export lane is already in place.",
+      "validates": "Throughput gains survive rebasing onto the strongest export lane.",
+      "falsifies": "The FA3 gain is too small once the moonshot stack is strong.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "FA3_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "Q6",
+      "name": "moonshot_throughput_full_gptq_xsa_all_control",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "Q0",
+      "family": "throughput_full_stack_control",
+      "why": "Heaviest no-TTT local stack without FA3, to test whether FA3 matters exactly where it should matter most.",
+      "validates": "A full no-TTT proxy is still sensitive to attention kernel throughput.",
+      "falsifies": "The full stack is bottlenecked elsewhere.",
+      "patches": [
+        "full_gptq",
+        "xsa_all"
+      ],
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all"
+      },
+      "notes": []
+    },
+    {
+      "slot": "Q7",
+      "name": "moonshot_throughput_full_gptq_xsa_all_plus_fa3",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "xsa_all",
+        "fa3"
+      ],
+      "compare_to": "Q6",
+      "family": "throughput_full_stack",
+      "why": "Tests FA3 on the heaviest local no-TTT moonshot stack.",
+      "validates": "FA3 is still useful at the exact stack depth where extra attention throughput should matter most.",
+      "falsifies": "FA3 is not the right systems multiplier for the current moonshot frontier proxy.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "FA3_ENABLE": "1"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R1",
+      "name": "reference_base_repeat",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "R0",
+      "family": "reference_control_repeat",
+      "why": "Noise floor for the hailmary reference pack.",
+      "validates": "Small distance-to-anchor deltas are interpretable.",
+      "falsifies": "This anchor pack needs more repeats before ranking.",
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "R2",
+      "name": "merged_sota_proxy_a",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "ema_export",
+        "xsa4",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export"
+      ],
+      "compare_to": "R0",
+      "family": "reference_merged_sota_proxy",
+      "why": "Best locally reproducible merged-SOTA-like stack inside hailmary.",
+      "validates": "Moonshot results can be compared against a strong merged-SOTA proxy, not only against the base trunk.",
+      "falsifies": "The merged-SOTA proxy is too weak or unstable to use as an anchor.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "4",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22"
+      },
+      "notes": [
+        "Proxy, not an exact reconstruction of the merged leaderboard stack."
+      ]
+    },
+    {
+      "slot": "R3",
+      "name": "merged_sota_proxy_b",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "muon_weight_decay",
+        "ema_export",
+        "xsa4",
+        "partial_rope",
+        "ln_scale",
+        "gptq_lite",
+        "zstd_export"
+      ],
+      "compare_to": "R0",
+      "family": "reference_merged_sota_proxy",
+      "why": "Repeat of the merged-SOTA-like proxy for local noise estimation.",
+      "validates": "Distance-to-merged-proxy claims exceed rerun noise.",
+      "falsifies": "The merged proxy itself is too noisy to be a useful bar.",
+      "env": {
+        "MUON_WEIGHT_DECAY": "0.04",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "4",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GPTQ_LITE_ENABLE": "1",
+        "EXPORT_COMPRESSOR": "zstd",
+        "ZSTD_LEVEL": "22"
+      },
+      "notes": [
+        "Proxy, not an exact reconstruction of the merged leaderboard stack."
+      ]
+    },
+    {
+      "slot": "R4",
+      "name": "frontier_no_ttt_proxy_a",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema_export",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale"
+      ],
+      "compare_to": "R0",
+      "family": "reference_frontier_proxy",
+      "why": "Best locally reproducible no-TTT frontier-like stack in hailmary, including full GPTQ.",
+      "validates": "Moonshot winners can be measured against a serious assembled frontier proxy.",
+      "falsifies": "The full-GPTQ frontier proxy is too unstable to serve as a bar.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1"
+      },
+      "notes": [
+        "Proxy only. The exact public frontier may still differ in data order and export details."
+      ]
+    },
+    {
+      "slot": "R5",
+      "name": "frontier_no_ttt_proxy_b",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema_export",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale"
+      ],
+      "compare_to": "R0",
+      "family": "reference_frontier_proxy",
+      "why": "Repeat of the hailmary no-TTT frontier proxy.",
+      "validates": "Distance-to-frontier-proxy claims exceed rerun noise.",
+      "falsifies": "The frontier proxy is too noisy to use for progress tracking.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1"
+      },
+      "notes": [
+        "Proxy only. The exact public frontier may still differ in data order and export details."
+      ]
+    },
+    {
+      "slot": "R6",
+      "name": "frontier_no_ttt_proxy_plus_weight_perturbation",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema_export",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale",
+        "weight_perturbation"
+      ],
+      "compare_to": "R4",
+      "family": "reference_frontier_proxy_child",
+      "why": "Tests whether the geometry-based flatness win still helps on top of the strongest local no-TTT proxy.",
+      "validates": "Weight perturbation improves a strong assembled frontier-like stack, not just weaker trunks.",
+      "falsifies": "The geometry win disappears once the stack is already strong.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "WEIGHT_PERTURB_SCALE": "0.01"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R7",
+      "name": "frontier_no_ttt_proxy_plus_grad_centralization",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "patches": [
+        "full_gptq",
+        "muon_weight_decay",
+        "leaky_relu_sq",
+        "ema_export",
+        "xsa_all",
+        "partial_rope",
+        "ln_scale",
+        "grad_centralization"
+      ],
+      "compare_to": "R4",
+      "family": "reference_frontier_proxy_child",
+      "why": "Tests whether gradient geometry remains useful once the strongest local no-TTT stack is already present.",
+      "validates": "Gradient preprocessing still moves a near-frontier proxy.",
+      "falsifies": "The centralization gain was only a weak-trunk effect.",
+      "env": {
+        "GPTQ_ENABLE": "1",
+        "GPTQ_BITS": "6",
+        "GPTQ_BLOCK_SIZE": "128",
+        "GPTQ_CALIB_BATCHES": "256",
+        "GPTQ_LZMA_PRESET": "6",
+        "MUON_WEIGHT_DECAY": "0.04",
+        "LEAKY_RELU_SQ": "1",
+        "LEAKY_RELU_SLOPE": "0.5",
+        "EMA_ENABLE": "1",
+        "EMA_DECAY": "0.997",
+        "XSA_ENABLE": "1",
+        "XSA_LAYERS": "all",
+        "ROPE_PARTIAL_DIM": "16",
+        "LN_SCALE_ENABLE": "1",
+        "GRAD_CENTRALIZATION": "1"
+      },
+      "notes": []
+    }
+  ]
+}

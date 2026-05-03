@@ -1,0 +1,140 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives.",
+  "summary": {
+    "keep_count": 4,
+    "runnable_now_count": 2,
+    "blocked_backlog_count": 2,
+    "ready_for_pack_count": 2,
+    "packed_count": 2
+  },
+  "runnable_now_ids": [
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h1"
+  ],
+  "blocked_backlog_ids": [
+    "trajectory_004/trajectory_004_h3",
+    "trajectory_004/trajectory_004_h4"
+  ],
+  "ready_for_pack_ids": [
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h1"
+  ],
+  "packed_family_ids": [
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h1"
+  ],
+  "family_reports": [
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h3",
+      "name": "State-Triggered Recurrence Handoff Program",
+      "family_group": "recurrence_handoff_program",
+      "search_level": "program_family",
+      "lane": "training",
+      "phase_window": "mid",
+      "pack_kind": "mid_training_pack",
+      "implementation_mode": "needs_new_primitive",
+      "verifier_review_verdict": "KEEP",
+      "kept_by_verifier": true,
+      "consequence": null,
+      "minimal_probe": "After adding runtime state-conditioned control hooks, run a mid-training pack with 2 controls, one coarse late handoff realization, and one signal-triggered handoff realization, with final judgment on downstream `score_bpb`.",
+      "expected_signal": "A handoff realization shows a cleaner post-transition trajectory and then a downstream `score_bpb` gain beyond control spread at matched wall-clock budget.",
+      "compile_status": {
+        "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h3.json",
+        "verdict": "READY",
+        "realization_count": 2
+      },
+      "pack_ids": [],
+      "deferred_reasons": [
+        "family implementation_mode=needs_new_primitive"
+      ],
+      "runnable_now": false,
+      "ready_for_pack": false,
+      "current_state": "blocked_backlog"
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h4",
+      "name": "Shared-Trunk Late-Branch Portfolio",
+      "family_group": "late_branch_portfolio",
+      "search_level": "composition",
+      "lane": "composition",
+      "phase_window": "pairwise",
+      "pack_kind": "pairwise_composition_pack",
+      "implementation_mode": "needs_new_primitive",
+      "verifier_review_verdict": "KEEP",
+      "kept_by_verifier": true,
+      "consequence": null,
+      "minimal_probe": "After branch-resume support exists, fork 2 to 4 late finishers from one trunk checkpoint plus 2 single-path controls and compare marginal downstream gain per extra finisher budget.",
+      "expected_signal": "At least one branch beats the single-path control on downstream `score_bpb` beyond control spread while using less total compute than training the same number of full independent runs.",
+      "compile_status": {
+        "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h4.json",
+        "verdict": "READY",
+        "realization_count": 2
+      },
+      "pack_ids": [],
+      "deferred_reasons": [
+        "pack kind pairwise_composition_pack is reserved for later campaign stages"
+      ],
+      "runnable_now": false,
+      "ready_for_pack": false,
+      "current_state": "blocked_backlog"
+    },
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h3",
+      "name": "Checkpoint And Export Selector Family",
+      "family_group": "checkpoint_export_selector",
+      "search_level": "program_family",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "verifier_review_verdict": "KEEP",
+      "kept_by_verifier": true,
+      "consequence": null,
+      "minimal_probe": "From one training trace, evaluate a bounded late-checkpoint window against a fixed small export menu, with 2 controls carrying the published default checkpoint/export choice.",
+      "expected_signal": "A non-default checkpoint/export pair wins on downstream `score_bpb` by more than control spread, and the winner is not recoverable from final-step or pre-quant ranking alone.",
+      "compile_status": {
+        "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_003_trajectory_003_h3.json",
+        "verdict": "READY",
+        "realization_count": 3
+      },
+      "pack_ids": [
+        "selector_pack_selector_post_train_001",
+        "selector_pack_selector_post_train_002"
+      ],
+      "deferred_reasons": [],
+      "runnable_now": true,
+      "ready_for_pack": true,
+      "current_state": "packed"
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h1",
+      "name": "Control-Paired Delta Admission On Downstream Sliding Score",
+      "family_group": "control_delta_admission",
+      "search_level": "reset",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "verifier_review_verdict": "KEEP",
+      "kept_by_verifier": true,
+      "consequence": null,
+      "minimal_probe": "Run one 8-slot frontier selector pack with 2 exact controls, 2 replay-equivalent control clones, and 4 novel slots. Admit only by pack-local delta to paired controls on downstream `quantized_sliding_window` `score_bpb`.",
+      "expected_signal": "Control clones define a stable noise band and at least one non-control clears that band on downstream `score_bpb` without relying on pre-quant ranking.",
+      "compile_status": {
+        "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h1.json",
+        "verdict": "READY",
+        "realization_count": 3
+      },
+      "pack_ids": [
+        "selector_pack_selector_frontier_001",
+        "selector_pack_selector_frontier_002"
+      ],
+      "deferred_reasons": [],
+      "runnable_now": true,
+      "ready_for_pack": true,
+      "current_state": "packed"
+    }
+  ]
+}

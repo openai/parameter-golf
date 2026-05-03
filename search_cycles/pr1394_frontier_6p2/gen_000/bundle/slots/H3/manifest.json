@@ -1,0 +1,36 @@
+{
+  "cycle_id": "pr1394_frontier_6p2",
+  "generation": 0,
+  "slot": "H3",
+  "role": "candidate",
+  "family": "ema_selector",
+  "patches": [
+    "ema_selector"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/frontier_rebase/pr1394/train_gpt_human.py",
+  "base_sha256": "eee8118acd1e0dc00c29a00686046b61c67f1faff176fdad31b376fad5e8b08b",
+  "patched_sha256": "fd6be7310fd85486996dc64ea6951434574752611dd7f7d329dabea5a6732e54",
+  "nproc_per_slot": 8,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "purpose": "Choose the export state from raw, base EMA, fast EMA, and slow EMA instead of trusting one decay.",
+    "broken_invariant": "A single fixed EMA decay is always the best checkpoint for this base.",
+    "probe": "Maintain fast and slow EMA branches and select the lowest final pre-quant val_bpb state.",
+    "family_group": "ema_selector"
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_DIR": "/data/parameter-golf/data",
+    "VOCAB_SIZE": "8192",
+    "TRAIN_LOG_EVERY": "500",
+    "VAL_LOSS_EVERY": "4000",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "SEED": "1337",
+    "RUN_ID": "pr1394-h3-ema-selector",
+    "EMA_FAST_DECAY": "0.992",
+    "EMA_SLOW_DECAY": "0.9985"
+  }
+}

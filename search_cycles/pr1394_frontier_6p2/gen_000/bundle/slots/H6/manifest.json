@@ -1,0 +1,39 @@
+{
+  "cycle_id": "pr1394_frontier_6p2",
+  "generation": 0,
+  "slot": "H6",
+  "role": "candidate",
+  "family": "phase_split_optim",
+  "patches": [
+    "phase_split_optim"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/frontier_rebase/pr1394/train_gpt_human.py",
+  "base_sha256": "eee8118acd1e0dc00c29a00686046b61c67f1faff176fdad31b376fad5e8b08b",
+  "patched_sha256": "52a8b12eb9c1a80d3b6625fd538409d1120e99531db25d0c5a852bcd96fbb698",
+  "nproc_per_slot": 8,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "purpose": "Retune optimizer families after recurrence turns on so shared loop blocks adapt faster than tokens and scalar controls.",
+    "broken_invariant": "The same token/head/scalar/matrix LR mix remains optimal before and after loop activation.",
+    "probe": "Boost matrix adaptation in the looped phase while cooling token/head/scalar groups and increasing Muon WD.",
+    "family_group": "phase_split_optim"
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_DIR": "/data/parameter-golf/data",
+    "VOCAB_SIZE": "8192",
+    "TRAIN_LOG_EVERY": "500",
+    "VAL_LOSS_EVERY": "4000",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "SEED": "1337",
+    "RUN_ID": "pr1394-h6-phase-split",
+    "LOOP_MATRIX_LR_SCALE": "1.12",
+    "LOOP_SCALAR_LR_SCALE": "0.80",
+    "LOOP_TOKEN_LR_SCALE": "0.60",
+    "LOOP_HEAD_LR_SCALE": "0.75",
+    "LOOP_MUON_WD_SCALE": "1.15"
+  }
+}

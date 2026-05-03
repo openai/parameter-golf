@@ -1,0 +1,42 @@
+{
+  "batch_id": "stage2_1_patch_portfolio_r1",
+  "pack": "train_arch",
+  "scope": "adhoc",
+  "phase": "sanity",
+  "slot": "B1",
+  "name": "root_training_control_b",
+  "role": "control",
+  "family": "training_control_repeat",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [],
+  "label": "20260320_010425",
+  "gpu_spec": "1",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "B1"
+  ],
+  "compare_to": "B0",
+  "why": "Noise estimate for the first-wave training screen.",
+  "validates": "Control spread is small enough for aggressive pruning.",
+  "falsifies": "The chosen screen horizon is too noisy for subtle gains.",
+  "notes": [
+    "Rank candidates relative to B0/B1 spread, not just absolute values."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "MAX_WALLCLOCK_SECONDS": "90",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "1024",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

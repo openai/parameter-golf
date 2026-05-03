@@ -1,0 +1,56 @@
+{
+  "batch_id": "stage2_1_frontier_portfolio_r3",
+  "pack": "tournament_finalists",
+  "scope": "tournament_finalists",
+  "phase": "sanity",
+  "slot": "T4",
+  "name": "winner_curriculum",
+  "role": "candidate",
+  "family": "pack_winner",
+  "runner_mode": "train",
+  "implementation_state": "ready",
+  "patch_id": null,
+  "patches": [
+    "curriculum_shard_order"
+  ],
+  "label": "s2_1_finalists_resume",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "T4"
+  ],
+  "compare_to": "T0",
+  "why": "Uses file size as a cheap proxy ordering instead of an explicit external score file.",
+  "validates": "Crude information-ordering heuristics already move the endpoint.",
+  "falsifies": "The curriculum lane likely needs a smarter externally ranked order.",
+  "notes": [
+    "synthetic_from=E4",
+    "winner_of=curriculum"
+  ],
+  "env": {
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_STRIDE": "64",
+    "GRAD_CLIP_NORM": "0.3",
+    "MATRIX_LR": "0.025",
+    "MAX_WALLCLOCK_SECONDS": "90",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "SCALAR_LR": "0.025",
+    "SHARD_ORDER": "size_desc",
+    "TIED_EMBED_LR": "0.035",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "1024",
+    "WARMDOWN_ITERS": "3500"
+  }
+}

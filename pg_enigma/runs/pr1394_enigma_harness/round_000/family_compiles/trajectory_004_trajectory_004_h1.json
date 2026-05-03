@@ -1,0 +1,153 @@
+{
+  "candidate_id": "trajectory_004/trajectory_004_h1",
+  "family_group": "control_delta_admission",
+  "lane": "selector",
+  "phase_window": "frontier",
+  "pack_kind": "selector_pack",
+  "verdict": "READY",
+  "summary": "Three executable-now selector-pack realizations preserve the same mechanism: judge pr1394 packs only by pack-local downstream delta to frozen controls, with increasingly stronger calibration and replay discipline.",
+  "compiler_pass_k": 3,
+  "realizations": [
+    {
+      "realization_id": "control_delta_admission_r1_inline_clone_band",
+      "realization_key": "trajectory_004/trajectory_004_h1/control_delta_admission_r1_inline_clone_band",
+      "title": "Inline Clone-Band Calibration Pack",
+      "mechanism_preservation": "Keeps the family mechanism exactly: estimate pack-local noise from replay-equivalent control clones, then admit novelties only by downstream delta over that band.",
+      "implementation_target": "current_search_harness_catalog",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "pack_kind": "selector_pack",
+      "instructions": "Materialize one 8-slot frontier selector pack against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base using `ncycle/pr1394_enigma_cycle.json`. Reserve the 2 control slots for exact published-base controls on two fixed seeds from the published seed set. Use the 6 candidate slots as: 2 replay-equivalent control clones that are byte-identical to the controls except for pack slot identity/run id, plus 4 novel selector candidates. Keep tokenizer, vocab, recurrence, MuonEq-R, SDClip, export menu, and all training settings frozen. Run the full pack once, collect downstream `quantized_sliding_window` `score_bpb` for every slot, compute the clone-control delta band from the replay clones, and admit only novel slots that beat their paired control by more than that band. Use pre-quant `val_bpb` only for diagnosis, never for admission.",
+      "control_plan": [
+        "Control slot C0: exact published pr1394 base on fixed seed S0.",
+        "Control slot C1: exact published pr1394 base on fixed seed S1.",
+        "Candidate slot R0: replay-equivalent clone of C0 with identical config and seed; only run metadata differs.",
+        "Candidate slot R1: replay-equivalent clone of C1 with identical config and seed; only run metadata differs.",
+        "Candidate slots N0-N3: four novel selector candidates under the same frozen base contract."
+      ],
+      "admission_rules": [
+        "Primary admission statistic is novel-minus-paired-control delta on downstream `quantized_sliding_window` `score_bpb`; lower is better.",
+        "Estimate the pack noise band as the maximum absolute delta observed between each control and its replay clone.",
+        "Reject any novel whose downstream delta does not clear the clone-derived noise band.",
+        "Do not promote a novel on pre-quant improvement if its downstream delta is non-positive or inside the control band.",
+        "Record both per-seed deltas and the aggregate pack decision so later packs can reuse the same comparison law."
+      ],
+      "metric_plan": [
+        "Primary: downstream `score_bpb` from `quantized_sliding_window` when present.",
+        "Secondary: pre-quant `val_bpb` for diagnosis and early kill notes only.",
+        "Secondary: control spread from the two replay clones; this is part of the decision law, not a tie-breaker.",
+        "Tie-breaker only: artifact size after downstream and pre-quant evidence already agree."
+      ],
+      "implementation_notes": [
+        "This is fully executable with the current selector-pack catalog because every slot is just a standard pack entry with frozen config duplication.",
+        "Represent replay clones as ordinary candidate entries; no new runtime primitive is required.",
+        "Keep slot ordering explicit in the pack spec so post-run scoring can pair each novel with the intended control deterministically."
+      ],
+      "composition_tags": [
+        "campaign_law",
+        "control_paired",
+        "downstream_only",
+        "inline_clone_band"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "cross_pack_control_carryover",
+        "family_specific_delta_baselines",
+        "selector_replay_stress"
+      ]
+    },
+    {
+      "realization_id": "control_delta_admission_r2_mirrored_seed_directional_pack",
+      "realization_key": "trajectory_004/trajectory_004_h1/control_delta_admission_r2_mirrored_seed_directional_pack",
+      "title": "Mirrored-Seed Directional Support Pack",
+      "mechanism_preservation": "Still uses paired downstream deltas to frozen controls, but changes the executable realization by mirroring each novelty across the same two seeds so the pack itself tests directional support rather than only one-shot clearance.",
+      "implementation_target": "current_search_harness_catalog",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "pack_kind": "selector_pack",
+      "instructions": "Build one 8-slot selector pack on the same frozen pr1394 base. Use the 2 control slots for the exact published-base controls on seeds S0 and S1. Use 2 candidate slots for replay-equivalent control clones on S0 and S1 to measure the clone band. Use the remaining 4 candidate slots for 2 novel selector realizations, each mirrored across both seeds: A@S0, A@S1, B@S0, B@S1. Keep every non-selector aspect frozen. After the run, compute downstream delta to the same-seed control for each mirrored instance, then require both seed-specific deltas for a novelty to have the same sign and the mean delta to clear the replay-clone band before treating it as positive.",
+      "control_plan": [
+        "Control C0: exact published base on seed S0.",
+        "Control C1: exact published base on seed S1.",
+        "Replay clone R0: exact clone of C0.",
+        "Replay clone R1: exact clone of C1.",
+        "Novel A mirrored across seeds S0 and S1.",
+        "Novel B mirrored across seeds S0 and S1."
+      ],
+      "admission_rules": [
+        "A novelty must beat its same-seed paired control on downstream `score_bpb` for both mirrored instances or be rejected as directionally unstable.",
+        "The mean downstream delta across the two mirrored instances must exceed the replay-clone noise band.",
+        "If the two mirrored instances disagree in sign, classify the novelty as unresolved even if one seed looks strong.",
+        "Use control-clone deltas only to define the noise floor; do not compare novelties by raw absolute score across different seeds."
+      ],
+      "metric_plan": [
+        "Primary: same-seed downstream delta on `quantized_sliding_window` `score_bpb` for each mirrored instance.",
+        "Secondary: mean mirrored delta and sign agreement across the two seeds.",
+        "Secondary: pre-quant `val_bpb` only as explanatory evidence when downstream deltas diverge.",
+        "Tie-breaker only: artifact size after a novelty already has mirrored downstream support."
+      ],
+      "implementation_notes": [
+        "This remains catalog-executable because it only changes slot assignment and scoring, not runtime primitives.",
+        "The distinct implementation story is pack-internal replication: fewer novel ideas per pack, but each gets immediate directional support testing.",
+        "Use fixed seeds from the published seed set so mirrored comparisons stay anchored to the known base distribution."
+      ],
+      "composition_tags": [
+        "campaign_law",
+        "control_paired",
+        "downstream_only",
+        "mirrored_seed_support"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "family_specific_delta_baselines",
+        "selector_replay_stress",
+        "cross_pack_control_carryover"
+      ]
+    },
+    {
+      "realization_id": "control_delta_admission_r3_cross_pack_reference_ledger",
+      "realization_key": "trajectory_004/trajectory_004_h1/control_delta_admission_r3_cross_pack_reference_ledger",
+      "title": "Cross-Pack Reference Ledger With Local Controls",
+      "mechanism_preservation": "Preserves the same law by continuing to admit only on downstream delta to controls, but realizes it as persistent campaign infrastructure: every new pack carries both local controls and replayed reference anchors so delta bands are comparable across packs.",
+      "implementation_target": "current_search_harness_catalog",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "pack_kind": "selector_pack",
+      "instructions": "After one inline calibration pack has established a trustworthy replay band, prepare subsequent frontier selector packs with 2 local control slots plus 6 candidate slots arranged as 2 replayed reference-anchor clones and 4 new novelties. The reference-anchor clones should be exact reruns of the previously logged calibration-control recipe on the same fixed seeds and base contract. Keep local controls in every pack so current-pack conditions are still measured directly. Score each novelty twice in analysis: first against the current pack's paired local control, second against the carry-forward reference-anchor ledger. Admit only novelties that are downstream-positive relative to the local paired control and not contradicted by the carry-forward reference band.",
+      "control_plan": [
+        "Local controls C0 and C1: exact published base on the fixed campaign seeds for the current pack.",
+        "Reference replay anchors R0 and R1: rerun the original calibrated control recipe from the baseline selector pack on the same seeds.",
+        "Novel slots N0-N3: four new selector candidates under the unchanged pr1394 base contract."
+      ],
+      "admission_rules": [
+        "A novelty must beat the current pack's paired local control on downstream `score_bpb` by more than the established replay band.",
+        "If the local-control result is positive but the same novelty falls inside or worse than the carry-forward reference band, mark it as ambiguous and do not promote.",
+        "Do not replace local controls with reference anchors; both are required so pack-local drift and cross-pack drift are separated.",
+        "Keep the comparison law downstream-only; pre-quant metrics cannot rescue a novelty that fails either local or reference delta checks."
+      ],
+      "metric_plan": [
+        "Primary: local paired-control downstream delta on `quantized_sliding_window` `score_bpb`.",
+        "Secondary: agreement with the carry-forward reference-anchor delta ledger across packs.",
+        "Secondary: control-band drift between local controls and reference anchors as a harness-health signal.",
+        "Tie-breaker only: artifact size after local and reference downstream evidence both support the novelty."
+      ],
+      "implementation_notes": [
+        "No new runtime primitive is required; this is a packing and scoring convention over ordinary selector-pack entries.",
+        "Store the original calibrated control recipe and reference deltas in pack metadata so later packs can replay them exactly.",
+        "This realization should be used only after the first calibration pack has produced a stable clone-derived band."
+      ],
+      "composition_tags": [
+        "campaign_law",
+        "control_paired",
+        "downstream_only",
+        "cross_pack_reference_ledger"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "family_specific_delta_baselines",
+        "selector_replay_stress"
+      ]
+    }
+  ],
+  "dropped_realizations": []
+}

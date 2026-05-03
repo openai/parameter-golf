@@ -1,0 +1,49 @@
+{
+  "batch_id": "stage3_2_state_controller",
+  "phase": "sanity",
+  "slot": "H206",
+  "name": "systems_aware_late_deploy",
+  "role": "candidate",
+  "family": "SYSTEMS_AWARE_CONTROLLER",
+  "lane": "controller",
+  "label": "20260325_133832",
+  "gpu_spec": "7",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H206"
+  ],
+  "compare_to": "R0A",
+  "why": "Some controllers fail only because they cost too much step time. This tests whether throughput-aware throttling preserves the win.",
+  "validates": "Systems-aware gating preserves late deploy wins under the wallclock cap.",
+  "falsifies": "The best late deploy policy is not throughput-limited in practice.",
+  "patches": [
+    "state_controller"
+  ],
+  "notes": [
+    "Support family H206.",
+    "Tests whether controller gains are real or just hidden throughput losses."
+  ],
+  "env": {
+    "CTRL_ENABLE": "1",
+    "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.58,0.82],\"phase_defaults\":{\"early\":{\"ema_decay\":0.997},\"mid\":{\"ema_decay\":0.9975,\"checkpoint_capture_rate\":200},\"late\":{\"ema_decay\":0.999,\"checkpoint_capture_rate\":100,\"checkpoint_selection_mode\":\"ema\",\"export_surrogate_weight\":0.0005,\"qat_alpha\":0.35}},\"gates\":[{\"feature\":\"step_avg_ms\",\"op\":\">\",\"threshold\":650.0,\"action\":\"export_surrogate_weight\",\"value\":0.0},{\"feature\":\"step_avg_ms\",\"op\":\">\",\"threshold\":650.0,\"action\":\"qat_alpha\",\"value\":0.15}],\"snapshot\":{\"every\":100,\"start_frac\":0.76,\"last_k\":6,\"score\":\"deployed\",\"mode\":\"ema\"}}",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "gpu_pool": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+  ],
+  "selection": {
+    "pass_verdicts": [
+      "PASS",
+      "PASS_WITH_WARNINGS"
+    ],
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": [
+      "C0",
+      "C1"
+    ],
+    "max_control_spread": 0.03,
+    "top_k": 2
+  },
+  "slots": [
+    {
+      "slot": "C0",
+      "role": "control",
+      "family": "base_root",
+      "path": "slots/C0",
+      "results_path": "slots/C0/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "$PGOLF_PYTHON -m torch.distributed.run --standalone --nproc_per_node=1 train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "C1",
+      "role": "control",
+      "family": "base_root_repeat",
+      "path": "slots/C1",
+      "results_path": "slots/C1/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "$PGOLF_PYTHON -m torch.distributed.run --standalone --nproc_per_node=1 train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H0",
+      "role": "candidate",
+      "family": "checkpoint_selection",
+      "path": "slots/H0",
+      "results_path": "slots/H0/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "$PGOLF_PYTHON -m torch.distributed.run --standalone --nproc_per_node=1 base_train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H1",
+      "role": "candidate",
+      "family": "best_checkpoint",
+      "path": "slots/H1",
+      "results_path": "slots/H1/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "$PGOLF_PYTHON -m torch.distributed.run --standalone --nproc_per_node=1 base_train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H2",
+      "role": "candidate",
+      "family": "state_controller",
+      "path": "slots/H2",
+      "results_path": "slots/H2/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "$PGOLF_PYTHON -m torch.distributed.run --standalone --nproc_per_node=1 base_train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H3",
+      "role": "candidate",
+      "family": "velocity_gate",
+      "path": "slots/H3",
+      "results_path": "slots/H3/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "$PGOLF_PYTHON -m torch.distributed.run --standalone --nproc_per_node=1 base_train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H4",
+      "role": "candidate",
+      "family": "late_branch_finishers",
+      "path": "slots/H4",
+      "results_path": "slots/H4/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "$PGOLF_PYTHON -m torch.distributed.run --standalone --nproc_per_node=1 base_train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H5",
+      "role": "candidate",
+      "family": "event_branch_tournament",
+      "path": "slots/H5",
+      "results_path": "slots/H5/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "$PGOLF_PYTHON -m torch.distributed.run --standalone --nproc_per_node=1 base_train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    }
+  ]
+}

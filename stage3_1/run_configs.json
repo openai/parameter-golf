@@ -1,0 +1,286 @@
+{
+  "batch_id": "stage3_1_export_bakeoff_era6_v2",
+  "description": "Stage 3.1 v2: Export-pipeline optimization on Era 6 stack. Lane B (export-only) plus two budget-attack hypotheses. The export pipeline is worth ~0.01-0.04 BPB combined (quant damage + compression + TTT). TTT is now a default, not a hypothesis.",
+  "benchmarks": {
+    "our_best_bpb": 1.1631,
+    "frontier_no_ttt_bpb": 1.0848,
+    "frontier_ttt_bpb": 1.06,
+    "merged_sota_bpb": 1.1147,
+    "frontier_pr": "PR #1487 (ndokutovich) SP8192 + Recur345 + Par7 + PreQuant TTT 10ep"
+  },
+  "defaults": {
+    "NUM_LAYERS": "11",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "EVAL_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "MUON_WD": "0.095",
+    "ADAM_WD": "0.04",
+    "MATRIX_LR": "0.022",
+    "SCALAR_LR": "0.025",
+    "EMA_DECAY": "0.9965",
+    "QK_GAIN_INIT": "5.25",
+    "XSA_LAST_N": "11",
+    "ROPE_DIMS": "16",
+    "LN_SCALE": "1",
+    "BIGRAM_VOCAB_SIZE": "3072",
+    "BIGRAM_DIM": "112",
+    "VE_ENABLED": "1",
+    "VE_DIM": "128",
+    "VE_LAYERS": "9,10",
+    "SWA_ENABLED": "1",
+    "SWA_EVERY": "50",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "VOCAB_SIZE": "8192",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp8192",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_8192_bpe.model",
+    "VAL_LOSS_EVERY": "4000",
+    "TRAIN_LOG_EVERY": "500",
+    "RECUR_LAYERS": "3,4,5",
+    "PARALLEL_START_LAYER": "7",
+    "TTT_ENABLED": "1",
+    "TTT_EPOCHS": "5",
+    "TTT_LR": "0.00045",
+    "TTT_FREEZE_BLOCKS": "0,1"
+  },
+  "phases": {
+    "lane_b_bakeoff": {
+      "max_wallclock_seconds": 120,
+      "nproc_per_slot": 1,
+      "description": "Export-only: load external checkpoint (CHECKPOINT_PATH env), apply export patch, TTT, quantize, eval. No training.",
+      "checkpoint_source": "external",
+      "slots": [
+        "R0A_export",
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5"
+      ]
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8,
+      "description": "Full-box eval for promoted export winners."
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A_export",
+      "name": "baseline_export_control",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_export_control",
+      "lane": "B",
+      "why": "Lane B control: Era 6 checkpoint, TTT 5ep, standard SDClip GPTQ int6 + int8 embed + brotli. All candidates must beat this.",
+      "validates": "The export pipeline with TTT reproduces expected deployed score on the Era 6 stack.",
+      "falsifies": "Lane B comparisons are invalid if this control diverges from expected range.",
+      "env": {},
+      "notes": [
+        "TTT is now part of the default pipeline, not a hypothesis."
+      ]
+    },
+    {
+      "slot": "H1",
+      "name": "fisher_bit_allocation",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "fisher_bits"
+      ],
+      "family": "EXPORT_QUANT",
+      "lane": "B",
+      "mechanism": "Compute diagonal Fisher per layer from 3 forward-backward passes. Allocate int8 to top-2 highest-Fisher layers, int5 to bottom-2, int6 to rest. Budget-neutral: int5 savings offset int8 cost.",
+      "math": "F_i = (1/N) sum_n (dL/dW_i)^2 for each layer i. Sort by F_i descending. Top-2: int8 (clip_range=127). Bottom-2: int5 (clip_range=15). Rest: int6 (clip_range=31). Per-row scale s_j = clip_abs_j / clip_range.",
+      "placement": "After GPTQ Hessian collection, before quantize_int6_gptq. Uses same Hessian model for Fisher computation.",
+      "shapes": "Fisher per layer: scalar. Bit allocation: per-layer int. Quantization unchanged per-row.",
+      "init": "No new parameters.",
+      "coefficients": "K=2 layers int8, K=2 layers int5. 2/11 layers ~18% of model.",
+      "failure_modes": "Fisher from 3 batches too noisy. Or int5 on low-Fisher layers causes disproportionate damage. Or SDClip already adapts k per-layer well enough.",
+      "why": "Uniform int6 ignores per-layer sensitivity. Per-layer bit allocation is information-theoretically optimal under a fixed bit budget. Post-TTT, the Fisher landscape may be even more peaked.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {
+        "magnitude": "small",
+        "bpb_range": [
+          0.001,
+          0.004
+        ]
+      },
+      "kill_rule": "No improvement in post_quant_bpb vs R0A_export.",
+      "env": {
+        "FISHER_BITS": "1",
+        "FISHER_N_INT8": "2",
+        "FISHER_N_INT5": "2"
+      },
+      "notes": [
+        "Budget-neutral: int5 saves bytes that offset int8."
+      ]
+    },
+    {
+      "slot": "H2",
+      "name": "sdclip_k_sweep",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "sdclip_sweep"
+      ],
+      "family": "EXPORT_QUANT",
+      "lane": "B",
+      "mechanism": "Sweep SDClip k per-layer instead of global k=12.85. For each layer, try k in {10.0, 11.5, 12.85, 14.0, 16.0}, pick k that minimizes reconstruction MSE.",
+      "math": "For layer i: clip_i = k_i * std(W_i, dim=1). Sweep k_i, run GPTQ block per k_i, pick k_i* = argmin MSE_i.",
+      "placement": "Inside quantize_int6_gptq, replace fixed k with per-layer sweep.",
+      "shapes": "One scalar k per layer (11 values).",
+      "init": "No new parameters.",
+      "coefficients": "Sweep set {10.0, 11.5, 12.85, 14.0, 16.0}.",
+      "failure_modes": "Per-layer k overfits to reconstruction MSE without improving BPB.",
+      "why": "Different layers have different weight distributions. Post-TTT weights shift further. A global k is a compromise.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {
+        "magnitude": "small",
+        "bpb_range": [
+          0.0005,
+          0.003
+        ]
+      },
+      "kill_rule": "Optimal per-layer k is within \u00b15% of 12.85 for all layers.",
+      "env": {
+        "SDCLIP_SWEEP": "1"
+      },
+      "notes": [
+        "Zero cost at inference. Only costs extra time during quantization."
+      ]
+    },
+    {
+      "slot": "H3",
+      "name": "ttt_aggressive",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "ttt_aggressive"
+      ],
+      "family": "TTT_PUSH",
+      "lane": "B",
+      "mechanism": "Push TTT harder: 10 epochs (matching PR #1487), lower lr=0.0003 for fine convergence, freeze only block 0 (unfreeze block 1), add cosine LR schedule within TTT. More params updating + more epochs + scheduled LR = deeper adaptation.",
+      "math": "TTT loop: for e in 1..10: for batch in D_val: lr_e = 0.0003 * 0.5 * (1 + cos(pi * e / 10)). Update all params except block 0 with AdamW(lr=lr_e, wd=0.01). Only block 0 frozen (vs default freeze blocks 0,1).",
+      "placement": "Post-training TTT loop. Same location as default TTT but with different hyperparameters.",
+      "shapes": "Same model, ~9% more unfrozen params (block 1 unfrozen).",
+      "init": "Start from EMA checkpoint. Fresh AdamW state.",
+      "coefficients": "epochs=10 (2x default), lr=0.0003 (0.67x default \u2014 finer steps with more epochs), freeze=[0] only, cosine schedule within TTT. Rationale: PR #1487 uses 10ep at 0.00045 without cosine. We add cosine to prevent overshooting with the extra unfrozen params.",
+      "failure_modes": "10 epochs with more unfrozen params overfits to val data. Or the extra wall time (~20s more) exceeds the export budget. Or unfreezing block 1 destabilizes the learned representations.",
+      "why": "Default TTT (5ep, freeze 0-1) is conservative. PR #1487 gets -0.034 with 10ep. Our gap is 0.103 BPB \u2014 we can't afford to leave TTT BPB on the table. This tests whether more aggressive TTT closes more of the gap.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "medium_to_large",
+        "bpb_range": [
+          0.005,
+          0.02
+        ]
+      },
+      "kill_rule": "Worse post_quant_bpb than default TTT (overfit), or exceeds wallclock budget.",
+      "env": {
+        "TTT_EPOCHS": "10",
+        "TTT_LR": "0.0003",
+        "TTT_FREEZE_BLOCKS": "0",
+        "TTT_COSINE": "1"
+      },
+      "notes": [
+        "Directly attacks the largest known lever.",
+        "If this works, it replaces the default TTT config."
+      ]
+    },
+    {
+      "slot": "H4",
+      "name": "int4_embed_int6_body",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "int4_embed"
+      ],
+      "family": "BUDGET_ATTACK",
+      "lane": "B",
+      "mechanism": "Quantize embeddings to int4 instead of int8. Embeddings are 8192\u00d7512 = 4M params. At int8 they consume ~4MB (25% of budget). At int4 they consume ~2MB, freeing 2MB for a larger model or higher-precision body weights. This hypothesis tests whether int4 embeddings are viable \u2014 if quality holds, the freed budget enables a 13-layer model in stage 3.3.",
+      "math": "Embed quant: for each row e_i (dim=512), sweep percentiles {0.999, 0.9995, 0.9999, 1.0} for row_clip. scale_i = row_clip / 7, e_q_i = round(e_i / scale_i), clamp to [-7, 7] (symmetric). Stored as int8 (values in [-7,7] range). Dequant: e_i = e_q_i * scale_i. Size savings come from reduced value range improving brotli compression ratio.",
+      "placement": "In the export quantization step, replace int8 embedding quantization with int4-range values (stored in int8 container).",
+      "shapes": "Embedding: [8192, 512]. Quantized: [8192, 512] int8 (values in [-7,7]) + [8192] float16 scales.",
+      "init": "N/A.",
+      "coefficients": "int4 range [-7, 7] symmetric. Per-row scale with percentile sweep.",
+      "failure_modes": "int4 embeddings lose too much information \u2014 SP8192 embeddings need more precision because each token represents a larger text chunk. Or the savings are eaten by scale storage overhead.",
+      "why": "The 16MB budget is the binding constraint. Embeddings are 25% of the artifact. Halving their size opens the door to a fundamentally larger model. Even if int4 costs 0.003 BPB in quant damage, the freed budget could buy 0.01+ BPB of model capacity.",
+      "dominant_metric": "artifact_size",
+      "expected_impact": {
+        "magnitude": "medium",
+        "bpb_range": [
+          -0.003,
+          0.01
+        ]
+      },
+      "kill_rule": "int4 embed quant damage exceeds 0.005 BPB with no model-size offset.",
+      "env": {
+        "EMBED_QUANT_BITS": "4"
+      },
+      "notes": [
+        "This is a budget enabler, not a standalone win.",
+        "If viable, enables 13L model in stage 3.3 (H3)."
+      ]
+    },
+    {
+      "slot": "H5",
+      "name": "gptq_post_ttt",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A_export",
+      "compare_to": "R0A_export",
+      "patches": [
+        "gptq_post_ttt"
+      ],
+      "family": "EXPORT_QUANT",
+      "lane": "B",
+      "mechanism": "Activation-weighted quantization: run calibration batches through the model post-TTT, collect E[|x|] per CastedLinear input feature. During quantization, weight the reconstruction MSE by activation magnitude so that columns seeing larger inputs get more careful clipping. This approximates the diagonal of the Fisher/Hessian without computing actual second-order terms.",
+      "math": "For each CastedLinear with weight W [out, in]: collect a_j = E[|x_j|] over 32 calibration sequences. Normalize: aw_j = a_j / mean(a). During quant search: err = mean((W - W_q)^2 * aw[None, :]) instead of plain MSE. Columns with high activation get higher weight in the error metric.",
+      "placement": "Before mixed_quantize_int6: register forward hooks on all CastedLinear modules, run 4 calibration batches, store per-layer activation weights in _ACT_WEIGHT_MAP. The quantizer reads _CURRENT_QUANT_NAME to look up weights.",
+      "shapes": "Activation weight per layer: [in_features] float32. Same quantization shapes as baseline.",
+      "init": "N/A.",
+      "coefficients": "32 calibration sequences in batches of 8. Activation weights normalized to mean=1.",
+      "failure_modes": "Activation magnitudes are roughly uniform across features (no useful signal). Or the activation-weighted error metric disagrees with the loss-optimal clipping.",
+      "why": "Plain MSE treats all weight columns equally, but columns multiplied by large activations contribute more to output error. Activation-weighting is a cheap first-order proxy for Fisher-optimal quantization.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {
+        "magnitude": "small_to_medium",
+        "bpb_range": [
+          0.001,
+          0.008
+        ]
+      },
+      "kill_rule": "No measurable difference in post_quant_bpb.",
+      "env": {
+        "GPTQ_POST_TTT": "1"
+      },
+      "notes": [
+        "Adds ~2s calibration overhead, zero inference cost.",
+        "Activation-weighted MSE is a cheap proxy for Fisher-optimal quantization.",
+        "Works on post-TTT weights if TTT ran first."
+      ]
+    }
+  ]
+}

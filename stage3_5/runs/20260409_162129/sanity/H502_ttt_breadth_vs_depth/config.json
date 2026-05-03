@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage3_5_event_branch_tournament",
+  "phase": "sanity",
+  "slot": "H502",
+  "name": "ttt_breadth_vs_depth",
+  "role": "candidate",
+  "family": "SCALE_GATED_DUAL",
+  "lane": "branch_tournament",
+  "label": "20260409_162129",
+  "gpu_spec": "3",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H502"
+  ],
+  "compare_to": "R0A",
+  "why": "If the main value is branch depth, two stronger TTT programs should beat a broader but shallower tournament.",
+  "validates": "Depth per branch matters more than branch breadth.",
+  "falsifies": "Late branch breadth is still the dominant lever.",
+  "patches": [
+    "event_branch_tournament"
+  ],
+  "notes": [
+    "Breadth-vs-depth test."
+  ],
+  "env": {
+    "BRANCH_ENABLE": "1",
+    "BRANCH_SPEC_JSON": "{\"trigger\":{\"min_frac\":0.68,\"max_frac\":0.86,\"scale_below\":0.14,\"plateau_tol\":0.008},\"finishers\":[{\"kind\":\"prequant_ttt_freeze2\",\"name\":\"ttt_freeze2\",\"export_modes\":[\"ema\",\"raw\"]},{\"kind\":\"dttt_tail\",\"name\":\"dttt_tail\",\"export_modes\":[\"ema\",\"raw\"]}]}",
+    "DATA_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

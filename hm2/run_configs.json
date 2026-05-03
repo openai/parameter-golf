@@ -1,0 +1,517 @@
+{
+  "batch_id": "hm2_r1",
+  "description": "Bootstrap-to-handoff tournament. Exploit mechanisms that win early, then explicitly fade, freeze, or hand off late while recording early/mid/late dynamics for future stages.",
+  "default_pack": "bootstrap_handoff",
+  "default_base_variant": "current_local",
+  "base_variants": {
+    "current_local": "base_train_gpt.py",
+    "frontier_pr1416": "base_frontier_train_gpt.py"
+  },
+  "benchmarks": {
+    "ours_bpb": 1.1631,
+    "merged_sota_bpb": 1.1233,
+    "frontier_no_ttt_bpb": 1.1163,
+    "frontier_ttt_bpb": 0.6864
+  },
+  "defaults": {
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "4000",
+    "VOCAB_SIZE": "8192",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MODEL_DIM": "512",
+    "NUM_LAYERS": "11",
+    "MLP_MULT": "3",
+    "TIE_EMBEDDINGS": "1",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp8192",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_8192_bpe.model",
+    "TRAIN_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TIED_EMBED_LR": "0.035",
+    "MATRIX_LR": "0.022",
+    "SCALAR_LR": "0.025",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "MUON_WD": "0.095",
+    "ADAM_WD": "0.04",
+    "GRAD_CLIP_NORM": "0.3",
+    "WARMDOWN_ITERS": "3500",
+    "EVAL_STRIDE": "64",
+    "QK_GAIN_INIT": "5.25",
+    "XSA_LAST_N": "11",
+    "ROPE_DIMS": "16",
+    "LN_SCALE": "1",
+    "VE_ENABLED": "1",
+    "VE_DIM": "128",
+    "VE_LAYERS": "9,10",
+    "SWA_ENABLED": "1",
+    "SWA_EVERY": "50",
+    "PHASE_DIAGNOSTICS_ENABLE": "1",
+    "PHASE_DIAG_EARLY_FRAC": "0.33",
+    "PHASE_DIAG_MID_FRAC": "0.66",
+    "COUNTINIT_BIGRAM_TOKENS": "2000000"
+  },
+  "tournament": {
+    "primary_packs": [
+      "bootstrap_handoff",
+      "receiver_mix"
+    ],
+    "control_slots": [
+      "B0",
+      "B1"
+    ],
+    "final_pack": "tournament_finalists"
+  },
+  "packs": {
+    "bootstrap_handoff": [
+      "B0",
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B6",
+      "B7"
+    ],
+    "receiver_mix": [
+      "R0",
+      "R1",
+      "R2",
+      "R3",
+      "R4",
+      "R5",
+      "R6",
+      "R7"
+    ],
+    "tournament_finalists": []
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8
+    }
+  },
+  "slots": [
+    {
+      "slot": "B0",
+      "name": "base_control_a",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": null,
+      "family": "control",
+      "lane": "bootstrap_handoff",
+      "why": "Main control on the strong 8192 base.",
+      "validates": "Bootstrap-handoff variants beat a stable default, not just each other.",
+      "falsifies": "This stage has no trustworthy anchor.",
+      "patches": [
+        "phase_diagnostics"
+      ],
+      "env": {},
+      "notes": [
+        "records early/mid/late dynamics"
+      ]
+    },
+    {
+      "slot": "B1",
+      "name": "base_control_b",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "B0",
+      "family": "control_repeat",
+      "lane": "bootstrap_handoff",
+      "why": "Noise floor for bootstrap-handoff screens.",
+      "validates": "Observed deltas exceed short-horizon variance.",
+      "falsifies": "Pack rankings are not trustworthy.",
+      "patches": [
+        "phase_diagnostics"
+      ],
+      "env": {
+        "SEED": "42"
+      },
+      "notes": []
+    },
+    {
+      "slot": "B2",
+      "name": "static_countinit_bigram",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "compare_to": "B0",
+      "family": "bootstrap_prior_static",
+      "lane": "bootstrap_handoff",
+      "why": "Anchor the observed phenomenon directly: strong early low-order prior with no late handoff.",
+      "validates": "Static explicit priors still show the front-loaded gain pattern.",
+      "falsifies": "There is no real bootstrap effect to exploit.",
+      "patches": [
+        "phase_diagnostics",
+        "countinit_bigram"
+      ],
+      "env": {
+        "COUNTINIT_BIGRAM": "1"
+      },
+      "notes": [
+        "expected front-loaded signature",
+        "active pack currently uses current_local base variant",
+        "frontier_pr1416 base is available via HM2_BASE_VARIANT"
+      ]
+    },
+    {
+      "slot": "B3",
+      "name": "countinit_fade_35_65",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B2",
+      "compare_to": "B0",
+      "family": "bootstrap_fade",
+      "lane": "bootstrap_handoff",
+      "why": "Keep the early bootstrap, then linearly release it so the trunk owns the late basin.",
+      "validates": "Early prior helps but should not stay fully active through warmdown.",
+      "falsifies": "The prior must remain fully active to help deployed score.",
+      "patches": [
+        "bootstrap_handoff"
+      ],
+      "env": {
+        "BOOTSTRAP_HANDOFF_ENABLE": "1",
+        "BOOTSTRAP_HANDOFF_MODE": "fade",
+        "BOOTSTRAP_HANDOFF_START_FRAC": "0.35",
+        "BOOTSTRAP_HANDOFF_END_FRAC": "0.65",
+        "BOOTSTRAP_HANDOFF_MIN_SCALE": "0.0",
+        "BOOTSTRAP_LATE_RECEIVER": "none"
+      },
+      "notes": []
+    },
+    {
+      "slot": "B4",
+      "name": "countinit_freeze_40",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B2",
+      "compare_to": "B0",
+      "family": "bootstrap_freeze",
+      "lane": "bootstrap_handoff",
+      "why": "Preserve the early prior but stop adapting it once the trunk should take over.",
+      "validates": "Late harm comes from continued prior drift, not the prior's existence.",
+      "falsifies": "Freezing the prior is enough to avoid late flattening.",
+      "patches": [
+        "bootstrap_handoff"
+      ],
+      "env": {
+        "BOOTSTRAP_HANDOFF_ENABLE": "1",
+        "BOOTSTRAP_HANDOFF_MODE": "freeze",
+        "BOOTSTRAP_HANDOFF_START_FRAC": "0.40",
+        "BOOTSTRAP_LATE_RECEIVER": "none"
+      },
+      "notes": []
+    },
+    {
+      "slot": "B5",
+      "name": "countinit_plateau_fade",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B2",
+      "compare_to": "B0",
+      "family": "bootstrap_plateau_fade",
+      "lane": "bootstrap_handoff",
+      "why": "Trigger the handoff when the early mechanism has extracted most of its gain, not at a fixed clock time.",
+      "validates": "The right handoff point is state-dependent rather than fixed.",
+      "falsifies": "A simple fixed fade is already sufficient.",
+      "patches": [
+        "bootstrap_handoff"
+      ],
+      "env": {
+        "BOOTSTRAP_HANDOFF_ENABLE": "1",
+        "BOOTSTRAP_HANDOFF_MODE": "plateau_fade",
+        "BOOTSTRAP_HANDOFF_START_FRAC": "0.28",
+        "BOOTSTRAP_HANDOFF_END_FRAC": "0.72",
+        "BOOTSTRAP_HANDOFF_PLATEAU_WINDOW": "24",
+        "BOOTSTRAP_HANDOFF_PLATEAU_EPS": "0.015",
+        "BOOTSTRAP_LATE_RECEIVER": "none"
+      },
+      "notes": []
+    },
+    {
+      "slot": "B6",
+      "name": "countinit_fade_plus_snapshot",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B3",
+      "compare_to": "B0",
+      "family": "bootstrap_fade_snapshot",
+      "lane": "bootstrap_handoff",
+      "why": "Use the early prior, fade it late, then explicitly export the best deployed late state rather than the last state.",
+      "validates": "A good handoff also needs better late-state selection.",
+      "falsifies": "Late-state selection does not rescue front-loaded mechanisms.",
+      "patches": [
+        "checkpoint_selection"
+      ],
+      "env": {
+        "BOOTSTRAP_LATE_RECEIVER": "checkpoint_selection",
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.72"
+      },
+      "notes": []
+    },
+    {
+      "slot": "B7",
+      "name": "countinit_fade_plus_pre_quant_ttt",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B3",
+      "compare_to": "B0",
+      "family": "bootstrap_fade_ttt",
+      "lane": "bootstrap_handoff",
+      "why": "Use the prior only for bootstrap, then hand the late game to a narrow adaptation receiver.",
+      "validates": "Early and late mechanisms are different jobs and should be separated.",
+      "falsifies": "Late adaptation does not convert early bootstrap gains into deployed score.",
+      "patches": [
+        "pre_quant_ttt"
+      ],
+      "env": {
+        "BOOTSTRAP_LATE_RECEIVER": "pre_quant_ttt",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "3",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "9",
+        "PRE_QUANT_TTT_CHUNKS": "40",
+        "PRE_QUANT_TTT_STRIDE": "256"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R0",
+      "name": "receiver_control_base",
+      "role": "control",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B0",
+      "compare_to": null,
+      "family": "receiver_control",
+      "lane": "receiver_mix",
+      "why": "Control for the late-receiver pack.",
+      "validates": "Receiver mixes have a stable reference inside their own pack.",
+      "falsifies": "Receiver comparisons are confounded by pack mismatch.",
+      "patches": [],
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "R1",
+      "name": "receiver_static_bigram_anchor",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B2",
+      "compare_to": "R0",
+      "family": "receiver_anchor_static",
+      "lane": "receiver_mix",
+      "why": "Anchor the receiver pack to the unmodified front-loaded mechanism.",
+      "validates": "Receiver wins are not just generic bigram effects.",
+      "falsifies": "Late receivers add nothing beyond the static prior.",
+      "patches": [],
+      "env": {},
+      "notes": []
+    },
+    {
+      "slot": "R2",
+      "name": "plateau_fade_plus_snapshot",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B5",
+      "compare_to": "R0",
+      "family": "receiver_snapshot",
+      "lane": "receiver_mix",
+      "why": "Pair state-triggered fade with late deployed checkpoint selection.",
+      "validates": "The handoff needs a better export-state chooser.",
+      "falsifies": "Snapshot selection does not help after a good handoff.",
+      "patches": [
+        "checkpoint_selection"
+      ],
+      "env": {
+        "BOOTSTRAP_LATE_RECEIVER": "checkpoint_selection",
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.70"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R3",
+      "name": "plateau_fade_plus_pre_quant_ttt",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B5",
+      "compare_to": "R0",
+      "family": "receiver_ttt",
+      "lane": "receiver_mix",
+      "why": "State-triggered fade, then narrow late TTT receiver.",
+      "validates": "Late adaptation can finish what the early prior started.",
+      "falsifies": "Pre-quant TTT is not a useful late receiver for bootstrap mechanisms.",
+      "patches": [
+        "pre_quant_ttt"
+      ],
+      "env": {
+        "BOOTSTRAP_LATE_RECEIVER": "pre_quant_ttt",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "3",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "9",
+        "PRE_QUANT_TTT_CHUNKS": "48",
+        "PRE_QUANT_TTT_STRIDE": "256"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R4",
+      "name": "plateau_fade_plus_raw_snapshot",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B5",
+      "compare_to": "R0",
+      "family": "receiver_snapshot_raw",
+      "lane": "receiver_mix",
+      "why": "Use the early prior for bootstrap, then ask whether the best raw late checkpoint differs from the best deployed late checkpoint.",
+      "validates": "The handoff may help raw fit before export-state ranking changes the answer.",
+      "falsifies": "Only deployed-score snapshot selection matters here.",
+      "patches": [
+        "checkpoint_selection"
+      ],
+      "env": {
+        "BOOTSTRAP_LATE_RECEIVER": "checkpoint_selection_raw",
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "raw",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.70"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R5",
+      "name": "plateau_freeze_plus_snapshot",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B2",
+      "compare_to": "R0",
+      "family": "receiver_freeze_snapshot",
+      "lane": "receiver_mix",
+      "why": "Freeze the prior on plateau and let checkpoint selection choose the best late deployed state.",
+      "validates": "Some priors should remain present but stop moving late.",
+      "falsifies": "Freeze-style handoff is inferior to fade-style handoff.",
+      "patches": [
+        "bootstrap_handoff",
+        "checkpoint_selection"
+      ],
+      "env": {
+        "BOOTSTRAP_HANDOFF_ENABLE": "1",
+        "BOOTSTRAP_HANDOFF_MODE": "plateau_freeze",
+        "BOOTSTRAP_HANDOFF_START_FRAC": "0.28",
+        "BOOTSTRAP_HANDOFF_PLATEAU_WINDOW": "24",
+        "BOOTSTRAP_HANDOFF_PLATEAU_EPS": "0.015",
+        "BOOTSTRAP_LATE_RECEIVER": "checkpoint_selection",
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.72"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R6",
+      "name": "plateau_freeze_plus_pre_quant_ttt",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B2",
+      "compare_to": "R0",
+      "family": "receiver_freeze_ttt",
+      "lane": "receiver_mix",
+      "why": "Keep the learned prior fixed and let late TTT adapt the trunk around it.",
+      "validates": "The trunk can still exploit a preserved prior without re-optimizing it.",
+      "falsifies": "Freeze-style handoff plus TTT is not complementary.",
+      "patches": [
+        "bootstrap_handoff",
+        "pre_quant_ttt"
+      ],
+      "env": {
+        "BOOTSTRAP_HANDOFF_ENABLE": "1",
+        "BOOTSTRAP_HANDOFF_MODE": "plateau_freeze",
+        "BOOTSTRAP_HANDOFF_START_FRAC": "0.28",
+        "BOOTSTRAP_HANDOFF_PLATEAU_WINDOW": "24",
+        "BOOTSTRAP_HANDOFF_PLATEAU_EPS": "0.015",
+        "BOOTSTRAP_LATE_RECEIVER": "pre_quant_ttt",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "3",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "9",
+        "PRE_QUANT_TTT_CHUNKS": "48",
+        "PRE_QUANT_TTT_STRIDE": "256"
+      },
+      "notes": []
+    },
+    {
+      "slot": "R7",
+      "name": "plateau_fade_snapshot_plus_ttt",
+      "role": "candidate",
+      "runner_mode": "train",
+      "implementation_state": "ready",
+      "parent": "B5",
+      "compare_to": "R0",
+      "family": "receiver_aggressive_bundle",
+      "lane": "receiver_mix",
+      "why": "Let the prior win early, fade it on plateau, then use both late-state choice and narrow TTT to capture the remaining late advantage.",
+      "validates": "The early mechanism and late receiver can be separated and both matter.",
+      "falsifies": "Bundling state choice and TTT after handoff is just complexity without score.",
+      "patches": [
+        "checkpoint_selection",
+        "pre_quant_ttt"
+      ],
+      "env": {
+        "BOOTSTRAP_LATE_RECEIVER": "checkpoint_selection_plus_ttt",
+        "SNAPSHOT_SELECT_ENABLE": "1",
+        "SNAPSHOT_SELECT_MODE": "deployed_score",
+        "SNAPSHOT_SELECT_SCORE": "deployed",
+        "SNAPSHOT_SELECT_LAST_K": "6",
+        "SNAPSHOT_SELECT_EVERY": "250",
+        "SNAPSHOT_SELECT_START_FRAC": "0.70",
+        "PRE_QUANT_TTT_ENABLE": "1",
+        "PRE_QUANT_TTT_EPOCHS": "3",
+        "PRE_QUANT_TTT_FREEZE_BLOCKS": "9",
+        "PRE_QUANT_TTT_CHUNKS": "40",
+        "PRE_QUANT_TTT_STRIDE": "256"
+      },
+      "notes": []
+    }
+  ]
+}

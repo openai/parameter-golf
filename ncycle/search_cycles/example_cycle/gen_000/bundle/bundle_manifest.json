@@ -1,0 +1,63 @@
+{
+  "cycle_id": "example_cycle",
+  "generation": 0,
+  "gpu_pool": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+  ],
+  "selection": {
+    "pass_verdicts": [
+      "PASS",
+      "PASS_WITH_WARNINGS"
+    ],
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": [
+      "C0",
+      "C1"
+    ],
+    "max_control_spread": 0.02,
+    "top_k": 1
+  },
+  "slots": [
+    {
+      "slot": "C0",
+      "role": "control",
+      "family": "base_root",
+      "path": "slots/C0",
+      "results_path": "slots/C0/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "python3 train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "C1",
+      "role": "control",
+      "family": "base_root_repeat",
+      "path": "slots/C1",
+      "results_path": "slots/C1/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "python3 train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H0",
+      "role": "candidate",
+      "family": "state_controller",
+      "path": "slots/H0",
+      "results_path": "slots/H0/results",
+      "nproc_per_slot": 1,
+      "gpu_spec": null,
+      "command": "python3 base_train_gpt.py",
+      "metric_path": "metrics.score_bpb"
+    }
+  ]
+}

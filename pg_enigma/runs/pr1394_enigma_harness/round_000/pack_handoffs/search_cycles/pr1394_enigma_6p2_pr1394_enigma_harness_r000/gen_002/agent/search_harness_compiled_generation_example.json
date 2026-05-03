@@ -1,0 +1,124 @@
+{
+  "slots": [
+    {
+      "slot": "C0",
+      "role": "control",
+      "family": "base_root",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": null,
+      "patches": [],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "env": {},
+      "metadata": {
+        "purpose": "Primary frozen control on the chosen stage3_3 base",
+        "broken_invariant": "",
+        "probe": "",
+        "family_group": "control"
+      }
+    },
+    {
+      "slot": "C1",
+      "role": "control",
+      "family": "base_root_repeat",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": null,
+      "patches": [],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "env": {},
+      "metadata": {
+        "purpose": "Repeat control for anchor spread on the same frozen base",
+        "broken_invariant": "",
+        "probe": "",
+        "family_group": "control"
+      }
+    },
+    {
+      "slot": "H0",
+      "role": "candidate",
+      "family": "velocity_gate",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "velocity_gate"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "env": {},
+      "metadata": {
+        "purpose": "State-conditioned control probe on the frozen base",
+        "family_group": "state_conditioned_control",
+        "broken_invariant": "Static schedules cannot react to observed training velocity.",
+        "probe": "State-conditioned gate on the shared stage3_3 base"
+      }
+    },
+    {
+      "slot": "H1",
+      "role": "candidate",
+      "family": "phase_seq_len",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "phase_seq_len"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "env": {},
+      "metadata": {
+        "purpose": "Sequence-length curriculum probe on the frozen base",
+        "family_group": "phase_seq_len",
+        "broken_invariant": "A fixed sequence-length schedule can miss the right curriculum phase boundaries.",
+        "probe": "Phase-conditioned sequence-length schedule on the frozen base"
+      }
+    },
+    {
+      "slot": "H2",
+      "role": "candidate",
+      "family": "muon_adam_switch",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "muon_adam_switch"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "env": {},
+      "metadata": {
+        "purpose": "Optimizer handoff probe on the frozen base",
+        "family_group": "muon_adam_switch",
+        "broken_invariant": "One optimizer regime may be suboptimal across the full training trajectory.",
+        "probe": "Optimizer handoff on the same frozen base"
+      }
+    },
+    {
+      "slot": "H3",
+      "role": "candidate",
+      "family": "ema_distill",
+      "base_script": "stage3_3/base_train_gpt.py",
+      "patch_module": "stage3_3/patches.py",
+      "patches": [
+        "ema_distill"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "env": {},
+      "metadata": {
+        "purpose": "EMA distillation probe on the frozen base",
+        "family_group": "ema_distill",
+        "broken_invariant": "The base path may leave cheap self-distillation gains unused.",
+        "probe": "EMA distillation probe on the same frozen base"
+      }
+    }
+  ],
+  "selection": {
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": [
+      "C0",
+      "C1"
+    ],
+    "max_control_spread": 0.02,
+    "top_k": 1
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "batch_id": "stage3_original_screen",
+  "phase": "sanity",
+  "slot": "H3",
+  "name": "nuclear_norm_regularization",
+  "role": "candidate",
+  "family": "REGULARIZATION",
+  "label": "20260324_210543",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H3"
+  ],
+  "compare_to": "R0A",
+  "why": "Penalize sum of singular values (nuclear norm) of weight matrices. From rate-distortion theory: concentrating energy in fewer basis coefficients improves lossy compression. Low-rank weights have fewer significant singular values, making quantization less destructive. Distinct from WD (penalizes magnitude/Frobenius, not rank) and QAT (quantization-specific noise).",
+  "validates": "Nuclear norm regularization improves post-quant val_bpb by shaping weight structure for compressibility.",
+  "falsifies": "Weight structure is already fine; quantization loss comes from outlier VALUES, not rank. Kill rank-based regularization.",
+  "patches": [
+    "nuclear_norm"
+  ],
+  "notes": [
+    "Cross-domain: rate-distortion theory / transform coding.",
+    "SVD is expensive \u2014 computed only on first micro-step. If ms/step increase is >10%, the throughput cost may kill it.",
+    "Watch both pre-quant AND post-quant. Pre-quant may be worse (constrained weights) but post-quant should be better.",
+    "If it wins, explore cheaper proxies (e.g., trace norm, randomized SVD)."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUCLEAR_NORM_WEIGHT": "1e-5",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

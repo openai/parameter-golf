@@ -1,0 +1,66 @@
+{
+  "slots": [
+    {
+      "slot": "C0",
+      "role": "control",
+      "family": "base_root",
+      "base_script": "train_gpt.py",
+      "metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Primary frozen control"
+      }
+    },
+    {
+      "slot": "C1",
+      "role": "control",
+      "family": "base_root_repeat",
+      "base_script": "train_gpt.py",
+      "metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Repeat control for anchor spread"
+      }
+    },
+    {
+      "slot": "H0",
+      "role": "candidate",
+      "family": "state_controller",
+      "base_script": "stage3_2/base_train_gpt.py",
+      "patch_module": "stage3_2/patches.py",
+      "patches": [
+        "state_controller"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "broken_invariant": "Static schedules cannot react to observed training state.",
+        "probe": "Bounded state-conditioned control policy"
+      }
+    },
+    {
+      "slot": "H1",
+      "role": "candidate",
+      "family": "event_branch_tournament",
+      "base_script": "stage3_5/base_train_gpt.py",
+      "patch_module": "stage3_5/patches.py",
+      "patches": [
+        "event_branch_tournament"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "broken_invariant": "A single late-stage export path cannot cover all branch outcomes.",
+        "probe": "Event-triggered branch portfolio"
+      }
+    }
+  ],
+  "selection": {
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": [
+      "C0",
+      "C1"
+    ],
+    "max_control_spread": 0.02,
+    "top_k": 1
+  }
+}

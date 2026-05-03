@@ -1,0 +1,37 @@
+{
+  "cycle_id": "pr1394_frontier_6p2",
+  "generation": 0,
+  "slot": "H2",
+  "role": "candidate",
+  "family": "skip_gate_schedule",
+  "patches": [
+    "skip_gate_schedule"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/frontier_rebase/pr1394/train_gpt_human.py",
+  "base_sha256": "eee8118acd1e0dc00c29a00686046b61c67f1faff176fdad31b376fad5e8b08b",
+  "patched_sha256": "b3806295c72a85f6b9df0b95261fb6961f5708e06ca9daf646146673b4eb742f",
+  "nproc_per_slot": 8,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "purpose": "Bias skip pathways closed early, then let them open as recurrent depth pressure grows.",
+    "broken_invariant": "Neutral skip mixing from step 0 is already the right regime for SP8192 recurrence.",
+    "probe": "Start skip gates at a strong closed bias and anneal the bias away by the late-mid phase.",
+    "family_group": "skip_gate_schedule"
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_DIR": "/data/parameter-golf/data",
+    "VOCAB_SIZE": "8192",
+    "TRAIN_LOG_EVERY": "500",
+    "VAL_LOSS_EVERY": "4000",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "SEED": "1337",
+    "RUN_ID": "pr1394-h2-skip-gates",
+    "SKIP_GATE_BIAS_INIT": "4.0",
+    "SKIP_GATE_BIAS_END": "0.0",
+    "SKIP_GATE_BIAS_FULL_AT": "0.58"
+  }
+}

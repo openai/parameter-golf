@@ -9,3 +9,10 @@ data/docs_selected.jsonl
 .mypy_cache/
 .venv
 logs/
+hailmary/runs/*
+pgolf_runs/r2/*.log
+pgolf_runs/r2_8xh100/*.log
+*.log
+
+*.ptz
+*.pt

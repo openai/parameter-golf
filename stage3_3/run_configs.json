@@ -1,0 +1,301 @@
+{
+  "batch_id": "stage3_3_training_push_era6_v3",
+  "description": "Stage 3.3 v3: Training improvements on Era 6 stack. Mix of env-var-only capacity pushes (wider model, more layers) and implemented training patches (velocity gate, EMA distill, Muon\u2192Adam switch). Recurrence is NOT in the base script \u2014 recurrence hypotheses require patches not yet written.",
+  "benchmarks": {
+    "our_best_bpb": 1.1631,
+    "frontier_no_ttt_bpb": 1.0848,
+    "frontier_ttt_bpb": 1.06,
+    "merged_sota_bpb": 1.1147,
+    "frontier_pr": "PR #1487 (ndokutovich) SP8192 + Recur345 + Par7 + PreQuant TTT 10ep"
+  },
+  "defaults": {
+    "NUM_LAYERS": "11",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "EVAL_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "MUON_WD": "0.095",
+    "ADAM_WD": "0.04",
+    "MATRIX_LR": "0.022",
+    "SCALAR_LR": "0.025",
+    "EMA_DECAY": "0.9965",
+    "QK_GAIN_INIT": "5.25",
+    "XSA_LAST_N": "11",
+    "ROPE_DIMS": "16",
+    "LN_SCALE": "1",
+    "BIGRAM_VOCAB_SIZE": "3072",
+    "BIGRAM_DIM": "112",
+    "VE_ENABLED": "1",
+    "VE_DIM": "128",
+    "VE_LAYERS": "9,10",
+    "SWA_ENABLED": "1",
+    "SWA_EVERY": "50",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "VOCAB_SIZE": "8192",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp8192",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_8192_bpe.model",
+    "VAL_LOSS_EVERY": "4000",
+    "TRAIN_LOG_EVERY": "500"
+  },
+  "phases": {
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "description": "1-GPU training screen. Lane A \u2014 full training runs.",
+      "slots": [
+        "R0A",
+        "R0B",
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5"
+      ]
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8,
+      "description": "Full-box 8xH100 eval for promoted winners."
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A",
+      "name": "baseline_control_a",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control",
+      "lane": "A",
+      "why": "Era 6 control with default hyperparameters. No patches.",
+      "validates": "The Era 6 base produces expected BPB range.",
+      "falsifies": "All comparisons invalid if control diverges.",
+      "env": {},
+      "notes": [
+        "No recurrence or parallel residuals \u2014 base script doesn't support them yet."
+      ]
+    },
+    {
+      "slot": "R0B",
+      "name": "baseline_control_b",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control_repeat",
+      "lane": "A",
+      "why": "Noise-floor calibration with different seed.",
+      "validates": "Short-run variance is low enough for screening.",
+      "falsifies": "Screen is too noisy.",
+      "env": {
+        "SEED": "42"
+      },
+      "notes": [
+        "R0A vs R0B spread sets the kill threshold."
+      ]
+    },
+    {
+      "slot": "H1",
+      "name": "wider_model_576d",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": [],
+      "family": "CAPACITY_PUSH",
+      "lane": "A",
+      "mechanism": "Increase MODEL_DIM from 512 to 576. 12.5% more capacity per layer. All matrix dimensions scale quadratically. NUM_HEADS=8 still divides 576 (head_dim=72). Requires int4 embeddings to fit in 16MB.",
+      "math": "Body params per layer: 6 * 576^2 = 1,990,656. Total 11 layers: 21.9M params. At int6 (0.75 bytes): 16.4MB body. With int4 embeds (8192*576*0.5=2.4MB) + brotli: ~16MB total.",
+      "placement": "Env var only: MODEL_DIM=576. All shapes auto-derive.",
+      "shapes": "Attention: [576, 576]. MLP: [576, 1728] + [1728, 576]. Embed: [8192, 576].",
+      "init": "Standard per-dim init with mu-Parameterization.",
+      "coefficients": "MODEL_DIM=576. head_dim=72. MLP=576*3=1728.",
+      "failure_modes": "Artifact exceeds 16MB. Or head_dim=72 (not power-of-2) hurts flash attention. Or throughput loss from wider model outweighs capacity gain.",
+      "why": "Width scaling adds capacity to ALL layers simultaneously. More efficient than depth for this model size. The 16MB budget is the binding constraint \u2014 every BPB improvement is about squeezing more effective capacity into 16MB.",
+      "dominant_metric": "train_quality",
+      "expected_impact": {
+        "magnitude": "medium_to_large",
+        "bpb_range": [
+          0.008,
+          0.025
+        ]
+      },
+      "kill_rule": "Artifact doesn't fit in 16MB, or ms/step too slow to complete enough steps.",
+      "env": {
+        "MODEL_DIM": "576",
+        "EMBED_QUANT_BITS": "4"
+      },
+      "notes": [
+        "Env var only \u2014 no patch needed.",
+        "EMBED_QUANT_BITS=4 requires int4_embed patch from stage3_1 to take effect. Without it, embeds stay int8 and artifact may exceed 16MB.",
+        "Highest-risk, highest-reward in this stage."
+      ]
+    },
+    {
+      "slot": "H2",
+      "name": "13_layer_model",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": [],
+      "family": "CAPACITY_PUSH",
+      "lane": "A",
+      "mechanism": "Increase from 11 to 13 physical layers via NUM_LAYERS env var. More unique transformations. Needs narrower MLP (MLP_MULT=2.5) to fit budget.",
+      "math": "13 layers * (4*512*512 + 2*512*1280) = 13 * (1,048,576 + 1,310,720) = 30.7M params. At int6: 23MB. Too large with MLP_MULT=3. At MLP_MULT=2.5: 13 * (1,048,576 + 512*1280*2) = 13 * 2,359,296 = 30.7M. Need to verify actual fit.",
+      "placement": "Env var only: NUM_LAYERS=13, MLP_MULT=2.5.",
+      "shapes": "13 blocks, each [512, 512] attn + [512, 1280] MLP.",
+      "init": "LN_SCALE = 1/sqrt(layer+1) for each layer.",
+      "coefficients": "NUM_LAYERS=13, MLP_MULT=2.5. Alternative: MLP_MULT=2 to guarantee fit.",
+      "failure_modes": "Doesn't fit in 16MB. Training too slow. Reduced MLP width hurts more than extra depth helps.",
+      "why": "Each unique layer adds genuinely new parameters vs recurrence (shared weights). Tests depth vs width tradeoff against H1.",
+      "dominant_metric": "train_quality",
+      "expected_impact": {
+        "magnitude": "medium",
+        "bpb_range": [
+          0.005,
+          0.015
+        ]
+      },
+      "kill_rule": "Doesn't fit in 16MB, or pre_quant_bpb worse than 11L at matched wallclock.",
+      "env": {
+        "NUM_LAYERS": "13",
+        "MLP_MULT": "2.5",
+        "EMBED_QUANT_BITS": "4"
+      },
+      "notes": [
+        "Env var only \u2014 no patch needed.",
+        "EMBED_QUANT_BITS=4 requires int4_embed patch from stage3_1 to take effect. Without it, embeds stay int8 and artifact may exceed 16MB.",
+        "U-Net skip connections may need adjustment for odd layer count."
+      ]
+    },
+    {
+      "slot": "H3",
+      "name": "velocity_warmdown_gate",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": [
+        "velocity_gate"
+      ],
+      "family": "PROCESS_CONTROL",
+      "lane": "A",
+      "mechanism": "Track EMA of loss velocity. While model is still improving fast, delay warmdown by holding scale=1.0. Cap delay at 20% of warmdown budget.",
+      "math": "v_t = 0.95 * v_{t-1} + 0.05 * (L_t - L_{t-1}). Gate: if v_t < -0.001 and delay < 0.2 * warmdown_iters, hold scale=1.0.",
+      "placement": "After lr_mul() computes scale. Wraps scale with conditional hold. Patch exists in patches.py:261.",
+      "shapes": "v_t: scalar. No new parameters.",
+      "init": "v_0 = 0.",
+      "coefficients": "alpha=0.95, threshold=-0.001, max_delay=20%.",
+      "failure_modes": "Loss velocity too noisy. Or velocity already near zero at default warmdown entry.",
+      "why": "Fixed warmdown may start too early when the model is still improving.",
+      "dominant_metric": "train_quality",
+      "expected_impact": {
+        "magnitude": "small",
+        "bpb_range": [
+          0.001,
+          0.005
+        ]
+      },
+      "kill_rule": "Warmdown not delayed (velocity was already low), or val_bpb worse.",
+      "env": {
+        "VELOCITY_GATE": "1",
+        "VELOCITY_EMA": "0.95",
+        "VELOCITY_THRESHOLD": "0.001",
+        "VELOCITY_MAX_DELAY_FRAC": "0.20"
+      },
+      "notes": [
+        "Patch EXISTS in patches.py:261. Patch applies cleanly to base_train_gpt.py."
+      ]
+    },
+    {
+      "slot": "H4",
+      "name": "muon_to_adam_late_switch",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": [
+        "muon_adam_switch"
+      ],
+      "family": "OPTIMIZER_REGIME",
+      "lane": "A",
+      "mechanism": "At scale < 0.25, switch matrix optimizer from Muon to fresh AdamW. Adam's per-parameter adaptive rates handle heterogeneous QAT convergence better than Muon's uniform orthogonal direction.",
+      "math": "At scale < 0.25: optimizer_matrix = AdamW(matrix_params, lr=current_lr, betas=(0.9, 0.999)). One-way switch.",
+      "placement": "In training loop at scale check. Patch exists in patches.py:335.",
+      "shapes": "Adam state: (m, v) per parameter. Muon state discarded.",
+      "init": "Adam m_0=0, v_0=0.",
+      "coefficients": "Switch at scale=0.25. Era 6 WD=0.095.",
+      "failure_modes": "Adam cold-start needs ~100 steps. Or Muon is actually better for quant convergence.",
+      "why": "During QAT warmdown, different weights need different step sizes. Adam handles this; Muon doesn't.",
+      "dominant_metric": "export_quant_damage",
+      "expected_impact": {
+        "magnitude": "small_to_medium",
+        "bpb_range": [
+          0.002,
+          0.006
+        ]
+      },
+      "kill_rule": "post_quant_bpb worse than R0A, or loss spikes after switch.",
+      "env": {
+        "MUON_ADAM_SWITCH": "1",
+        "MUON_ADAM_SWITCH_SCALE": "0.25"
+      },
+      "notes": [
+        "Patch EXISTS in patches.py:335. Patch applies cleanly to base_train_gpt.py.",
+        "Genuinely unexplored in competition."
+      ]
+    },
+    {
+      "slot": "H5",
+      "name": "ema_self_distillation",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": [
+        "ema_distill"
+      ],
+      "family": "TRAINING_SIGNAL",
+      "lane": "A",
+      "mechanism": "During warmdown, add KL(student || EMA) to loss. EMA is a trajectory-smoothed teacher that guides convergence and reduces oscillation.",
+      "math": "L_total = L_CE + 0.3 * KL(p_student || p_EMA). V=8192. Applied on micro_step==0 only (~6% overhead).",
+      "placement": "Inside training loop after CE forward. Patch exists in patches.py:449.",
+      "shapes": "Teacher logits: [B, T, 8192]. Student logits: [B, T, 8192]. KL: scalar.",
+      "init": "No new parameters. Uses existing EMA.",
+      "coefficients": "lambda=0.3, start at scale=0.4.",
+      "failure_modes": "EMA too close to training model \u2014 KL near zero. Or overhead costs more than smoothing gains.",
+      "why": "On Era 6, the optimization landscape is complex. EMA distillation is proven in semi-supervised learning but unexplored for LLM warmdown.",
+      "dominant_metric": "train_quality",
+      "expected_impact": {
+        "magnitude": "small_to_medium",
+        "bpb_range": [
+          0.002,
+          0.007
+        ]
+      },
+      "kill_rule": "No val_bpb improvement at screen, or overhead >15%.",
+      "env": {
+        "EMA_DISTILL": "1",
+        "EMA_DISTILL_WEIGHT": "0.3",
+        "EMA_DISTILL_SWITCH": "0.4"
+      },
+      "notes": [
+        "Patch EXISTS in patches.py:449. Patch applies cleanly to base_train_gpt.py."
+      ]
+    }
+  ]
+}

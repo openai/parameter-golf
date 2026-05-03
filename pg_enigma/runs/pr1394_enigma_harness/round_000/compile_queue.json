@@ -1,0 +1,59 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "compiler_defaults": {
+    "realizations_per_family": 3,
+    "min_ready_realizations": 1
+  },
+  "families": [
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h1",
+      "name": "Control-Paired Delta Admission On Downstream Sliding Score",
+      "family_group": "control_delta_admission",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "compiler_pass_k": 3,
+      "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_004_trajectory_004_h1.json",
+      "compile_status": "queued"
+    },
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h3",
+      "name": "Checkpoint And Export Selector Family",
+      "family_group": "checkpoint_export_selector",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "compiler_pass_k": 3,
+      "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json",
+      "compile_status": "queued"
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h3",
+      "name": "State-Triggered Recurrence Handoff Program",
+      "family_group": "recurrence_handoff_program",
+      "lane": "training",
+      "phase_window": "mid",
+      "pack_kind": "mid_training_pack",
+      "implementation_mode": "needs_new_primitive",
+      "compiler_pass_k": 2,
+      "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_004_trajectory_004_h3.json",
+      "compile_status": "queued"
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h4",
+      "name": "Shared-Trunk Late-Branch Portfolio",
+      "family_group": "late_branch_portfolio",
+      "lane": "composition",
+      "phase_window": "pairwise",
+      "pack_kind": "pairwise_composition_pack",
+      "implementation_mode": "needs_new_primitive",
+      "compiler_pass_k": 2,
+      "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_004_trajectory_004_h4.json",
+      "compile_status": "queued"
+    }
+  ],
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives."
+}

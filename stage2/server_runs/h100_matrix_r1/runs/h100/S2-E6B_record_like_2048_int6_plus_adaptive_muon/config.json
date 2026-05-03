@@ -1,0 +1,49 @@
+{
+  "batch_id": "stage2_h100_matrix_r1",
+  "slot": "S2-E6B",
+  "name": "record_like_2048_int6_plus_adaptive_muon",
+  "role": "throughput",
+  "family": "record_plus_our_winner",
+  "implementation_state": "ready",
+  "label": "h100",
+  "nproc_per_node": 8,
+  "lineage": [
+    "S2-E6B"
+  ],
+  "why": "Tests whether our adaptive-Muon winner is a derivative improvement on top of a record-like public stack.",
+  "validates": "The hybrid beats the simpler record-like branch or improves step efficiency materially.",
+  "falsifies": "No improvement over the public-style branch.",
+  "notes": [
+    "Derivative hybrid of record baseline plus our throughput winner.",
+    "This is the strongest record-plus-our-winner test in the matrix."
+  ],
+  "env": {
+    "ADAPTIVE_MUON_BACKEND": "1",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_BATCH_SEQS": "256",
+    "EVAL_SEQ_LEN": "2048",
+    "EVAL_STRIDE": "256",
+    "INT8_KEEP_LAST_KV_LAYERS_FP16": "2",
+    "INT8_KEEP_TOK_EMB_FP16": "1",
+    "INTX_BITS": "6",
+    "MATRIX_LR": "0.02",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "MLP_HIDDEN": "1536",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_BACKEND_STEPS_EARLY": "3",
+    "MUON_BACKEND_WARMUP_STEPS": "2000",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "9",
+    "SCALAR_LR": "0.02",
+    "TIED_EMBED_LR": "0.03",
+    "TIE_EMBEDDINGS": "1",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "VOCAB_SIZE": "1024"
+  }
+}

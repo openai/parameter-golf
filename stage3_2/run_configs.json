@@ -1,0 +1,298 @@
+{
+  "batch_id": "stage3_2_state_controller",
+  "description": "Stage 3.2: bounded state-conditioned controllers over the executable strong 8192-tokenizer local base. All active slots are training-side controller policies on the same concrete trunk.",
+  "benchmarks": {
+    "reference_strong_base_bpb": 1.1233,
+    "record_sota_bpb": 1.1194,
+    "recent_dynamic_bpb": 1.1597
+  },
+  "defaults": {
+    "NUM_LAYERS": "11",
+    "MODEL_DIM": "512",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "MLP_MULT": "3",
+    "TRAIN_SEQ_LEN": "2048",
+    "EVAL_SEQ_LEN": "2048",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20",
+    "GRAD_CLIP_NORM": "0.3",
+    "MUON_MOMENTUM": "0.99",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM_WARMUP_START": "0.92",
+    "MUON_MOMENTUM_WARMUP_STEPS": "1500",
+    "MUON_WD": "0.095",
+    "ADAM_WD": "0.04",
+    "MATRIX_LR": "0.022",
+    "SCALAR_LR": "0.025",
+    "QK_GAIN_INIT": "5.25",
+    "XSA_LAST_N": "11",
+    "ROPE_DIMS": "16",
+    "LN_SCALE": "1",
+    "BIGRAM_VOCAB_SIZE": "3072",
+    "BIGRAM_DIM": "112",
+    "VE_ENABLED": "1",
+    "VE_DIM": "128",
+    "VE_LAYERS": "9,10",
+    "SWA_ENABLED": "1",
+    "SWA_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "TRAIN_LOG_EVERY": "50",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "VOCAB_SIZE": "8192",
+    "DATA_PATH": "./data/datasets/fineweb10B_sp8192",
+    "TOKENIZER_PATH": "./data/tokenizers/fineweb_8192_bpe.model"
+  },
+  "phases": {
+    "sanity": {
+      "max_wallclock_seconds": 90,
+      "nproc_per_slot": 1,
+      "description": "Crash check and early gate-behavior screen for controller slots.",
+      "slots": ["R0A", "R0B", "H201", "H202", "H204", "H205", "H207", "H208"]
+    },
+    "screen": {
+      "max_wallclock_seconds": 180,
+      "nproc_per_slot": 1,
+      "description": "Short controller ranking on deployed score and step cost.",
+      "slots": ["R0A", "R0B", "H201", "H202", "H204", "H205", "H207", "H208"]
+    },
+    "decision": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "description": "Long single-GPU runs for promoted controller finalists."
+    },
+    "final_single": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 1,
+      "description": "Alias for decision."
+    },
+    "champion_8x": {
+      "max_wallclock_seconds": 600,
+      "nproc_per_slot": 8,
+      "description": "Full-box confirmation run for the best controller."
+    }
+  },
+  "slots": [
+    {
+      "slot": "R0A",
+      "name": "static_control_a",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control",
+      "lane": "controller",
+      "why": "Primary static control. Strong static base with no dynamic controller.",
+      "validates": "The copied strong base is stable and provides the correct reference for controller deltas.",
+      "falsifies": "All controller conclusions are suspect if the control itself is unstable.",
+      "env": {},
+      "notes": ["Reference for all controller comparisons."]
+    },
+    {
+      "slot": "R0B",
+      "name": "static_control_b",
+      "role": "control",
+      "implementation_state": "ready",
+      "parent": null,
+      "compare_to": null,
+      "patches": [],
+      "family": "baseline_control_repeat",
+      "lane": "controller",
+      "why": "Noise-floor control with a different seed.",
+      "validates": "Short-horizon variance is low enough to promote controller winners confidently.",
+      "falsifies": "If control spread is large, controller deltas in sanity and screen are not trustworthy.",
+      "env": {
+        "SEED": "42"
+      },
+      "notes": ["Used to estimate control variance."]
+    },
+    {
+      "slot": "H201",
+      "name": "late_deploy_gate",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["state_controller"],
+      "family": "LATE_DEPLOY_GATE",
+      "lane": "controller",
+      "broken_invariant": "One deploy-alignment law should apply for the whole run.",
+      "mechanism": "Keep early and mid training mostly static, then activate a late export-surrogate plus soft QAT ramp and denser late snapshot capture.",
+      "why": "Deploy-facing pressure is likely harmful early and valuable late. The controller should internalize deploy alignment only after the representation is mostly formed.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "medium",
+        "bpb_range": [0.004, 0.012]
+      },
+      "expected_horizon": "screen_to_decision",
+      "early_signal": "Late-phase logs should show nonzero qat_alpha and snapshot capture without a large step-time collapse. post_quant_bpb should beat R0A even if pre_quant is flat.",
+      "failure_mode": "Late deploy pressure still arrives too early or is too weak to matter. It may also shrink raw fit more than it shrinks quant damage.",
+      "kill_rule": "No post_quant_bpb improvement vs R0A by screen, or step_avg_ms regresses by >12% without a score win.",
+      "code_burden": "patchable",
+      "validates": "Late gated deploy alignment beats the static default.",
+      "falsifies": "Static late-QAT behavior is already sufficient and controller timing does not matter.",
+      "env": {
+        "CTRL_ENABLE": "1",
+        "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.58,0.82],\"phase_defaults\":{\"early\":{\"ema_decay\":0.997},\"mid\":{\"ema_decay\":0.9975,\"checkpoint_capture_rate\":200},\"late\":{\"ema_decay\":0.999,\"checkpoint_capture_rate\":100,\"checkpoint_selection_mode\":\"ema\",\"export_surrogate_weight\":0.0005,\"qat_alpha\":0.35}},\"snapshot\":{\"every\":100,\"start_frac\":0.76,\"last_k\":6,\"score\":\"deployed\",\"mode\":\"ema\"}}"
+      },
+      "notes": ["Lead family H201.", "Primary question: does timing deploy pressure help more than static late-QAT alone?"]
+    },
+    {
+      "slot": "H202",
+      "name": "best_state_deployed",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["state_controller"],
+      "family": "BEST_STATE_CONTROLLER",
+      "lane": "controller",
+      "broken_invariant": "The last checkpoint is the correct export target.",
+      "mechanism": "Capture late snapshots and choose the best deployed-state candidate from the last-k states instead of always exporting the last state.",
+      "why": "The best compressed artifact often does not coincide with the latest raw checkpoint. This controller attacks train-to-deploy mismatch directly.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "medium",
+        "bpb_range": [0.003, 0.01]
+      },
+      "expected_horizon": "decision",
+      "early_signal": "Snapshot scoring logs should show a chosen checkpoint different from raw_final or ema_final. Screen may be neutral; decision should be stronger.",
+      "failure_mode": "The late-state window is too narrow, or the best deployed state still coincides with EMA or the final step.",
+      "kill_rule": "By decision, chosen snapshot is always final/EMA and post_quant_bpb does not beat R0A.",
+      "code_burden": "patchable",
+      "validates": "Export-state selection is a real first-order mechanism.",
+      "falsifies": "The static end state is already the best deployable state.",
+      "env": {
+        "CTRL_ENABLE": "1",
+        "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.55,0.8],\"phase_defaults\":{\"early\":{},\"mid\":{\"checkpoint_capture_rate\":150},\"late\":{\"ema_decay\":0.9985,\"checkpoint_capture_rate\":75,\"checkpoint_selection_mode\":\"best_deployed_last_k\"}},\"snapshot\":{\"every\":75,\"start_frac\":0.7,\"last_k\":8,\"score\":\"deployed\",\"mode\":\"best_deployed_last_k\"}}"
+      },
+      "notes": ["Lead family H202.", "Decision-horizon hypothesis."]
+    },
+    {
+      "slot": "H207",
+      "name": "best_state_plus_ttt_last2",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["state_controller"],
+      "family": "BEST_STATE_PLUS_TTT_LAST2",
+      "lane": "controller",
+      "broken_invariant": "The best pre-quant TTT start state is the final EMA checkpoint and the same freeze depth should always be used.",
+      "mechanism": "Select the best deployed late state, then run pre-quant TTT on that state while freezing the first 9 blocks and adapting the last 2 with a uniform LR.",
+      "why": "The current frontier treats pre-quant TTT as a major downstream stage. This controller asks whether deployed checkpoint choice plus a narrow last-2-block TTT finisher is already a real gain on top of the strong static base.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "medium",
+        "bpb_range": [0.003, 0.012]
+      },
+      "expected_horizon": "decision",
+      "early_signal": "Snapshot selection logs should choose a concrete late state and TTT logs should show the last-2-only finisher lowering chunk loss without a large step-time collapse.",
+      "failure_mode": "The chosen state does not matter because TTT washes it out, or last-2-only adaptation is too narrow to buy a deployed win.",
+      "kill_rule": "No post_quant_bpb gain vs H202 by decision, or TTT logs show little adaptation benefit while adding clear runtime overhead.",
+      "code_burden": "patchable",
+      "validates": "Checkpoint selection and pre-quant TTT interact constructively, even with a narrow freeze-depth choice.",
+      "falsifies": "Best-state selection is not a meaningful TTT precursor, or narrow TTT is too weak on this base.",
+      "env": {
+        "CTRL_ENABLE": "1",
+        "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.55,0.8],\"phase_defaults\":{\"early\":{},\"mid\":{\"checkpoint_capture_rate\":150},\"late\":{\"ema_decay\":0.9985,\"checkpoint_capture_rate\":75,\"checkpoint_selection_mode\":\"best_deployed_last_k\",\"ttt_enable\":1,\"ttt_epochs\":3,\"ttt_lr\":0.0005,\"ttt_freeze_blocks\":9,\"ttt_stride\":256,\"ttt_chunks\":32,\"ttt_block_lr_decay\":1.0,\"ttt_grad_clip_norm\":0.3}},\"snapshot\":{\"every\":75,\"start_frac\":0.7,\"last_k\":8,\"score\":\"deployed\",\"mode\":\"best_deployed_last_k\"}}"
+      },
+      "notes": ["Rebased TTT-facing support family.", "Narrow pre-quant TTT with last-2-block adaptation."]
+    },
+    {
+      "slot": "H204",
+      "name": "family_split_warmdown",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["state_controller"],
+      "family": "FAMILY_SPLIT_WARMDOWN",
+      "lane": "controller",
+      "broken_invariant": "All parameter families should follow the same late adaptation law.",
+      "mechanism": "During warmdown, freeze token updates, damp head/scalar movement, and let matrix trunk updates continue slightly more aggressively.",
+      "why": "Embeddings, head, scalars, and trunk matrices likely do not want the same late dynamics. This controller changes the late basin shape instead of changing the whole run.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "small_to_medium",
+        "bpb_range": [0.002, 0.008]
+      },
+      "expected_horizon": "decision",
+      "early_signal": "Step cost should stay neutral while late deployed score improves. Raw loss may move little or even worsen slightly.",
+      "failure_mode": "Selective freezing hurts fit more than it helps deploy robustness.",
+      "kill_rule": "No post_quant gain by decision, or clear raw-collapse in screen with no deploy compensation.",
+      "code_burden": "patchable",
+      "validates": "Parameter-family splitting matters in the late phase.",
+      "falsifies": "Uniform late adaptation is already near-optimal for this stack.",
+      "env": {
+        "CTRL_ENABLE": "1",
+        "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.62,0.84],\"phase_defaults\":{\"early\":{},\"mid\":{},\"late\":{\"ema_decay\":0.9985,\"token_lr_mult\":0.0,\"head_lr_mult\":0.45,\"scalar_lr_mult\":0.6,\"matrix_lr_mult\":1.1,\"checkpoint_capture_rate\":100,\"checkpoint_selection_mode\":\"ema\"}},\"snapshot\":{\"every\":100,\"start_frac\":0.78,\"last_k\":6,\"score\":\"deployed\",\"mode\":\"ema\"}}"
+      },
+      "notes": ["Lead family H204.", "This is a late-basin-shaping hypothesis, not an early-learning-speed hypothesis."]
+    },
+    {
+      "slot": "H205",
+      "name": "alternating_objective",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["state_controller"],
+      "family": "ALTERNATING_OBJECTIVE",
+      "lane": "controller",
+      "broken_invariant": "One blended objective should be applied every step.",
+      "mechanism": "Keep the main loss clean on most steps, then inject sparse late export-surrogate pulses instead of a globally blended deploy term.",
+      "why": "If deploy alignment is helpful late but poisonous when applied continuously, sparse pulses should recover the benefit at lower throughput cost.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "medium",
+        "bpb_range": [0.004, 0.015]
+      },
+      "expected_horizon": "screen_to_decision",
+      "early_signal": "Pulse logs should appear late, step cost should remain close to control, and post_quant should improve more than pre_quant.",
+      "failure_mode": "Pulses are either too weak to matter or too expensive relative to the step budget.",
+      "kill_rule": "No post_quant win by screen, or step_avg_ms regresses by >10% without deployed gain.",
+      "code_burden": "patchable",
+      "validates": "Alternating late objective pressure beats static always-on pressure.",
+      "falsifies": "Sparse pulses are too weak; only continuous objective shaping works.",
+      "env": {
+        "CTRL_ENABLE": "1",
+        "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.6,0.8],\"phase_defaults\":{\"early\":{},\"mid\":{},\"late\":{\"ema_decay\":0.9985,\"checkpoint_capture_rate\":100}},\"snapshot\":{\"every\":100,\"start_frac\":0.74,\"last_k\":6,\"score\":\"deployed\",\"mode\":\"ema\"},\"pulse\":{\"every\":8,\"late_start\":0.72,\"mode\":\"export_surrogate\",\"weight\":0.0007}}"
+      },
+      "notes": ["Lead family H205.", "Uses pulses rather than a permanent secondary objective."]
+    },
+    {
+      "slot": "H208",
+      "name": "best_state_plus_dttt_tail",
+      "role": "candidate",
+      "implementation_state": "ready",
+      "parent": "R0A",
+      "compare_to": "R0A",
+      "patches": ["state_controller"],
+      "family": "BEST_STATE_PLUS_DTTT_TAIL",
+      "lane": "controller",
+      "broken_invariant": "Pre-quant TTT should use a single uniform finisher law across all unfrozen late blocks.",
+      "mechanism": "Select the best deployed late state, then run a broader dTTT-style finisher: freeze only the first 2 blocks, adapt the upper trunk with block-wise LR decay, and choose from the resulting deployed state.",
+      "why": "The latest frontier no longer says just ‘do TTT’. It says the law of TTT matters. This slot tests whether a broader discriminative tail beats the narrow last-2-only variant.",
+      "dominant_metric": "post_quant_bpb",
+      "expected_impact": {
+        "magnitude": "medium_to_large",
+        "bpb_range": [0.004, 0.015]
+      },
+      "expected_horizon": "decision",
+      "early_signal": "TTT logs should show progressively lower chunk loss across epochs and the broader-tail finisher should beat H207 or H202 on deployed score.",
+      "failure_mode": "Broader adaptation overfits, becomes too expensive, or the discriminative tail adds no value beyond the simpler last-2 finisher.",
+      "kill_rule": "No deployed-score gain vs H207 by decision, or the broader-tail TTT shows clear instability without a compensating post_quant win.",
+      "code_burden": "patchable",
+      "validates": "The TTT law itself is a first-order process decision worth controlling, not just the late snapshot choice.",
+      "falsifies": "A broader dTTT-style tail does not beat narrower last-block adaptation on this stack.",
+      "env": {
+        "CTRL_ENABLE": "1",
+        "CTRL_SPEC_JSON": "{\"phase_boundaries\":[0.55,0.8],\"phase_defaults\":{\"early\":{},\"mid\":{\"checkpoint_capture_rate\":150},\"late\":{\"ema_decay\":0.9985,\"checkpoint_capture_rate\":75,\"checkpoint_selection_mode\":\"best_deployed_last_k\",\"ttt_enable\":1,\"ttt_epochs\":4,\"ttt_lr\":0.0005,\"ttt_freeze_blocks\":2,\"ttt_stride\":256,\"ttt_chunks\":32,\"ttt_block_lr_decay\":0.7,\"ttt_grad_clip_norm\":0.3}},\"snapshot\":{\"every\":75,\"start_frac\":0.7,\"last_k\":8,\"score\":\"deployed\",\"mode\":\"best_deployed_last_k\"}}"
+      },
+      "notes": ["Rebased TTT-facing lead/support composite.", "Broader discriminative tail over the upper trunk."]
+    }
+  ]
+}

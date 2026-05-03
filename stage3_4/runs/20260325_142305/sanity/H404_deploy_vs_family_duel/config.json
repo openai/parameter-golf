@@ -1,0 +1,48 @@
+{
+  "batch_id": "stage3_4_branch_finishers",
+  "phase": "sanity",
+  "slot": "H404",
+  "name": "deploy_vs_family_duel",
+  "role": "candidate",
+  "family": "LATE_DUEL_DEPLOY_VS_FAMILY",
+  "lane": "branching",
+  "label": "20260325_142305",
+  "gpu_spec": "5",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H404"
+  ],
+  "compare_to": "R0A",
+  "why": "If the purpose of the branch stage is to test differentiated late mechanisms, keeping a trivial EMA path may waste budget.",
+  "validates": "Mechanism-heavy late branches are the real value, not the trivial EMA path.",
+  "falsifies": "EMA remains the dominant late fallback and should stay in the finisher set.",
+  "patches": [
+    "late_branch_finishers"
+  ],
+  "notes": [
+    "Finisher-set composition test."
+  ],
+  "env": {
+    "BRANCH_ENABLE": "1",
+    "BRANCH_SPEC_JSON": "{\"branch_start_frac\":0.76,\"finishers\":[{\"name\":\"deploy_qat\",\"ema_decay\":0.999,\"qat_alpha\":0.55,\"export_surrogate_weight\":0.0007,\"use_ema\":1},{\"name\":\"family_split\",\"ema_decay\":0.9985,\"token_lr_mult\":0.0,\"head_lr_mult\":0.45,\"scalar_lr_mult\":0.6,\"matrix_lr_mult\":1.1,\"use_ema\":1}]}",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "EVAL_SEQ_LEN": "2048",
+    "GRAD_CLIP_NORM": "0.3",
+    "LATE_QAT_THRESHOLD": "0.15",
+    "MLP_MULT": "3",
+    "MODEL_DIM": "512",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "NUM_HEADS": "8",
+    "NUM_KV_HEADS": "4",
+    "NUM_LAYERS": "11",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "786432",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3500",
+    "WARMUP_STEPS": "20"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "batch_id": "stage3_mechanism_screen",
+  "phase": "sanity",
+  "slot": "H3",
+  "name": "bigram_hash",
+  "role": "candidate",
+  "family": "BIGRAM",
+  "label": "20260323_225118",
+  "gpu_spec": "4",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H3"
+  ],
+  "compare_to": "R0A",
+  "why": "4096-bucket hashed token-pair lookup table (dim=128, projected to model_dim). Adds ~524K params of explicit bigram memory the model cannot learn in 10 minutes.",
+  "validates": "Better val_bpb at matched wallclock from explicit bigram features alone.",
+  "falsifies": "The extra ~524K parameters hurt quantization more than the bigram features help.",
+  "patches": [
+    "bigram_hash"
+  ],
+  "notes": [
+    "Weights init to zeros, so starts as a no-op and learns during training.",
+    "Watch artifact size: ~524K extra params should still fit in 16MB with int8+zlib.",
+    "Separated from SmearGate to get clean attribution."
+  ],
+  "env": {
+    "BIGRAM_HASH": "1",
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

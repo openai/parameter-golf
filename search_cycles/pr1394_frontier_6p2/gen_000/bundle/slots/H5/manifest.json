@@ -1,0 +1,39 @@
+{
+  "cycle_id": "pr1394_frontier_6p2",
+  "generation": 0,
+  "slot": "H5",
+  "role": "candidate",
+  "family": "sensitivity_bits",
+  "patches": [
+    "sensitivity_bits"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/frontier_rebase/pr1394/train_gpt_human.py",
+  "base_sha256": "eee8118acd1e0dc00c29a00686046b61c67f1faff176fdad31b376fad5e8b08b",
+  "patched_sha256": "8548bc0610fd9414b33ec758f023875a4deeae636c46792d14868c8360241e6f",
+  "nproc_per_slot": 8,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "purpose": "Allocate matrix bits by Hessian sensitivity instead of forcing uniform int6 across large matrices.",
+    "broken_invariant": "Uniform matrix bitwidth is close to optimal for this frontier-rebase model.",
+    "probe": "Promote the most sensitive matrices to int7 and demote the least sensitive to int5 under the same size budget.",
+    "family_group": "sensitivity_bits"
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_DIR": "/data/parameter-golf/data",
+    "VOCAB_SIZE": "8192",
+    "TRAIN_LOG_EVERY": "500",
+    "VAL_LOSS_EVERY": "4000",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "SEED": "1337",
+    "RUN_ID": "pr1394-h5-sensitivity-bits",
+    "SENSITIVITY_BITS_ENABLED": "1",
+    "SENSITIVITY_TOPK": "3",
+    "SENSITIVITY_BOTTOMK": "3",
+    "SENSITIVITY_HIGH_BITS": "7",
+    "SENSITIVITY_LOW_BITS": "5"
+  }
+}

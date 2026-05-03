@@ -1,0 +1,436 @@
+You are the family compiler stage for pg_enigma.
+Return JSON only.
+
+COMPILER RULES
+- Emit exactly 3 realizations when verdict=READY.
+- Preserve the family mechanism; vary the executable realization.
+- Do not emit threshold variants disguised as different realizations.
+- Keep lane, phase_window, and pack_kind coherent with the family dossier.
+- If the family is catalog_executable_now, every realization should target current_search_harness_catalog.
+- If the family is blocked on a primitive or a base cycle, do not pretend the current search harness can execute it now.
+- The instructions field for each realization should be detailed enough for a downstream search_harness agent or coding agent to act on.
+
+ROUND REQUEST JSON
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "user_instructions": "Test the pg_enigma campaign harness itself on frontier_rebase/pr1394/train_gpt_human.py. The goal is the same: minimize credible val_bpb on this real frontier-rebase base. Produce only consequential hypothesis families. Prefer executable-now families that honestly map to the current search_harness catalog; if a family needs new machinery, mark it blocked or deferred instead of faking executability. Treat the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack as the fixed comparison base. Avoid trivial threshold nudges unless they are part of a broader first-order mechanism. Downstream packs should stay honest and aim for 6 candidate slots plus 2 controls when executable.",
+  "objective": {
+    "target_script": "frontier_rebase/pr1394/train_gpt_human.py",
+    "goal": "minimize credible val_bpb",
+    "primary_metric": "downstream score_bpb from quantized_sliding_window when present",
+    "secondary_metrics": [
+      "pre-quant val_bpb",
+      "control spread",
+      "artifact size only as a tie-breaker"
+    ],
+    "notes": [
+      "The fixed frontier base is the published pr1394 SP8192/GPTQ/recurrence/MuonEq/SDClip stack.",
+      "This lane exists to test the pg_enigma campaign workflow itself on the real pr1394 target while leaving the previously staged direct harness lane untouched.",
+      "Executable-now families should target the current search_harness catalog honestly; blocked families should stay blocked instead of pretending to be runnable."
+    ]
+  },
+  "exploration": {
+    "trajectories": 4,
+    "families_per_trajectory": 4
+  },
+  "verification": {
+    "min_keep": 2,
+    "min_consequence_score": 4,
+    "min_falsifiability_score": 3,
+    "min_implementation_honesty_score": 3
+  },
+  "compiler": {
+    "realizations_per_family": 3,
+    "min_ready_realizations": 1
+  },
+  "packing": {
+    "controls_per_pack": 2,
+    "max_candidates_per_pack": 6,
+    "max_realizations_per_family_per_pack": 2
+  },
+  "promotion": {
+    "min_positive_realizations": 2,
+    "min_surviving_realizations": 1,
+    "require_directional_support": true
+  },
+  "composition": {
+    "max_pairwise_candidates": 6,
+    "max_hybrid_candidates": 4
+  },
+  "handoff": {
+    "default_search_harness_config": "ncycle/pr1394_enigma_cycle.json",
+    "default_repo_files": [
+      "frontier_rebase/pr1394/README.md",
+      "frontier_rebase/pr1394/submission.json"
+    ]
+  },
+  "focus_files": [
+    "frontier_rebase/pr1394/train_gpt_human.py"
+  ],
+  "focus_file_excerpts": [
+    {
+      "path": "frontier_rebase/pr1394/train_gpt_human.py",
+      "excerpt": "import collections\nimport copy\nimport glob\nimport io\nimport lzma\nimport math\nimport os\nfrom pathlib import Path\nimport random\nimport re\nimport subprocess\nimport sys\nimport time\nimport uuid\n\nimport numpy as np\nimport sentencepiece as spm\nimport torch\nimport torch.distributed as dist\nimport torch.nn.functional as F\nfrom torch.nn.parallel import DistributedDataParallel as DDP\nfrom torch import Tensor, nn\n\nfrom flash_attn_interface import flash_attn_func as flash_attn_3_func\n\n# ----------------------------------------\n# Hyperparameters\n# ----------------------------------------\n\nclass Hyperparameters():\n    # Experiment settings\n    data_dir = os.environ.get('DATA_DIR', './data/')\n    seed = int(os.environ.get('SEED', 1337))\n    run_id = os.environ.get(\"RUN_ID\", str(uuid.uuid4()))\n\n    # Training length\n    iterations = int(os.environ.get('ITERATIONS', 20000))\n    warmdown_frac = float(os.environ.get('WARMDOWN_FRAC', 0.667))\n    warmup_steps = int(os.environ.get('WARMUP_STEPS', 20))\n    train_batch_tokens = int(os.environ.get('TRAIN_BATCH_TOKENS', 2048 * 48 * 8))\n    train_seq_len = int(os.environ.get('TRAIN_SEQ_LEN', 2048))\n    train_log_every = int(os.environ.get('TRAIN_LOG_EVERY', 500))\n    max_wallclock_seconds = float(os.environ.get('MAX_WALLCLOCK_SECONDS', 600.0))\n\n    # Validation/Evals\n    val_batch_tokens = int(os.environ.get('VAL_BATCH_TOKENS', 2048 * 32 * 8))\n    eval_seq_len = int(os.environ.get('EVAL_SEQ_LEN', 2048))\n    val_loss_every = int(os.environ.get('VAL_LOSS_EVERY', 4000))\n    sliding_window_enabled = bool(int(os.environ.get('SLIDING_WINDOW_ENABLED', '1')))\n\n    # Model architecture\n    vocab_size = int(os.environ.get('VOCAB_SIZE', 8192))\n    num_layers = int(os.environ.get('NUM_LAYERS', 11))\n    xsa_last_n = int(os.environ.get('XSA_LAST_N', 11))\n    model_dim = int(os.environ.get('MODEL_DIM', 512))\n    embedding_dim = int(os.environ.get('EMBEDDING_DIM', 512))\n    num_kv_heads = int(os.environ.get('NUM_KV_HEADS', 4))\n    num_heads = int(os.environ.get('NUM_HEADS', 8))\n    mlp_mult = float(os.environ.get('MLP_MULT', 4.0))\n    skip_gates_enabled = bool(int(os.environ.get('SKIP_GATES_ENABLED', '1')))\n    tie_embeddings = bool(int(os.environ.get('TIE_EMBEDDINGS', '1')))\n    logit_softcap = float(os.environ.get('LOGIT_SOFTCAP', 30.0))\n    rope_base = float(os.environ.get('ROPE_BASE', 10000.0))\n    rope_dims = int(os.environ.get('ROPE_DIMS', 16))\n    rope_train_seq_len = int(os.environ.get('ROPE_TRAIN_SEQ_LEN', 2048))\n    ln_scale = bool(int(os.environ.get('LN_SCALE', '1')))\n    qk_gain_init = float(os.environ.get('QK_GAIN_INIT', 4.0))\n\n    # Layer looping\n    num_loops = int(os.environ.get('NUM_LOOPS', 2))\n    loop_start = int(os.environ.get('LOOP_START', 4))\n    loop_end = int(os.environ.get('LOOP_END', 5))\n    enable_looping_at = float(os.environ.get('ENABLE_LOOPING_AT', 0.5))\n\n    # Optimizer\n    min_lr = float(os.environ.get('MIN_LR', 0.0))\n    embed_lr = float(os.environ.get('EMBED_LR', 0.6))\n    head_lr = float(os.environ.get('HEAD_LR', 0.008))\n    tied_embed_lr = float(os.environ.get('TIED_EMBED_LR', 0.03))\n    tied_embed_init_std = float(os.environ.get('TIED_EMBED_INIT_STD', 0.005))\n    matrix_lr = float(os.environ.get('MATRIX_LR', 0.02))\n    scalar_lr = float(os.environ.get('SCALAR_LR', 0.02))\n    muon_momentum = float(os.environ.get('MUON_MOMENTUM', 0.99))\n    muon_backend_steps = int(os.environ.get('MUON_BACKEND_STEPS', 5))\n    muon_momentum_warmup_start = float(os.environ.get('MUON_MOMENTUM_WARMUP_START', 0.92))\n    muon_momentum_warmup_steps = int(os.environ.get('MUON_MOMENTUM_WARMUP_STEPS', 1500))\n    muon_row_normalize = bool(int(os.environ.get('MUON_ROW_NORMALIZE', '1')))\n    beta1 = float(os.environ.get('BETA1', 0.9))\n    beta2 = float(os.environ.get('BETA2', 0.95))\n    adam_eps = float(os.environ.get('ADAM_EPS', 1e-8))\n    grad_clip_norm = float(os.environ.get('GRAD_CLIP_NORM', 0.3))\n    eval_stride = int(os.environ.get('EVAL_STRIDE', 64))\n    muon_beta2 = float(os.environ.get('MUON_BETA2', 0.9..."
+    }
+  ],
+  "evidence_files": [
+    "frontier_rebase/pr1394/README.md",
+    "frontier_rebase/pr1394/submission.json",
+    "parameter-golf/findings.md"
+  ],
+  "evidence_file_excerpts": [
+    {
+      "path": "frontier_rebase/pr1394/README.md",
+      "excerpt": "\n# Record: SP8192 + GPTQ Embeddings + Depth Recurrence + MuonEq-R + SDClip + Simplifications \u2014 val_bpb 1.08563\n\n**val bpb: 1.08563** (5-seed mean, std=0.0007)\n\n| Seed | Steps | Pre-quant BPB | Post-quant BPB | **Sliding BPB** | Artifact |\n|-|-|-|-|-|-|\n| 1    | 4988  | 1.08996 | 1.10239 | **1.08554** | 15,987,547 |\n| 42   | 4986  | 1.08994 | 1.10345 | **1.08664** | 15,988,983 |\n| 1234 | 4989  | 1.08942 | 1.10130 | **1.08463** | 15,983,318 |\n| 1337 | 4992  | 1.09079 | 1.10222 | **1.08554** | 15,984,924 |\n| 2025 | 4989  | 1.09092 | 1.10239 | **1.08578** | 15,983,617 |\n| **Mean** | | 1.09021 | 1.10235 | **1.08563** | 15,985,678 |\n\n## Changes\n\nThis script builds on [#1218](https://github.com/openai/parameter-golf/pull/1218). The main changes are:\n* Increase the vocabulary size from 4096 to 8192.\n* GPTQ-quantize the embedding matrix instead of using simple round-to-nearest quantization. The other matrices were already using GPTQ.\n* Remove the value embeddings.\n* Replace the coprime-stride data loader from [#726](https://github.com/openai/parameter-golf/pull/726) with a simpler ShuffledSequenceLoader.\n* Loop layers 4-5 twice (while sharing params): the idea is from [#1204](https://github.com/openai/parameter-golf/pull/1204), but this script uses a simpler implementation and loops twice rather than once.\n* Use row-normalized Muon from [#1217](https://github.com/openai/parameter-golf/pull/1217).\n* Choose the quantization clip threshold based on the standard deviation of the row rather than searching for a quantile with low reconstruction error. See the note at the end for motivation/details.\n\n## Requirements\n\nFlash Attention 3 (Hopper) is required. The script imports `flash_attn_interface` directly and was run with PyTorch 2.11.0+cu130. Install commands:\n\n```bash\npip install torch --index-url https://download.pytorch.org/whl/cu130\npip install --no-cache-dir \\\n  \"https://download.pytorch.org/whl/cu130/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl\"\npip install -r requirements.txt\n```\n\nThe tokenizer and pre-tokenized data (sp8192) is available on my [HuggingFace](https://huggingface.co/datasets/kevclark/parameter-golf). You can download it with:\n\n```bash\nrm -f data/manifest.json\nMATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \\\npython3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 128\n```\n\nNote this first deletes any existing `data/manifest.json` because the download script caches the manifest locally, and a stale one from the default repo won't include sp8192. Alternatively, to regenerate the tokenizer and dataset from scratch:\n\n```bash\ncat > data/tokenizer_specs_8192.json << 'EOF'\n[\n  {\n    \"name\": \"sp_bpe_8192\",\n    \"kind\": \"sentencepiece_bpe\",\n    \"vocab_size\": 8192,\n    \"tokenizer_train_docs\": 5000000\n  }\n]\nEOF\npython3 data/download_hf_docs_and_tokenize.py \\\n  --output-root data \\\n  --tokenizer-config data/tokenizer_specs_8192.json \\\n  --skip-byte\n```\n\n## Run Command\n\n```bash\nRUN_ID=1337 SEED=1337 \\\ntorchrun --standalone --nproc_per_node=8 train_gpt.py\n```\n\n## Quantization\u2013Compression Tradeoffs\n\nQuantization and compression interact in interesting ways. The compressed size depends not just on bitwidth, but also on the clip range (also called the scale) used during quantization. An int5 quantized network can actually compress smaller than an int4 one if the int5 quantization uses a much wider clip range. The reason is that the effectiveness of compression algorithms like `brotli` depends on the entropy of the data they are compressing, and increasing the clip range can lower that entropy.\n\n### An example\n\n![Quantization example](quantization_example.png)\n\nNeural network weights are approximately normally distributed (a). In this example, we could clip the weights to [-1, 1] and uniformly quantize them into int5 (b). But this seems a bit wasteful because many of those bins are spent modeling the tails of the distribution, where very few weights lie. Instead, we could clip to [-0.5, 0.5] and use int4 \\(c)..."
+    },
+    {
+      "path": "frontier_rebase/pr1394/submission.json",
+      "excerpt": "{\n  \"author\": \"Kevin Clark\",\n  \"github_id\": \"clarkkev\",\n  \"name\": \"SP8192 + GPTQ Embeddings + Depth Recurrence + MuonEq-R + SD-Clip + Simplifications\",\n  \"blurb\": \"8192-token sentencepiece vocab, GPTQ-quantize embeddings, loop layers 4,5 two times, row-normalized muon, standard-deviation based weight clipping\",\n  \"date\": \"2026-04-05\",\n  \"track\": \"10min_16mb\",\n  \"val_loss\": 2.80428,\n  \"val_bpb\": 1.08563,\n  \"val_bpb_std\": 0.0007,\n  \"seeds\": [\n    1,\n    42,\n    1234,\n    1337,\n    2025\n  ],\n  \"seed_results\": {\n    \"1\": {\n      \"val_loss\": 2.80405,\n      \"val_bpb\": 1.08554,\n      \"artifact_bytes\": 15987547,\n      \"steps\": 4988\n    },\n    \"42\": {\n      \"val_loss\": 2.80691,\n      \"val_bpb\": 1.08664,\n      \"artifact_bytes\": 15988983,\n      \"steps\": 4986\n    },\n    \"1234\": {\n      \"val_loss\": 2.8017,\n      \"val_bpb\": 1.08463,\n      \"artifact_bytes\": 15983318,\n      \"steps\": 4989\n    },\n    \"1337\": {\n      \"val_loss\": 2.80407,\n      \"val_bpb\": 1.08554,\n      \"artifact_bytes\": 15984924,\n      \"steps\": 4992\n    },\n    \"2025\": {\n      \"val_loss\": 2.80467,\n      \"val_bpb\": 1.08578,\n      \"artifact_bytes\": 15983617,\n      \"steps\": 4989\n    }\n  },\n  \"hardware\": \"8xH100 80GB SXM\",\n  \"pytorch_version\": \"2.11.0+cu130\",\n  \"bytes_total\": 15985678,\n  \"bytes_code\": 15516\n}"
+    },
+    {
+      "path": "parameter-golf/findings.md",
+      "excerpt": "# Findings\n\n## Main conclusion\n\nThe repo keeps rediscovering the same useful abstraction under different names:\n\n- `hm2` = bootstrap -> handoff -> receiver\n- `stage3_2` = bounded controller\n- `stage3_4` = shared trunk -> late branch portfolio\n- `stage3_5` = event-triggered branch tournament\n\nThose are not four separate ideas. They are one search strategy: **search over small state-conditioned programs**, not over isolated patch packs.\n\nThe repeated mistake is that the harness still evaluates most work as stage-specific folders, prose-only hypotheses, or static patch slates. So it never compounds the one abstraction that actually looks general.\n\n## Directory-level findings\n\n| Dir | What it contributes | Specific mistake |\n| --- | --- | --- |\n| `hailmary/` | Best wide map of attack surfaces and high-upside families. | The **materialized runs** are still on `SP1024`, even though the source `run_configs.json` and docs now describe an `SP8192` strong base. Example: `hailmary/run_configs.json` defaults to `VOCAB_SIZE=8192`, but `hailmary/runs/tournament_20260411_001130/.../H2_exact_overlap_eval/config.json` still has `VOCAB_SIZE=1024`, `DATA_PATH=/data/...sp1024`, `TOKENIZER_PATH=/data/...1024_bpe.model`. |\n| `hm2/` | First stage that clearly says the search unit is the **handoff policy**, not the patch. | It promises reusable evidence (`phase_diagnostics.json`) in `hm2/README.md`, but the repo contains no `train.log`, `summary.json`, or `phase_diagnostics.json` under `hm2/`. The idea is good, but the feedback loop never closed. |\n| `stage3_1/` | Strongest admission bar for hypotheses; export-only lane is the right kind of isolation. | The stage has almost no run evidence in the repo. Current config/code point toward a real export-only bakeoff, but without artifacts the lane-honesty claim is still mostly architectural intent, not learned evidence. |\n| `stage3_2/` | Best formal search substrate in the repo: bounded controller DSL, candidate metadata, canonicalization, mutation operators. | It still has **no result artifacts** in the repo, and the actual mutation code is simpler than the strategy docs. `controller_mutations.py` uses a fixed `60/30/10` numeric/wiring/structural split, while `evolution_strategy.md` argues for an annealed schedule by generation. |\n| `stage3_3/` | Best library of cheap state features and phase signals (`train_loss_slope`, `step_avg_ms`, `update_norm`, etc.). | It is effectively noteware. It never became part of the active controller/search system, so the best feature work is stranded outside the runner that could use it. |\n| `stage3_4/` | Introduces portfolio search over late finishers instead of one committed late path. | No logs, no summaries, no learning loop. Also, it treats branching as its own stage instead of as a reusable primitive that should compose with controllers and checkpoint selection. |\n| `stage3_5/` | Closest thing to a general Enigma-like harness: trigger + branch programs + export-state portfolio. | Again, no result artifacts. And the branch DSL is still hand-authored presets in `stage3_5/patches.py` (`expand_finisher(...)`), not a searched grammar like `stage3_2`'s controller spec. |\n| `stage3/` (reference) | The only place with enough logs to show what the runner actually does under pressure. | It proves the harness can screen and summarize, but it also shows the main failure modes directly: single-metric ranking across different causal lanes, stale plan/config drift, and orchestration breaks (`stage3/stage3_run.log` ends in `KeyError: 'final_single'`). |\n\n## Specific mistakes\n\n### 1. We are still searching the wrong unit\n\nThe most valuable objects in the repo are **transition programs**, not patches:\n\n- `hm2` says the unit is the handoff policy.\n- `stage3_2` says the unit is a bounded controller spec.\n- `stage3_5` says the unit is a trigger plus branch-program portfolio.\n\nBut the actual harness still keeps falling back to:\n\n- static patch packs\n- stage-local slates\n- prose-first ..."
+    }
+  ],
+  "history_context": {
+    "cycle_id": "pr1394_enigma_harness",
+    "round": 0,
+    "history": []
+  },
+  "reference_docs": [
+    {
+      "path": "parameter-golf/findings.md",
+      "excerpt": "# Findings\n\n## Main conclusion\n\nThe repo keeps rediscovering the same useful abstraction under different names:\n\n- `hm2` = bootstrap -> handoff -> receiver\n- `stage3_2` = bounded controller\n- `stage3_4` = shared trunk -> late branch portfolio\n- `stage3_5` = event-triggered branch tournament\n\nThose are not four separate ideas. They are one search strategy: **search over small state-conditioned programs**, not over isolated patch packs.\n\nThe repeated mistake is that the harness still evaluates most work as stage-specific folders, prose-only hypotheses, or static patch slates. So it never compounds the one abstraction that actually looks general.\n\n## Directory-level findings\n\n| Dir | What it contributes | Specific mistake |\n| --- | --- | --- |\n| `hailmary/` | Best wide map of attack surfaces and high-upside families. | The **materialized runs** are still on `SP1024`, even though the source `run_configs.json` and docs now describe an `SP8192` strong base. Example: `hailmary/run_configs.json` defaults to `VOCAB_SIZE=8192`, but `hailmary/runs/tournament_20260411_001130/.../H2_exact_overlap_eval/config.json` still has `VOCAB_SIZE=1024`, `DATA_PATH=/data/...sp1024`, `TOKENIZER_PATH=/data/...1024_bpe.model`. |\n| `hm2/` | First stage that clearly says the search unit is the **handoff policy**, not the patch. | It promises reusable evidence (`phase_diagnostics.json`) in `hm2/README.md`, but the repo contains no `train.log`, `summary.json`, or `phase_diagnostics.json` under `hm2/`. The idea is good, but the feedback loop never closed. |\n| `stage3_1/` | Strongest admission bar for hypotheses; export-only lane is the right kind of isolation. | The stage has almost no run evidence in the repo. Current config/code point toward a real export-only bakeoff, but without artifacts the lane-honesty claim is still mostly architectural intent, not learned evidence. |\n| `stage3_2/` | Best formal search substrate in the repo: bounded controller DSL, candidate metadata, canonicalization, mutation operators. | It still has **no result artifacts** in the repo, and the actual mutation code is simpler than the strategy docs. `controller_mutations.py` uses a fixed `60/30/10` numeric/wiring/structural split, while `evolution_strategy.md` argues for an annealed schedule by generation. |\n| `stage3_3/` | Best library of cheap state features and phase signals (`train_loss_slope`, `step_avg_ms`, `update_norm`, etc.). | It is effectively noteware. It never became part of the active controller/search system, so the best feature work is stranded outside the runner that could use it. |\n| `stage3_4/` | Introduces portfolio search over late finishers instead of one committed late path. | No logs, no summaries, no learning loop. Also, it treats branching as its own stage instead of as a reusable primitive that should compose with controllers and checkpoint selection. |\n| `stage3_5/` | Closest thing to a general Enigma-like harness: trigger + branch programs + export-state portfolio. | Again, no result artifacts. And the branch DSL is still hand-authored presets in `stage3_5/patches.py` (`expand_finisher(...)`), not a searched grammar like `stage3_2`'s controller spec. |\n| `stage3/` (reference) | The only place with enough logs to show what the runner actually does under pressure. | It proves the harness can screen and summarize, but it also shows the main failure modes directly: single-metric ranking across different causal lanes, stale plan/config drift, and orchestration breaks (`stage3/stage3_run.log` ends in `KeyError: 'final_single'`). |\n\n## Specific mistakes\n\n### 1. We are still searching the wrong unit\n\nThe most valuable objects in the repo are **transition programs**, not patches:\n\n- `hm2` says the unit is the handoff policy.\n- `stage3_2` says the unit is a bounded controller spec.\n- `stage3_5` says the unit is a trigger plus branch-program portfolio.\n\nBut the actual harness still keeps falling back to:\n\n- static patch packs\n- stage-local slates\n- prose-first ..."
+    },
+    {
+      "path": "parameter-golf/search_strategy_catalog.md",
+      "excerpt": "# Search Strategy Catalog for Optimizing `train_gpt.py`\n\n## Goal\n\nOptimize an executable training program and its surrounding contract to the **lowest credible `val_bpb`** on a given dataset.\n\nFor this repo, that means treating `train_gpt.py` as the object to optimize, not any one stage folder. The script already:\n\n- supports a bring-your-own SentencePiece tokenizer via `TOKENIZER_PATH` and `VOCAB_SIZE`\n- computes tokenizer-aware `val_bpb`\n- logs quantized end-state metrics such as `final_int8_zlib_roundtrip_exact val_bpb`\n\nSo the legitimate search space includes:\n\n- training dynamics\n- checkpoint/export selection\n- quantization/deployment path\n- tokenizer/vocab choice\n- architecture or global stack changes\n\nThe mistake is to let one search surface dominate forever just because an earlier stage emphasized it.\n\n---\n\n## First correction: there is no permanent fixed cycle\n\nThere is **not** one permanent stage-3-like frozen cycle for the whole project.\n\nInstead, there are **temporary search cycles**.\n\n- Across the whole project, you may search tokenizer, vocab size, prequant path, post-quant path, architecture, and training stack.\n- Inside any one tournament, you freeze only the dimensions needed for a fair comparison.\n\nThat distinction matters:\n\n- **project-level search** can move the base\n- **cycle-level search** should only vary one class of causal question at a time\n\nIf you forget this, the search gets trapped in the worst of both worlds:\n\n- too local to discover a new frontier\n- too mixed to trust the rankings\n\n---\n\n## What a search strategy actually is\n\nA search strategy is not \"some mutations.\"\n\nA search strategy is a choice of:\n\n1. **unit of variation** - what is allowed to change\n2. **unit of comparison** - what counts as a fair control\n3. **dominant metric** - what decides survival\n4. **evidence contract** - what data must be collected\n5. **reset rule** - when to stop mutating and change strategy level\n\nIf any of those are vague, you are not searching. You are just generating edits.\n\n---\n\n## Search levels\n\n| Level | Main question | Typical things that change | Things that should stay frozen |\n| --- | --- | --- | --- |\n| **L0. Metric/lane** | What outcome are we actually optimizing right now? | prequant vs post-quant vs final exact vs size/latency tie-breaks | everything else |\n| **L1. Base contract** | Which executable base deserves deeper search? | tokenizer, vocab size, architecture, optimizer stack, dataset variant | within-base family logic |\n| **L2. Program family** | Which consequential mechanism class is real? | controller, schedule family, optimizer handoff, selector, branch policy, quant path family | chosen base contract |\n| **L3. Within-family mutation** | What is the best local version of a proven family? | thresholds, magnitudes, small wiring edits, counts | base and family identity |\n| **L4. Composition** | Which proven families actually combine? | pairings or stacks of proven survivors | base and solo-family evidence |\n| **L5. Reset/reframe** | Are we searching at the wrong level entirely? | the search strategy itself | the already-observed evidence |\n\nMost \"bad to worse\" search behavior happens because the work should have moved **up** a level, but instead kept mutating **down** the tree.\n\n---\n\n## Consequential mutation test\n\nA mutation is **consequential** if it changes at least one of these:\n\n1. **representation contract**  \n   tokenizer, vocab size, data encoding\n2. **compute allocation**  \n   batch tokens, sequence-length curriculum, which phase gets compute\n3. **regime transitions**  \n   optimizer handoff, warmdown gating, state-triggered policy changes\n4. **artifact selection**  \n   which checkpoint/export state wins\n5. **deployment path**  \n   quantization or export method family\n6. **model contract**  \n   depth/width/head structure or another true base change\n\nA mutation is **not consequential** if it only:\n\n- nudges a scalar\n- adjusts a threshold inside an unproven family\n- adds a helper witho..."
+    },
+    {
+      "path": "parameter-golf/search_strategy_meta_prompt.md",
+      "excerpt": "# Meta Prompt: Generate the Next Search Strategy From Data\n\nUse this when recent runs are making no real progress and you need a **new search strategy**, not more random mutations.\n\nThe purpose of this prompt is to force a model or agent to:\n\n- read the evidence\n- diagnose why the current search stalled\n- choose the right search level\n- select a strategy from `search_strategy_catalog.md` or invent a new one\n\nIt should **not** respond with code or mutation ideas unless the data says local exploitation is actually justified.\n\n---\n\n## Inputs to fill in\n\nBefore using the prompt, fill in:\n\n- `<PROGRAM_PATH>`\n- `<PROGRAM_SUMMARY>`\n- `<DATASET_CONTRACT>`\n- `<OBJECTIVE>`\n- `<CURRENT_STRATEGY>`\n- `<RUN_HISTORY_JSON>`\n- `<AVAILABLE_STRATEGIES>`\n- `<AVAILABLE_PRIMITIVES>`\n- `<KNOWN_FAILURE_PATTERNS>`\n- `<BUDGET>`\n- `<OPTIONAL_CONSTRAINTS>`\n\n---\n\n## Copy-paste prompt\n\n```text\nYou are a search-strategy designer for program optimization.\n\nYour job is NOT to propose another pile of mutations.\nYour job is to decide whether the current search strategy is still valid, and if not, choose or invent the next strategy based on evidence.\n\n## Program\n\n<PROGRAM_PATH>\n\n## Program summary\n\n<PROGRAM_SUMMARY>\n\n## Dataset contract\n\n<DATASET_CONTRACT>\n\n## Objective\n\n<OBJECTIVE>\n\n## Current strategy\n\n<CURRENT_STRATEGY>\n\n## Run history JSON\n\n<RUN_HISTORY_JSON>\n\n## Available strategy library\n\n<AVAILABLE_STRATEGIES>\n\n## Available primitives\n\n<AVAILABLE_PRIMITIVES>\n\n## Known failure patterns\n\n<KNOWN_FAILURE_PATTERNS>\n\n## Budget\n\n<BUDGET>\n\n## Optional constraints\n\n<OPTIONAL_CONSTRAINTS>\n\n## Rules\n\n1. Reason from run evidence first.\n2. Distinguish infrastructure failure from search failure.\n3. If controls are unstable, do NOT propose more mutations. Recommend instrumentation or harness repair first.\n4. If results are flat but stable, move up one search level instead of proposing local retunes.\n5. If prequant and post-quant disagree, explicitly split the lane and choose a strategy that matches the real bottleneck.\n6. If tokenizer, vocab, architecture, or dataset contract is implicated, propose a base-contract strategy rather than a mutation pack.\n7. Only propose within-family local mutation if at least one family has already shown real signal beyond control spread.\n8. If no strategy in the library fits, invent a new one - but explain what new unit of search it uses and why the old units were wrong.\n9. Do not output code.\n10. Do not output patch ideas unless the selected strategy is explicitly within-family exploitation and the data justifies it.\n11. Use concrete evidence from the run history, not generic advice.\n\n## Required output\n\nReturn JSON only with this exact shape:\n\n{\n  \"status\": \"continue_current|pivot_strategy|fix_instrumentation_first|insufficient_evidence\",\n  \"diagnosis\": {\n    \"current_search_level\": \"metric|base|tokenizer|family|selector|quantization|local_mutation|composition|unknown\",\n    \"main_failure_mode\": \"string\",\n    \"why_current_strategy_stalled\": \"string\",\n    \"evidence\": [\n      {\n        \"run_id\": \"string\",\n        \"observation\": \"string\",\n        \"implication\": \"string\"\n      }\n    ]\n  },\n  \"next_strategy\": {\n    \"source\": \"catalog|new\",\n    \"strategy_id\": \"string\",\n    \"name\": \"string\",\n    \"search_level\": \"string\",\n    \"unit_of_variation\": \"string\",\n    \"unit_of_comparison\": \"string\",\n    \"dominant_metric\": \"string\",\n    \"secondary_metrics\": [\"string\"],\n    \"frozen_contract\": [\"string\"],\n    \"axes_to_vary\": [\"string\"],\n    \"controls\": [\"string\"],\n    \"minimal_pack\": [\n      {\n        \"slot_type\": \"control|probe|repeat|novelty\",\n        \"purpose\": \"string\",\n        \"axis_value\": \"string\"\n      }\n    ],\n    \"expected_signal\": \"string\",\n    \"promotion_rule\": \"string\",\n    \"retirement_rule\": \"string\",\n    \"kill_rule\": \"string\",\n    \"why_it_is_more_consequential\": \"string\"\n  },\n  \"what_to_stop_doing\": [\"string\"],\n  \"evidence_gaps\": [\"string\"],\n  \"implementation_backlog\": [\"string\"],\n  \"handoff_prompt\": \"string\"\n}\n\n## Handoff prompt require..."
+    },
+    {
+      "path": "parameter-golf/search_verifier_codex.md",
+      "excerpt": "# Search Verifier Codex\n\n## Purpose\n\nThis file is the **verifier** for the new search process.\n\nIts job is not to invent hypotheses.\n\nIts job is to answer:\n\n> is this search track structurally valid?\n\nThat means checking whether a proposed search track:\n\n- is searching the right unit\n- is isolating the right causal lane\n- is using the right controls\n- is budgeting the tournament correctly\n- is mutating at the right level\n- is collecting enough evidence to learn\n\nThis verifier should be run:\n\n1. **before** implementing a new family pack\n2. **before** promoting survivors into mutation\n3. **before** composing winners\n4. **after** a pack runs, to decide whether the evidence is trustworthy\n\n---\n\n## What is a \"track\"?\n\nA **track** is the whole executable search proposal for one cycle:\n\n```text\ntrack:\n  base_contract\n  candidate_grammar\n  families[]\n  family_admission_pack\n  promotion_rules\n  retirement_rules\n  mutation_policy\n  composition_policy\n  primitive_backlog\n  evidence_contract\n```\n\nThe verifier is not judging whether the ideas are genius.\n\nIt is judging whether the track is **coherent enough to teach you something**.\n\n---\n\n## Core principle\n\nThe verifier should reject any track that collapses back into:\n\n- patch-chasing\n- lane mixing\n- uncontrolled family proliferation\n- unstable anchors\n- non-falsifiable compounds\n- no-evidence execution\n\n---\n\n## Verification gates\n\nEvery track must pass all of these gates.\n\n## Gate 1: Base Freeze Gate\n\n### Question\n\nDoes the track keep the executable base fixed for this cycle?\n\n### Pass if\n\n- tokenizer is fixed\n- architecture base is fixed\n- training base stack is fixed\n- the same frozen base is used for all family admission comparisons\n\n### Fail if\n\n- some families silently include tokenizer or architecture shifts\n- some candidates are evaluated on a different base than others\n- frontier rebase is bundled into the same family search cycle\n\n### Why this matters\n\nIf the base moves during family search, you are no longer comparing families.\nYou are comparing different problems.\n\n---\n\n## Gate 2: Unit-of-Search Gate\n\n### Question\n\nIs the track searching **bounded programs**, not loose patch packs?\n\n### Pass if\n\nEach family can be expressed in terms of:\n\n- signals\n- phase boundaries\n- triggers\n- actions\n- portfolio\n- selector\n\n### Fail if\n\n- the family is just a code diff category\n- the family can only be described as \"better export\" or \"better training\"\n- the proposal hides a full patch bundle behind one family name\n\n### Why this matters\n\nIf the searchable object is not explicit, mutation and attribution will both fail.\n\n---\n\n## Gate 3: Broken-Invariant Distinctness Gate\n\n### Question\n\nAre the proposed families actually different first-order stories?\n\n### Pass if\n\nEach family breaks a different false invariant.\n\n### Fail if\n\n- two families are really threshold variants of the same idea\n- a \"portfolio\" family is just a child of a \"handoff\" family\n- a family differs only by aggressiveness, not by mechanism\n\n### Why this matters\n\nThe first pack is for ontology search, not local tuning.\n\n---\n\n## Gate 4: Smallest-Decisive-Probe Gate\n\n### Question\n\nHas each family been reduced to the smallest executable probe that could falsify it?\n\n### Pass if\n\nEach family has:\n\n- one decisive probe\n- one matched control\n- one expected early signal\n- one kill rule\n\n### Fail if\n\n- the first executable version is already a full stack\n- the family needs multiple unproven helpers to exist\n- there is no cheap falsifier\n\n### Why this matters\n\nIf the first executable form is too large, failure becomes uninterpretable.\n\n---\n\n## Gate 5: Lane Integrity Gate\n\n### Question\n\nIs each family being judged on the lane it claims to attack?\n\n### Pass if\n\n- eval/export-only ideas can be judged on the same checkpoint\n- training-side ideas are not pretending to be export-only evidence\n- lane-specific metrics exist\n\n### Fail if\n\n- an eval-policy hypothesis is run as a full training tournament when a same-checkpoint bakeoff was possib..."
+    },
+    {
+      "path": "parameter-golf/pg_enigma/self_check_rubric.md",
+      "excerpt": "# Consequence Self-Check Rubric\n\nUse this rubric both when **proposing** and when **verifying** hypotheses.\n\nThe point is not to reward elegant prose.\n\nThe point is to decide whether a hypothesis is a **real search move**.\n\n## 1. Consequence\n\nAsk:\n\n- does this change the search at the metric, base, family, composition, or reset level?\n- which consequential axis changes?\n\nValid consequential axes:\n\n- `representation_contract`\n- `compute_allocation`\n- `regime_transition`\n- `artifact_selection`\n- `deployment_path`\n- `model_contract`\n- `search_strategy_reset`\n\n### Score\n\n- **5** - clearly changes a first-order mechanism or search level\n- **4** - clearly consequential, though narrower than the best ideas\n- **3** - maybe real, but still suspiciously close to local tuning\n- **2** - mostly retuning or reframing language around a local change\n- **1** - clearly not consequential\n\nKeep only ideas that can plausibly score **4 or 5**.\n\n## 2. Novelty Against History\n\nAsk:\n\n- does this break a different false invariant from prior failed lines?\n- or is it a reworded version of the same line?\n\n### Score\n\n- **5** - clearly opens a new mechanism class\n- **4** - meaningfully distinct from prior failures\n- **3** - related but maybe not distinct enough\n- **2** - near-duplicate family\n- **1** - obvious repetition\n\n## 3. Falsifiability\n\nAsk:\n\n- is there a smallest decisive probe?\n- is there an observable that should move early?\n- is there a cheap falsifier?\n\n### Score\n\n- **5** - crisp probe, signal, and kill rule\n- **4** - solid probe with minor ambiguity\n- **3** - plausible but still too broad\n- **2** - hard to falsify cheaply\n- **1** - basically unfalsifiable\n\nKeep only ideas that can plausibly score **3 or better**.\n\n## 4. Lane Integrity\n\nAsk:\n\n- is the idea honest about which lane it attacks?\n- does the evaluation lane match the mechanism?\n\n### Score\n\n- **5** - lane is explicit and measurement is aligned\n- **4** - mostly aligned with minor ambiguity\n- **3** - lane story is muddy\n- **2** - likely lane mixing\n- **1** - lane is incoherent\n\n## 5. Implementation Honesty\n\nAsk:\n\n- can this run now with the current executable catalog?\n- if not, is it explicitly marked as needing a new primitive or a new base cycle?\n\n### Score\n\n- **5** - implementation claim is exact and honest\n- **4** - mostly honest\n- **3** - some ambiguity about what exists\n- **2** - likely hiding missing machinery\n- **1** - clearly dishonest\n\nKeep only ideas that can plausibly score **3 or better**.\n\n## Rewrite rule\n\nIf an idea is interesting but scores low on consequence, do **not** keep it as-is.\n\nInstead rewrite it upward:\n\n- from local tuning -> program family\n- from program family -> base contract\n- from base contract -> search reset\n\nThe verifier should prefer a **strong rewrite** over a weak keep.\n"
+    },
+    {
+      "path": "frontier_rebase/pr1394/README.md",
+      "excerpt": "\n# Record: SP8192 + GPTQ Embeddings + Depth Recurrence + MuonEq-R + SDClip + Simplifications \u2014 val_bpb 1.08563\n\n**val bpb: 1.08563** (5-seed mean, std=0.0007)\n\n| Seed | Steps | Pre-quant BPB | Post-quant BPB | **Sliding BPB** | Artifact |\n|-|-|-|-|-|-|\n| 1    | 4988  | 1.08996 | 1.10239 | **1.08554** | 15,987,547 |\n| 42   | 4986  | 1.08994 | 1.10345 | **1.08664** | 15,988,983 |\n| 1234 | 4989  | 1.08942 | 1.10130 | **1.08463** | 15,983,318 |\n| 1337 | 4992  | 1.09079 | 1.10222 | **1.08554** | 15,984,924 |\n| 2025 | 4989  | 1.09092 | 1.10239 | **1.08578** | 15,983,617 |\n| **Mean** | | 1.09021 | 1.10235 | **1.08563** | 15,985,678 |\n\n## Changes\n\nThis script builds on [#1218](https://github.com/openai/parameter-golf/pull/1218). The main changes are:\n* Increase the vocabulary size from 4096 to 8192.\n* GPTQ-quantize the embedding matrix instead of using simple round-to-nearest quantization. The other matrices were already using GPTQ.\n* Remove the value embeddings.\n* Replace the coprime-stride data loader from [#726](https://github.com/openai/parameter-golf/pull/726) with a simpler ShuffledSequenceLoader.\n* Loop layers 4-5 twice (while sharing params): the idea is from [#1204](https://github.com/openai/parameter-golf/pull/1204), but this script uses a simpler implementation and loops twice rather than once.\n* Use row-normalized Muon from [#1217](https://github.com/openai/parameter-golf/pull/1217).\n* Choose the quantization clip threshold based on the standard deviation of the row rather than searching for a quantile with low reconstruction error. See the note at the end for motivation/details.\n\n## Requirements\n\nFlash Attention 3 (Hopper) is required. The script imports `flash_attn_interface` directly and was run with PyTorch 2.11.0+cu130. Install commands:\n\n```bash\npip install torch --index-url https://download.pytorch.org/whl/cu130\npip install --no-cache-dir \\\n  \"https://download.pytorch.org/whl/cu130/flash_attn_3-3.0.0-cp39-abi3-manylinux_2_28_x86_64.whl\"\npip install -r requirements.txt\n```\n\nThe tokenizer and pre-tokenized data (sp8192) is available on my [HuggingFace](https://huggingface.co/datasets/kevclark/parameter-golf). You can download it with:\n\n```bash\nrm -f data/manifest.json\nMATCHED_FINEWEB_REPO_ID=kevclark/parameter-golf \\\npython3 data/cached_challenge_fineweb.py --variant sp8192 --train-shards 128\n```\n\nNote this first deletes any existing `data/manifest.json` because the download script caches the manifest locally, and a stale one from the default repo won't include sp8192. Alternatively, to regenerate the tokenizer and dataset from scratch:\n\n```bash\ncat > data/tokenizer_specs_8192.json << 'EOF'\n[\n  {\n    \"name\": \"sp_bpe_8192\",\n    \"kind\": \"sentencepiece_bpe\",\n    \"vocab_size\": 8192,\n    \"tokenizer_train_docs\": 5000000\n  }\n]\nEOF\npython3 data/download_hf_docs_and_tokenize.py \\\n  --output-root data \\\n  --tokenizer-config data/tokenizer_specs_8192.json \\\n  --skip-byte\n```\n\n## Run Command\n\n```bash\nRUN_ID=1337 SEED=1337 \\\ntorchrun --standalone --nproc_per_node=8 train_gpt.py\n```\n\n## Quantization\u2013Compression Tradeoffs\n\nQuantization and compression interact in interesting ways. The compressed size depends not just on bitwidth, but also on the clip range (also called the scale) used during quantization. An int5 quantized network can actually compress smaller than an int4 one if the int5 quantization uses a much wider clip range. The reason is that the effectiveness of compression algorithms like `brotli` depends on the entropy of the data they are compressing, and increasing the clip range can lower that entropy.\n\n### An example\n\n![Quantization example](quantization_example.png)\n\nNeural network weights are approximately normally distributed (a). In this example, we could clip the weights to [-1, 1] and uniformly quantize them into int5 (b). But this seems a bit wasteful because many of those bins are spent modeling the tails of the distribution, where very few weights lie. Instead, we could clip to [-0.5, 0.5] and use int4 \\(c)..."
+    },
+    {
+      "path": "frontier_rebase/pr1394/submission.json",
+      "excerpt": "{\n  \"author\": \"Kevin Clark\",\n  \"github_id\": \"clarkkev\",\n  \"name\": \"SP8192 + GPTQ Embeddings + Depth Recurrence + MuonEq-R + SD-Clip + Simplifications\",\n  \"blurb\": \"8192-token sentencepiece vocab, GPTQ-quantize embeddings, loop layers 4,5 two times, row-normalized muon, standard-deviation based weight clipping\",\n  \"date\": \"2026-04-05\",\n  \"track\": \"10min_16mb\",\n  \"val_loss\": 2.80428,\n  \"val_bpb\": 1.08563,\n  \"val_bpb_std\": 0.0007,\n  \"seeds\": [\n    1,\n    42,\n    1234,\n    1337,\n    2025\n  ],\n  \"seed_results\": {\n    \"1\": {\n      \"val_loss\": 2.80405,\n      \"val_bpb\": 1.08554,\n      \"artifact_bytes\": 15987547,\n      \"steps\": 4988\n    },\n    \"42\": {\n      \"val_loss\": 2.80691,\n      \"val_bpb\": 1.08664,\n      \"artifact_bytes\": 15988983,\n      \"steps\": 4986\n    },\n    \"1234\": {\n      \"val_loss\": 2.8017,\n      \"val_bpb\": 1.08463,\n      \"artifact_bytes\": 15983318,\n      \"steps\": 4989\n    },\n    \"1337\": {\n      \"val_loss\": 2.80407,\n      \"val_bpb\": 1.08554,\n      \"artifact_bytes\": 15984924,\n      \"steps\": 4992\n    },\n    \"2025\": {\n      \"val_loss\": 2.80467,\n      \"val_bpb\": 1.08578,\n      \"artifact_bytes\": 15983617,\n      \"steps\": 4989\n    }\n  },\n  \"hardware\": \"8xH100 80GB SXM\",\n  \"pytorch_version\": \"2.11.0+cu130\",\n  \"bytes_total\": 15985678,\n  \"bytes_code\": 15516\n}"
+    }
+  ]
+}
+
+CAMPAIGN JSON
+{
+  "verdict": "READY",
+  "summary": "READY with four kept families: two executable-now lines for immediate pr1394 harness validation on downstream `score_bpb`, plus two honest deferred families that stay blocked until new runtime primitives exist.",
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives.",
+  "dominant_search_level": "reset",
+  "keep_ids": [
+    "trajectory_004/trajectory_004_h1",
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h3",
+    "trajectory_004/trajectory_004_h4"
+  ],
+  "families": [
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h1",
+      "name": "Control-Paired Delta Admission On Downstream Sliding Score",
+      "family_group": "control_delta_admission",
+      "search_level": "reset",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "compiler_pass_k": 3,
+      "why_keep": "It fixes the comparison law for the whole cycle and directly addresses pack-specific noise on the real downstream lane.",
+      "minimal_probe": "Run one 8-slot frontier selector pack with 2 exact controls, 2 replay-equivalent control clones, and 4 novel slots. Admit only by pack-local delta to paired controls on downstream `quantized_sliding_window` `score_bpb`.",
+      "expected_signal": "Control clones define a stable noise band and at least one non-control clears that band on downstream `score_bpb` without relying on pre-quant ranking.",
+      "composition_tags": [
+        "campaign_law",
+        "control_paired",
+        "downstream_only"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "cross_pack_control_carryover",
+        "family_specific_delta_baselines",
+        "selector_replay_stress"
+      ],
+      "pack_rationale": "Run first because every later executable solo pack should inherit this admission law instead of absolute-score ranking."
+    },
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h3",
+      "name": "Checkpoint And Export Selector Family",
+      "family_group": "checkpoint_export_selector",
+      "search_level": "program_family",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "compiler_pass_k": 3,
+      "why_keep": "It is the cleanest consequential family that can run now: same-trace artifact choice may beat the default final checkpoint/export pair on downstream `score_bpb`.",
+      "minimal_probe": "From one training trace, evaluate a bounded late-checkpoint window against a fixed small export menu, with 2 controls carrying the published default checkpoint/export choice.",
+      "expected_signal": "A non-default checkpoint/export pair wins on downstream `score_bpb` by more than control spread, and the winner is not recoverable from final-step or pre-quant ranking alone.",
+      "composition_tags": [
+        "same_trace",
+        "artifact_selection",
+        "post_train",
+        "deployment_touchpoint"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "expand_late_checkpoint_window",
+        "expand_fixed_export_menu",
+        "selector_robustness_across_seeds"
+      ],
+      "pack_rationale": "Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery."
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h3",
+      "name": "State-Triggered Recurrence Handoff Program",
+      "family_group": "recurrence_handoff_program",
+      "search_level": "program_family",
+      "lane": "training",
+      "phase_window": "mid",
+      "pack_kind": "mid_training_pack",
+      "implementation_mode": "needs_new_primitive",
+      "compiler_pass_k": 2,
+      "why_keep": "It attacks a concrete invariant in `train_gpt_human.py`: recurrence timing is fixed by `ENABLE_LOOPING_AT` instead of a searched handoff program.",
+      "minimal_probe": "After adding runtime state-conditioned control hooks, run a mid-training pack with 2 controls, one coarse late handoff realization, and one signal-triggered handoff realization, with final judgment on downstream `score_bpb`.",
+      "expected_signal": "A handoff realization shows a cleaner post-transition trajectory and then a downstream `score_bpb` gain beyond control spread at matched wall-clock budget.",
+      "composition_tags": [
+        "state_triggered",
+        "recurrence",
+        "transition_program",
+        "blocked_primitive"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "trigger_feature_refinement",
+        "handoff_action_variants",
+        "post_handoff_selector_coupling"
+      ],
+      "pack_rationale": "Keep deferred until the primitive exists; when unblocked, it must earn solo support in its own mid-training pack before any composition."
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h4",
+      "name": "Shared-Trunk Late-Branch Portfolio",
+      "family_group": "late_branch_portfolio",
+      "search_level": "composition",
+      "lane": "composition",
+      "phase_window": "pairwise",
+      "pack_kind": "pairwise_composition_pack",
+      "implementation_mode": "needs_new_primitive",
+      "compiler_pass_k": 2,
+      "why_keep": "It changes compute topology rather than a finisher knob and is the strongest honest branch/composition line once shared-trunk resume exists.",
+      "minimal_probe": "After branch-resume support exists, fork 2 to 4 late finishers from one trunk checkpoint plus 2 single-path controls and compare marginal downstream gain per extra finisher budget.",
+      "expected_signal": "At least one branch beats the single-path control on downstream `score_bpb` beyond control spread while using less total compute than training the same number of full independent runs.",
+      "composition_tags": [
+        "shared_trunk",
+        "late_branch",
+        "compute_reallocation",
+        "blocked_primitive"
+      ],
+      "incompatible_with": [
+        "trajectory_003/trajectory_003_h3"
+      ],
+      "mutate_after_survival": [
+        "branch_budget_expansion",
+        "triggered_branch_spawn",
+        "branch_local_export_menus"
+      ],
+      "pack_rationale": "Keep deferred and only admit after solo families exist; this is a composition family, not a first-pack candidate."
+    }
+  ],
+  "stop_doing": [
+    "Do not admit or promote training-side families on pre-quant ranking; keep downstream `quantized_sliding_window` `score_bpb` as the campaign law.",
+    "Do not pretend blocked controller or branch families are executable in the current catalog.",
+    "Do not split ontology into narrow children like EMA-only selectors or recurrence ramps before the parent family survives.",
+    "Do not run pairwise or hybrid composition before solo survival with repeated control-paired support."
+  ],
+  "pack_strategy": {
+    "controls_per_pack": 2,
+    "max_candidates_per_pack": 6,
+    "pack_order": [
+      "trajectory_004/trajectory_004_h1 solo calibration selector pack",
+      "trajectory_003/trajectory_003_h3 solo same-trace selector packs under calibrated delta law",
+      "trajectory_004/trajectory_004_h3 deferred mid-training solo packs after state-trigger primitive exists",
+      "trajectory_004/trajectory_004_h4 deferred pairwise composition packs after branch-resume primitive exists and at least one solo family survives"
+    ],
+    "notes": [
+      "Solo packs come before any composition.",
+      "Executable packs should use 6 candidate slots plus 2 controls.",
+      "`trajectory_004/trajectory_004_h1` is the admission law for every executable pack, not a license to mix lanes.",
+      "Blocked families stay out of active packs until their primitive backlog is closed."
+    ]
+  },
+  "promotion_policy": {
+    "min_positive_realizations": 2,
+    "require_directional_support": true,
+    "family_survival_rule": "A family survives only after at least 2 realizations beat paired controls on downstream `score_bpb` in its claimed lane, with one additional non-negative replication or stable control-band confirmation. This creates confidence lineage from pack-local calibration to repeated directional wins.",
+    "composition_entry_rule": "Enter pairwise composition only after a family has solo survival lineage: calibrated control band, repeated downstream-positive realizations, and no lane-integrity violations. Blocked families cannot enter until their first executable solo pack meets the same rule."
+  },
+  "composition_policy": {
+    "pairwise_after_solo_survival": true,
+    "max_pairwise_candidates": 6,
+    "max_hybrid_candidates": 4,
+    "hybrid_entry_rule": "A hybrid is allowed only after pairwise support shows the combined family beats both solo parents and paired controls on downstream `score_bpb` across repeated realizations; otherwise keep the families separate.",
+    "notes": [
+      "Treat `trajectory_004/trajectory_004_h1` as campaign infrastructure, not as a compositional model feature.",
+      "Do not compose blocked families speculatively.",
+      "Do not pair `trajectory_004/trajectory_004_h4` with `trajectory_003/trajectory_003_h3` as separate top-level families; selector logic can live inside a branch portfolio once that primitive exists."
+    ]
+  },
+  "campaign_handoff": {
+    "global_instructions": "Use `ncycle/pr1394_enigma_cycle.json` against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base, with `frontier_rebase/pr1394/README.md` and `frontier_rebase/pr1394/submission.json` as the base contract. Execute solo packs first, always with 2 controls and up to 6 candidate slots, judge admission and promotion only on downstream `quantized_sliding_window` `score_bpb`, and record pack-local deltas to paired controls before promoting any family.",
+    "control_principles": [
+      "Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.",
+      "Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.",
+      "Never let a pre-quant improvement override a downstream-negative result."
+    ],
+    "admission_principles": [
+      "Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.",
+      "Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.",
+      "Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist."
+    ],
+    "metric_principles": [
+      "Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.",
+      "Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.",
+      "Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree."
+    ],
+    "implementation_principles": [
+      "Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.",
+      "Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.",
+      "When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate."
+    ]
+  }
+}
+
+FAMILY DOSSIER JSON
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives.",
+  "dominant_search_level": "reset",
+  "candidate_id": "trajectory_003/trajectory_003_h3",
+  "name": "Checkpoint And Export Selector Family",
+  "family_group": "checkpoint_export_selector",
+  "search_level": "program_family",
+  "lane": "selector",
+  "phase_window": "post_train",
+  "pack_kind": "selector_pack",
+  "implementation_mode": "catalog_executable_now",
+  "compiler_pass_k": 3,
+  "why_keep": "It is the cleanest consequential family that can run now: same-trace artifact choice may beat the default final checkpoint/export pair on downstream `score_bpb`.",
+  "minimal_probe": "From one training trace, evaluate a bounded late-checkpoint window against a fixed small export menu, with 2 controls carrying the published default checkpoint/export choice.",
+  "expected_signal": "A non-default checkpoint/export pair wins on downstream `score_bpb` by more than control spread, and the winner is not recoverable from final-step or pre-quant ranking alone.",
+  "composition_tags": [
+    "same_trace",
+    "artifact_selection",
+    "post_train",
+    "deployment_touchpoint"
+  ],
+  "incompatible_with": [],
+  "mutate_after_survival": [
+    "expand_late_checkpoint_window",
+    "expand_fixed_export_menu",
+    "selector_robustness_across_seeds"
+  ],
+  "pack_rationale": "Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.",
+  "source_candidate": {
+    "candidate_id": "trajectory_003/trajectory_003_h3",
+    "trajectory_id": "trajectory_003",
+    "hypothesis_id": "trajectory_003_h3",
+    "worldview": "The right pr1394_enigma harness test is to keep the published SP8192/GPTQ-embeddings/depth-recurrence/MuonEq-R/SDClip stack frozen as the control base and search over bounded transition or selection programs around it. The consequential opportunities are regime changes and artifact choice, not scalar nudges.",
+    "name": "Checkpoint And Export Selector Family",
+    "search_level": "program_family",
+    "lane": "artifact_selection",
+    "family_group": "checkpoint_export_selector",
+    "implementation_mode": "catalog_executable_now",
+    "consequence_axes": [
+      "artifact_selection",
+      "deployment_path"
+    ],
+    "broken_invariant": "The final/default checkpoint plus default export path is automatically the best artifact once the training run is fixed.",
+    "smallest_decisive_probe": "Use the same trained trajectory for a same-checkpoint bakeoff over a small late-checkpoint window and a small fixed menu of catalog export realizations, with downstream quantized_sliding_window as admission metric.",
+    "expected_observable": "If the family is real, the downstream winner will come from a non-default checkpoint/export pair, and the ranking will disagree with simple final-step or pre-quant ranking often enough to exceed control noise.",
+    "novelty_vs_history": "This directly tests a lane the repo keeps underusing: artifact choice as a first-order search object rather than an afterthought behind training patches.",
+    "self_scores": {
+      "consequence": 4,
+      "novelty": 5,
+      "falsifiability": 5,
+      "lane_integrity": 5,
+      "implementation_honesty": 4
+    }
+  },
+  "verifier_review": {
+    "candidate_id": "trajectory_003/trajectory_003_h3",
+    "verdict": "KEEP",
+    "consequence_score": 4,
+    "novelty_score": 5,
+    "falsifiability_score": 5,
+    "lane_integrity_score": 5,
+    "implementation_honesty_score": 4,
+    "reasons": [
+      "This is the cleanest artifact-selection family in the batch: the searchable object is explicit and first-order.",
+      "The same-trace checkpoint/export bakeoff gives a crisp falsifier with no lane mixing.",
+      "It stays close to currently plausible harness behavior because it only needs a bounded late checkpoint window and fixed export menu."
+    ],
+    "rewrite_instructions": []
+  },
+  "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json"
+}
+
+COMPILER DOCTRINE
+# Family Compiler Prompt Doctrine
+
+You are the family compiler stage for `pg_enigma`.
+
+You receive one family dossier from a verified campaign.
+
+Your job is to produce **multiple executable code realization plans** for the same family mechanism.
+
+## Principles
+
+1. Preserve the mechanism; vary the executable realization.
+2. Do **not** turn pass@k into random mutation.
+3. Each realization should be a different code-level proxy for the same broken invariant.
+4. Avoid local threshold variants unless the threshold change is structurally tied to a different executable realization.
+5. Keep the realization in its assigned lane and phase window.
+6. Be honest about implementation:
+   - `current_search_harness_catalog`
+   - `needs_new_primitive`
+   - `needs_new_base_cycle`
+
+## What a good realization looks like
+
+- keeps the family identity intact
+- is minimal enough to falsify the family
+- is specific enough that a downstream agent can implement or materialize it
+- says where it belongs in the campaign
+- says what must remain frozen
+
+## What a bad realization looks like
+
+- random local tweak presented as a separate realization
+- hidden composition
+- lane or phase drift
+- dishonest claims that the current catalog can implement something it cannot
+
+## Required behavior
+
+- emit exactly `compiler_pass_k` realizations when the verdict is `READY`
+- give each realization a distinct implementation story
+- keep the family lane, phase window, and pack kind coherent
+- produce downstream instructions another agent can use to prepare a `search_harness.py` pack

@@ -1,0 +1,254 @@
+{
+  "verdict": "PASS",
+  "summary": "A small but credible campaign survives. Three ideas clear the bar after honesty and dedupe checks: `loop_ramp`, `sensitivity_bits`, and `control_delta_admission`. Most other cards are either broader relabelings of those lines, selector/controller/branch ideas that overclaim current pr1394 executability, or blocked abstractions that should stay backlog until the target runner grows the needed primitives.",
+  "global_errors": [],
+  "global_warnings": [
+    "The active pr1394 executable catalog is narrower than several cards imply: the real frontier families are `loop_ramp`, `ema_selector`, `sensitivity_bits`, `skip_gate_schedule`, `quant_clip_anneal`, and `phase_split_optim`.",
+    "`ema_selector` is real, but the current patch and track spec choose by final pre-quant `val_bpb`, not downstream `score_bpb`; cards that claim downstream-only selector behavior are rewriting the primitive, not describing current executability.",
+    "Broad checkpoint selector, controller, and branching stories are mostly blocked on `train_gpt_human.py`: the script only performs a final save, and the repo findings say online signals/branch primitives are not wired into the active pr1394 runner."
+  ],
+  "feedback_to_generator": "Next round should keep one representative per mechanism class, only call a card `catalog_executable_now` if it exists in the active pr1394 catalog on `train_gpt_human.py`, and separate blocked controller/branch backlog from runnable pack candidates. If you want a selector family, either stay honest about the current pre-quant EMA selector or add the missing post-train downstream selector primitive first.",
+  "family_reviews": [
+    {
+      "candidate_id": "trajectory_001/trajectory_001_h1",
+      "verdict": "DROP",
+      "consequence_score": 4,
+      "novelty_score": 2,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 5,
+      "implementation_honesty_score": 3,
+      "reasons": [
+        "This is mostly already the round contract: the active pr1394 frontier pack already ranks by `metrics.score_bpb` and already carries two controls.",
+        "As a new direction it is subsumed by the stronger `control_delta_admission` version, which actually tightens the evidence law instead of restating it."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_001/trajectory_001_h2",
+      "verdict": "KEEP",
+      "consequence_score": 4,
+      "novelty_score": 4,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 5,
+      "implementation_honesty_score": 5,
+      "reasons": [
+        "`patch_loop_ramp` exists in the active pr1394 catalog and really changes the execution program from abrupt loop activation to a staged 0->1->2 repeat ramp.",
+        "It breaks a real regime-transition invariant on the published base and has a crisp downstream falsifier without hiding behind local scalar sweeps."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_001/trajectory_001_h3",
+      "verdict": "REWRITE",
+      "consequence_score": 4,
+      "novelty_score": 3,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 4,
+      "implementation_honesty_score": 2,
+      "reasons": [
+        "The active `ema_selector` primitive is real, but the current patch and track spec select among raw/base/fast/slow EMA states by final pre-quant `val_bpb`, not downstream `score_bpb`.",
+        "The target script does not expose a broader late-checkpoint selector beyond those retained EMA end states, so the card overstates both selector scope and current downstream executability."
+      ],
+      "rewrite_instructions": [
+        "Move it up from 'the current catalog primitive already does downstream selection' to an honest post-train selector family over the actually retained EMA states.",
+        "Smallest decisive probe: quantize and run `quantized_sliding_window` on raw/base/fast/slow EMA from one trace and choose by `score_bpb`; until that exists, mark the family `needs_new_primitive`."
+      ]
+    },
+    {
+      "candidate_id": "trajectory_001/trajectory_001_h4",
+      "verdict": "KEEP",
+      "consequence_score": 5,
+      "novelty_score": 4,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 5,
+      "implementation_honesty_score": 5,
+      "reasons": [
+        "`patch_sensitivity_bits` exists in the active pr1394 catalog and genuinely reallocates matrix bitwidth by Hessian sensitivity under a fixed deployment budget.",
+        "This is a first-order deployment contract change with a clear same-budget falsifier, not a disguised clip or calibration retune."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_002/trajectory_002_h1",
+      "verdict": "DROP",
+      "consequence_score": 4,
+      "novelty_score": 3,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 5,
+      "implementation_honesty_score": 1,
+      "reasons": [
+        "The target script only performs a final save, and the active pr1394 catalog does not expose dense late-checkpoint pools or checkpoint-window selector programs.",
+        "That makes `catalog_executable_now` dishonest here; this is a broader, less honest restatement of the selector line rather than a distinct surviving family."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_002/trajectory_002_h2",
+      "verdict": "REWRITE",
+      "consequence_score": 5,
+      "novelty_score": 4,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 4,
+      "implementation_honesty_score": 5,
+      "reasons": [
+        "This is a real mechanism class and is honestly marked `needs_new_primitive`; the repo findings support the claim that controller/signal work exists conceptually but is stranded outside the active pr1394 runner.",
+        "It should not spend an executable-now family slot until `train_gpt_human.py` has live signal capture, trigger logging, and deterministic replay."
+      ],
+      "rewrite_instructions": [
+        "Move it up to a primitive-backlog item: first wire one minimal signal set and emitted trigger/state logs into the pr1394 runner.",
+        "If you need an executable proxy now, collapse it to one explicit existing post-loop regime family on pr1394 rather than a general online controller."
+      ]
+    },
+    {
+      "candidate_id": "trajectory_002/trajectory_002_h3",
+      "verdict": "DROP",
+      "consequence_score": 5,
+      "novelty_score": 4,
+      "falsifiability_score": 3,
+      "lane_integrity_score": 4,
+      "implementation_honesty_score": 5,
+      "reasons": [
+        "This is composition before foundation: no branching primitive exists on the active pr1394 runner, and no solo branch family has survived on this base.",
+        "It duplicates the blocked branch backlog without offering an honest executable-now line."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_002/trajectory_002_h4",
+      "verdict": "REWRITE",
+      "consequence_score": 4,
+      "novelty_score": 3,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 2,
+      "implementation_honesty_score": 3,
+      "reasons": [
+        "Within this round the declared primary metric is already downstream `score_bpb`; admitting training families by pre-quant evidence would reintroduce proxy ranking into the same pack.",
+        "As framed here it is lane-misaligned and weaker than the stricter downstream `control_delta_admission` rule."
+      ],
+      "rewrite_instructions": [
+        "Move it up one level to a true reset: run separate training-only and deployment-only cycles instead of mixed packs with split admission metrics.",
+        "If staying in this cycle, keep all admissions on downstream `score_bpb` and encode the stricter rule as control-delta gating, not pre-quant lane splitting."
+      ]
+    },
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h1",
+      "verdict": "DROP",
+      "consequence_score": 5,
+      "novelty_score": 3,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 4,
+      "implementation_honesty_score": 1,
+      "reasons": [
+        "The active pr1394 catalog does not contain a bounded controller family; controller-like primitives exist elsewhere in the repo, not on `frontier_rebase/pr1394/train_gpt_human.py`.",
+        "So `catalog_executable_now` is fake here, and the card is a broader, less honest restatement of the blocked controller backlog."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h2",
+      "verdict": "DROP",
+      "consequence_score": 4,
+      "novelty_score": 3,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 4,
+      "implementation_honesty_score": 2,
+      "reasons": [
+        "A `bootstrap_handoff` family exists in the repo, but it targets `hm2/base_train_gpt.py`, not the pr1394 target script for this round.",
+        "On this base it is an unported child of the blocked controller/handoff line, so the executable-now claim is overstated."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h3",
+      "verdict": "DROP",
+      "consequence_score": 4,
+      "novelty_score": 3,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 5,
+      "implementation_honesty_score": 1,
+      "reasons": [
+        "Like the other broad selector cards, it assumes a same-run checkpoint/export menu that the target script does not materialize; the current runner only retains final/raw/EMA-style end states.",
+        "That makes it a duplicate overclaim, not a distinct executable selector family."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h4",
+      "verdict": "REWRITE",
+      "consequence_score": 5,
+      "novelty_score": 5,
+      "falsifiability_score": 3,
+      "lane_integrity_score": 4,
+      "implementation_honesty_score": 5,
+      "reasons": [
+        "This is a genuinely consequential branch/search-level idea and is honestly marked blocked.",
+        "But it depends on exactly the missing integration called out in the repo findings: stage3_3-style signals are not part of the active pr1394 runner, and no triggerable branch primitive exists."
+      ],
+      "rewrite_instructions": [
+        "Move it up to a primitive backlog: first prove fixed-branch shared-trunk replay plus emitted state logs on the pr1394 base.",
+        "Then run the smaller decisive probe: trigger-based fork timing versus one fixed-step fork and one no-branch control, all judged on downstream `score_bpb`."
+      ]
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h1",
+      "verdict": "KEEP",
+      "consequence_score": 5,
+      "novelty_score": 4,
+      "falsifiability_score": 5,
+      "lane_integrity_score": 5,
+      "implementation_honesty_score": 4,
+      "reasons": [
+        "This is the strongest surviving harness-level move: the repo findings show that broken anchors and large control variance can make absolute ranks fictitious, and control-clone deltas attack that directly.",
+        "It needs no new model primitive; it only changes pack composition and promotion law on the already-correct downstream lane."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h2",
+      "verdict": "DROP",
+      "consequence_score": 4,
+      "novelty_score": 3,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 5,
+      "implementation_honesty_score": 2,
+      "reasons": [
+        "It claims executable-now checkpoint/window selection that the target script does not support; there are no post-warmdown or stability-window artifacts unless extra saves are added.",
+        "So this is another duplicate selector overclaim rather than a credible current family."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h3",
+      "verdict": "DROP",
+      "consequence_score": 5,
+      "novelty_score": 4,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 4,
+      "implementation_honesty_score": 5,
+      "reasons": [
+        "This is a blocked recurrence-specific child of the broader controller/handoff backlog, while an actual executable recurrence family (`loop_ramp`) already exists.",
+        "As written it asks for signal-triggered transition machinery that the pr1394 catalog does not expose, so it is not a current-round keep."
+      ],
+      "rewrite_instructions": []
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h4",
+      "verdict": "DROP",
+      "consequence_score": 5,
+      "novelty_score": 4,
+      "falsifiability_score": 4,
+      "lane_integrity_score": 4,
+      "implementation_honesty_score": 5,
+      "reasons": [
+        "Shared-trunk late portfolios remain composition-before-foundation on this base: no branching primitive exists and no branch family has solo evidence.",
+        "It is redundant with the other blocked branch cards and should not occupy a current-round keep slot."
+      ],
+      "rewrite_instructions": []
+    }
+  ],
+  "keep_ids": [
+    "trajectory_001/trajectory_001_h2",
+    "trajectory_001/trajectory_001_h4",
+    "trajectory_004/trajectory_004_h1"
+  ]
+}

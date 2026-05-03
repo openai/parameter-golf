@@ -1,0 +1,42 @@
+{
+  "batch_id": "stage3_original_screen",
+  "phase": "sanity",
+  "slot": "H5",
+  "name": "gradient_centralization",
+  "role": "candidate",
+  "family": "GRAD_PREPROCESS",
+  "label": "20260324_210543",
+  "gpu_spec": "6",
+  "nproc_per_slot": 1,
+  "lineage": [
+    "R0A",
+    "H5"
+  ],
+  "compare_to": "R0A",
+  "why": "Subtract the mean of each gradient tensor before the optimizer step. From ICCV 2020 (Yong et al.): proven to improve convergence and generalization in image classification. Never tested for language models. The hypothesis: the mean gradient component is a global shift all neurons want to make; removing it forces the optimizer to focus on differential structure between neurons.",
+  "validates": "Gradient centralization transfers from CV to LM training. Opens gradient preprocessing as an attack surface.",
+  "falsifies": "In LMs, the mean gradient carries important signal (unlike images). Centralizing hurts convergence.",
+  "patches": [
+    "grad_centralization"
+  ],
+  "notes": [
+    "Cross-domain: computer vision optimization (ICCV 2020).",
+    "Applied to 2D matrix params only. Embeddings and scalars are left alone.",
+    "Interacts with Muon's Newton-Schulz: GC removes mean BEFORE clipping, Muon orthogonalizes AFTER.",
+    "Zero new hyperparameters \u2014 it's on or off."
+  ],
+  "env": {
+    "DATA_PATH": " nanoevolve/pgolf/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "GRAD_CENTRALIZATION": "1",
+    "GRAD_CLIP_NORM": "0.3",
+    "MLP_MULT": "3",
+    "MUON_BACKEND_STEPS": "5",
+    "MUON_MOMENTUM": "0.95",
+    "TOKENIZER_PATH": " nanoevolve/pgolf/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_BATCH_TOKENS": "524288",
+    "TRAIN_LOG_EVERY": "50",
+    "TRAIN_SEQ_LEN": "2048",
+    "VAL_LOSS_EVERY": "200",
+    "WARMDOWN_ITERS": "3000"
+  }
+}

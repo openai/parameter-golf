@@ -1,0 +1,15 @@
+{
+  "phase": "champion_8x",
+  "results": {
+    "H1": {
+      "steps": 10831,
+      "step_avg_ms": 55.39,
+      "pre_quant_bpb": 1.1785,
+      "post_quant_bpb": 1.16314679,
+      "submission_size_bytes": 15859538,
+      "returncode": 0
+    }
+  },
+  "comparisons": [],
+  "recommended_promotions": []
+}
