@@ -1,0 +1,60 @@
+{
+  "author": "LLMAdvisor.ai",
+  "github_id": "harborglowvintage-oss",
+  "name": "Int5/Int6 + BigramHash + SmearGate + SWA + LLMAdvisor — 3-seed",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.15865,
+  "val_bpb_std": 0.00554,
+  "seeds": [99, 777, 2025],
+  "seed_results": {
+    "99": {
+      "val_bpb": 1.15636828,
+      "artifact_bytes": 15544251,
+      "train_time_s": 599.5,
+      "eval_time_s": 276.1,
+      "steps": 5716,
+      "step_avg_ms": 104.9
+    },
+    "777": {
+      "val_bpb": 1.15323140,
+      "artifact_bytes": 15645316,
+      "train_time_s": 599.4,
+      "eval_time_s": 277.1,
+      "steps": 6000,
+      "step_avg_ms": 99.9
+    },
+    "2025": {
+      "val_bpb": 1.16636160,
+      "artifact_bytes": 15719916,
+      "train_time_s": 599.9,
+      "eval_time_s": 528.1,
+      "steps": 4893,
+      "step_avg_ms": 122.6
+    }
+  },
+  "seed_best": 777,
+  "bytes_total": 15719916,
+  "hardware": "8xH100 SXM 80GB",
+  "training_config": {
+    "script": "records/track_10min_16mb/2026-03-22_Int5Int6_BigramHash_SmearGate_SWA_LLMAdvisor/train_gpt.py",
+    "iterations": 20000,
+    "max_wallclock_seconds": 600,
+    "warmdown_iters": 3000,
+    "vocab_size": 1024,
+    "nproc_per_node": 8
+  },
+  "architecture": {
+    "layers": 9,
+    "dim": 512,
+    "heads": 8,
+    "kv_heads": 4,
+    "params": 25517137,
+    "quantization": "Mixed Int5 (MLP) + Int6 (attention), zstd-22",
+    "embeddings": "BigramHash",
+    "gate": "SmearGate",
+    "ema": "SWA"
+  },
+  "submitted_at": "2026-04-30T23:30:00Z",
+  "notes": "3-seed mean 1.15865 (seeds 99, 777, 2025) using the Mar 22 LLMAdvisor stack. Best single seed: 1.15323 (seed 777). All artifacts under 16 MB, all training runs under 600s on 8xH100 SXM."
+}
