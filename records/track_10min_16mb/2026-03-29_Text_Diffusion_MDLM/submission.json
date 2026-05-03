@@ -1,0 +1,12 @@
+{
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "name": "Text Diffusion: Masked Diffusion Language Model (MDLM)",
+  "blurb": "First text diffusion submission. MDLM training (Sahoo et al., NeurIPS 2024): random masking at rate t~U(0,1), predict masked tokens, ELBO-weighted loss. SUBS parameterization (carry-over unmasking, zero mask probabilities). Stratified t sampling. Causal attention for AR eval compatibility. Eval: sliding window.",
+  "date": "2026-03-29T00:00:00Z",
+  "val_loss": 2.4625,
+  "val_bpb": 1.4584,
+  "bytes_total": 11547850,
+  "bytes_code": 73514,
+  "gpu": "8xH100 SXM"
+}
