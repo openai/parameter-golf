@@ -1,0 +1,3 @@
+zstandard
+--find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291
+flash_attn_3
