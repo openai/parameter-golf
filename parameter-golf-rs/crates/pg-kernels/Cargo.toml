@@ -1,0 +1,19 @@
+[package]
+name = "pg-kernels"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+cuda = ["pg-core/cuda", "dep:cudarc"]
+
+[dependencies]
+pg-core = { path = "../pg-core" }
+cudarc = { workspace = true, optional = true }
+half = { workspace = true }
+bytemuck = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+
+[build-dependencies]
+cc = "1.0"

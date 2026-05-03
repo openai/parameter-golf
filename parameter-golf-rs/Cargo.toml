@@ -1,0 +1,47 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/pg-core",
+    "crates/pg-kernels",
+    "crates/pg-model",
+    "crates/pg-optim",
+    "crates/pg-data",
+    "crates/pg-quant",
+    "crates/pg-eval",
+    "crates/pg-compat",
+    "crates/pg-train",
+    "crates/pg-bench",
+]
+
+[workspace.dependencies]
+# GPU / CUDA — requires CUDA toolkit on build machine
+# Use `cargo build --features cuda` to enable
+cudarc = { version = "0.16", features = ["std", "cublas", "cudnn", "driver", "nccl", "curand", "nvrtc", "cuda-12080", "f16"] }
+half = { version = "2", features = ["std", "num-traits", "bytemuck"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+# Compression
+zstd = "0.13"
+
+# CPU parallelism
+rayon = "1.10"
+
+# Serialization
+bytemuck = { version = "1", features = ["derive"] }
+byteorder = "1"
+crc32fast = "1"
+
+# Utilities
+smallvec = { version = "1", features = ["union", "const_generics"] }
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+memmap2 = "0.9"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

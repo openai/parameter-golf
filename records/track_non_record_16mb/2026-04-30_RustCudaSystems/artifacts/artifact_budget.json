@@ -1,0 +1,11 @@
+{
+  "event": "submission_byte_budget",
+  "status": "not_produced_for_final_artifact",
+  "limit": 16000000,
+  "model_bytes": null,
+  "code_bytes": null,
+  "total_bytes": null,
+  "under_budget": null,
+  "reason": "Record-shaped proxy timing runs did not export a final leaderboard artifact. Final export/eval proof attempts failed before execution because Modal could not connect to the server."
+}
+

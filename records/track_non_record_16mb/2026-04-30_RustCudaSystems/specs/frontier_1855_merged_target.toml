@@ -1,0 +1,127 @@
+# Merged-frontier record target used for Rust/CUDA systems benchmarking.
+
+name = "frontier_1855_merged_target"
+mode = "record"
+
+[model]
+family = "frontier_1855_like"
+attention_backend = "cudnn_sdpa_bf16"
+compute_precision = "bf16_tensor_core"
+vocab_size = 8192
+num_layers = 11
+model_dim = 512
+num_heads = 8
+num_kv_heads = 4
+mlp_mult = 4.0
+train_seq_len = 2048
+eval_seq_len = 2048
+xsa_last_n = 11
+skip_topology = "unet"
+smear_gate = true
+smear_gate_boundary_token_id = 1
+logit_softcap = 30.0
+qk_gain_init = 5.0
+ln_scale = true
+tie_embeddings = true
+
+[model.bigram]
+enabled = false
+vocab_size = 3072
+dim = 112
+
+[model.value_embedding]
+enabled = false
+dim = 128
+layers = []
+
+[model.recurrence]
+enabled = true
+start_layer = 4
+repeat_layers = 2
+
+[model.parallel_residual]
+enabled = true
+split_attention_mlp = true
+
+[model.attn_out_gate]
+enabled = false
+width = 24
+
+[model.caseops]
+enabled = true
+byte_sidecar = true
+
+[model.sparse_attn_gate]
+enabled = true
+width = 12
+scale = 0.5
+
+[model.rope]
+mode = "partial"
+dims = 16
+base = 10000.0
+
+[train]
+backend = "cuda_distributed"
+distributed_optimizer_backend = "sharded_parallel_muon"
+batch_tokens = 786432
+seq_len = 2048
+rank = 0
+world_size = 8
+artifact_path = "/output/frontier_1855_merged_target.pgrs"
+fast_bank_updates = false
+warmup_steps = 20
+total_iterations = 9000
+warmdown_iters = 3500
+warmdown_frac = 0.85
+min_lr_scale = 0.10
+max_wallclock_seconds = 600.0
+matrix_lr = 0.026
+scalar_lr = 0.025
+embed_lr = 0.6
+tied_embed_lr = 0.035
+head_lr = 0.008
+muon_momentum = 0.99
+muon_momentum_warmup_start = 0.92
+muon_momentum_warmup_steps = 1500
+muon_wd = 0.04
+adam_wd = 0.04
+adam_beta2 = 0.99
+ema_decay = 0.997
+late_qat_threshold = 0.15
+
+[quant]
+scheme = "mixed_int5_int6"
+calibration = "self_generated"
+compression = "pergroup"
+matrix_bits = 6
+embed_bits = 7
+attn_gate_bits = 8
+mlp_clip_sigmas = 11.5
+attn_clip_sigmas = 13.0
+embed_clip_sigmas = 14.0
+gptq_calibration_batches = 16
+target_artifact_bytes = 16000000
+
+[quant.lqer]
+enabled = true
+rank = 4
+top_k = 3
+a_bits = 2
+b_bits = 4
+group_size = 64
+asymmetric = true
+
+[eval]
+stride = 64
+legal_score_first = true
+qttt = true
+adaptation_backend = "gpu_lora_phased"
+lora_rank = 80
+lora_alpha = 144.0
+phased_ttt_prefix_docs = 2500
+phased_ttt_phases = 3
+phased_ttt_weight_decay = 0.5
+ttt_beta2 = 0.99
+chunk_tokens = 32768
+caseops_byte_sidecar_pattern = "/data/datasets/fineweb10B_sp8192/fineweb_val_bytes_*.bin"

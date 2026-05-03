@@ -1,0 +1,76 @@
+name = "hybrid_competitive_sp8192"
+mode = "proxy"
+
+[model]
+family = "hybrid_competitive_sp8192"
+vocab_size = 8192
+num_layers = 11
+model_dim = 512
+num_heads = 8
+num_kv_heads = 4
+mlp_mult = 3.0
+train_seq_len = 2048
+eval_seq_len = 2048
+xsa_last_n = 11
+skip_topology = "unet"
+smear_gate = true
+logit_softcap = 30.0
+qk_gain_init = 5.25
+ln_scale = true
+tie_embeddings = true
+
+[model.bigram]
+enabled = true
+vocab_size = 3072
+dim = 112
+
+[model.value_embedding]
+enabled = false
+dim = 128
+layers = []
+
+[model.recurrence]
+enabled = true
+start_layer = 4
+repeat_layers = 2
+
+[model.parallel_residual]
+enabled = true
+split_attention_mlp = true
+
+[model.rope]
+mode = "partial"
+dims = 16
+base = 10000.0
+
+[train]
+batch_tokens = 524288
+seq_len = 2048
+warmup_steps = 20
+total_iterations = 9000
+warmdown_iters = 3500
+max_wallclock_seconds = 600.0
+matrix_lr = 0.025
+scalar_lr = 0.025
+embed_lr = 0.6
+tied_embed_lr = 0.035
+head_lr = 0.008
+muon_momentum = 0.99
+muon_momentum_warmup_start = 0.92
+muon_momentum_warmup_steps = 1500
+muon_wd = 0.04
+adam_wd = 0.04
+ema_decay = 0.997
+late_qat_threshold = 0.15
+
+[quant]
+scheme = "gptq_lite_int6"
+calibration = "self_generated"
+compression = "zstd22"
+target_artifact_bytes = 16000000
+
+[eval]
+stride = 64
+legal_score_first = true
+qttt = false
+chunk_tokens = 32768
