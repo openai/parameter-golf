@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-05-03",
+  "name": "SP8192 + RandProj384 tied embeddings + Pairwise-QK Muon",
+  "author": "YaseenHQ",
+  "github_id": "YaseenHQ",
+  "val_bpb": 1.1269,
+  "val_loss": 2.4662,
+  "bytes_total": 15438770
+}
