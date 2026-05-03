@@ -1,0 +1,3 @@
+experiment,seed,last_val_bpb,roundtrip_val_bpb,roundtrip_exact_val_bpb,submission_bytes,stopped_step,output_dir
+verify_hi075_repeat,,1.1577,1.1586,1.15864608,,3000,output/run_sweep_final_verify_hi075_v1/verify_hi075_repeat_20260430_174240
+verify_hi0775_sanity,,1.1578,1.1588,1.15875172,,3000,output/run_sweep_final_verify_hi075_v1/verify_hi0775_sanity_20260430_190707

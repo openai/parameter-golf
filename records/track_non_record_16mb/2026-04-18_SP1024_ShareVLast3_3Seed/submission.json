@@ -1,0 +1,17 @@
+{
+  "title": "SP1024 + Shared-V(last3) + BIFPN2 + XSA4 + NGram Fade",
+  "author": "Kaikai Liu",
+  "github_id": "lkk688",
+  "track": "non-record-16mb",
+  "description": "Stable SP1024 non-record submission under the 16MB artifact cap.",
+  "val_bpb": 1.27717259,
+  "artifact_bytes": 15973626,
+  "representative_seed": 2027,
+  "seeds": [
+    1337,
+    2027,
+    3407
+  ],
+  "tokenizer": "official fineweb_1024_bpe.model",
+  "dataset": "official fineweb10B_sp1024"
+}
