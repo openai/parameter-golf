@@ -1,0 +1,10 @@
+{
+  "name": "11L XSA-all(11) + GPTQ-lite + EMA(0.997) + Late QAT@0.15 + Raw Binary",
+  "val_loss": 1.90248,
+  "val_bpb": 1.12676,
+  "bytes_total": 15713594,
+  "blurb": "11 layers with XSA on ALL layers (not just last 4), GPTQ-lite optimal clip percentile search, EMA(0.997) + Tight SWA, Late QAT int6-all at LR scale<0.15, Partial RoPE(16/64), LN Scale, VE128(layers 9,10), SmearGate, BigramHash(2048), raw binary+zstd22 serialization. Mean of 3 seeds: 1.12676 (std 0.00034). No pruning, no TTT.",
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "date": "2026-03-22"
+}
