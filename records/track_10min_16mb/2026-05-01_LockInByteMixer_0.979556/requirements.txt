@@ -1,0 +1,11 @@
+# Runtime dependencies for the cond-PPM submission. Most of these are already
+# in OpenAI's RunPod Parameter-Golf template; we list them for completeness.
+torch>=2.0
+sentencepiece>=0.1.99
+numpy>=1.20
+brotli>=1.0
+flash-attn>=2.0  # optional; FA3 wheel pre-installed on RunPod template
+# numba is REQUIRED — accelerates the cond-PPM byte-mixer Python loop ~7×.
+# Without it the eval falls back to pure Python and exceeds the 600s eval cap
+# on the canonical 50K-doc validation set (~48M scored tokens).
+numba>=0.59
