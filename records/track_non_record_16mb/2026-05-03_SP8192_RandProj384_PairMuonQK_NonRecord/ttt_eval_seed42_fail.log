@@ -1,0 +1,339 @@
+W0503 07:51:02.865000 106615 torch/distributed/run.py:803] 
+W0503 07:51:02.865000 106615 torch/distributed/run.py:803] *****************************************
+W0503 07:51:02.865000 106615 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0503 07:51:02.865000 106615 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  agree_add_boost: 0.0
+  artifact_dir: /workspace/parameter-golf/runs/2026-05-03_2135_randproj384_pairmuon_lrelu03_qkgain525/seed42
+  asym_logit_rescale: True
+  attn_backend: fa3
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.99
+  caseops_enabled: True
+  compressor: pergroup
+  data_dir: ./data
+  datasets_dir: /workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 14.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2560
+  eval_stride: 64
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_every_n: 6
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_muon_nesterov: True
+  global_ttt_muon_ns_steps: 5
+  global_ttt_optimizer: sgd
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 32
+  gptq_reserve_seconds: 0.5
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_attn_window: 1024
+  local_global_pattern: 
+  local_rank: 0
+  logfile: /workspace/parameter-golf/runs/2026-05-03_2135_randproj384_pairmuon_lrelu03_qkgain525/seed42/2135_randproj384_pairmuon_lrelu03_qkgain525_seed42.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 32
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.028
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 11.5
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /workspace/parameter-golf/runs/2026-05-03_2135_randproj384_pairmuon_lrelu03_qkgain525/seed42/final_model.pt
+  muon_backend_steps: 5
+  muon_huber_delta: 0.1
+  muon_huber_wd: False
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_qk_pair_ortho: True
+  muon_qk_pair_size: 2
+  muon_row_normalize: True
+  muon_wd: 0.095
+  ngram_hint_precompute_outside: False
+  ngram_tilt_enabled: True
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  optrot_enabled: False
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2500
+  qk_gain_init: 5.25
+  qk_gain_schedule: []
+  quantized_model_path: /workspace/parameter-golf/runs/2026-05-03_2135_randproj384_pairmuon_lrelu03_qkgain525/seed42/final_model.int6.ptz
+  random_proj_embed_dim: 384
+  random_proj_embed_enabled: True
+  random_proj_seed: 1337
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: 2135_randproj384_pairmuon_lrelu03_qkgain525_seed42
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 0.5
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  token_boost: 2.625
+  token_order: 16
+  token_threshold: 0.8
+  tokenizer_path: /workspace/caseops_data/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: /workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.99
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2560
+  ttt_grad_steps: 1
+  ttt_grad_steps_clean: False
+  ttt_k_lora: False
+  ttt_lora_lr: 8e-05
+  ttt_lora_rank: 80
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 2.0
+  val_batch_tokens: 524288
+  val_bytes_files: /workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 0
+  vocab_size: 8192
+  warmdown_frac: 0.85
+  warmup_steps: 20
+  within_boost: 0.0
+  within_tau: 99.0
+  word_boost: 0.0
+  word_normalize: strip_punct_lower
+  word_order: 4
+  word_tau: 99.0
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 47851520
+TTT_EVAL_ONLY=1 — skipping training + GPTQ, loading saved artifact for TTT eval
+ttt_lora_alpha: 144.0
+ttt_warm_start_a: True
+ttt_weight_decay: 2.0
+ttt_grad_steps: 1  ttt_grad_steps_clean: False
+ttt_lora:compile disabled, skipping compile warmup
+
+beginning TTT eval timer
+ngram_tilt:hints total=47851520 gated=628130 token_gate=628130 within_gate=0 word_gate=0 agree2plus=0
+ngram_tilt:precompute_done elapsed=168.45s total_targets=47851520
+ttt_phased: total_docs:50000 prefix_docs:2500 suffix_docs:47500 num_phases:1 boundaries:[2500]
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4666, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4660, in main
+[rank1]:     train_and_eval(h, device)
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4585, in train_and_eval
+[rank1]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank1]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4054, in eval_val_ttt_phased
+[rank1]:     (per_doc * activate_chunk_mask).sum().backward()
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/_tensor.py", line 625, in backward
+[rank1]:     torch.autograd.backward(
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/__init__.py", line 354, in backward
+[rank1]:     _engine_run_backward(
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py", line 841, in _engine_run_backward
+[rank1]:     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 3.75 GiB. GPU 1 has a total capacity of 79.19 GiB of which 3.04 GiB is free. Including non-PyTorch memory, this process has 76.14 GiB memory in use. Of the allocated memory 73.13 GiB is allocated by PyTorch, and 1.40 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4666, in <module>
+[rank4]:     main()
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4660, in main
+[rank4]:     train_and_eval(h, device)
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4585, in train_and_eval
+[rank4]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank4]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4054, in eval_val_ttt_phased
+[rank4]:     (per_doc * activate_chunk_mask).sum().backward()
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/_tensor.py", line 625, in backward
+[rank4]:     torch.autograd.backward(
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/__init__.py", line 354, in backward
+[rank4]:     _engine_run_backward(
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py", line 841, in _engine_run_backward
+[rank4]:     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 3.75 GiB. GPU 4 has a total capacity of 79.19 GiB of which 3.04 GiB is free. Including non-PyTorch memory, this process has 76.14 GiB memory in use. Of the allocated memory 73.13 GiB is allocated by PyTorch, and 1.40 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4666, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4660, in main
+[rank2]:     train_and_eval(h, device)
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4585, in train_and_eval
+[rank2]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank2]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4054, in eval_val_ttt_phased
+[rank2]:     (per_doc * activate_chunk_mask).sum().backward()
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/_tensor.py", line 625, in backward
+[rank2]:     torch.autograd.backward(
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/__init__.py", line 354, in backward
+[rank2]:     _engine_run_backward(
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py", line 841, in _engine_run_backward
+[rank2]:     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 3.75 GiB. GPU 2 has a total capacity of 79.19 GiB of which 3.04 GiB is free. Including non-PyTorch memory, this process has 76.14 GiB memory in use. Of the allocated memory 73.13 GiB is allocated by PyTorch, and 1.40 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4666, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4660, in main
+[rank0]:     train_and_eval(h, device)
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4585, in train_and_eval
+[rank0]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank0]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4054, in eval_val_ttt_phased
+[rank0]:     (per_doc * activate_chunk_mask).sum().backward()
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/_tensor.py", line 625, in backward
+[rank0]:     torch.autograd.backward(
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/__init__.py", line 354, in backward
+[rank0]:     _engine_run_backward(
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py", line 841, in _engine_run_backward
+[rank0]:     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 3.75 GiB. GPU 0 has a total capacity of 79.19 GiB of which 3.04 GiB is free. Including non-PyTorch memory, this process has 76.14 GiB memory in use. Of the allocated memory 73.13 GiB is allocated by PyTorch, and 1.40 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4666, in <module>
+[rank7]:     main()
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4660, in main
+[rank7]:     train_and_eval(h, device)
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4585, in train_and_eval
+[rank7]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank7]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4054, in eval_val_ttt_phased
+[rank7]:     (per_doc * activate_chunk_mask).sum().backward()
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/_tensor.py", line 625, in backward
+[rank7]:     torch.autograd.backward(
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/__init__.py", line 354, in backward
+[rank7]:     _engine_run_backward(
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py", line 841, in _engine_run_backward
+[rank7]:     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 3.75 GiB. GPU 7 has a total capacity of 79.19 GiB of which 3.04 GiB is free. Including non-PyTorch memory, this process has 76.14 GiB memory in use. Of the allocated memory 73.13 GiB is allocated by PyTorch, and 1.40 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4666, in <module>
+[rank3]:     main()
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4660, in main
+[rank3]:     train_and_eval(h, device)
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4585, in train_and_eval
+[rank3]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank3]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4054, in eval_val_ttt_phased
+[rank3]:     (per_doc * activate_chunk_mask).sum().backward()
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/_tensor.py", line 625, in backward
+[rank3]:     torch.autograd.backward(
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/__init__.py", line 354, in backward
+[rank3]:     _engine_run_backward(
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py", line 841, in _engine_run_backward
+[rank3]:     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 3.75 GiB. GPU 3 has a total capacity of 79.19 GiB of which 3.04 GiB is free. Including non-PyTorch memory, this process has 76.14 GiB memory in use. Of the allocated memory 73.13 GiB is allocated by PyTorch, and 1.40 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4666, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4660, in main
+[rank6]:     train_and_eval(h, device)
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4585, in train_and_eval
+[rank6]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_phased(
+[rank6]:                                 ^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4054, in eval_val_ttt_phased
+[rank6]:     (per_doc * activate_chunk_mask).sum().backward()
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/_tensor.py", line 625, in backward
+[rank6]:     torch.autograd.backward(
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/__init__.py", line 354, in backward
+[rank6]:     _engine_run_backward(
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py", line 841, in _engine_run_backward
+[rank6]:     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]: torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 3.75 GiB. GPU 6 has a total capacity of 79.19 GiB of which 3.04 GiB is free. Including non-PyTorch memory, this process has 76.14 GiB memory in use. Of the allocated memory 73.13 GiB is allocated by PyTorch, and 1.40 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[rank0]:[W503 07:55:14.353048190 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0503 07:55:15.633000 106615 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 106684 closing signal SIGTERM
+W0503 07:55:15.636000 106615 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 106685 closing signal SIGTERM
+W0503 07:55:15.637000 106615 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 106686 closing signal SIGTERM
+W0503 07:55:15.638000 106615 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 106687 closing signal SIGTERM
+W0503 07:55:15.640000 106615 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 106688 closing signal SIGTERM
+W0503 07:55:15.641000 106615 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 106689 closing signal SIGTERM
+W0503 07:55:15.642000 106615 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 106690 closing signal SIGTERM
+E0503 07:55:17.608000 106615 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 0 (pid: 106683) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-05-03_07:55:15
+  host      : f6b497c1899c
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 106683)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
