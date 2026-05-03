@@ -1,0 +1,38 @@
+{
+  "author": "Tanish Gudise",
+  "github_id": "pg2342",
+  "name": "PR #1797 base + QK-Gain Schedule + OptRot + AdamHD + LaCT",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_bpb": "TBD",
+  "val_bpb_std": "TBD",
+  "seeds": [314, 42, 1234],
+  "seed_results": {
+    "314": {"val_bpb": "TBD", "artifact_bytes": "TBD"},
+    "42":  {"val_bpb": "TBD", "artifact_bytes": "TBD"},
+    "1234":{"val_bpb": "TBD", "artifact_bytes": "TBD"}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "TBD",
+  "technique_summary": "PR #1797 (dexhunter) base + per-layer QK-Gain init schedule + OptRot Hadamard pre-GPTQ rotation + AdamHD Huber weight decay + LaCT Muon global TTT",
+  "compliance": {
+    "train_under_600s": "TBD",
+    "artifact_under_16mb": "TBD",
+    "eval_under_600s": "TBD",
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_1797": "@dexhunter (PR #1797) — Smear gate + LQER asym + Phased TTT on PR #1787 base",
+    "base_1787": "@nprime06 (PR #1787) — SparseAttnGate + PolarNS + MIN_LR + FusedCE",
+    "caseops": "@romeerp (PR #1729)",
+    "qk_gain_schedule": "Tanish Gudise (this submission) — per-layer init on top of #1797 uniform 5.0",
+    "optrot": "arxiv 2512.24124 — Hadamard pre-GPTQ rotation",
+    "adamhd": "arxiv 2511.14721 — Huber WD replacing Muon L2 decay",
+    "lact": "arxiv 2505.23884 — LaCT large-chunk TTT with Muon fast-weight optimizer"
+  },
+  "_note": "PLACEHOLDER: all TBD fields to be filled in after 3-seed 8xH100 run"
+}

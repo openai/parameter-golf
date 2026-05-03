@@ -1,0 +1,180 @@
+nohup: ignoring input
+W0501 18:08:20.494000 3156060 torch/distributed/run.py:803] 
+W0501 18:08:20.494000 3156060 torch/distributed/run.py:803] *****************************************
+W0501 18:08:20.494000 3156060 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0501 18:08:20.494000 3156060 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  agree_add_boost: 0.0
+  artifact_dir: 
+  asym_logit_rescale: True
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.99
+  caseops_enabled: True
+  compressor: pergroup
+  data_dir: ./data
+  datasets_dir: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 14.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 3072
+  eval_stride: 64
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_muon_nesterov: True
+  global_ttt_muon_ns_steps: 5
+  global_ttt_optimizer: sgd
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 0.5
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/0a54529c-1a9a-49a4-93fc-ae22f80eb3ac.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 32
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.028
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 11.5
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_huber_delta: 0.1
+  muon_huber_wd: False
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  ngram_hint_precompute_outside: True
+  ngram_tilt_enabled: True
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  optrot_enabled: False
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2500
+  qk_gain_init: 5.0
+  qk_gain_schedule: []
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: 0a54529c-1a9a-49a4-93fc-ae22f80eb3ac
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 0.5
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  token_boost: 3.0
+  token_order: 16
+  token_threshold: 0.8
+  tokenizer_path: ./data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.99
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 3072
+  ttt_grad_steps: 1
+  ttt_grad_steps_clean: False
+  ttt_k_lora: False
+  ttt_lora_lr: 8e-05
+  ttt_lora_rank: 80
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 1.0
+  val_batch_tokens: 524288
+  val_bytes_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.85
+  warmup_steps: 20
+  within_boost: 0.0
+  within_tau: 99.0
+  word_boost: 0.0
+  word_normalize: strip_punct_lower
+  word_order: 4
+  word_tau: 99.0
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 1499
+val_tokens: 47852544
+model_params:35945673
+gptq:reserving 0s, effective=599500ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0076 val_bpb: 4.1159
+1/20000 train_loss: 9.0087 train_time: 0.0m tok/s: 12180615
+2/20000 train_loss: 12.8312 train_time: 0.0m tok/s: 11594675
+3/20000 train_loss: 10.2115 train_time: 0.0m tok/s: 10287302
+4/20000 train_loss: 8.6601 train_time: 0.0m tok/s: 9815361
+5/20000 train_loss: 7.9080 train_time: 0.0m tok/s: 9530320
+/tmp/launch_s61_seed42.sh: line 61: 3156060 Killed                  PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True ASYM_LOGIT_RESCALE=1 NGRAM_TILT_ENABLED=1 NGRAM_HINT_PRECOMPUTE_OUTSIDE=1 TOKEN_ORDER=16 TOKEN_THRESHOLD=0.800 TOKEN_BOOST=3.0 WITHIN_TAU=99.0 WITHIN_BOOST=0.0 WORD_ORDER=4 WORD_TAU=99.0 WORD_BOOST=0.0 AGREE_ADD_BOOST=0.0 DATA_DIR=./data CASEOPS_ENABLED=1 SMEAR_GATE_BOS_FIX=0 TTT_LORA_EMA_DECAY=0.0 TTT_UPDATE_EVERY=1 PHASED_TTT_PREFIX_DOCS=2500 PHASED_TTT_NUM_PHASES=1 EVAL_SEQ_LEN=3072 TTT_EVAL_SEQ_LEN=3072 COMPRESSOR=pergroup MATRIX_CLIP_SIGMAS=12.85 ATTN_CLIP_SIGMAS=13.0 MLP_CLIP_SIGMAS=11.5 EMBED_BITS=7 EMBED_CLIP_SIGMAS=14.0 MATRIX_LR=0.028 MIN_LR=0.1 WARMDOWN_FRAC=0.85 BETA2=0.99 FUSED_CE_ENABLED=1 SPARSE_ATTN_GATE_ENABLED=1 SPARSE_ATTN_GATE_SCALE=0.5 SMEAR_GATE_ENABLED=1 GATE_WINDOW=12 LQER_ENABLED=1 LQER_RANK=4 LQER_TOP_K=3 LQER_FACTOR_BITS=4 LQER_ASYM_ENABLED=1 LQER_ASYM_GROUP=32 TTT_WARM_START_A=1 TTT_LORA_RANK=80 TTT_BETA2=0.99 TTT_WEIGHT_DECAY=1.0 TTT_LORA_LR=8e-5 GPTQ_RESERVE_SECONDS=0.5 GPTQ_CALIBRATION_BATCHES=16 TTT_K_LORA=0 TTT_O_LORA=1 TTT_MLP_LORA=1 EMA_DECAY=0.9965 SEED=42 torchrun --standalone --nproc_per_node=8 records/track_10min_16mb/2026-04-24_PR1797Base_QKGainSched_OptRot_AdamHD_LaCT/train_gpt_human.py

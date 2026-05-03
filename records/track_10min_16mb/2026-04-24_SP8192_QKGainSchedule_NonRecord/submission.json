@@ -1,0 +1,35 @@
+{
+  "author": "Tanish Gudise",
+  "github_id": "pg2342",
+  "name": "SP8192 + Per-Layer QK-Gain Init Schedule",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_bpb": 1.07060,
+  "val_bpb_std": 0.00009,
+  "seeds": [42, 2025, "TBD"],
+  "seed_results": {
+    "42":   {"val_bpb": 1.07069, "artifact_bytes": "TBD"},
+    "2025": {"val_bpb": 1.07056, "artifact_bytes": "TBD"},
+    "TBD":  {"val_bpb": 1.07053, "artifact_bytes": "TBD"}
+  },
+  "hardware": "1xH100 80GB SXM (grad_accum=8, equivalent to 8xH100 batch)",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "SP8192 + GPTQ SDClip + Layer Loop 45x2 + MuonEq-R + EMA + Per-Layer QK-Gain Init Schedule (2.0,2.5,3.0,3.5,4.0,4.5,4.5,4.0,3.5,3.0,2.5)",
+  "non_record_reason": "Frontier moved to PR #1797 (1.06157) before 8xH100 validation. Submitted as methodology contribution. Per-layer QK-Gain schedule ported to #1797 base in companion record attempt.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip_loop_muoneqr": "@clarkkev (PR #1394)",
+    "qk_gain_mechanism": "@dexhunter (PR #1331)",
+    "per_layer_schedule": "Tanish Gudise (this submission)"
+  },
+  "_note": "PLACEHOLDER: third seed number and all artifact_bytes need to be filled in from pod logs before submitting PR"
+}

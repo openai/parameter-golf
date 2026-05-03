@@ -1,0 +1,24 @@
+{
+  "track": "track_10min_16mb",
+  "summary": "PR #1797 base + token-only n-gram tilt + AsymLogit Rescale + #2060 levers + NUM_PHASES=1",
+  "results": {
+    "mean_val_bpb": 1.05670,
+    "std_val_bpb": 0.00015,
+    "mean_val_loss": 2.31244,
+    "mean_eval_seconds": 525.1,
+    "max_eval_seconds": 533.1,
+    "max_artifact_bytes": 15948872,
+    "seeds": {
+      "314": {"val_bpb": 1.05664400, "val_loss": 2.31232874, "pre_quant_bpb": 1.06086950, "quant_bpb": 1.06924071, "eval_seconds": 522.5, "artifact_bytes": 15942188},
+      "42":  {"val_bpb": 1.05654656,  "val_loss": 2.31211550,  "pre_quant_bpb": 1.06062887,  "quant_bpb": 1.06909826,  "eval_seconds": 533.1,  "artifact_bytes": 15948872},
+      "0":   {"val_bpb": 1.05689587,   "val_loss": 2.31287992,   "pre_quant_bpb": 1.06109460,   "quant_bpb": 1.06957920,   "eval_seconds": 519.7,   "artifact_bytes": 15944542}
+    }
+  },
+  "compliance": {
+    "size_cap_bytes": 16000000,
+    "eval_cap_seconds": 600,
+    "size_max": 15948872,
+    "eval_max": 533.1
+  },
+  "lineage": ["PR #1855", "PR #1797", "PR #1787", "PR #1736", "PR #1729", "PR #1514", "PR #1923", "PR #2060", "PR #2014"]
+}

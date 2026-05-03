@@ -8,4 +8,19 @@ data/manifest.json
 data/docs_selected.jsonl
 .mypy_cache/
 .venv
-logs/
+logs/*.pt
+*.ptz
+# Large model artifacts
+final_model.pt
+*.pt
+
+# Compiled binaries
+*.so
+records/track_10min_16mb/*/lib*.so
+
+# Process pids and download logs
+logs/download.pid
+logs/hf_download_*.log
+
+# Empty/garbage files
+logs/0
