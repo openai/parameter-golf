@@ -1,0 +1,98 @@
+3-seed sweep on 8xH100 SXM (RunPod community cloud)
+Hardware: 8x NVIDIA H100 80GB HBM3
+
+Individual seed logs: train_seed1337.log, train_seed1338.log, train_seed1339.log
+
+================================================================================
+SEED 1337 SUMMARY
+================================================================================
+Command:
+  RUN_ID=compression_funded_mlp3x_seed1337 SEED=1337 torchrun --standalone --nproc_per_node=8 _run_train_gpt.py
+
+Config:
+  model_params:21778504 world_size:8 grad_accum_steps:1
+  train_batch_tokens:786432 train_seq_len:2048 iterations:20000
+  eval_seq_len:2048 eval_stride:256 weight_quant_bits:6 keep_last_k_fp16:2
+  matrix_lr:0.02 scalar_lr:0.02 tied_embed_lr:0.03 mlp_mult:3
+
+Training:
+  step:5358/20000 (wallclock limited)
+  step_avg:111.98ms (elevated due to first-run CUDA kernel compilation)
+  train_time:600013ms
+  peak memory:16740MiB
+
+Validation checkpoints:
+  step:2000  val_loss:2.1458 val_bpb:1.2708
+  step:4000  val_loss:2.0427 val_bpb:1.2098
+  step:5358  val_loss:2.0063 val_bpb:1.1883
+
+Final (post-quantization, int6+zlib roundtrip):
+  final_int6_zlib_roundtrip_exact val_loss:1.98026694 val_bpb:1.17282555
+  eval_time:36551ms
+  Total submission size int6+zlib:15933155bytes
+
+================================================================================
+SEED 1338 SUMMARY
+================================================================================
+Command:
+  RUN_ID=compression_funded_mlp3x_seed1338 SEED=1338 torchrun --standalone --nproc_per_node=8 _run_train_gpt.py
+
+Training:
+  step:6817/20000 (wallclock limited)
+  step_avg:88.02ms
+  train_time:600002ms
+  peak memory:16734MiB
+
+Validation checkpoints:
+  step:2000  val_loss:2.1406 val_bpb:1.2678
+  step:4000  val_loss:2.0621 val_bpb:1.2213
+  step:6000  val_loss:2.0049 val_bpb:1.1874
+  step:6817  val_loss:1.9862 val_bpb:1.1764
+
+Final (post-quantization, int6+zlib roundtrip):
+  final_int6_zlib_roundtrip_exact val_loss:1.96103088 val_bpb:1.16143288
+  eval_time:36575ms
+  Total submission size int6+zlib:15953329bytes
+
+================================================================================
+SEED 1339 SUMMARY (BEST)
+================================================================================
+Command:
+  RUN_ID=compression_funded_mlp3x_seed1339 SEED=1339 torchrun --standalone --nproc_per_node=8 _run_train_gpt.py
+
+Training:
+  step:7170/20000 (wallclock limited)
+  step_avg:83.69ms
+  train_time:600036ms
+  peak memory:16734MiB
+
+Validation checkpoints:
+  step:2000  val_loss:2.1388 val_bpb:1.2667
+  step:4000  val_loss:2.0604 val_bpb:1.2203
+  step:6000  val_loss:2.0066 val_bpb:1.1884
+  step:7170  val_loss:1.9827 val_bpb:1.1743
+
+Final (post-quantization, int6+zlib roundtrip):
+  final_int6_zlib_roundtrip_exact val_loss:1.95830027 val_bpb:1.15981566
+  eval_time:36517ms
+  Total submission size int6+zlib:15958024bytes
+
+================================================================================
+AGGREGATE
+================================================================================
+                  val_bpb    val_loss    steps   step_avg   artifact_bytes
+  seed 1337:      1.17283    1.98027     5358    111.98ms   15933155
+  seed 1338:      1.16143    1.96103     6817     88.02ms   15953329
+  seed 1339:      1.15982    1.95830     7170     83.69ms   15958024
+  ---------
+  mean:           1.16469    1.96653
+  best:           1.15982    1.95830    (seed 1339)
+
+All runs:
+  - artifact <= 16,000,000 bytes  [PASS]
+  - training <= 600,000ms         [PASS]
+  - eval     <= 600,000ms         [PASS]
+
+Improvement over current SOTA (1.1748):
+  mean: -0.0101 nats
+  best: -0.0150 nats
