@@ -1,0 +1,185 @@
+{
+  "verdict": "READY",
+  "summary": "READY with four kept families: two executable-now lines for immediate pr1394 harness validation on downstream `score_bpb`, plus two honest deferred families that stay blocked until new runtime primitives exist.",
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives.",
+  "dominant_search_level": "reset",
+  "keep_ids": [
+    "trajectory_004/trajectory_004_h1",
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h3",
+    "trajectory_004/trajectory_004_h4"
+  ],
+  "families": [
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h1",
+      "name": "Control-Paired Delta Admission On Downstream Sliding Score",
+      "family_group": "control_delta_admission",
+      "search_level": "reset",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "compiler_pass_k": 3,
+      "why_keep": "It fixes the comparison law for the whole cycle and directly addresses pack-specific noise on the real downstream lane.",
+      "minimal_probe": "Run one 8-slot frontier selector pack with 2 exact controls, 2 replay-equivalent control clones, and 4 novel slots. Admit only by pack-local delta to paired controls on downstream `quantized_sliding_window` `score_bpb`.",
+      "expected_signal": "Control clones define a stable noise band and at least one non-control clears that band on downstream `score_bpb` without relying on pre-quant ranking.",
+      "composition_tags": [
+        "campaign_law",
+        "control_paired",
+        "downstream_only"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "cross_pack_control_carryover",
+        "family_specific_delta_baselines",
+        "selector_replay_stress"
+      ],
+      "pack_rationale": "Run first because every later executable solo pack should inherit this admission law instead of absolute-score ranking."
+    },
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h3",
+      "name": "Checkpoint And Export Selector Family",
+      "family_group": "checkpoint_export_selector",
+      "search_level": "program_family",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "compiler_pass_k": 3,
+      "why_keep": "It is the cleanest consequential family that can run now: same-trace artifact choice may beat the default final checkpoint/export pair on downstream `score_bpb`.",
+      "minimal_probe": "From one training trace, evaluate a bounded late-checkpoint window against a fixed small export menu, with 2 controls carrying the published default checkpoint/export choice.",
+      "expected_signal": "A non-default checkpoint/export pair wins on downstream `score_bpb` by more than control spread, and the winner is not recoverable from final-step or pre-quant ranking alone.",
+      "composition_tags": [
+        "same_trace",
+        "artifact_selection",
+        "post_train",
+        "deployment_touchpoint"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "expand_late_checkpoint_window",
+        "expand_fixed_export_menu",
+        "selector_robustness_across_seeds"
+      ],
+      "pack_rationale": "Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery."
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h3",
+      "name": "State-Triggered Recurrence Handoff Program",
+      "family_group": "recurrence_handoff_program",
+      "search_level": "program_family",
+      "lane": "training",
+      "phase_window": "mid",
+      "pack_kind": "mid_training_pack",
+      "implementation_mode": "needs_new_primitive",
+      "compiler_pass_k": 2,
+      "why_keep": "It attacks a concrete invariant in `train_gpt_human.py`: recurrence timing is fixed by `ENABLE_LOOPING_AT` instead of a searched handoff program.",
+      "minimal_probe": "After adding runtime state-conditioned control hooks, run a mid-training pack with 2 controls, one coarse late handoff realization, and one signal-triggered handoff realization, with final judgment on downstream `score_bpb`.",
+      "expected_signal": "A handoff realization shows a cleaner post-transition trajectory and then a downstream `score_bpb` gain beyond control spread at matched wall-clock budget.",
+      "composition_tags": [
+        "state_triggered",
+        "recurrence",
+        "transition_program",
+        "blocked_primitive"
+      ],
+      "incompatible_with": [],
+      "mutate_after_survival": [
+        "trigger_feature_refinement",
+        "handoff_action_variants",
+        "post_handoff_selector_coupling"
+      ],
+      "pack_rationale": "Keep deferred until the primitive exists; when unblocked, it must earn solo support in its own mid-training pack before any composition."
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h4",
+      "name": "Shared-Trunk Late-Branch Portfolio",
+      "family_group": "late_branch_portfolio",
+      "search_level": "composition",
+      "lane": "composition",
+      "phase_window": "pairwise",
+      "pack_kind": "pairwise_composition_pack",
+      "implementation_mode": "needs_new_primitive",
+      "compiler_pass_k": 2,
+      "why_keep": "It changes compute topology rather than a finisher knob and is the strongest honest branch/composition line once shared-trunk resume exists.",
+      "minimal_probe": "After branch-resume support exists, fork 2 to 4 late finishers from one trunk checkpoint plus 2 single-path controls and compare marginal downstream gain per extra finisher budget.",
+      "expected_signal": "At least one branch beats the single-path control on downstream `score_bpb` beyond control spread while using less total compute than training the same number of full independent runs.",
+      "composition_tags": [
+        "shared_trunk",
+        "late_branch",
+        "compute_reallocation",
+        "blocked_primitive"
+      ],
+      "incompatible_with": [
+        "trajectory_003/trajectory_003_h3"
+      ],
+      "mutate_after_survival": [
+        "branch_budget_expansion",
+        "triggered_branch_spawn",
+        "branch_local_export_menus"
+      ],
+      "pack_rationale": "Keep deferred and only admit after solo families exist; this is a composition family, not a first-pack candidate."
+    }
+  ],
+  "stop_doing": [
+    "Do not admit or promote training-side families on pre-quant ranking; keep downstream `quantized_sliding_window` `score_bpb` as the campaign law.",
+    "Do not pretend blocked controller or branch families are executable in the current catalog.",
+    "Do not split ontology into narrow children like EMA-only selectors or recurrence ramps before the parent family survives.",
+    "Do not run pairwise or hybrid composition before solo survival with repeated control-paired support."
+  ],
+  "pack_strategy": {
+    "controls_per_pack": 2,
+    "max_candidates_per_pack": 6,
+    "pack_order": [
+      "trajectory_004/trajectory_004_h1 solo calibration selector pack",
+      "trajectory_003/trajectory_003_h3 solo same-trace selector packs under calibrated delta law",
+      "trajectory_004/trajectory_004_h3 deferred mid-training solo packs after state-trigger primitive exists",
+      "trajectory_004/trajectory_004_h4 deferred pairwise composition packs after branch-resume primitive exists and at least one solo family survives"
+    ],
+    "notes": [
+      "Solo packs come before any composition.",
+      "Executable packs should use 6 candidate slots plus 2 controls.",
+      "`trajectory_004/trajectory_004_h1` is the admission law for every executable pack, not a license to mix lanes.",
+      "Blocked families stay out of active packs until their primitive backlog is closed."
+    ]
+  },
+  "promotion_policy": {
+    "min_positive_realizations": 2,
+    "require_directional_support": true,
+    "family_survival_rule": "A family survives only after at least 2 realizations beat paired controls on downstream `score_bpb` in its claimed lane, with one additional non-negative replication or stable control-band confirmation. This creates confidence lineage from pack-local calibration to repeated directional wins.",
+    "composition_entry_rule": "Enter pairwise composition only after a family has solo survival lineage: calibrated control band, repeated downstream-positive realizations, and no lane-integrity violations. Blocked families cannot enter until their first executable solo pack meets the same rule."
+  },
+  "composition_policy": {
+    "pairwise_after_solo_survival": true,
+    "max_pairwise_candidates": 6,
+    "max_hybrid_candidates": 4,
+    "hybrid_entry_rule": "A hybrid is allowed only after pairwise support shows the combined family beats both solo parents and paired controls on downstream `score_bpb` across repeated realizations; otherwise keep the families separate.",
+    "notes": [
+      "Treat `trajectory_004/trajectory_004_h1` as campaign infrastructure, not as a compositional model feature.",
+      "Do not compose blocked families speculatively.",
+      "Do not pair `trajectory_004/trajectory_004_h4` with `trajectory_003/trajectory_003_h3` as separate top-level families; selector logic can live inside a branch portfolio once that primitive exists."
+    ]
+  },
+  "campaign_handoff": {
+    "global_instructions": "Use `ncycle/pr1394_enigma_cycle.json` against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base, with `frontier_rebase/pr1394/README.md` and `frontier_rebase/pr1394/submission.json` as the base contract. Execute solo packs first, always with 2 controls and up to 6 candidate slots, judge admission and promotion only on downstream `quantized_sliding_window` `score_bpb`, and record pack-local deltas to paired controls before promoting any family.",
+    "control_principles": [
+      "Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.",
+      "Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.",
+      "Never let a pre-quant improvement override a downstream-negative result."
+    ],
+    "admission_principles": [
+      "Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.",
+      "Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.",
+      "Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist."
+    ],
+    "metric_principles": [
+      "Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.",
+      "Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.",
+      "Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree."
+    ],
+    "implementation_principles": [
+      "Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.",
+      "Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.",
+      "When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate."
+    ]
+  }
+}

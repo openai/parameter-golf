@@ -1,0 +1,9 @@
+{
+  "status": "ready",
+  "attempts_used": 2,
+  "round": 0,
+  "verification_report": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/verification_report.json",
+  "campaign": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/campaign.json",
+  "compile_queue": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/compile_queue.json",
+  "search_handoff": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/SEARCH_HANDOFF.md"
+}

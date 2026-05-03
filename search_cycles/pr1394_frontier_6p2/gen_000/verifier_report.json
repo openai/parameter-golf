@@ -1,0 +1,9 @@
+{
+  "verdict": "PASS_WITH_WARNINGS",
+  "summary": "Generation 0 stages a real pr1394 family-admission pack: six executable first-order hypotheses on the frozen SP8192 frontier-rebase base plus two unpatched controls.",
+  "errors": [],
+  "warnings": [
+    "All six candidate slots are single-seed admissions probes. Treat survivors as inputs to a follow-up multi-seed round rather than final claims."
+  ],
+  "fixes": []
+}

@@ -1,0 +1,1015 @@
+You are preparing one executable search generation for this repository.
+Return JSON only. Do not return prose outside the JSON object.
+The JSON must be directly usable as compiled_generation.json by search_harness.py.
+
+USER INSTRUCTIONS
+Build one executable first-order family-admission pack for this repo. Focus on state-conditioned control, checkpoint/export discipline, and 
+stable controls. Use only existing executable patch families. Avoid compounds and lane mixing.
+
+HARD RULES
+1. Use only entries from EXECUTABLE_FAMILY_CATALOG.
+2. Do not invent new patch modules, patch names, or base scripts.
+3. Produce one family-admission pack that is runnable now.
+4. Include two control slots named C0 and C1 with no patches.
+5. Include 2 to 4 candidate slots named H0, H1, H2, H3 as needed.
+6. Prefer first-order families over compounds.
+7. Every candidate must use the exact base_script, patch_module, and patches values from the catalog.
+8. Use metadata.broken_invariant and metadata.probe for each candidate.
+9. Keep selection.control_slots aligned with the actual controls.
+10. Use metrics.score_bpb as the primary metric unless the instructions force a different executable metric.
+11. If the instructions ask for something impossible with the current catalog, choose the closest executable pack and explain the gap in metadata.
+
+FOCUS FILES
+[
+  "train_gpt.py",
+  "stage3_2/base_train_gpt.py",
+  "stage3_5/base_train_gpt.py"
+]
+
+DEFAULTS
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "default_base_script": "train_gpt.py",
+  "default_entrypoint": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node={nproc_per_slot} {script}",
+  "primary_metric_path": "metrics.score_bpb",
+  "control_slots": [
+    "C0",
+    "C1"
+  ]
+}
+
+POSTMORTEM MEMORY JSON
+{
+  "history_window": [],
+  "prior_generations": [],
+  "reference_docs": [
+    {
+      "path": "findings.md",
+      "excerpt": "# Findings\n\n## Main conclusion\n\nThe repo keeps rediscovering the same useful abstraction under different names:\n\n- `hm2` = bootstrap -> handoff -> receiver\n- `stage3_2` = bounded controller\n- `stage3_4` = shared trunk -> late branch portfolio\n- `stage3_5` = event-triggered branch tournament\n\nThose are not four separate ideas. They are one search strategy: **search over small state-conditioned programs**, not over isolated patch packs.\n\nThe repeated mistake is that the harness still evaluates most work as stage-specific folders, prose-only hypotheses, or static patch slates. So it never compounds the one abstraction that actually looks general.\n\n## Directory-level findings\n\n| Dir | What it contributes | Specific mistake |\n| --- | --- | --- |\n| `hailmary/` | Best wide map of attack surfaces and high-upside families. | The **materialized runs** are still on `SP1024`, even though the source `run_configs.json` and docs now describe an `SP8192` strong base. Example: `hailmary/run_configs.json` defaults to `VOCAB_SIZE=8192`, but `hailmary/runs/tournament_20260411_001130/.../H2_exact_overlap_eval/config.json` still has `VOCAB_SIZE=1024`, `DATA_PATH=/data/...sp1024`, `TOKENIZER_PATH=/data/...1024_bpe.model`. |\n| `hm2/` | First stage that clearly says the search unit is the **handoff policy**, not the patch. | It promises reusable evidence (`phase_diagnostics.json`) in `hm2/README.md`, but the repo contains no `train.log`, `summary.json`, or `phase_diagnostics.json` under `hm2/`. The idea is good, but the feedback loop never closed. |\n| `stage3_1/` | Strongest admission bar for hypotheses; export-only lane is the right kind of isolation. | The stage has almost no run evidence in the repo. Current config/code point toward a real export-only bakeoff, but without artifacts the lane-honesty claim is still mostly architectural intent, not learned evidence. |\n| `stage3_2/` | Best formal search substrate in the repo: bounded controller DSL, candidate metadata, canonicalization, m..."
+    },
+    {
+      "path": "search_reset.md",
+      "excerpt": "# Search Reset\n\n## Goal\n\nStart fresh with a search process that avoids local patch-chasing and instead searches over **bounded programs** that can be mutated, ranked, retired, and composed.\n\nThe key shift is:\n\n> do not search patches  \n> search **Phase -> Trigger -> Action -> Portfolio -> Selector** programs\n\n---\n\n## 1. Core shift\n\n### Old pattern\n\n- strong hypotheses in prose\n- weaker code proxies\n- mixed lanes in one tournament\n- local patch tuning before the family premise is proven\n\n### New pattern\n\n- freeze one executable base\n- search only a few first-order mechanism families\n- compile each family into the **smallest decisive probe**\n- mutate specs, not source files\n- compose only surviving families\n\n---\n\n## 2. The unit of search\n\nEach candidate should be a **bounded execution program**, not a patch pack.\n\n### Candidate grammar\n\n```text\ncandidate:\n  base_variant\n  family\n  broken_invariant\n  signals[]            # cheap observable state\n  phase_boundaries[]   # early/mid/late or equivalent\n  triggers[]           # threshold/event logic\n  actions[]            # what changes when a trigger fires\n  portfolio[]          # alternate late finishers/export modes\n  selector             # how the winning artifact/state is chosen\n  matched_control\n  early_signal\n  expected_horizon\n  kill_rule\n  composition_role\n  code_burden\n```\n\n### Why this is the right abstraction\n\nThe repo already keeps rediscovering this same object:\n\n- `hm2` -> bootstrap / handoff / receiver\n- `stage3_2` -> controller spec\n- `stage3_4` -> late finisher portfolio\n- `stage3_5` -> event-triggered branch tournament\n\nThese are not separate species. They are the same search object in different forms.\n\n---\n\n## 3. Freeze the base\n\nDo **not** search these at the same time as program search:\n\n- tokenizer\n- architecture depth/width\n- training base stack\n- frontier rebase\n\nPick one executable base and keep it fixed for a full search cycle.\n\nIf the base changes, start a **new cycle**.\n\nThis separates:\n\n1. *..."
+    },
+    {
+      "path": "search_reset_agent_prompt.md",
+      "excerpt": "# Agent Prompt for Automatic Search Design\n\nThis file turns the search reset into something you can hand to a language model or coding agent.\n\nUse it when you want the model to:\n\n- generate hypothesis families automatically\n- compile those families into minimal executable probes\n- design a tournament\n- identify which primitives need to be implemented\n\n---\n\n## How to use\n\nBefore sending the prompt, fill in:\n\n- `<BASE_DESCRIPTION>`\n- `<AVAILABLE_PRIMITIVES>`\n- `<DISALLOWED_CHANGES>`\n- `<CURRENT_FAILURE_PATTERNS>`\n- `<BUDGET>`\n\nThen ask the model to return **JSON only**.\n\n---\n\n## Copy-paste prompt\n\n```text\nYou are designing a bounded program search harness for optimizing training code under a fixed budget.\n\nYour job is NOT to produce random patch ideas.\nYour job is to generate a search plan over bounded execution programs.\n\n## Goal\n\nGiven one frozen executable base, produce:\n\n1. a small set of first-order hypothesis families\n2. the smallest executable probe for each family\n3. a tournament plan that can distinguish real families from fake ones\n4. a primitive implementation backlog\n\n## Search doctrine\n\nFollow these rules strictly:\n\n1. Search bounded programs, not patch packs.\n2. Do not change the base stack during this cycle.\n3. Search families before child variants.\n4. Do not propose compounds before solo families survive.\n5. Use only the allowed candidate grammar:\n   - signals\n   - phase_boundaries\n   - triggers\n   - actions\n   - portfolio\n   - selector\n6. If a family cannot be expressed with available primitives, mark it as requiring a new primitive instead of silently inventing a full patch stack.\n\n## Frozen base\n\n<BASE_DESCRIPTION>\n\n## Available primitives\n\n<AVAILABLE_PRIMITIVES>\n\n## Disallowed changes in this cycle\n\n<DISALLOWED_CHANGES>\n\n## Known failure patterns to avoid\n\n<CURRENT_FAILURE_PATTERNS>\n\n## Budget\n\n<BUDGET>\n\n## Task\n\nGenerate exactly 4 first-order hypothesis families that break different false invariants.\n\nFor each family:\n\n- state the broken invari..."
+    },
+    {
+      "path": "search_verifier_codex.md",
+      "excerpt": "# Search Verifier Codex\n\n## Purpose\n\nThis file is the **verifier** for the new search process.\n\nIts job is not to invent hypotheses.\n\nIts job is to answer:\n\n> is this search track structurally valid?\n\nThat means checking whether a proposed search track:\n\n- is searching the right unit\n- is isolating the right causal lane\n- is using the right controls\n- is budgeting the tournament correctly\n- is mutating at the right level\n- is collecting enough evidence to learn\n\nThis verifier should be run:\n\n1. **before** implementing a new family pack\n2. **before** promoting survivors into mutation\n3. **before** composing winners\n4. **after** a pack runs, to decide whether the evidence is trustworthy\n\n---\n\n## What is a \"track\"?\n\nA **track** is the whole executable search proposal for one cycle:\n\n```text\ntrack:\n  base_contract\n  candidate_grammar\n  families[]\n  family_admission_pack\n  promotion_rules\n  retirement_rules\n  mutation_policy\n  composition_policy\n  primitive_backlog\n  evidence_contract\n```\n\nThe verifier is not judging whether the ideas are genius.\n\nIt is judging whether the track is **coherent enough to teach you something**.\n\n---\n\n## Core principle\n\nThe verifier should reject any track that collapses back into:\n\n- patch-chasing\n- lane mixing\n- uncontrolled family proliferation\n- unstable anchors\n- non-falsifiable compounds\n- no-evidence execution\n\n---\n\n## Verification gates\n\nEvery track must pass all of these gates.\n\n## Gate 1: Base Freeze Gate\n\n### Question\n\nDoes the track keep the executable base fixed for this cycle?\n\n### Pass if\n\n- tokenizer is fixed\n- architecture base is fixed\n- training base stack is fixed\n- the same frozen base is used for all family admission comparisons\n\n### Fail if\n\n- some families silently include tokenizer or architecture shifts\n- some candidates are evaluated on a different base than others\n- frontier rebase is bundled into the same family search cycle\n\n### Why this matters\n\nIf the base moves during family search, you are no longer compa..."
+    }
+  ]
+}
+
+HISTORY CONTEXT JSON
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "history": []
+}
+
+EXECUTABLE_FAMILY_CATALOG
+[
+  {
+    "family": "countinit_bigram",
+    "base_script": "train_gpt.py",
+    "patch_module": "hailmary/patches.py",
+    "patches": [
+      "countinit_bigram"
+    ],
+    "stage": "hailmary",
+    "patch_function": "patch_countinit_bigram"
+  },
+  {
+    "family": "curriculum_shard_order",
+    "base_script": "train_gpt.py",
+    "patch_module": "hailmary/patches.py",
+    "patches": [
+      "curriculum_shard_order"
+    ],
+    "stage": "hailmary",
+    "patch_function": "patch_curriculum_shard_order"
+  },
+  {
+    "family": "ema_export",
+    "base_script": "train_gpt.py",
+    "patch_module": "hailmary/patches.py",
+    "patches": [
+      "ema_export"
+    ],
+    "stage": "hailmary",
+    "patch_function": "patch_ema_export"
+  },
+  {
+    "family": "exact_overlap_eval",
+    "base_script": "train_gpt.py",
+    "patch_module": "hailmary/patches.py",
+    "patches": [
+      "exact_overlap_eval"
+    ],
+    "stage": "hailmary",
+    "patch_function": "patch_exact_overlap_eval"
+  },
+  {
+    "family": "full_gptq",
+    "base_script": "train_gpt.py",
+    "patch_module": "hailmary/patches.py",
+    "patches": [
+      "full_gptq"
+    ],
+    "stage": "hailmary",
+    "patch_function": "patch_full_gptq"
+  },
+  {
+    "family": "late_qat_active",
+    "base_script": "train_gpt.py",
+    "patch_module": "hailmary/patches.py",
+    "patches": [
+      "late_qat_active"
+    ],
+    "stage": "hailmary",
+    "patch_function": "patch_late_qat_active"
+  },
+  {
+    "family": "xsa_all",
+    "base_script": "train_gpt.py",
+    "patch_module": "hailmary/patches.py",
+    "patches": [
+      "xsa_all"
+    ],
+    "stage": "hailmary",
+    "patch_function": "patch_xsa_all"
+  },
+  {
+    "family": "bootstrap_handoff",
+    "base_script": "hm2/base_train_gpt.py",
+    "patch_module": "hm2/patches.py",
+    "patches": [
+      "bootstrap_handoff"
+    ],
+    "stage": "hm2",
+    "patch_function": "patch_bootstrap_handoff"
+  },
+  {
+    "family": "checkpoint_selection",
+    "base_script": "hm2/base_train_gpt.py",
+    "patch_module": "hm2/patches.py",
+    "patches": [
+      "checkpoint_selection"
+    ],
+    "stage": "hm2",
+    "patch_function": "patch_checkpoint_selection"
+  },
+  {
+    "family": "countinit_bigram",
+    "base_script": "hm2/base_train_gpt.py",
+    "patch_module": "hm2/patches.py",
+    "patches": [
+      "countinit_bigram"
+    ],
+    "stage": "hm2",
+    "patch_function": "patch_countinit_bigram"
+  },
+  {
+    "family": "late_qat_active",
+    "base_script": "hm2/base_train_gpt.py",
+    "patch_module": "hm2/patches.py",
+    "patches": [
+      "late_qat_active"
+    ],
+    "stage": "hm2",
+    "patch_function": "patch_late_qat_active"
+  },
+  {
+    "family": "phase_diagnostics",
+    "base_script": "hm2/base_train_gpt.py",
+    "patch_module": "hm2/patches.py",
+    "patches": [
+      "phase_diagnostics"
+    ],
+    "stage": "hm2",
+    "patch_function": "patch_phase_diagnostics"
+  },
+  {
+    "family": "pre_quant_ttt",
+    "base_script": "hm2/base_train_gpt.py",
+    "patch_module": "hm2/patches.py",
+    "patches": [
+      "pre_quant_ttt"
+    ],
+    "stage": "hm2",
+    "patch_function": "patch_pre_quant_ttt"
+  },
+  {
+    "family": "curriculum_shard_order",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "curriculum_shard_order"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_curriculum_shard_order"
+  },
+  {
+    "family": "ema",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "ema"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_ema"
+  },
+  {
+    "family": "fa3",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "fa3"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_fa3"
+  },
+  {
+    "family": "fp16_embedding_export",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "fp16_embedding_export"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_fp16_embedding_export"
+  },
+  {
+    "family": "gptq_lite",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "gptq_lite"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_gptq_lite"
+  },
+  {
+    "family": "grad_centralization",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "grad_centralization"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_grad_centralization"
+  },
+  {
+    "family": "leaky_relu_sq",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "leaky_relu_sq"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_leaky_relu_sq"
+  },
+  {
+    "family": "ln_scale",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "ln_scale"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_ln_scale"
+  },
+  {
+    "family": "muon_weight_decay",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "muon_weight_decay"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_muon_weight_decay"
+  },
+  {
+    "family": "partial_rope",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "partial_rope"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_partial_rope"
+  },
+  {
+    "family": "sliding_eval",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "sliding_eval"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_sliding_eval"
+  },
+  {
+    "family": "weight_perturbation",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "weight_perturbation"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_weight_perturbation"
+  },
+  {
+    "family": "xsa4",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "xsa4"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_xsa4"
+  },
+  {
+    "family": "xsa_all",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "xsa_all"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_xsa_all"
+  },
+  {
+    "family": "zstd_export",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage2_1/patches.py",
+    "patches": [
+      "zstd_export"
+    ],
+    "stage": "stage2_1",
+    "patch_function": "patch_zstd_export"
+  },
+  {
+    "family": "adaptive_ns_steps",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage3/patches.py",
+    "patches": [
+      "adaptive_ns_steps"
+    ],
+    "stage": "stage3",
+    "patch_function": "patch_adaptive_ns_steps"
+  },
+  {
+    "family": "grad_centralization",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage3/patches.py",
+    "patches": [
+      "grad_centralization"
+    ],
+    "stage": "stage3",
+    "patch_function": "patch_grad_centralization"
+  },
+  {
+    "family": "nuclear_norm",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage3/patches.py",
+    "patches": [
+      "nuclear_norm"
+    ],
+    "stage": "stage3",
+    "patch_function": "patch_nuclear_norm"
+  },
+  {
+    "family": "weight_perturbation",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage3/patches.py",
+    "patches": [
+      "weight_perturbation"
+    ],
+    "stage": "stage3",
+    "patch_function": "patch_weight_perturbation"
+  },
+  {
+    "family": "zloss",
+    "base_script": "train_gpt.py",
+    "patch_module": "stage3/patches.py",
+    "patches": [
+      "zloss"
+    ],
+    "stage": "stage3",
+    "patch_function": "patch_zloss"
+  },
+  {
+    "family": "best_checkpoint",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "best_checkpoint"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_best_checkpoint"
+  },
+  {
+    "family": "byte_weighted_loss",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "byte_weighted_loss"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_byte_weighted_loss"
+  },
+  {
+    "family": "companding",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "companding"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_companding"
+  },
+  {
+    "family": "fisher_bits",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "fisher_bits"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_fisher_bits"
+  },
+  {
+    "family": "gptq_post_ttt",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "gptq_post_ttt"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_gptq_post_ttt"
+  },
+  {
+    "family": "int4_embed",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "int4_embed"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_int4_embed"
+  },
+  {
+    "family": "quant_anneal",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "quant_anneal"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_quant_anneal"
+  },
+  {
+    "family": "sdclip_sweep",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "sdclip_sweep"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_sdclip_sweep"
+  },
+  {
+    "family": "sparsify_before_quant",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "sparsify_before_quant"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_sparsify_before_quant"
+  },
+  {
+    "family": "staged_objective",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "staged_objective"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_staged_objective"
+  },
+  {
+    "family": "tapered_mlp",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "tapered_mlp"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_tapered_mlp"
+  },
+  {
+    "family": "ttt_aggressive",
+    "base_script": "stage3_1/base_train_gpt.py",
+    "patch_module": "stage3_1/patches.py",
+    "patches": [
+      "ttt_aggressive"
+    ],
+    "stage": "stage3_1",
+    "patch_function": "patch_ttt_aggressive"
+  },
+  {
+    "family": "state_controller",
+    "base_script": "stage3_2/base_train_gpt.py",
+    "patch_module": "stage3_2/patches.py",
+    "patches": [
+      "state_controller"
+    ],
+    "stage": "stage3_2",
+    "patch_function": "patch_state_controller"
+  },
+  {
+    "family": "ema_distill",
+    "base_script": "stage3_3/base_train_gpt.py",
+    "patch_module": "stage3_3/patches.py",
+    "patches": [
+      "ema_distill"
+    ],
+    "stage": "stage3_3",
+    "patch_function": "patch_ema_distill"
+  },
+  {
+    "family": "muon_adam_switch",
+    "base_script": "stage3_3/base_train_gpt.py",
+    "patch_module": "stage3_3/patches.py",
+    "patches": [
+      "muon_adam_switch"
+    ],
+    "stage": "stage3_3",
+    "patch_function": "patch_muon_adam_switch"
+  },
+  {
+    "family": "ns_steps_adaptive",
+    "base_script": "stage3_3/base_train_gpt.py",
+    "patch_module": "stage3_3/patches.py",
+    "patches": [
+      "ns_steps_adaptive"
+    ],
+    "stage": "stage3_3",
+    "patch_function": "patch_ns_steps_adaptive"
+  },
+  {
+    "family": "per_family_decay",
+    "base_script": "stage3_3/base_train_gpt.py",
+    "patch_module": "stage3_3/patches.py",
+    "patches": [
+      "per_family_decay"
+    ],
+    "stage": "stage3_3",
+    "patch_function": "patch_per_family_decay"
+  },
+  {
+    "family": "phase_seq_len",
+    "base_script": "stage3_3/base_train_gpt.py",
+    "patch_module": "stage3_3/patches.py",
+    "patches": [
+      "phase_seq_len"
+    ],
+    "stage": "stage3_3",
+    "patch_function": "patch_phase_seq_len"
+  },
+  {
+    "family": "step_lr",
+    "base_script": "stage3_3/base_train_gpt.py",
+    "patch_module": "stage3_3/patches.py",
+    "patches": [
+      "step_lr"
+    ],
+    "stage": "stage3_3",
+    "patch_function": "patch_step_lr"
+  },
+  {
+    "family": "stochastic_depth",
+    "base_script": "stage3_3/base_train_gpt.py",
+    "patch_module": "stage3_3/patches.py",
+    "patches": [
+      "stochastic_depth"
+    ],
+    "stage": "stage3_3",
+    "patch_function": "patch_stochastic_depth"
+  },
+  {
+    "family": "velocity_gate",
+    "base_script": "stage3_3/base_train_gpt.py",
+    "patch_module": "stage3_3/patches.py",
+    "patches": [
+      "velocity_gate"
+    ],
+    "stage": "stage3_3",
+    "patch_function": "patch_velocity_gate"
+  },
+  {
+    "family": "late_branch_finishers",
+    "base_script": "stage3_4/base_train_gpt.py",
+    "patch_module": "stage3_4/patches.py",
+    "patches": [
+      "late_branch_finishers"
+    ],
+    "stage": "stage3_4",
+    "patch_function": "patch_late_branch_finishers"
+  },
+  {
+    "family": "ngram_bias",
+    "base_script": "stage3_4/base_train_gpt.py",
+    "patch_module": "stage3_4/patches.py",
+    "patches": [
+      "ngram_bias"
+    ],
+    "stage": "stage3_4",
+    "patch_function": "patch_ngram_bias"
+  },
+  {
+    "family": "slot_basic",
+    "base_script": "stage3_4/base_train_gpt.py",
+    "patch_module": "stage3_4/patches.py",
+    "patches": [
+      "slot_basic"
+    ],
+    "stage": "stage3_4",
+    "patch_function": "patch_slot_basic"
+  },
+  {
+    "family": "ttt_aggressive",
+    "base_script": "stage3_4/base_train_gpt.py",
+    "patch_module": "stage3_4/patches.py",
+    "patches": [
+      "ttt_aggressive"
+    ],
+    "stage": "stage3_4",
+    "patch_function": "patch_ttt_aggressive"
+  },
+  {
+    "family": "event_branch_tournament",
+    "base_script": "stage3_5/base_train_gpt.py",
+    "patch_module": "stage3_5/patches.py",
+    "patches": [
+      "event_branch_tournament"
+    ],
+    "stage": "stage3_5",
+    "patch_function": "patch_event_branch_tournament"
+  }
+]
+
+REFERENCE DOCTRINE
+# Agent Prompt for Automatic Search Design
+
+This file turns the search reset into something you can hand to a language model or coding agent.
+
+Use it when you want the model to:
+
+- generate hypothesis families automatically
+- compile those families into minimal executable probes
+- design a tournament
+- identify which primitives need to be implemented
+
+---
+
+## How to use
+
+Before sending the prompt, fill in:
+
+- `<BASE_DESCRIPTION>`
+- `<AVAILABLE_PRIMITIVES>`
+- `<DISALLOWED_CHANGES>`
+- `<CURRENT_FAILURE_PATTERNS>`
+- `<BUDGET>`
+
+Then ask the model to return **JSON only**.
+
+---
+
+## Copy-paste prompt
+
+```text
+You are designing a bounded program search harness for optimizing training code under a fixed budget.
+
+Your job is NOT to produce random patch ideas.
+Your job is to generate a search plan over bounded execution programs.
+
+## Goal
+
+Given one frozen executable base, produce:
+
+1. a small set of first-order hypothesis families
+2. the smallest executable probe for each family
+3. a tournament plan that can distinguish real families from fake ones
+4. a primitive implementation backlog
+
+## Search doctrine
+
+Follow these rules strictly:
+
+1. Search bounded programs, not patch packs.
+2. Do not change the base stack during this cycle.
+3. Search families before child variants.
+4. Do not propose compounds before solo families survive.
+5. Use only the allowed candidate grammar:
+   - signals
+   - phase_boundaries
+   - triggers
+   - actions
+   - portfolio
+   - selector
+6. If a family cannot be expressed with available primitives, mark it as requiring a new primitive instead of silently inventing a full patch stack.
+
+## Frozen base
+
+<BASE_DESCRIPTION>
+
+## Available primitives
+
+<AVAILABLE_PRIMITIVES>
+
+## Disallowed changes in this cycle
+
+<DISALLOWED_CHANGES>
+
+## Known failure patterns to avoid
+
+<CURRENT_FAILURE_PATTERNS>
+
+## Budget
+
+<BUDGET>
+
+## Task
+
+Generate exactly 4 first-order hypothesis families that break different false invariants.
+
+For each family:
+
+- state the broken invariant
+- define the smallest decisive probe
+- express it only using the candidate grammar
+- define a matched control
+- define an early signal
+- define a kill rule
+- define the expected horizon
+- define the composition role
+- define whether it can be implemented with existing primitives
+
+Then:
+
+1. build an 8-slot family-admission pack
+2. define promotion rules
+3. define retirement rules
+4. define what should be mutated only after family survival
+5. define which primitive gaps must be implemented first
+
+## Output rules
+
+- Return JSON only
+- Do not return prose outside the JSON
+- Do not propose more than 4 families
+- Do not propose compounds in the first pack
+- Do not hide architecture or tokenizer changes inside the families
+- Do not generate child variants before family survival
+
+## Required JSON schema
+
+{
+  "base_contract": {
+    "description": "string",
+    "frozen_assumptions": ["string"]
+  },
+  "candidate_grammar": {
+    "signals": ["string"],
+    "phase_boundaries": "string",
+    "triggers": ["string"],
+    "actions": ["string"],
+    "portfolio": ["string"],
+    "selector": ["string"]
+  },
+  "families": [
+    {
+      "id": "F1",
+      "name": "string",
+      "broken_invariant": "string",
+      "smallest_decisive_probe": "string",
+      "signals": ["string"],
+      "phase_boundaries": ["string or number"],
+      "triggers": [
+        {
+          "feature": "string",
+          "op": "< or > or event",
+          "threshold": "number or string"
+        }
+      ],
+      "actions": [
+        {
+          "name": "string",
+          "value": "number|string|bool"
+        }
+      ],
+      "portfolio": [
+        {
+          "name": "string",
+          "role": "string"
+        }
+      ],
+      "selector": "string",
+      "matched_control": "string",
+      "early_signal": "string",
+      "kill_rule": "string",
+      "expected_horizon": "sanity|screen|long_run",
+      "composition_role": "lead|support|child_only",
+      "implementation_status": "existing_primitives|needs_new_primitive",
+      "new_primitive_if_needed": "string or null"
+    }
+  ],
+  "family_admission_pack": {
+    "slots": [
+      {
+        "slot": "string",
+        "type": "control|family_probe|novelty|repeat",
+        "family": "string or null",
+        "purpose": "string"
+      }
+    ],
+    "ranking_rule": "string",
+    "abort_rule": "string"
+  },
+  "post_admission_policy": {
+    "promote_if": ["string"],
+    "retire_if": ["string"],
+    "mutate_only_after_survival": [
+      "phase boundaries",
+      "trigger thresholds",
+      "action magnitudes",
+      "selector mode",
+      "portfolio width/depth"
+    ]
+  },
+  "primitive_backlog": [
+    {
+      "name": "string",
+      "why_needed": "string",
+      "minimal_interface": "string",
+      "used_by_families": ["string"]
+    }
+  ]
+}
+```
+
+---
+
+## Recommended values for this repo right now
+
+You can use these as a starting fill-in:
+
+### `<AVAILABLE_PRIMITIVES>`
+
+```text
+- fixed handoff
+- event trigger
+- checkpoint selector
+- late receiver
+- 2-finisher late portfolio
+- export/eval-only mode
+- snapshot capture
+- simple pulse block
+- bounded controller gates
+```
+
+### `<DISALLOWED_CHANGES>`
+
+```text
+- tokenizer changes
+- architecture rebases
+- new frontier base adoption inside this cycle
+- giant patch bundles
+- compounds before solo family survival
+```
+
+### `<CURRENT_FAILURE_PATTERNS>`
+
+```text
+- strong prose, weak executable proxy
+- lane mixing between training/export/eval
+- unstable controls invalidate ranking
+- materialized runs drift from source configs
+- export-heavy candidates die because screen budget is shared with training
+- local mutation begins before family premise is proven
+```
+
+---
+
+## Optional second prompt: hypothesis compiler
+
+Use this after choosing one family.
+
+```text
+Take the selected family and compile it into implementation work.
+
+Rules:
+- do not write code yet
+- do not expand the family
+- produce only the smallest executable probe
+
+Return JSON with:
+- primitive dependencies
+- exact trigger logic
+- exact action logic
+- required logging/events
+- matched control
+- expected early signal
+- kill rule
+- minimal tournament slot
+- what would falsify the family quickly
+```
+
+---
+
+## Short version
+
+This prompt forces the model to do the right order:
+
+1. freeze base
+2. generate families
+3. compile minimal probes
+4. define the admission tournament
+5. identify primitive gaps
+6. mutate only after family survival
+
+That should keep the model from generating another pile of interesting but weakly testable patch ideas.
+
+PREVIOUS ATTEMPT FAILED
+Codex generator failed (1).
+STDOUT:
+
+STDERR:
+OpenAI Codex v0.120.0 (research preview)
+--------
+workdir: /Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf
+model: gpt-5.4
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR, /Users/ankit/.codex/memories] (network access enabled)
+reasoning effort: high
+reasoning summaries: none
+session id: 019d7fe5-e350-74e1-bff6-44712e8d05b2
+--------
+user
+You are preparing one executable search generation for this repository.
+Return JSON only. Do not return prose outside the JSON object.
+The JSON must be directly usable as compiled_generation.json by search_harness.py.
+
+USER INSTRUCTIONS
+Build one executable first-order family-admission pack for this repo. Focus on state-conditioned control, checkpoint/export discipline, and 
+stable controls. Use only existing executable patch families. Avoid compounds and lane mixing.
+
+HARD RULES
+1. Use only entries from EXECUTABLE_FAMILY_CATALOG.
+2. Do not invent new patch modules, patch names, or base scripts.
+3. Produce one family-admission pack that is runnable now.
+4. Include two control slots named C0 and C1 with no patches.
+5. Include 2 to 4 candidate slots named H0, H1, H2, H3 as needed.
+6. Prefer first-order families over compounds.
+7. Every candidate must use the exact base_script, patch_module, and patches values from the catalog.
+8. Use metadata.broken_invariant and metadata.probe for each candidate.
+9. Keep selection.control_slots aligned with the actual controls.
+10. Use metrics.score_bpb as the primary metric unless the instructions force a different executable metric.
+11. If the instructions ask for something impossible with the current catalog, choose the closest executable pack and explain the gap in metadata.
+
+FOCUS FILES
+[
+  "train_gpt.py",
+  "stage3_2/base_train_gpt.py",
+  "stage3_5/base_train_gpt.py"
+]
+
+DEFAULTS
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "default_base_script": "train_gpt.py",
+  "default_entrypoint": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node={nproc_per_slot} {script}",
+  "primary_metric_path": "metrics.score_bpb",
+  "control_slots": [
+    "C0",
+    "C1"
+  ]
+}
+
+POSTMORTEM MEMORY JSON
+{
+  "history_window": [],
+  "prior_generations": [],
+  "reference_docs": [
+    {
+      "path": "findings.md",
+      "excerpt": "# Findings\n\n## Main conclusion\n\nThe repo keeps rediscovering the same useful abstraction under different names:\n\n- `hm2` = bootstrap -> handoff -> receiver\n- `stage3_2` = bounded controller\n- `stage3_4` = shared trunk -> late branch portfolio\n- `stage3_5` = event-triggered branch tournament\n\nThose are not four separate ideas. They are one search strategy: **search over small state-conditioned programs**, not over isolated patch packs.\n\nThe repeated mistake is that the harness still evaluates most work as stage-specific folders, prose-only hypotheses, or static patch slates. So it never compounds the one abstraction that actually looks general.\n\n## Directory-level findings\n\n| Dir | What it contributes | Specific mistake |\n| --- | --- | --- |\n| `hailmary/` | Best wide map of attack surfaces and high-upside families. | The **materialized runs** are still on `SP1024`, even though the source `run_configs.json` and docs now describe an `SP8192` strong base. Example: `hailmary/run_configs.json` defaults to `VOCAB_SIZE=8192`, but `hailmary/runs/tournament_20260411_001130/.../H2_exact_overlap_eval/config.json` still has `VOCAB_SIZE=1024`, `DATA_PATH=/data/...sp1024`, `TOKENIZER_PATH=/data/...1024_bpe.model`. |\n| `hm2/` | First stage that clearly says the search unit is the **handoff policy**, not the patch. | It promises reusable evidence (`phase_diagnostics.json`) in `hm2/README.md`, but the repo contains no `train.log`, `summary.json`, or `phase_diagnostics.json` under `hm2/`. The idea is good, but the feedback loop never closed. |\n| `stage3_1/` | Strongest admission bar for hypotheses; export-only lane is the right kind of isolation. | The stage has almo...

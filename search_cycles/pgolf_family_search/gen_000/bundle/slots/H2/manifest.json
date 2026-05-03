@@ -1,0 +1,38 @@
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "slot": "H2",
+  "role": "candidate",
+  "family": "state_controller",
+  "patches": [
+    "state_controller"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage3_2/base_train_gpt.py",
+  "base_sha256": "4719167881b230ab63ad2b4896b9420580fa5e30e09ee8ec4495ba8636c22aed",
+  "patched_sha256": "07716468856e80ae973bb92f90b54433cd488125354eab5acee4f459f4c7a9a0",
+  "nproc_per_slot": 1,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "family_order": "first-order",
+    "focus": "state-conditioned control",
+    "broken_invariant": "Static training and export schedules are sufficient even when bounded actions should respond to observed state.",
+    "probe": "Controller program over phase boundaries, triggers, gated actions, and snapshot/export selection.",
+    "matched_control": "C0",
+    "focus_files": [
+      "stage3_2/base_train_gpt.py",
+      "train_gpt.py"
+    ]
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp8192",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_8192_bpe.model",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "MAX_WALLCLOCK_SECONDS": "180",
+    "VOCAB_SIZE": "8192"
+  }
+}

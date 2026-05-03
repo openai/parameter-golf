@@ -1,0 +1,579 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives.",
+  "pack_strategy": {
+    "controls_per_pack": 2,
+    "max_candidates_per_pack": 6,
+    "pack_order": [
+      "trajectory_004/trajectory_004_h1 solo calibration selector pack",
+      "trajectory_003/trajectory_003_h3 solo same-trace selector packs under calibrated delta law",
+      "trajectory_004/trajectory_004_h3 deferred mid-training solo packs after state-trigger primitive exists",
+      "trajectory_004/trajectory_004_h4 deferred pairwise composition packs after branch-resume primitive exists and at least one solo family survives"
+    ],
+    "notes": [
+      "Solo packs come before any composition.",
+      "Executable packs should use 6 candidate slots plus 2 controls.",
+      "`trajectory_004/trajectory_004_h1` is the admission law for every executable pack, not a license to mix lanes.",
+      "Blocked families stay out of active packs until their primitive backlog is closed."
+    ]
+  },
+  "packs": [
+    {
+      "pack_id": "selector_pack_selector_frontier_001",
+      "pack_kind": "selector_pack",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "controls_per_pack": 2,
+      "control_slot_ids": [
+        "C0",
+        "C1"
+      ],
+      "candidate_slots": [
+        {
+          "candidate_id": "trajectory_004/trajectory_004_h1",
+          "family_group": "control_delta_admission",
+          "name": "Control-Paired Delta Admission On Downstream Sliding Score",
+          "lane": "selector",
+          "phase_window": "frontier",
+          "pack_kind": "selector_pack",
+          "rationale": "Run first because every later executable solo pack should inherit this admission law instead of absolute-score ranking.",
+          "realization_id": "control_delta_admission_r1_inline_clone_band",
+          "realization_key": "trajectory_004/trajectory_004_h1/control_delta_admission_r1_inline_clone_band",
+          "title": "Inline Clone-Band Calibration Pack",
+          "instructions": "Materialize one 8-slot frontier selector pack against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base using `ncycle/pr1394_enigma_cycle.json`. Reserve the 2 control slots for exact published-base controls on two fixed seeds from the published seed set. Use the 6 candidate slots as: 2 replay-equivalent control clones that are byte-identical to the controls except for pack slot identity/run id, plus 4 novel selector candidates. Keep tokenizer, vocab, recurrence, MuonEq-R, SDClip, export menu, and all training settings frozen. Run the full pack once, collect downstream `quantized_sliding_window` `score_bpb` for every slot, compute the clone-control delta band from the replay clones, and admit only novel slots that beat their paired control by more than that band. Use pre-quant `val_bpb` only for diagnosis, never for admission.",
+          "control_plan": [
+            "Control slot C0: exact published pr1394 base on fixed seed S0.",
+            "Control slot C1: exact published pr1394 base on fixed seed S1.",
+            "Candidate slot R0: replay-equivalent clone of C0 with identical config and seed; only run metadata differs.",
+            "Candidate slot R1: replay-equivalent clone of C1 with identical config and seed; only run metadata differs.",
+            "Candidate slots N0-N3: four novel selector candidates under the same frozen base contract."
+          ],
+          "admission_rules": [
+            "Primary admission statistic is novel-minus-paired-control delta on downstream `quantized_sliding_window` `score_bpb`; lower is better.",
+            "Estimate the pack noise band as the maximum absolute delta observed between each control and its replay clone.",
+            "Reject any novel whose downstream delta does not clear the clone-derived noise band.",
+            "Do not promote a novel on pre-quant improvement if its downstream delta is non-positive or inside the control band.",
+            "Record both per-seed deltas and the aggregate pack decision so later packs can reuse the same comparison law."
+          ],
+          "metric_plan": [
+            "Primary: downstream `score_bpb` from `quantized_sliding_window` when present.",
+            "Secondary: pre-quant `val_bpb` for diagnosis and early kill notes only.",
+            "Secondary: control spread from the two replay clones; this is part of the decision law, not a tie-breaker.",
+            "Tie-breaker only: artifact size after downstream and pre-quant evidence already agree."
+          ],
+          "implementation_notes": [
+            "This is fully executable with the current selector-pack catalog because every slot is just a standard pack entry with frozen config duplication.",
+            "Represent replay clones as ordinary candidate entries; no new runtime primitive is required.",
+            "Keep slot ordering explicit in the pack spec so post-run scoring can pair each novel with the intended control deterministically."
+          ],
+          "composition_tags": [
+            "campaign_law",
+            "control_paired",
+            "downstream_only",
+            "inline_clone_band"
+          ],
+          "incompatible_with": [],
+          "mutate_after_survival": [
+            "cross_pack_control_carryover",
+            "family_specific_delta_baselines",
+            "selector_replay_stress"
+          ],
+          "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_004_trajectory_004_h1.json",
+          "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h1.json",
+          "slot_id": "H00"
+        },
+        {
+          "candidate_id": "trajectory_004/trajectory_004_h1",
+          "family_group": "control_delta_admission",
+          "name": "Control-Paired Delta Admission On Downstream Sliding Score",
+          "lane": "selector",
+          "phase_window": "frontier",
+          "pack_kind": "selector_pack",
+          "rationale": "Run first because every later executable solo pack should inherit this admission law instead of absolute-score ranking.",
+          "realization_id": "control_delta_admission_r2_mirrored_seed_directional_pack",
+          "realization_key": "trajectory_004/trajectory_004_h1/control_delta_admission_r2_mirrored_seed_directional_pack",
+          "title": "Mirrored-Seed Directional Support Pack",
+          "instructions": "Build one 8-slot selector pack on the same frozen pr1394 base. Use the 2 control slots for the exact published-base controls on seeds S0 and S1. Use 2 candidate slots for replay-equivalent control clones on S0 and S1 to measure the clone band. Use the remaining 4 candidate slots for 2 novel selector realizations, each mirrored across both seeds: A@S0, A@S1, B@S0, B@S1. Keep every non-selector aspect frozen. After the run, compute downstream delta to the same-seed control for each mirrored instance, then require both seed-specific deltas for a novelty to have the same sign and the mean delta to clear the replay-clone band before treating it as positive.",
+          "control_plan": [
+            "Control C0: exact published base on seed S0.",
+            "Control C1: exact published base on seed S1.",
+            "Replay clone R0: exact clone of C0.",
+            "Replay clone R1: exact clone of C1.",
+            "Novel A mirrored across seeds S0 and S1.",
+            "Novel B mirrored across seeds S0 and S1."
+          ],
+          "admission_rules": [
+            "A novelty must beat its same-seed paired control on downstream `score_bpb` for both mirrored instances or be rejected as directionally unstable.",
+            "The mean downstream delta across the two mirrored instances must exceed the replay-clone noise band.",
+            "If the two mirrored instances disagree in sign, classify the novelty as unresolved even if one seed looks strong.",
+            "Use control-clone deltas only to define the noise floor; do not compare novelties by raw absolute score across different seeds."
+          ],
+          "metric_plan": [
+            "Primary: same-seed downstream delta on `quantized_sliding_window` `score_bpb` for each mirrored instance.",
+            "Secondary: mean mirrored delta and sign agreement across the two seeds.",
+            "Secondary: pre-quant `val_bpb` only as explanatory evidence when downstream deltas diverge.",
+            "Tie-breaker only: artifact size after a novelty already has mirrored downstream support."
+          ],
+          "implementation_notes": [
+            "This remains catalog-executable because it only changes slot assignment and scoring, not runtime primitives.",
+            "The distinct implementation story is pack-internal replication: fewer novel ideas per pack, but each gets immediate directional support testing.",
+            "Use fixed seeds from the published seed set so mirrored comparisons stay anchored to the known base distribution."
+          ],
+          "composition_tags": [
+            "campaign_law",
+            "control_paired",
+            "downstream_only",
+            "mirrored_seed_support"
+          ],
+          "incompatible_with": [],
+          "mutate_after_survival": [
+            "family_specific_delta_baselines",
+            "selector_replay_stress",
+            "cross_pack_control_carryover"
+          ],
+          "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_004_trajectory_004_h1.json",
+          "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h1.json",
+          "slot_id": "H01"
+        }
+      ],
+      "control_plan": [
+        "Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.",
+        "Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.",
+        "Never let a pre-quant improvement override a downstream-negative result.",
+        "Control slot C0: exact published pr1394 base on fixed seed S0.",
+        "Control slot C1: exact published pr1394 base on fixed seed S1.",
+        "Candidate slot R0: replay-equivalent clone of C0 with identical config and seed; only run metadata differs.",
+        "Candidate slot R1: replay-equivalent clone of C1 with identical config and seed; only run metadata differs.",
+        "Candidate slots N0-N3: four novel selector candidates under the same frozen base contract.",
+        "Control C0: exact published base on seed S0.",
+        "Control C1: exact published base on seed S1.",
+        "Replay clone R0: exact clone of C0.",
+        "Replay clone R1: exact clone of C1.",
+        "Novel A mirrored across seeds S0 and S1.",
+        "Novel B mirrored across seeds S0 and S1."
+      ],
+      "admission_rules": [
+        "Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.",
+        "Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.",
+        "Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.",
+        "Primary admission statistic is novel-minus-paired-control delta on downstream `quantized_sliding_window` `score_bpb`; lower is better.",
+        "Estimate the pack noise band as the maximum absolute delta observed between each control and its replay clone.",
+        "Reject any novel whose downstream delta does not clear the clone-derived noise band.",
+        "Do not promote a novel on pre-quant improvement if its downstream delta is non-positive or inside the control band.",
+        "Record both per-seed deltas and the aggregate pack decision so later packs can reuse the same comparison law.",
+        "A novelty must beat its same-seed paired control on downstream `score_bpb` for both mirrored instances or be rejected as directionally unstable.",
+        "The mean downstream delta across the two mirrored instances must exceed the replay-clone noise band.",
+        "If the two mirrored instances disagree in sign, classify the novelty as unresolved even if one seed looks strong.",
+        "Use control-clone deltas only to define the noise floor; do not compare novelties by raw absolute score across different seeds."
+      ],
+      "metric_plan": [
+        "Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.",
+        "Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.",
+        "Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.",
+        "Primary: downstream `score_bpb` from `quantized_sliding_window` when present.",
+        "Secondary: pre-quant `val_bpb` for diagnosis and early kill notes only.",
+        "Secondary: control spread from the two replay clones; this is part of the decision law, not a tie-breaker.",
+        "Tie-breaker only: artifact size after downstream and pre-quant evidence already agree.",
+        "Primary: same-seed downstream delta on `quantized_sliding_window` `score_bpb` for each mirrored instance.",
+        "Secondary: mean mirrored delta and sign agreement across the two seeds.",
+        "Secondary: pre-quant `val_bpb` only as explanatory evidence when downstream deltas diverge.",
+        "Tie-breaker only: artifact size after a novelty already has mirrored downstream support."
+      ],
+      "implementation_notes": [
+        "Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.",
+        "Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.",
+        "When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.",
+        "This is fully executable with the current selector-pack catalog because every slot is just a standard pack entry with frozen config duplication.",
+        "Represent replay clones as ordinary candidate entries; no new runtime primitive is required.",
+        "Keep slot ordering explicit in the pack spec so post-run scoring can pair each novel with the intended control deterministically.",
+        "This remains catalog-executable because it only changes slot assignment and scoring, not runtime primitives.",
+        "The distinct implementation story is pack-internal replication: fewer novel ideas per pack, but each gets immediate directional support testing.",
+        "Use fixed seeds from the published seed set so mirrored comparisons stay anchored to the known base distribution."
+      ],
+      "notes": [
+        "Solo packs come before any composition.",
+        "Executable packs should use 6 candidate slots plus 2 controls.",
+        "`trajectory_004/trajectory_004_h1` is the admission law for every executable pack, not a license to mix lanes.",
+        "Blocked families stay out of active packs until their primitive backlog is closed."
+      ],
+      "search_harness_instructions": "Use pg_enigma round 0 pack selector_pack_selector_frontier_001 as the execution contract.\nPack kind: selector_pack\nLane: selector\nPhase window: frontier\n\nCreate exactly these control slots and keep them unpatched:\n- C0\n- C1\n\nCreate candidate slots using these exact slot ids:\n- H00: trajectory_004/trajectory_004_h1 / control_delta_admission_r1_inline_clone_band (Inline Clone-Band Calibration Pack)\n  family_group: control_delta_admission\n  rationale: Run first because every later executable solo pack should inherit this admission law instead of absolute-score ranking.\n  instructions: Materialize one 8-slot frontier selector pack against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base using `ncycle/pr1394_enigma_cycle.json`. Reserve the 2 control slots for exact published-base controls on two fixed seeds from the published seed set. Use the 6 candidate slots as: 2 replay-equivalent control clones that are byte-identical to the controls except for pack slot identity/run id, plus 4 novel selector candidates. Keep tokenizer, vocab, recurrence, MuonEq-R, SDClip, export menu, and all training settings frozen. Run the full pack once, collect downstream `quantized_sliding_window` `score_bpb` for every slot, compute the clone-control delta band from the replay clones, and admit only novel slots that beat their paired control by more than that band. Use pre-quant `val_bpb` only for diagnosis, never for admission.\n  composition_tags: campaign_law, control_paired, downstream_only, inline_clone_band\n  incompatible_with: none\n  mutate_after_survival: cross_pack_control_carryover, family_specific_delta_baselines, selector_replay_stress\n- H01: trajectory_004/trajectory_004_h1 / control_delta_admission_r2_mirrored_seed_directional_pack (Mirrored-Seed Directional Support Pack)\n  family_group: control_delta_admission\n  rationale: Run first because every later executable solo pack should inherit this admission law instead of absolute-score ranking.\n  instructions: Build one 8-slot selector pack on the same frozen pr1394 base. Use the 2 control slots for the exact published-base controls on seeds S0 and S1. Use 2 candidate slots for replay-equivalent control clones on S0 and S1 to measure the clone band. Use the remaining 4 candidate slots for 2 novel selector realizations, each mirrored across both seeds: A@S0, A@S1, B@S0, B@S1. Keep every non-selector aspect frozen. After the run, compute downstream delta to the same-seed control for each mirrored instance, then require both seed-specific deltas for a novelty to have the same sign and the mean delta to clear the replay-clone band before treating it as positive.\n  composition_tags: campaign_law, control_paired, downstream_only, mirrored_seed_support\n  incompatible_with: none\n  mutate_after_survival: family_specific_delta_baselines, selector_replay_stress, cross_pack_control_carryover\n\nControl principles:\n- Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.\n- Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.\n- Never let a pre-quant improvement override a downstream-negative result.\n- Control slot C0: exact published pr1394 base on fixed seed S0.\n- Control slot C1: exact published pr1394 base on fixed seed S1.\n- Candidate slot R0: replay-equivalent clone of C0 with identical config and seed; only run metadata differs.\n- Candidate slot R1: replay-equivalent clone of C1 with identical config and seed; only run metadata differs.\n- Candidate slots N0-N3: four novel selector candidates under the same frozen base contract.\n- Control C0: exact published base on seed S0.\n- Control C1: exact published base on seed S1.\n- Replay clone R0: exact clone of C0.\n- Replay clone R1: exact clone of C1.\n- Novel A mirrored across seeds S0 and S1.\n- Novel B mirrored across seeds S0 and S1.\n\nAdmission principles:\n- Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.\n- Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.\n- Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.\n- Primary admission statistic is novel-minus-paired-control delta on downstream `quantized_sliding_window` `score_bpb`; lower is better.\n- Estimate the pack noise band as the maximum absolute delta observed between each control and its replay clone.\n- Reject any novel whose downstream delta does not clear the clone-derived noise band.\n- Do not promote a novel on pre-quant improvement if its downstream delta is non-positive or inside the control band.\n- Record both per-seed deltas and the aggregate pack decision so later packs can reuse the same comparison law.\n- A novelty must beat its same-seed paired control on downstream `score_bpb` for both mirrored instances or be rejected as directionally unstable.\n- The mean downstream delta across the two mirrored instances must exceed the replay-clone noise band.\n- If the two mirrored instances disagree in sign, classify the novelty as unresolved even if one seed looks strong.\n- Use control-clone deltas only to define the noise floor; do not compare novelties by raw absolute score across different seeds.\n\nMetric principles:\n- Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.\n- Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.\n- Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.\n- Primary: downstream `score_bpb` from `quantized_sliding_window` when present.\n- Secondary: pre-quant `val_bpb` for diagnosis and early kill notes only.\n- Secondary: control spread from the two replay clones; this is part of the decision law, not a tie-breaker.\n- Tie-breaker only: artifact size after downstream and pre-quant evidence already agree.\n- Primary: same-seed downstream delta on `quantized_sliding_window` `score_bpb` for each mirrored instance.\n- Secondary: mean mirrored delta and sign agreement across the two seeds.\n- Secondary: pre-quant `val_bpb` only as explanatory evidence when downstream deltas diverge.\n- Tie-breaker only: artifact size after a novelty already has mirrored downstream support.\n\nImplementation principles:\n- Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.\n- Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.\n- When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.\n- This is fully executable with the current selector-pack catalog because every slot is just a standard pack entry with frozen config duplication.\n- Represent replay clones as ordinary candidate entries; no new runtime primitive is required.\n- Keep slot ordering explicit in the pack spec so post-run scoring can pair each novel with the intended control deterministically.\n- This remains catalog-executable because it only changes slot assignment and scoring, not runtime primitives.\n- The distinct implementation story is pack-internal replication: fewer novel ideas per pack, but each gets immediate directional support testing.\n- Use fixed seeds from the published seed set so mirrored comparisons stay anchored to the known base distribution.\n\nGlobal campaign instruction:\nUse `ncycle/pr1394_enigma_cycle.json` against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base, with `frontier_rebase/pr1394/README.md` and `frontier_rebase/pr1394/submission.json` as the base contract. Execute solo packs first, always with 2 controls and up to 6 candidate slots, judge admission and promotion only on downstream `quantized_sliding_window` `score_bpb`, and record pack-local deltas to paired controls before promoting any family.\n\nHard execution rules:\n- Preserve the requested slot ids exactly so downstream promotion can attribute outcomes.\n- Do not substitute filler candidates if one realization cannot be mapped honestly.\n- Prefer fewer executable candidates over invented or mixed-lane fillers.\n- Treat this as one campaign pack, not a whole-strategy rewrite.\n"
+    },
+    {
+      "pack_id": "selector_pack_selector_frontier_002",
+      "pack_kind": "selector_pack",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "controls_per_pack": 2,
+      "control_slot_ids": [
+        "C0",
+        "C1"
+      ],
+      "candidate_slots": [
+        {
+          "candidate_id": "trajectory_004/trajectory_004_h1",
+          "family_group": "control_delta_admission",
+          "name": "Control-Paired Delta Admission On Downstream Sliding Score",
+          "lane": "selector",
+          "phase_window": "frontier",
+          "pack_kind": "selector_pack",
+          "rationale": "Run first because every later executable solo pack should inherit this admission law instead of absolute-score ranking.",
+          "realization_id": "control_delta_admission_r3_cross_pack_reference_ledger",
+          "realization_key": "trajectory_004/trajectory_004_h1/control_delta_admission_r3_cross_pack_reference_ledger",
+          "title": "Cross-Pack Reference Ledger With Local Controls",
+          "instructions": "After one inline calibration pack has established a trustworthy replay band, prepare subsequent frontier selector packs with 2 local control slots plus 6 candidate slots arranged as 2 replayed reference-anchor clones and 4 new novelties. The reference-anchor clones should be exact reruns of the previously logged calibration-control recipe on the same fixed seeds and base contract. Keep local controls in every pack so current-pack conditions are still measured directly. Score each novelty twice in analysis: first against the current pack's paired local control, second against the carry-forward reference-anchor ledger. Admit only novelties that are downstream-positive relative to the local paired control and not contradicted by the carry-forward reference band.",
+          "control_plan": [
+            "Local controls C0 and C1: exact published base on the fixed campaign seeds for the current pack.",
+            "Reference replay anchors R0 and R1: rerun the original calibrated control recipe from the baseline selector pack on the same seeds.",
+            "Novel slots N0-N3: four new selector candidates under the unchanged pr1394 base contract."
+          ],
+          "admission_rules": [
+            "A novelty must beat the current pack's paired local control on downstream `score_bpb` by more than the established replay band.",
+            "If the local-control result is positive but the same novelty falls inside or worse than the carry-forward reference band, mark it as ambiguous and do not promote.",
+            "Do not replace local controls with reference anchors; both are required so pack-local drift and cross-pack drift are separated.",
+            "Keep the comparison law downstream-only; pre-quant metrics cannot rescue a novelty that fails either local or reference delta checks."
+          ],
+          "metric_plan": [
+            "Primary: local paired-control downstream delta on `quantized_sliding_window` `score_bpb`.",
+            "Secondary: agreement with the carry-forward reference-anchor delta ledger across packs.",
+            "Secondary: control-band drift between local controls and reference anchors as a harness-health signal.",
+            "Tie-breaker only: artifact size after local and reference downstream evidence both support the novelty."
+          ],
+          "implementation_notes": [
+            "No new runtime primitive is required; this is a packing and scoring convention over ordinary selector-pack entries.",
+            "Store the original calibrated control recipe and reference deltas in pack metadata so later packs can replay them exactly.",
+            "This realization should be used only after the first calibration pack has produced a stable clone-derived band."
+          ],
+          "composition_tags": [
+            "campaign_law",
+            "control_paired",
+            "downstream_only",
+            "cross_pack_reference_ledger"
+          ],
+          "incompatible_with": [],
+          "mutate_after_survival": [
+            "family_specific_delta_baselines",
+            "selector_replay_stress"
+          ],
+          "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_004_trajectory_004_h1.json",
+          "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h1.json",
+          "slot_id": "H00"
+        }
+      ],
+      "control_plan": [
+        "Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.",
+        "Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.",
+        "Never let a pre-quant improvement override a downstream-negative result.",
+        "Local controls C0 and C1: exact published base on the fixed campaign seeds for the current pack.",
+        "Reference replay anchors R0 and R1: rerun the original calibrated control recipe from the baseline selector pack on the same seeds.",
+        "Novel slots N0-N3: four new selector candidates under the unchanged pr1394 base contract."
+      ],
+      "admission_rules": [
+        "Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.",
+        "Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.",
+        "Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.",
+        "A novelty must beat the current pack's paired local control on downstream `score_bpb` by more than the established replay band.",
+        "If the local-control result is positive but the same novelty falls inside or worse than the carry-forward reference band, mark it as ambiguous and do not promote.",
+        "Do not replace local controls with reference anchors; both are required so pack-local drift and cross-pack drift are separated.",
+        "Keep the comparison law downstream-only; pre-quant metrics cannot rescue a novelty that fails either local or reference delta checks."
+      ],
+      "metric_plan": [
+        "Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.",
+        "Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.",
+        "Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.",
+        "Primary: local paired-control downstream delta on `quantized_sliding_window` `score_bpb`.",
+        "Secondary: agreement with the carry-forward reference-anchor delta ledger across packs.",
+        "Secondary: control-band drift between local controls and reference anchors as a harness-health signal.",
+        "Tie-breaker only: artifact size after local and reference downstream evidence both support the novelty."
+      ],
+      "implementation_notes": [
+        "Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.",
+        "Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.",
+        "When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.",
+        "No new runtime primitive is required; this is a packing and scoring convention over ordinary selector-pack entries.",
+        "Store the original calibrated control recipe and reference deltas in pack metadata so later packs can replay them exactly.",
+        "This realization should be used only after the first calibration pack has produced a stable clone-derived band."
+      ],
+      "notes": [
+        "Solo packs come before any composition.",
+        "Executable packs should use 6 candidate slots plus 2 controls.",
+        "`trajectory_004/trajectory_004_h1` is the admission law for every executable pack, not a license to mix lanes.",
+        "Blocked families stay out of active packs until their primitive backlog is closed."
+      ],
+      "search_harness_instructions": "Use pg_enigma round 0 pack selector_pack_selector_frontier_002 as the execution contract.\nPack kind: selector_pack\nLane: selector\nPhase window: frontier\n\nCreate exactly these control slots and keep them unpatched:\n- C0\n- C1\n\nCreate candidate slots using these exact slot ids:\n- H00: trajectory_004/trajectory_004_h1 / control_delta_admission_r3_cross_pack_reference_ledger (Cross-Pack Reference Ledger With Local Controls)\n  family_group: control_delta_admission\n  rationale: Run first because every later executable solo pack should inherit this admission law instead of absolute-score ranking.\n  instructions: After one inline calibration pack has established a trustworthy replay band, prepare subsequent frontier selector packs with 2 local control slots plus 6 candidate slots arranged as 2 replayed reference-anchor clones and 4 new novelties. The reference-anchor clones should be exact reruns of the previously logged calibration-control recipe on the same fixed seeds and base contract. Keep local controls in every pack so current-pack conditions are still measured directly. Score each novelty twice in analysis: first against the current pack's paired local control, second against the carry-forward reference-anchor ledger. Admit only novelties that are downstream-positive relative to the local paired control and not contradicted by the carry-forward reference band.\n  composition_tags: campaign_law, control_paired, downstream_only, cross_pack_reference_ledger\n  incompatible_with: none\n  mutate_after_survival: family_specific_delta_baselines, selector_replay_stress\n\nControl principles:\n- Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.\n- Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.\n- Never let a pre-quant improvement override a downstream-negative result.\n- Local controls C0 and C1: exact published base on the fixed campaign seeds for the current pack.\n- Reference replay anchors R0 and R1: rerun the original calibrated control recipe from the baseline selector pack on the same seeds.\n- Novel slots N0-N3: four new selector candidates under the unchanged pr1394 base contract.\n\nAdmission principles:\n- Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.\n- Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.\n- Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.\n- A novelty must beat the current pack's paired local control on downstream `score_bpb` by more than the established replay band.\n- If the local-control result is positive but the same novelty falls inside or worse than the carry-forward reference band, mark it as ambiguous and do not promote.\n- Do not replace local controls with reference anchors; both are required so pack-local drift and cross-pack drift are separated.\n- Keep the comparison law downstream-only; pre-quant metrics cannot rescue a novelty that fails either local or reference delta checks.\n\nMetric principles:\n- Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.\n- Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.\n- Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.\n- Primary: local paired-control downstream delta on `quantized_sliding_window` `score_bpb`.\n- Secondary: agreement with the carry-forward reference-anchor delta ledger across packs.\n- Secondary: control-band drift between local controls and reference anchors as a harness-health signal.\n- Tie-breaker only: artifact size after local and reference downstream evidence both support the novelty.\n\nImplementation principles:\n- Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.\n- Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.\n- When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.\n- No new runtime primitive is required; this is a packing and scoring convention over ordinary selector-pack entries.\n- Store the original calibrated control recipe and reference deltas in pack metadata so later packs can replay them exactly.\n- This realization should be used only after the first calibration pack has produced a stable clone-derived band.\n\nGlobal campaign instruction:\nUse `ncycle/pr1394_enigma_cycle.json` against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base, with `frontier_rebase/pr1394/README.md` and `frontier_rebase/pr1394/submission.json` as the base contract. Execute solo packs first, always with 2 controls and up to 6 candidate slots, judge admission and promotion only on downstream `quantized_sliding_window` `score_bpb`, and record pack-local deltas to paired controls before promoting any family.\n\nHard execution rules:\n- Preserve the requested slot ids exactly so downstream promotion can attribute outcomes.\n- Do not substitute filler candidates if one realization cannot be mapped honestly.\n- Prefer fewer executable candidates over invented or mixed-lane fillers.\n- Treat this as one campaign pack, not a whole-strategy rewrite.\n"
+    },
+    {
+      "pack_id": "selector_pack_selector_post_train_001",
+      "pack_kind": "selector_pack",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "controls_per_pack": 2,
+      "control_slot_ids": [
+        "C0",
+        "C1"
+      ],
+      "candidate_slots": [
+        {
+          "candidate_id": "trajectory_003/trajectory_003_h3",
+          "family_group": "checkpoint_export_selector",
+          "name": "Checkpoint And Export Selector Family",
+          "lane": "selector",
+          "phase_window": "post_train",
+          "pack_kind": "selector_pack",
+          "rationale": "Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.",
+          "realization_id": "trajectory_003_h3_r1",
+          "realization_key": "trajectory_003/trajectory_003_h3/trajectory_003_h3_r1",
+          "title": "Late-Window Crossed Checkpoint x Export Sweep",
+          "instructions": "Prepare one selector pack on the frozen `frontier_rebase/pr1394/train_gpt_human.py` base after the control-delta calibration pack has already established the downstream noise band. Materialize one training trace with the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack unchanged. From that single trace, expose a bounded late checkpoint window anchored to the existing harness checkpoint cadence: the default final checkpoint, the immediately previous saved checkpoint, and the second previous saved checkpoint if present. Cross those checkpoints with a fixed export menu already supported by the current harness catalog for this lane: the published default export path plus two non-default catalog export realizations already available to `search_harness` for downstream evaluation on pr1394. Build up to 6 candidate slots from this crossed grid, keeping 2 controls as exact repeats of the published default final-checkpoint/default-export pair. Do not retrain per candidate; all candidates must reuse the same trace and differ only in checkpoint choice and export recipe. Emit per-candidate metadata that records checkpoint identifier, export recipe identifier, downstream `score_bpb`, pre-quant `val_bpb`, and artifact bytes so the pack can be ranked strictly by downstream paired-control delta.",
+          "control_plan": [
+            "Reserve 2 slots for exact control repeats of the published default final checkpoint plus default export path.",
+            "Use one shared training trace for every control and novel candidate in the pack.",
+            "Reject any pack materialization that changes tokenizer, architecture, optimizer stack, dataset contract, or training budget."
+          ],
+          "admission_rules": [
+            "Primary admission is downstream delta versus the mean of the 2 controls on `quantized_sliding_window` `score_bpb`.",
+            "A realization is positive only if at least one non-default checkpoint/export pair beats both controls by more than the calibrated control band.",
+            "Do not promote a winner if its advantage appears only in pre-quant `val_bpb` while downstream `score_bpb` is neutral or worse."
+          ],
+          "metric_plan": [
+            "Primary metric: downstream `score_bpb` from `quantized_sliding_window` when present.",
+            "Secondary metric: pre-quant `val_bpb` for diagnosis only.",
+            "Tie-breaker: smaller artifact bytes only after downstream and pre-quant evidence agree."
+          ],
+          "implementation_notes": [
+            "Use only catalog-supported checkpoint loading and export/eval modes already available in the current search harness.",
+            "Keep the checkpoint window bounded and late; do not widen beyond the last few saved checkpoints in this first probe.",
+            "Store candidate descriptors as explicit `(checkpoint_id, export_recipe_id)` pairs so later mutation stays on the searchable object rather than on prose labels."
+          ],
+          "composition_tags": [
+            "same_trace",
+            "artifact_selection",
+            "post_train",
+            "deployment_touchpoint"
+          ],
+          "incompatible_with": [],
+          "mutate_after_survival": [
+            "expand_late_checkpoint_window",
+            "expand_fixed_export_menu",
+            "selector_robustness_across_seeds"
+          ],
+          "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json",
+          "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_003_trajectory_003_h3.json",
+          "slot_id": "H00"
+        },
+        {
+          "candidate_id": "trajectory_003/trajectory_003_h3",
+          "family_group": "checkpoint_export_selector",
+          "name": "Checkpoint And Export Selector Family",
+          "lane": "selector",
+          "phase_window": "post_train",
+          "pack_kind": "selector_pack",
+          "rationale": "Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.",
+          "realization_id": "trajectory_003_h3_r2",
+          "realization_key": "trajectory_003/trajectory_003_h3/trajectory_003_h3_r2",
+          "title": "Checkpoint-Only Sweep Under Frozen Default Export",
+          "instructions": "Prepare a selector pack that isolates checkpoint choice while freezing export choice to the published default export path. Run one frozen pr1394 training trace with the published base stack unchanged. Enumerate a bounded late-checkpoint window from that same trace using the checkpoints already emitted by the harness near the end of training. Materialize up to 6 total candidate slots as concrete checkpoint picks from that window, always exported with the same default export recipe used by the published baseline. Keep 2 control slots as exact repeats of the default final checkpoint plus default export pair. The purpose is to falsify the invariant that the last checkpoint is automatically the best downstream artifact even when export stays fixed. Record the full downstream exact-eval result for each checkpoint candidate and keep the pack purely post-train: no per-candidate training edits, no export-method edits, no lane mixing.",
+          "control_plan": [
+            "Use 2 exact controls with the default final checkpoint and default export path.",
+            "All non-control candidates must differ from control only by checkpoint identity.",
+            "Use the same saved training trace and the same evaluator/export path for every slot."
+          ],
+          "admission_rules": [
+            "A checkpoint-only realization survives if a non-final late checkpoint beats both controls on downstream `score_bpb` beyond the calibrated control spread.",
+            "If downstream ordering matches control noise and no non-final checkpoint separates, treat this realization as falsified rather than retuning offsets immediately.",
+            "Do not backfill with export tweaks inside this realization; keep checkpoint choice isolated."
+          ],
+          "metric_plan": [
+            "Primary metric: downstream `score_bpb` from `quantized_sliding_window`.",
+            "Secondary metric: pre-quant `val_bpb` at the selected checkpoint, used only to interpret disagreement.",
+            "Tie-breaker: artifact bytes if two checkpoints are downstream-indistinguishable."
+          ],
+          "implementation_notes": [
+            "Prefer checkpoints aligned to existing validation/save cadence so no new runtime primitive is needed.",
+            "Use explicit checkpoint offsets or ids, not scalar threshold tuning, to define the candidate set.",
+            "This realization is the smallest decisive probe for the checkpoint half of the family."
+          ],
+          "composition_tags": [
+            "same_trace",
+            "artifact_selection",
+            "post_train",
+            "checkpoint_selector"
+          ],
+          "incompatible_with": [],
+          "mutate_after_survival": [
+            "expand_late_checkpoint_window",
+            "denser_checkpoint_sampling",
+            "selector_robustness_across_seeds"
+          ],
+          "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json",
+          "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_003_trajectory_003_h3.json",
+          "slot_id": "H01"
+        }
+      ],
+      "control_plan": [
+        "Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.",
+        "Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.",
+        "Never let a pre-quant improvement override a downstream-negative result.",
+        "Reserve 2 slots for exact control repeats of the published default final checkpoint plus default export path.",
+        "Use one shared training trace for every control and novel candidate in the pack.",
+        "Reject any pack materialization that changes tokenizer, architecture, optimizer stack, dataset contract, or training budget.",
+        "Use 2 exact controls with the default final checkpoint and default export path.",
+        "All non-control candidates must differ from control only by checkpoint identity.",
+        "Use the same saved training trace and the same evaluator/export path for every slot."
+      ],
+      "admission_rules": [
+        "Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.",
+        "Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.",
+        "Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.",
+        "Primary admission is downstream delta versus the mean of the 2 controls on `quantized_sliding_window` `score_bpb`.",
+        "A realization is positive only if at least one non-default checkpoint/export pair beats both controls by more than the calibrated control band.",
+        "Do not promote a winner if its advantage appears only in pre-quant `val_bpb` while downstream `score_bpb` is neutral or worse.",
+        "A checkpoint-only realization survives if a non-final late checkpoint beats both controls on downstream `score_bpb` beyond the calibrated control spread.",
+        "If downstream ordering matches control noise and no non-final checkpoint separates, treat this realization as falsified rather than retuning offsets immediately.",
+        "Do not backfill with export tweaks inside this realization; keep checkpoint choice isolated."
+      ],
+      "metric_plan": [
+        "Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.",
+        "Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.",
+        "Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.",
+        "Primary metric: downstream `score_bpb` from `quantized_sliding_window` when present.",
+        "Secondary metric: pre-quant `val_bpb` for diagnosis only.",
+        "Tie-breaker: smaller artifact bytes only after downstream and pre-quant evidence agree.",
+        "Primary metric: downstream `score_bpb` from `quantized_sliding_window`.",
+        "Secondary metric: pre-quant `val_bpb` at the selected checkpoint, used only to interpret disagreement.",
+        "Tie-breaker: artifact bytes if two checkpoints are downstream-indistinguishable."
+      ],
+      "implementation_notes": [
+        "Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.",
+        "Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.",
+        "When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.",
+        "Use only catalog-supported checkpoint loading and export/eval modes already available in the current search harness.",
+        "Keep the checkpoint window bounded and late; do not widen beyond the last few saved checkpoints in this first probe.",
+        "Store candidate descriptors as explicit `(checkpoint_id, export_recipe_id)` pairs so later mutation stays on the searchable object rather than on prose labels.",
+        "Prefer checkpoints aligned to existing validation/save cadence so no new runtime primitive is needed.",
+        "Use explicit checkpoint offsets or ids, not scalar threshold tuning, to define the candidate set.",
+        "This realization is the smallest decisive probe for the checkpoint half of the family."
+      ],
+      "notes": [
+        "Solo packs come before any composition.",
+        "Executable packs should use 6 candidate slots plus 2 controls.",
+        "`trajectory_004/trajectory_004_h1` is the admission law for every executable pack, not a license to mix lanes.",
+        "Blocked families stay out of active packs until their primitive backlog is closed."
+      ],
+      "search_harness_instructions": "Use pg_enigma round 0 pack selector_pack_selector_post_train_001 as the execution contract.\nPack kind: selector_pack\nLane: selector\nPhase window: post_train\n\nCreate exactly these control slots and keep them unpatched:\n- C0\n- C1\n\nCreate candidate slots using these exact slot ids:\n- H00: trajectory_003/trajectory_003_h3 / trajectory_003_h3_r1 (Late-Window Crossed Checkpoint x Export Sweep)\n  family_group: checkpoint_export_selector\n  rationale: Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.\n  instructions: Prepare one selector pack on the frozen `frontier_rebase/pr1394/train_gpt_human.py` base after the control-delta calibration pack has already established the downstream noise band. Materialize one training trace with the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack unchanged. From that single trace, expose a bounded late checkpoint window anchored to the existing harness checkpoint cadence: the default final checkpoint, the immediately previous saved checkpoint, and the second previous saved checkpoint if present. Cross those checkpoints with a fixed export menu already supported by the current harness catalog for this lane: the published default export path plus two non-default catalog export realizations already available to `search_harness` for downstream evaluation on pr1394. Build up to 6 candidate slots from this crossed grid, keeping 2 controls as exact repeats of the published default final-checkpoint/default-export pair. Do not retrain per candidate; all candidates must reuse the same trace and differ only in checkpoint choice and export recipe. Emit per-candidate metadata that records checkpoint identifier, export recipe identifier, downstream `score_bpb`, pre-quant `val_bpb`, and artifact bytes so the pack can be ranked strictly by downstream paired-control delta.\n  composition_tags: same_trace, artifact_selection, post_train, deployment_touchpoint\n  incompatible_with: none\n  mutate_after_survival: expand_late_checkpoint_window, expand_fixed_export_menu, selector_robustness_across_seeds\n- H01: trajectory_003/trajectory_003_h3 / trajectory_003_h3_r2 (Checkpoint-Only Sweep Under Frozen Default Export)\n  family_group: checkpoint_export_selector\n  rationale: Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.\n  instructions: Prepare a selector pack that isolates checkpoint choice while freezing export choice to the published default export path. Run one frozen pr1394 training trace with the published base stack unchanged. Enumerate a bounded late-checkpoint window from that same trace using the checkpoints already emitted by the harness near the end of training. Materialize up to 6 total candidate slots as concrete checkpoint picks from that window, always exported with the same default export recipe used by the published baseline. Keep 2 control slots as exact repeats of the default final checkpoint plus default export pair. The purpose is to falsify the invariant that the last checkpoint is automatically the best downstream artifact even when export stays fixed. Record the full downstream exact-eval result for each checkpoint candidate and keep the pack purely post-train: no per-candidate training edits, no export-method edits, no lane mixing.\n  composition_tags: same_trace, artifact_selection, post_train, checkpoint_selector\n  incompatible_with: none\n  mutate_after_survival: expand_late_checkpoint_window, denser_checkpoint_sampling, selector_robustness_across_seeds\n\nControl principles:\n- Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.\n- Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.\n- Never let a pre-quant improvement override a downstream-negative result.\n- Reserve 2 slots for exact control repeats of the published default final checkpoint plus default export path.\n- Use one shared training trace for every control and novel candidate in the pack.\n- Reject any pack materialization that changes tokenizer, architecture, optimizer stack, dataset contract, or training budget.\n- Use 2 exact controls with the default final checkpoint and default export path.\n- All non-control candidates must differ from control only by checkpoint identity.\n- Use the same saved training trace and the same evaluator/export path for every slot.\n\nAdmission principles:\n- Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.\n- Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.\n- Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.\n- Primary admission is downstream delta versus the mean of the 2 controls on `quantized_sliding_window` `score_bpb`.\n- A realization is positive only if at least one non-default checkpoint/export pair beats both controls by more than the calibrated control band.\n- Do not promote a winner if its advantage appears only in pre-quant `val_bpb` while downstream `score_bpb` is neutral or worse.\n- A checkpoint-only realization survives if a non-final late checkpoint beats both controls on downstream `score_bpb` beyond the calibrated control spread.\n- If downstream ordering matches control noise and no non-final checkpoint separates, treat this realization as falsified rather than retuning offsets immediately.\n- Do not backfill with export tweaks inside this realization; keep checkpoint choice isolated.\n\nMetric principles:\n- Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.\n- Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.\n- Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.\n- Primary metric: downstream `score_bpb` from `quantized_sliding_window` when present.\n- Secondary metric: pre-quant `val_bpb` for diagnosis only.\n- Tie-breaker: smaller artifact bytes only after downstream and pre-quant evidence agree.\n- Primary metric: downstream `score_bpb` from `quantized_sliding_window`.\n- Secondary metric: pre-quant `val_bpb` at the selected checkpoint, used only to interpret disagreement.\n- Tie-breaker: artifact bytes if two checkpoints are downstream-indistinguishable.\n\nImplementation principles:\n- Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.\n- Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.\n- When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.\n- Use only catalog-supported checkpoint loading and export/eval modes already available in the current search harness.\n- Keep the checkpoint window bounded and late; do not widen beyond the last few saved checkpoints in this first probe.\n- Store candidate descriptors as explicit `(checkpoint_id, export_recipe_id)` pairs so later mutation stays on the searchable object rather than on prose labels.\n- Prefer checkpoints aligned to existing validation/save cadence so no new runtime primitive is needed.\n- Use explicit checkpoint offsets or ids, not scalar threshold tuning, to define the candidate set.\n- This realization is the smallest decisive probe for the checkpoint half of the family.\n\nGlobal campaign instruction:\nUse `ncycle/pr1394_enigma_cycle.json` against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base, with `frontier_rebase/pr1394/README.md` and `frontier_rebase/pr1394/submission.json` as the base contract. Execute solo packs first, always with 2 controls and up to 6 candidate slots, judge admission and promotion only on downstream `quantized_sliding_window` `score_bpb`, and record pack-local deltas to paired controls before promoting any family.\n\nHard execution rules:\n- Preserve the requested slot ids exactly so downstream promotion can attribute outcomes.\n- Do not substitute filler candidates if one realization cannot be mapped honestly.\n- Prefer fewer executable candidates over invented or mixed-lane fillers.\n- Treat this as one campaign pack, not a whole-strategy rewrite.\n"
+    },
+    {
+      "pack_id": "selector_pack_selector_post_train_002",
+      "pack_kind": "selector_pack",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "controls_per_pack": 2,
+      "control_slot_ids": [
+        "C0",
+        "C1"
+      ],
+      "candidate_slots": [
+        {
+          "candidate_id": "trajectory_003/trajectory_003_h3",
+          "family_group": "checkpoint_export_selector",
+          "name": "Checkpoint And Export Selector Family",
+          "lane": "selector",
+          "phase_window": "post_train",
+          "pack_kind": "selector_pack",
+          "rationale": "Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.",
+          "realization_id": "trajectory_003_h3_r3",
+          "realization_key": "trajectory_003/trajectory_003_h3/trajectory_003_h3_r3",
+          "title": "Export-Menu Sweep On Frozen Default Checkpoint",
+          "instructions": "Prepare a selector pack that isolates export choice while freezing the checkpoint to the published default final checkpoint from one pr1394 training trace. Use the same frozen base stack and the same final checkpoint across the whole pack. Materialize a bounded export menu consisting of the published default export recipe plus up to 5 non-default export realizations that are already in the current search harness catalog for downstream evaluation on pr1394. Each candidate slot is one explicit export recipe applied to the same final checkpoint. Keep 2 controls as exact repeats of the default final checkpoint/default export pair. Evaluate every exported artifact on the same downstream `quantized_sliding_window` lane and record both downstream `score_bpb` and artifact bytes. The purpose is to falsify the invariant that export is just a passive tail step once the training trace is fixed.",
+          "control_plan": [
+            "Reserve 2 exact control slots using the default final checkpoint and default export recipe.",
+            "Freeze checkpoint identity for every non-control candidate; only export recipe may vary.",
+            "Use the same downstream evaluator configuration for all slots."
+          ],
+          "admission_rules": [
+            "A realization is positive only if a non-default export recipe beats both controls on downstream `score_bpb` beyond the calibrated control band.",
+            "If an export recipe only improves size while downstream `score_bpb` is flat or worse, do not admit it.",
+            "Do not mix in alternate checkpoints inside this realization; keep export choice as the only varying axis."
+          ],
+          "metric_plan": [
+            "Primary metric: downstream `score_bpb` from `quantized_sliding_window`.",
+            "Secondary metric: pre-quant `val_bpb` is expected to stay constant and should be logged mainly as a sanity check.",
+            "Tie-breaker: artifact bytes among downstream-positive exports."
+          ],
+          "implementation_notes": [
+            "Use only export/eval recipes already exposed by the current harness catalog; no new quantization primitive should be invented here.",
+            "Treat each export recipe as an explicit named candidate so later mutation can expand the menu cleanly.",
+            "Because checkpoint is frozen, any downstream win directly supports export-path selection as a first-order object."
+          ],
+          "composition_tags": [
+            "same_trace",
+            "artifact_selection",
+            "post_train",
+            "deployment_touchpoint",
+            "export_selector"
+          ],
+          "incompatible_with": [],
+          "mutate_after_survival": [
+            "expand_fixed_export_menu",
+            "selector_robustness_across_seeds",
+            "checkpoint_export_cross_after_solo_support"
+          ],
+          "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json",
+          "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_003_trajectory_003_h3.json",
+          "slot_id": "H00"
+        }
+      ],
+      "control_plan": [
+        "Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.",
+        "Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.",
+        "Never let a pre-quant improvement override a downstream-negative result.",
+        "Reserve 2 exact control slots using the default final checkpoint and default export recipe.",
+        "Freeze checkpoint identity for every non-control candidate; only export recipe may vary.",
+        "Use the same downstream evaluator configuration for all slots."
+      ],
+      "admission_rules": [
+        "Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.",
+        "Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.",
+        "Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.",
+        "A realization is positive only if a non-default export recipe beats both controls on downstream `score_bpb` beyond the calibrated control band.",
+        "If an export recipe only improves size while downstream `score_bpb` is flat or worse, do not admit it.",
+        "Do not mix in alternate checkpoints inside this realization; keep export choice as the only varying axis."
+      ],
+      "metric_plan": [
+        "Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.",
+        "Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.",
+        "Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.",
+        "Primary metric: downstream `score_bpb` from `quantized_sliding_window`.",
+        "Secondary metric: pre-quant `val_bpb` is expected to stay constant and should be logged mainly as a sanity check.",
+        "Tie-breaker: artifact bytes among downstream-positive exports."
+      ],
+      "implementation_notes": [
+        "Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.",
+        "Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.",
+        "When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.",
+        "Use only export/eval recipes already exposed by the current harness catalog; no new quantization primitive should be invented here.",
+        "Treat each export recipe as an explicit named candidate so later mutation can expand the menu cleanly.",
+        "Because checkpoint is frozen, any downstream win directly supports export-path selection as a first-order object."
+      ],
+      "notes": [
+        "Solo packs come before any composition.",
+        "Executable packs should use 6 candidate slots plus 2 controls.",
+        "`trajectory_004/trajectory_004_h1` is the admission law for every executable pack, not a license to mix lanes.",
+        "Blocked families stay out of active packs until their primitive backlog is closed."
+      ],
+      "search_harness_instructions": "Use pg_enigma round 0 pack selector_pack_selector_post_train_002 as the execution contract.\nPack kind: selector_pack\nLane: selector\nPhase window: post_train\n\nCreate exactly these control slots and keep them unpatched:\n- C0\n- C1\n\nCreate candidate slots using these exact slot ids:\n- H00: trajectory_003/trajectory_003_h3 / trajectory_003_h3_r3 (Export-Menu Sweep On Frozen Default Checkpoint)\n  family_group: checkpoint_export_selector\n  rationale: Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.\n  instructions: Prepare a selector pack that isolates export choice while freezing the checkpoint to the published default final checkpoint from one pr1394 training trace. Use the same frozen base stack and the same final checkpoint across the whole pack. Materialize a bounded export menu consisting of the published default export recipe plus up to 5 non-default export realizations that are already in the current search harness catalog for downstream evaluation on pr1394. Each candidate slot is one explicit export recipe applied to the same final checkpoint. Keep 2 controls as exact repeats of the default final checkpoint/default export pair. Evaluate every exported artifact on the same downstream `quantized_sliding_window` lane and record both downstream `score_bpb` and artifact bytes. The purpose is to falsify the invariant that export is just a passive tail step once the training trace is fixed.\n  composition_tags: same_trace, artifact_selection, post_train, deployment_touchpoint, export_selector\n  incompatible_with: none\n  mutate_after_survival: expand_fixed_export_menu, selector_robustness_across_seeds, checkpoint_export_cross_after_solo_support\n\nControl principles:\n- Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.\n- Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.\n- Never let a pre-quant improvement override a downstream-negative result.\n- Reserve 2 exact control slots using the default final checkpoint and default export recipe.\n- Freeze checkpoint identity for every non-control candidate; only export recipe may vary.\n- Use the same downstream evaluator configuration for all slots.\n\nAdmission principles:\n- Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.\n- Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.\n- Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.\n- A realization is positive only if a non-default export recipe beats both controls on downstream `score_bpb` beyond the calibrated control band.\n- If an export recipe only improves size while downstream `score_bpb` is flat or worse, do not admit it.\n- Do not mix in alternate checkpoints inside this realization; keep export choice as the only varying axis.\n\nMetric principles:\n- Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.\n- Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.\n- Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.\n- Primary metric: downstream `score_bpb` from `quantized_sliding_window`.\n- Secondary metric: pre-quant `val_bpb` is expected to stay constant and should be logged mainly as a sanity check.\n- Tie-breaker: artifact bytes among downstream-positive exports.\n\nImplementation principles:\n- Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.\n- Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.\n- When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.\n- Use only export/eval recipes already exposed by the current harness catalog; no new quantization primitive should be invented here.\n- Treat each export recipe as an explicit named candidate so later mutation can expand the menu cleanly.\n- Because checkpoint is frozen, any downstream win directly supports export-path selection as a first-order object.\n\nGlobal campaign instruction:\nUse `ncycle/pr1394_enigma_cycle.json` against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base, with `frontier_rebase/pr1394/README.md` and `frontier_rebase/pr1394/submission.json` as the base contract. Execute solo packs first, always with 2 controls and up to 6 candidate slots, judge admission and promotion only on downstream `quantized_sliding_window` `score_bpb`, and record pack-local deltas to paired controls before promoting any family.\n\nHard execution rules:\n- Preserve the requested slot ids exactly so downstream promotion can attribute outcomes.\n- Do not substitute filler candidates if one realization cannot be mapped honestly.\n- Prefer fewer executable candidates over invented or mixed-lane fillers.\n- Treat this as one campaign pack, not a whole-strategy rewrite.\n"
+    }
+  ],
+  "deferred_families": [
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h3",
+      "family_group": "recurrence_handoff_program",
+      "reason": "family implementation_mode=needs_new_primitive"
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h4",
+      "family_group": "late_branch_portfolio",
+      "reason": "pack kind pairwise_composition_pack is reserved for later campaign stages"
+    }
+  ]
+}

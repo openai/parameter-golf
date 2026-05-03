@@ -1,0 +1,33 @@
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "slot": "H1",
+  "role": "candidate",
+  "family": "best_checkpoint",
+  "patches": [
+    "best_checkpoint"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage3_1/base_train_gpt.py",
+  "base_sha256": "d80101df9ffcb2d90ea163bd8ca7add6fc504e7856dfa4250589572c1e600d22",
+  "patched_sha256": "3735ae3af9082889afc06ad4a5c164de9b4d31367fd64e3d3c550ec01e7d2bac",
+  "nproc_per_slot": 1,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "family_order": "first-order",
+    "focus": "checkpoint/export discipline",
+    "broken_invariant": "Export should use the terminal state rather than selecting the best late checkpoint under deployment scoring.",
+    "probe": "Best-checkpoint export policy on the frontier-style stage3_1 base.",
+    "matched_control": "C0"
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "MAX_WALLCLOCK_SECONDS": "180"
+  }
+}

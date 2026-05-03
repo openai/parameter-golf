@@ -1,0 +1,26 @@
+{
+  "round": 0,
+  "mode_requested": "auto",
+  "mode_used": "full",
+  "source": "attempt_002",
+  "compare_source": "attempt_001",
+  "model": "gpt-5.4",
+  "reasoning_effort": "xhigh",
+  "prompt_chars": 46381,
+  "candidate_count": 16,
+  "reused_candidate_count": 0,
+  "changed_candidate_count": 16,
+  "keep_ids": [
+    "trajectory_001/trajectory_001_h2",
+    "trajectory_001/trajectory_001_h4",
+    "trajectory_004/trajectory_004_h1"
+  ],
+  "verdict": "PASS",
+  "summary": "A small but credible campaign survives. Three ideas clear the bar after honesty and dedupe checks: `loop_ramp`, `sensitivity_bits`, and `control_delta_admission`. Most other cards are either broader relabelings of those lines, selector/controller/branch ideas that overclaim current pr1394 executability, or blocked abstractions that should stay backlog until the target runner grows the needed primitives.",
+  "validation_error": "",
+  "artifacts": {
+    "prompt": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/debug/pr1394_realworld_diff/prompt.txt",
+    "copilot_raw": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/debug/pr1394_realworld_diff/copilot_raw.txt",
+    "normalized_verification": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/debug/pr1394_realworld_diff/normalized_verification.json"
+  }
+}

@@ -1,0 +1,1 @@
+Read `search_cycles/pgolf_family_search/gen_000/agent/AGENT_INSTRUCTIONS.md` and complete the task fully. Write the required JSON files, run the dry-run command, and leave the generation folder ready to execute.

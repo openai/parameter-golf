@@ -1,0 +1,79 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives.",
+  "dominant_search_level": "reset",
+  "candidate_id": "trajectory_004/trajectory_004_h3",
+  "name": "State-Triggered Recurrence Handoff Program",
+  "family_group": "recurrence_handoff_program",
+  "search_level": "program_family",
+  "lane": "training",
+  "phase_window": "mid",
+  "pack_kind": "mid_training_pack",
+  "implementation_mode": "needs_new_primitive",
+  "compiler_pass_k": 2,
+  "why_keep": "It attacks a concrete invariant in `train_gpt_human.py`: recurrence timing is fixed by `ENABLE_LOOPING_AT` instead of a searched handoff program.",
+  "minimal_probe": "After adding runtime state-conditioned control hooks, run a mid-training pack with 2 controls, one coarse late handoff realization, and one signal-triggered handoff realization, with final judgment on downstream `score_bpb`.",
+  "expected_signal": "A handoff realization shows a cleaner post-transition trajectory and then a downstream `score_bpb` gain beyond control spread at matched wall-clock budget.",
+  "composition_tags": [
+    "state_triggered",
+    "recurrence",
+    "transition_program",
+    "blocked_primitive"
+  ],
+  "incompatible_with": [],
+  "mutate_after_survival": [
+    "trigger_feature_refinement",
+    "handoff_action_variants",
+    "post_handoff_selector_coupling"
+  ],
+  "pack_rationale": "Keep deferred until the primitive exists; when unblocked, it must earn solo support in its own mid-training pack before any composition.",
+  "source_candidate": {
+    "candidate_id": "trajectory_004/trajectory_004_h3",
+    "trajectory_id": "trajectory_004",
+    "hypothesis_id": "trajectory_004_h3",
+    "worldview": "Keep the published pr1394 SP8192/GPTQ-embeddings/depth-recurrence/MuonEq-R/SDClip stack frozen and treat this cycle as a harness-validity search over bounded comparison, selector, and transition programs. Favor families that change the unit of comparison or artifact/transition policy on the real base, and mark stateful controller or branching lines as blocked when the current target script and harness do not yet expose the needed primitives.",
+    "name": "State-Triggered Recurrence Handoff Program",
+    "search_level": "program_family",
+    "lane": "downstream_quantized_sliding_window",
+    "family_group": "recurrence_handoff_program",
+    "implementation_mode": "needs_new_primitive",
+    "mechanism": "Replace the single fixed recurrence schedule with a bounded handoff program: keep the non-looped trunk until cheap training signals indicate stabilization, then enable depth recurrence together with its finisher regime so recurrent compute is allocated only when the base representation is ready.",
+    "consequence_axes": [
+      "compute_allocation",
+      "regime_transition"
+    ],
+    "broken_invariant": "The best way to use recurrence on pr1394 is a fixed wall-clock fraction such as `ENABLE_LOOPING_AT`, rather than a state-triggered transition program.",
+    "not_local_tuning_reason": "This family changes when recurrent compute exists and why the optimizer crosses regimes; it rewrites the training program around a handoff, rather than nudging one schedule scalar.",
+    "measurement_plan": "A real handoff program should show a cleaner post-transition pre-quant slope and then a better downstream sliding-window score at similar wall-clock budget.",
+    "smallest_decisive_probe": "Compare three programs: fixed published recurrence control, late handoff by coarse phase rule, and signal-triggered handoff using cheap observables such as loss slope or update norm. Judge first by post-handoff pre-quant trajectory and finally by downstream `score_bpb`.",
+    "expected_observable": "A real handoff program should show a cleaner post-transition pre-quant slope and then a better downstream sliding-window score at similar wall-clock budget.",
+    "falsifier": "If signal-triggered handoff is indistinguishable from the fixed control within control spread, or it destabilizes immediately after transition, the mechanism is false.",
+    "novelty_vs_history": "This line is different from a bare `ENABLE_LOOPING_AT` sweep because the object of search is the handoff policy itself, matching the repo's recurring controller/handoff abstraction rather than another static threshold pack.",
+    "implementation_basis": "needs_new_primitive",
+    "self_check_summary": "Strong consequence and novelty because it turns static recurrence timing into a transition program. It remains honest by marking the idea blocked until the target script or harness exposes runtime state-conditioned control hooks.",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 5,
+      "falsifiability": 4,
+      "lane_integrity": 4,
+      "implementation_honesty": 5
+    }
+  },
+  "verifier_review": {
+    "candidate_id": "trajectory_004/trajectory_004_h3",
+    "verdict": "KEEP",
+    "consequence_score": 5,
+    "novelty_score": 5,
+    "falsifiability_score": 4,
+    "lane_integrity_score": 4,
+    "implementation_honesty_score": 5,
+    "reasons": [
+      "This is the strongest transition-program family because it attacks a concrete invariant in the target script: fixed recurrence activation timing.",
+      "It moves recurrence from scalar tuning to a true handoff policy.",
+      "The family is honest about needing new runtime state-conditioned control hooks, which makes it a valid deferred keep rather than fake executability."
+    ],
+    "rewrite_instructions": []
+  },
+  "dossier_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_004_trajectory_004_h3.json"
+}

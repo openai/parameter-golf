@@ -1,0 +1,99 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "history_window": 4,
+  "workspace": {
+    "root": "runs"
+  },
+  "prompts": {
+    "explorer": "pg_enigma/explorer_prompt.md",
+    "verifier": "pg_enigma/verifier_prompt.md",
+    "distiller": "pg_enigma/distiller_prompt.md",
+    "compiler": "pg_enigma/compiler_prompt.md",
+    "analyst": "pg_enigma/analyst_prompt.md"
+  },
+  "schemas": {
+    "explorer": "pg_enigma/exploration_slate_schema.json",
+    "verifier": "pg_enigma/verification_report_schema.json",
+    "distiller": "pg_enigma/campaign_schema.json",
+    "compiler": "pg_enigma/family_compile_schema.json",
+    "analyst": "pg_enigma/postmortem_schema.json"
+  },
+  "codex": {
+    "bin": "codex",
+    "model": "gpt-5.4",
+    "reasoning_effort": "high",
+    "models": {
+      "explorer": "gpt-5.4",
+      "verifier": "gpt-5.4",
+      "distiller": "gpt-5.4",
+      "compiler": "gpt-5.4",
+      "analyst": "gpt-5.4"
+    },
+    "profile": null,
+    "sandbox": "workspace-write",
+    "cd": "..",
+    "max_attempts": 2,
+    "full_auto": true,
+    "skip_git_repo_check": true,
+    "extra_args": []
+  },
+  "objective": {
+    "target_script": "frontier_rebase/pr1394/train_gpt_human.py",
+    "goal": "minimize credible val_bpb",
+    "primary_metric": "downstream score_bpb from quantized_sliding_window when present",
+    "secondary_metrics": [
+      "pre-quant val_bpb",
+      "control spread",
+      "artifact size only as a tie-breaker"
+    ],
+    "notes": [
+      "The fixed frontier base is the published pr1394 SP8192/GPTQ/recurrence/MuonEq/SDClip stack.",
+      "This lane exists to test the pg_enigma campaign workflow itself on the real pr1394 target while leaving the previously staged direct harness lane untouched.",
+      "Executable-now families should target the current search_harness catalog honestly; blocked families should stay blocked instead of pretending to be runnable."
+    ]
+  },
+  "exploration": {
+    "trajectories": 4,
+    "families_per_trajectory": 4
+  },
+  "verification": {
+    "min_keep": 2,
+    "min_consequence_score": 4,
+    "min_falsifiability_score": 3,
+    "min_implementation_honesty_score": 3
+  },
+  "compiler": {
+    "realizations_per_family": 3,
+    "min_ready_realizations": 1
+  },
+  "packing": {
+    "controls_per_pack": 2,
+    "max_candidates_per_pack": 6,
+    "max_realizations_per_family_per_pack": 2
+  },
+  "promotion": {
+    "min_positive_realizations": 2,
+    "min_surviving_realizations": 1,
+    "require_directional_support": true
+  },
+  "composition": {
+    "max_pairwise_candidates": 6,
+    "max_hybrid_candidates": 4
+  },
+  "reference_docs": [
+    "findings.md",
+    "search_strategy_catalog.md",
+    "search_strategy_meta_prompt.md",
+    "search_verifier_codex.md",
+    "pg_enigma/self_check_rubric.md",
+    "../frontier_rebase/pr1394/README.md",
+    "../frontier_rebase/pr1394/submission.json"
+  ],
+  "handoff": {
+    "default_search_harness_config": "ncycle/pr1394_enigma_cycle.json",
+    "default_repo_files": [
+      "frontier_rebase/pr1394/README.md",
+      "frontier_rebase/pr1394/submission.json"
+    ]
+  }
+}

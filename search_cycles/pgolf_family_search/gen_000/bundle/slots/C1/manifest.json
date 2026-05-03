@@ -1,0 +1,30 @@
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "slot": "C1",
+  "role": "control",
+  "family": "base_root_repeat",
+  "patches": [],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py",
+  "base_sha256": "c6cae5e767aa0464e8767620f3bbdb08048c99f4b7ae0f0e146dd9b17e68e673",
+  "patched_sha256": "c6cae5e767aa0464e8767620f3bbdb08048c99f4b7ae0f0e146dd9b17e68e673",
+  "nproc_per_slot": 1,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "purpose": "Repeat frozen root control for spread anchoring",
+    "focus_files": [
+      "train_gpt.py"
+    ]
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "MAX_WALLCLOCK_SECONDS": "180"
+  }
+}

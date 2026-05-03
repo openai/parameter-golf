@@ -1,0 +1,528 @@
+{
+  "trajectories": [
+    {
+      "trajectory_id": "trajectory_001",
+      "worldview": "On the fixed pr1394 SP8192/GPTQ/recurrence/MuonEq-R/SDClip base, credible upside is more likely to come from searching explicit transition and selection programs aligned to downstream sliding-window bpb than from mutating local scalars inside an already-strong stack.",
+      "hypotheses": [
+        {
+          "id": "trajectory_001_h1",
+          "candidate_id": "trajectory_001/trajectory_001_h1",
+          "name": "Bootstrap-to-Receiver Handoff Search",
+          "search_level": "program_family",
+          "lane": "training-to-downstream regime transition",
+          "mechanism": "Keep the published pr1394 stack as a shared bootstrap trunk, then switch once into one of several late receiver programs that spend the remaining budget differently for downstream-friendly finishing; the searchable object is the handoff policy, not a patch list.",
+          "broken_invariant": "A single fixed training program should govern all steps on this base.",
+          "consequence_axes": [
+            "regime_transition",
+            "compute_allocation",
+            "artifact_selection"
+          ],
+          "not_local_tuning_reason": "This changes the unit of search from scalar schedule settings to a two-stage executable program with a frozen shared trunk and an explicit late-policy identity.",
+          "measurement_plan": "If real, separation should appear mainly in downstream sliding-window bpb after the handoff region, with pre-quant bpb moving less than the deployed metric.",
+          "smallest_decisive_probe": "Run 2 no-handoff controls plus up to 6 receiver candidates that all share the same bootstrap segment and differ only in receiver identity and handoff policy; require at least 2 positive realizations on downstream sliding-window bpb to survive.",
+          "expected_observable": "If real, separation should appear mainly in downstream sliding-window bpb after the handoff region, with pre-quant bpb moving less than the deployed metric.",
+          "falsifier": "All receiver variants remain inside control spread, or any apparent gain is pre-quant only while downstream sliding-window bpb regresses.",
+          "novelty_vs_history": "This operationalizes the hm2-style transition-program idea on the real SP8192/pr1394 base instead of reverting to static patch packs.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "handoff_receiver",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 5,
+            "implementation_honesty": 4
+          },
+          "self_check_summary": "Passes as a consequential regime-transition family with a crisp control structure; executable claim is plausible but still tied to the existing handoff catalog rather than new machinery."
+        },
+        {
+          "id": "trajectory_001_h2",
+          "candidate_id": "trajectory_001/trajectory_001_h2",
+          "name": "Same-Checkpoint Export Selector Family",
+          "search_level": "program_family",
+          "lane": "artifact selection and deployment path",
+          "mechanism": "Hold training fixed and search a selector over checkpoint or export states from the same run window, choosing deployable artifacts by downstream sliding-window bpb instead of defaulting to one final exported state.",
+          "broken_invariant": "The last trained state is automatically the best deployable artifact.",
+          "consequence_axes": [
+            "artifact_selection",
+            "deployment_path"
+          ],
+          "not_local_tuning_reason": "This changes which artifact definition competes, not a small quantization scalar inside one fixed artifact path.",
+          "measurement_plan": "Downstream sliding-window bpb should move while pre-quant bpb remains almost unchanged, showing that the gain came from artifact choice rather than training dynamics.",
+          "smallest_decisive_probe": "Use 2 controls with the published final-state export rule and up to 6 selector candidates that compare a small checkpoint/export portfolio from otherwise identical training traces.",
+          "expected_observable": "Downstream sliding-window bpb should move while pre-quant bpb remains almost unchanged, showing that the gain came from artifact choice rather than training dynamics.",
+          "falsifier": "Selector candidates show no downstream separation beyond control spread, or only trade bpb for artifact size without improving the primary metric.",
+          "novelty_vs_history": "This isolates the deployment-path question the pr1394 record already highlights, instead of burying export choice inside full retraining changes.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "export_selector",
+          "self_scores": {
+            "consequence": 4,
+            "novelty": 4,
+            "falsifiability": 5,
+            "lane_integrity": 5,
+            "implementation_honesty": 4
+          },
+          "self_check_summary": "Strong artifact-selection family with same-checkpoint controls and a clean observable; honest because it stays inside the deployment lane."
+        },
+        {
+          "id": "trajectory_001_h3",
+          "candidate_id": "trajectory_001/trajectory_001_h3",
+          "name": "Bounded Online Controller Family",
+          "search_level": "program_family",
+          "lane": "state-conditioned training control",
+          "mechanism": "Replace step-only phase changes with a bounded controller that reads cheap online signals such as loss slope, update norm, or step time and emits discrete mode switches like recurrence entry, optimizer stance, or finisher entry.",
+          "broken_invariant": "Global step is sufficient as the only phase variable on pr1394.",
+          "consequence_axes": [
+            "regime_transition",
+            "compute_allocation"
+          ],
+          "not_local_tuning_reason": "The core claim is that the search object should be a closed-loop state-conditioned program; any thresholds only exist inside that new object and are not the object itself.",
+          "measurement_plan": "Controller runs should show repeatable trigger timing differences and a shifted downstream versus pre-quant tradeoff before final ranking.",
+          "smallest_decisive_probe": "Test one minimal controller grammar with 2-3 signals and 3-4 discrete actions against the fixed step-based schedule, with matched controls and trigger-time diagnostics.",
+          "expected_observable": "Controller runs should show repeatable trigger timing differences and a shifted downstream versus pre-quant tradeoff before final ranking.",
+          "falsifier": "Trigger traces collapse to fixed-step behavior, or controller variants fail to separate from controls on downstream sliding-window bpb.",
+          "novelty_vs_history": "This promotes the stranded stage3_2 plus stage3_3 controller idea into the actual unit of search instead of another patch slate.",
+          "implementation_mode": "needs_new_primitive",
+          "implementation_basis": "needs_new_primitive",
+          "family_group": "state_controller",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 5,
+            "falsifiability": 3,
+            "lane_integrity": 4,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Mechanistically strong and distinct, but blocked honestly because the active pr1394 harness does not yet expose a live bounded controller primitive."
+        },
+        {
+          "id": "trajectory_001_h4",
+          "candidate_id": "trajectory_001/trajectory_001_h4",
+          "name": "Downstream-First Lane-Split Admission Reset",
+          "search_level": "reset",
+          "lane": "campaign admission and promotion",
+          "mechanism": "Run this enigma cycle as a strict downstream-first admission process: compare families only on quantized sliding-window bpb when present, keep pre-quant bpb as diagnostic evidence, and require directional downstream support against matched controls before promotion.",
+          "broken_invariant": "A mixed or proxy ranking is good enough even when the real objective is deployed sliding-window bpb.",
+          "consequence_axes": [
+            "search_strategy_reset"
+          ],
+          "not_local_tuning_reason": "This changes the comparison contract for the whole cycle, including what survives and what gets retired; it is not a parameter change inside any family.",
+          "measurement_plan": "Some candidates that look acceptable on pre-quant bpb should be filtered once downstream sliding-window bpb is made primary, yielding cleaner family rankings and fewer false promotions.",
+          "smallest_decisive_probe": "Take 2 controls and up to 6 mixed-family candidates, score them with explicit downstream-first ranking plus separate pre-quant and control-spread readouts, and compare the survivor set against a blended-ranking baseline.",
+          "expected_observable": "Some candidates that look acceptable on pre-quant bpb should be filtered once downstream sliding-window bpb is made primary, yielding cleaner family rankings and fewer false promotions.",
+          "falsifier": "Downstream-first and blended admission choose the same survivors within noise, implying lane mixing is not the harness bottleneck here.",
+          "novelty_vs_history": "This directly attacks the documented stage3 failure mode of single-metric lane mixing, so it tests the campaign harness itself rather than another training diff.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "lane_reset",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 5,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Valid reset-level move with aligned measurement and no fake machinery; it is consequential because it changes the survival law for the whole track."
+        }
+      ],
+      "rejected_lines": [
+        "Standalone retunes of MUON_MOMENTUM_WARMUP_STEPS, ENABLE_LOOPING_AT, or similar scalars are not families; they stay inside an unproven fixed schedule.",
+        "A pure SDClip constant sweep without an explicit selector or deployment-program change is just threshold tuning disguised as a deployment hypothesis.",
+        "Adding more checkpoint logging by itself is instrumentation, not a consequential search family, unless paired with an artifact-selection policy."
+      ]
+    },
+    {
+      "trajectory_id": "trajectory_002",
+      "worldview": "Residual headroom on the fixed pr1394 SP8192/GPTQ/recurrence/MuonEq-R/SDClip base is more likely to come from correcting train-to-deploy contract mismatches and abrupt regime changes than from scalar retunes. This trajectory therefore favors bounded program families that alter recurrence activation, export-state choice, or deployment representation under the real quantized_sliding_window objective.",
+      "hypotheses": [
+        {
+          "id": "trajectory_002_h1",
+          "candidate_id": "trajectory_002/trajectory_002_h1",
+          "name": "Staged Recurrence Activation",
+          "search_level": "program_family",
+          "lane": "regime_transition",
+          "mechanism": "Replace the single enable_looping_at step-function with a staged depth-recurrence program that introduces shared loop repeats progressively, so the model does not absorb the recurrence burden as one abrupt phase change.",
+          "broken_invariant": "The best way to use parameter-shared depth recurrence is a single abrupt off-to-on switch at one training fraction.",
+          "consequence_axes": [
+            "regime_transition",
+            "compute_allocation",
+            "model_contract"
+          ],
+          "not_local_tuning_reason": "The family changes the training program from one fixed topology transition to a multi-stage topology schedule. The exact fractions are secondary; the first-order claim is that recurrence should be introduced as a staged regime, not a one-time event.",
+          "measurement_plan": "Before final eval, the ramped run should show a smoother loss trajectory around the recurrence turn-on window and end with lower pre-quant val_bpb that carries through to quantized_sliding_window.",
+          "smallest_decisive_probe": "Use the catalog loop_ramp family on the fixed pr1394 base and compare abrupt activation controls versus a 0->1->2 repeat ramp with one seed plus two controls.",
+          "expected_observable": "Before final eval, the ramped run should show a smoother loss trajectory around the recurrence turn-on window and end with lower pre-quant val_bpb that carries through to quantized_sliding_window.",
+          "falsifier": "If the ramped run does not beat both controls on score_bpb and shows no improvement around the recurrence activation window relative to the abrupt switch, the staged-transition story is false for this base.",
+          "novelty_vs_history": "Distinct from optimizer retunes and selector lines because it changes when the effective model depth exists during training. It tests the recurrence mechanism itself rather than coefficients around it.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "loop_ramp",
+          "self_scores": {
+            "consequence": 4,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 5,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Kept because it breaks a real false invariant about recurrence activation, has a crisp executable probe in the current catalog, and is judged on the downstream lane it plausibly affects."
+        },
+        {
+          "id": "trajectory_002_h2",
+          "candidate_id": "trajectory_002/trajectory_002_h2",
+          "name": "Multi-EMA Export Selector",
+          "search_level": "program_family",
+          "lane": "artifact_selection",
+          "mechanism": "Maintain multiple candidate late states (raw, base EMA, fast EMA, slow EMA) and select the winning artifact instead of assuming one fixed EMA decay is the right export state for this base.",
+          "broken_invariant": "A single fixed EMA decay is always the correct export-state contract for the pr1394 stack.",
+          "consequence_axes": [
+            "artifact_selection"
+          ],
+          "not_local_tuning_reason": "This is not 'tune EMA decay'. It changes the artifact-selection contract from one precommitted averaging path to a bounded selector over multiple late-state candidates.",
+          "measurement_plan": "Candidate states should separate late in training, and the selected branch should improve downstream score_bpb over the default EMA export even when the training path is otherwise unchanged.",
+          "smallest_decisive_probe": "Use the catalog ema_selector family and choose among raw, EMA, fast EMA, and slow EMA by final pre-quant val_bpb on the same training run.",
+          "expected_observable": "Candidate states should separate late in training, and the selected branch should improve downstream score_bpb over the default EMA export even when the training path is otherwise unchanged.",
+          "falsifier": "If all candidate states cluster within control spread and the chosen branch does not improve quantized_sliding_window, then export-state choice is not the bottleneck here.",
+          "novelty_vs_history": "This is the clearest anti-dominant lane in the pack: it attacks artifact choice rather than training dynamics. It is distinct from quantization families because the training run stays fixed while only the export-state chooser changes.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "ema_selector",
+          "self_scores": {
+            "consequence": 4,
+            "novelty": 4,
+            "falsifiability": 5,
+            "lane_integrity": 5,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Kept because the mechanism is first-order, the probe is especially clean on a fixed base, and the lane matches the deployment-facing metric contract."
+        },
+        {
+          "id": "trajectory_002_h3",
+          "candidate_id": "trajectory_002/trajectory_002_h3",
+          "name": "Late Quantization-Envelope Internalization",
+          "search_level": "program_family",
+          "lane": "deployment_internalization",
+          "mechanism": "During late training, gradually project weights toward the row-wise clip envelope implied by the final GPTQ export, so the deployed model is no longer forced to absorb the full train-to-quantization mismatch only at serialization time.",
+          "broken_invariant": "End-of-run GPTQ plus SDClip can absorb deployment distortion without any training-time pressure toward the eventual clip envelope.",
+          "consequence_axes": [
+            "deployment_path",
+            "regime_transition"
+          ],
+          "not_local_tuning_reason": "The core move is to internalize a deployment constraint into training. The anneal parameters are just one realization of a broader family where late training is explicitly shaped by the export path.",
+          "measurement_plan": "The pre-quant score may move modestly, but the stronger signature is a reduced degradation or improved translation into the final quantized_sliding_window score.",
+          "smallest_decisive_probe": "Use the catalog quant_clip_anneal family with late-only clip-envelope pressure and compare the gap between pre-quant val_bpb and quantized_sliding_window against controls.",
+          "expected_observable": "The pre-quant score may move modestly, but the stronger signature is a reduced degradation or improved translation into the final quantized_sliding_window score.",
+          "falsifier": "If the train-to-deploy gap does not shrink, or if downstream score_bpb worsens despite comparable pre-quant behavior, then deployment-envelope internalization is not helping this stack.",
+          "novelty_vs_history": "Distinct from selector search because it changes the training objective path, and distinct from sensitivity_bits because it shapes the weight distribution before export rather than reallocating bits at export.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "quant_clip_anneal",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 5,
+            "falsifiability": 4,
+            "lane_integrity": 4,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Kept because it directly targets the primary metric's deployment bottleneck with an honest executable family, even though the exact late-training signal is somewhat noisier than selector probes."
+        },
+        {
+          "id": "trajectory_002_h4",
+          "candidate_id": "trajectory_002/trajectory_002_h4",
+          "name": "Sensitivity-Allocated Matrix Bit Budget",
+          "search_level": "program_family",
+          "lane": "deployment_representation",
+          "mechanism": "Replace uniform int6 matrix quantization with a bounded bit-allocation program that promotes the most Hessian-sensitive matrices and demotes the least sensitive ones while staying inside the same artifact budget class.",
+          "broken_invariant": "Uniform matrix bitwidth is close enough to optimal that per-matrix sensitivity should not matter on the published pr1394 base.",
+          "consequence_axes": [
+            "deployment_path",
+            "representation_contract"
+          ],
+          "not_local_tuning_reason": "This is not a bitwidth nudge. It changes the deployment representation contract from homogeneous precision to sensitivity-conditioned heterogeneous precision under a fixed budget.",
+          "measurement_plan": "The winning signature is improved quantized_sliding_window score at essentially unchanged bytes_total, with recurring sensitivity winners rather than random matrix assignments.",
+          "smallest_decisive_probe": "Use the catalog sensitivity_bits family to promote top-sensitive matrices to int7 and demote low-sensitive matrices to int5 while keeping the rest at int6.",
+          "expected_observable": "The winning signature is improved quantized_sliding_window score at essentially unchanged bytes_total, with recurring sensitivity winners rather than random matrix assignments.",
+          "falsifier": "If mixed allocation does not beat uniform int6 at similar artifact size, or if the chosen high/low sensitivity sets do not show directional consistency, the representation-allocation story is false.",
+          "novelty_vs_history": "Distinct from SDClip or GPTQ tuning because it changes where precision lives, not how one global quantizer is parameterized. It is also orthogonal to train-time recurrence and selector stories.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "sensitivity_bits",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 5,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Kept because it changes a first-order deployment contract, is directly aligned with the downstream objective, and already exists as an honest executable family in the current catalog."
+        }
+      ],
+      "rejected_lines": [
+        "skip_gate_schedule: executable, but the current realization is too close to a single-bias anneal around an already-active mechanism; for round-0 ontology search it risks collapsing into a gating retune rather than a new first-order family.",
+        "phase_split_optim: consequential in principle, but the available implementation is mostly LR and weight-decay multipliers around loop activation, so it reads as within-family exploitation before this harness has established which larger mechanism class is real."
+      ]
+    },
+    {
+      "trajectory_id": "trajectory_003",
+      "worldview": "The pr1394 SP8192/GPTQ/recurrence/MuonEq-R/SDClip stack is already a strong fixed base, so pg_enigma should be tested by asking whether its promised search units actually add signal on that base: lane-correct selector search, shared-trunk branching, bounded transition programs, and reset logic when controls fail. The likely wins are not scalar retunes but changes in what object the harness compares and when it stops pretending noisy results are search progress.",
+      "hypotheses": [
+        {
+          "id": "h1",
+          "candidate_id": "trajectory_003/h1",
+          "name": "Frozen-Trunk Downstream Selector Lane",
+          "search_level": "metric_lane",
+          "lane": "downstream_selector_lane",
+          "mechanism": "Hold training fixed on the published pr1394 base and search the artifact-selection/deployment lane directly: compare multiple late checkpoints and export states from the same trunk using quantized_sliding_window, instead of assuming the final training state is the right downstream artifact.",
+          "broken_invariant": "The best downstream sliding-window result comes from the final step of the best pre-quant training run.",
+          "consequence_axes": [
+            "artifact_selection",
+            "deployment_path"
+          ],
+          "not_local_tuning_reason": "This changes the unit of comparison from 'best training run' to 'best deployable artifact from a fixed run.' It is a lane split and selector family, not a threshold sweep inside one training schedule.",
+          "measurement_plan": "Within-run downstream score_bpb reorders checkpoints even when pre-quant val_bpb is nearly flat, showing selector signal larger than control spread.",
+          "smallest_decisive_probe": "Run the frozen pr1394 control trunk once per seed, export 3 late checkpoints plus the usual final checkpoint, and rank only by quantized_sliding_window score_bpb with two repeated base controls.",
+          "expected_observable": "Within-run downstream score_bpb reorders checkpoints even when pre-quant val_bpb is nearly flat, showing selector signal larger than control spread.",
+          "falsifier": "If late-checkpoint/export bakeoffs never beat the final-step export beyond control spread and preserve the same ranking as pre-quant val_bpb, the selector lane is not the main lever.",
+          "novelty_vs_history": "Distinct from prior patch-slate search because it isolates the deployment/selector bottleneck that findings.md says is currently mixed into training-side comparisons.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "checkpoint_export_selector",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 4,
+            "falsifiability": 5,
+            "lane_integrity": 5,
+            "implementation_honesty": 4
+          },
+          "self_check_summary": "Consequential because it changes the metric lane and winner object; falsifiable with a same-trunk bakeoff; implementation is plausible now if export-only comparisons already exist in the harness catalog."
+        },
+        {
+          "id": "h2",
+          "candidate_id": "trajectory_003/h2",
+          "name": "Shared-Trunk Late Finisher Portfolio",
+          "search_level": "composition",
+          "lane": "late_portfolio_lane",
+          "mechanism": "Train a shared pr1394 trunk, then branch the final segment into a small late-finisher portfolio with distinct causal roles such as loss-preserving, quantization-friendly, and stability-preserving endings, and select after downstream evaluation.",
+          "broken_invariant": "A single linear late schedule must optimize both representation fitting and deployable quantized quality.",
+          "consequence_axes": [
+            "compute_allocation",
+            "regime_transition",
+            "artifact_selection",
+            "deployment_path"
+          ],
+          "not_local_tuning_reason": "This changes the compute contract from one terminal continuation to a portfolio built from a shared trunk. The mechanism is branching plus selection, not a local retune of warmdown or LR.",
+          "measurement_plan": "At least one branch loses slightly on pre-quant val_bpb yet wins on downstream sliding-window score_bpb, proving late-path specialization matters.",
+          "smallest_decisive_probe": "Use one shared trunk to a fixed branch point, launch three late finishers plus one repeated direct-finish control, then compare downstream score_bpb and control spread under the same base contract.",
+          "expected_observable": "At least one branch loses slightly on pre-quant val_bpb yet wins on downstream sliding-window score_bpb, proving late-path specialization matters.",
+          "falsifier": "If all late finishers collapse to the same downstream ranking as the direct-finish control, or branch variance is smaller than control noise, the portfolio family is not real.",
+          "novelty_vs_history": "Different from pure selector search because the artifact differences are created by purposeful late compute reallocation rather than just choosing among passive checkpoints.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "shared_trunk_finishers",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 5,
+            "implementation_honesty": 4
+          },
+          "self_check_summary": "Consequential because it changes late compute allocation and artifact selection together; it remains lane-clean because the family is judged on downstream deployment metrics, not mixed training folklore."
+        },
+        {
+          "id": "h3",
+          "candidate_id": "trajectory_003/h3",
+          "name": "State-Conditioned Transition Program",
+          "search_level": "program_family",
+          "lane": "transition_controller_lane",
+          "mechanism": "Replace fixed step-fraction transitions with a bounded controller that triggers recurrence enablement, warmdown entry, and optimizer/handoff changes from live training state such as loss slope, update norm, or stability signals.",
+          "broken_invariant": "The pr1394 stack's critical regime changes should happen at fixed percentages of training rather than when the run's state indicates the representation has entered a new phase.",
+          "consequence_axes": [
+            "regime_transition",
+            "compute_allocation",
+            "model_contract"
+          ],
+          "not_local_tuning_reason": "The claim is not that a better ENABLE_LOOPING_AT scalar exists. The claim is that the searchable object should be a small state-conditioned program controlling multiple transitions across the run.",
+          "measurement_plan": "Controller-trigger times differ across seeds or runs while producing tighter downstream score_bpb than any single static transition schedule, indicating real state dependence.",
+          "smallest_decisive_probe": "Implement a minimal controller with 2-3 bounded signals and 2-3 actions over loop enablement and late-phase handoff, then compare against matched fixed-schedule controls on the frozen base.",
+          "expected_observable": "Controller-trigger times differ across seeds or runs while producing tighter downstream score_bpb than any single static transition schedule, indicating real state dependence.",
+          "falsifier": "If the learned triggers consistently collapse to near-constant step fractions and do not beat fixed controls beyond spread, the controller story is false on pr1394.",
+          "novelty_vs_history": "This directly operationalizes the main finding that the repo's recurring useful abstraction is small state-conditioned programs rather than static patch packs.",
+          "implementation_mode": "needs_new_primitive",
+          "implementation_basis": "needs_new_primitive",
+          "family_group": "bounded_transition_controller",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 5,
+            "falsifiability": 4,
+            "lane_integrity": 4,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "High consequence and novelty because it changes the unit of search itself. Marked blocked honestly because the decisive version needs online signals that findings.md says are not yet integrated into the active harness."
+        },
+        {
+          "id": "h4",
+          "candidate_id": "trajectory_003/h4",
+          "name": "Control-Integrity Reset Gate",
+          "search_level": "reset",
+          "lane": "harness_reset_lane",
+          "mechanism": "Treat early pg_enigma packs on pr1394 as a harness-verification cycle first: if repeated base controls and same-lane selector controls fail to reproduce a tight downstream band, the campaign should reset to instrumentation repair rather than mutate more families.",
+          "broken_invariant": "Flat or contradictory results always mean the hypotheses are bad; on this target they may instead mean the harness is drifting configs, mixing lanes, or measuring the wrong artifact.",
+          "consequence_axes": [
+            "search_strategy_reset"
+          ],
+          "not_local_tuning_reason": "This changes the campaign's promotion and retirement logic for the whole cycle. It decides whether family search is even valid, which is a search-strategy move, not a local parameter change.",
+          "measurement_plan": "Either controls reproduce the published narrow-band behavior and enable honest family search, or instability appears immediately and prevents false learning from noisy candidates.",
+          "smallest_decisive_probe": "First pack reserves two repeated published-base controls and two selector-lane controls; if downstream spread or missing-lane measurements make family comparisons untrustworthy, stop mutation and open a harness repair branch.",
+          "expected_observable": "Either controls reproduce the published narrow-band behavior and enable honest family search, or instability appears immediately and prevents false learning from noisy candidates.",
+          "falsifier": "If controls are stable and lane-complete from pack one, and family comparisons remain interpretable, the reset gate adds little and should not dominate the cycle.",
+          "novelty_vs_history": "Distinct from model-facing ideas because it attacks the specific failure mode called out in findings.md: stale config drift, lane mixing, and orchestration errors masquerading as search evidence.",
+          "implementation_mode": "needs_new_primitive",
+          "implementation_basis": "needs_new_primitive",
+          "family_group": "control_integrity_reset",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 5,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Consequential because it changes the search strategy level and protects the evidence contract. Honest blocking call because automatic reset logic is not the same as merely running extra controls."
+        }
+      ],
+      "rejected_lines": [
+        "Sweep single values of ENABLE_LOOPING_AT, WARMDOWN_FRAC, or MUON_MOMENTUM_WARMUP_STEPS; those are within-family scalar retunes, not consequential families.",
+        "Retune the SDClip row-std multiplier alone; without a broader export/selector or deployment-family story this is just local quantization tuning.",
+        "Do a vocab/tokenizer change inside this cycle; that is a real base-contract move, but it violates the frozen pr1394 comparison base for this harness-validation round.",
+        "Search isolated LR scalars for embeddings/head/matrix groups; that launders optimizer retuning into a hypothesis without changing the unit of search."
+      ]
+    },
+    {
+      "trajectory_id": "trajectory_004",
+      "worldview": "The real pr1394 base should be treated as frozen; the highest-value search move is to test whether the remaining gain lives at the recurrence/deployment transition boundary rather than in another base change. This trajectory therefore keeps to executable-now families from `parameter-golf/pr1394_catalog` and favors families that change regime boundaries, artifact selection, or deployment allocation on `frontier_rebase/pr1394/train_gpt_human.py`.",
+      "hypotheses": [
+        {
+          "id": "trajectory_004_h1",
+          "candidate_id": "trajectory_004/trajectory_004_h1",
+          "name": "Progressive Loop Ramp Instead Of One-Shot Recurrence Enable",
+          "search_level": "program_family",
+          "lane": "training-side regime transition on the fixed pr1394 base",
+          "mechanism": "Replace the single `ENABLE_LOOPING_AT` switch with a staged recurrence ramp that moves from zero extra loop repeats, to partial repeats, to full repeats as training fraction advances, so the shared looped layers are introduced as a curriculum rather than as an abrupt contract change.",
+          "broken_invariant": "If depth recurrence is good, it should be turned on in one shot at a fixed point rather than phased in as compute and representation ramp.",
+          "consequence_axes": [
+            "compute_allocation",
+            "regime_transition",
+            "model_contract"
+          ],
+          "not_local_tuning_reason": "This changes the program family from static recurrence activation to a staged compute-and-representation contract. The searchable object is the recurrence schedule shape, not a scalar threshold nudge inside the published stack.",
+          "measurement_plan": "Training should show a smoother loss transition around the current loop-enable region, with similar or slightly better pre-quant val_bpb and a cleaner downstream `score_bpb` if abrupt recurrence onset was causing late instability.",
+          "smallest_decisive_probe": "Run one `loop_ramp` candidate against two frozen controls, with an early partial-repeat stage and a later full-repeat stage, and judge on `score_bpb` plus pre-quant val_bpb to see whether the ramp reduces the recurrence-onset penalty without widening control spread.",
+          "expected_observable": "Training should show a smoother loss transition around the current loop-enable region, with similar or slightly better pre-quant val_bpb and a cleaner downstream `score_bpb` if abrupt recurrence onset was causing late instability.",
+          "falsifier": "No improvement over controls in downstream `score_bpb`, or an equivalent/slightly better pre-quant curve paired with worse sliding-window score, would falsify the claim that recurrence needs staged activation.",
+          "novelty_vs_history": "Distinct from the published pr1394 base because it changes how recurrence enters training rather than changing recurrence depth itself; distinct from static patch packs because the mechanism is a runtime regime program.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "loop_ramp",
+          "self_scores": {
+            "consequence": 5,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 5,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Consequential because it rewrites the recurrence activation contract; falsifiable with one family-vs-control pack; executable now in the real-base catalog."
+        },
+        {
+          "id": "trajectory_004_h2",
+          "candidate_id": "trajectory_004/trajectory_004_h2",
+          "name": "Loop-Aware Optimizer Phase Split",
+          "search_level": "program_family",
+          "lane": "training-side regime transition tied to recurrence onset",
+          "mechanism": "When looping is active, rescale matrix, scalar, token, and head learning rates and Muon weight decay by family, treating the looped regime as a different optimization phase instead of assuming the pre-loop optimizer mix remains valid.",
+          "broken_invariant": "The same optimizer family proportions that work before recurrence turns on should remain correct after the model starts spending extra compute in the looped segment.",
+          "consequence_axes": [
+            "compute_allocation",
+            "regime_transition"
+          ],
+          "not_local_tuning_reason": "This is not a single LR retune. It changes the training program to a phase-split optimizer family contract keyed off a regime boundary, reallocating update budget across tensor families when the model contract changes.",
+          "measurement_plan": "If the loop-active regime is mis-optimized today, the late phase should show better stability or better retained quality after quantized evaluation, even if early-run metrics are nearly unchanged.",
+          "smallest_decisive_probe": "Run one `phase_split_optim` candidate with nontrivial family-specific rescaling during the loop-active phase against matched controls, and inspect whether downstream `score_bpb` improves without needing a better raw pre-quant trajectory throughout the whole run.",
+          "expected_observable": "If the loop-active regime is mis-optimized today, the late phase should show better stability or better retained quality after quantized evaluation, even if early-run metrics are nearly unchanged.",
+          "falsifier": "If family-specific rescaling during loop-active steps gives no downstream lift and no sign of improved late-phase behavior versus controls, the hypothesis that recurrence creates a separate optimizer regime is weak.",
+          "novelty_vs_history": "Distinct from `loop_ramp`: this does not alter when recurrence appears, only how optimization budget is redistributed once the recurrent regime exists. It breaks a different invariant from static optimizer stacks.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "phase_split_optim",
+          "self_scores": {
+            "consequence": 4,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 4,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Consequential because it changes optimizer allocation across a regime boundary; still honest because the family already exists in the pr1394 catalog."
+        },
+        {
+          "id": "trajectory_004_h3",
+          "candidate_id": "trajectory_004/trajectory_004_h3",
+          "name": "EMA Portfolio Selection On The True Score Lane",
+          "search_level": "program_family",
+          "lane": "artifact selection for downstream score_bpb",
+          "mechanism": "Evaluate raw, EMA, and optional fast/slow EMA export states and explicitly select the best artifact by validation bpb on the fixed base, instead of assuming the final raw state or a single EMA decay is universally correct.",
+          "broken_invariant": "There is one obvious final export state for pr1394, so selector logic should not itself be a search family.",
+          "consequence_axes": [
+            "artifact_selection"
+          ],
+          "not_local_tuning_reason": "This changes the searchable object from 'train one path and export the terminal state' to 'train one path and search over export-state selectors.' That is a first-order artifact-selection family, not an EMA scalar retune.",
+          "measurement_plan": "Pre-quant training metrics may look almost unchanged, but one held state should beat the terminal raw export on the quantized sliding-window metric if the current artifact selector is leaving quality on the table.",
+          "smallest_decisive_probe": "Run one `ema_selector` candidate that compares raw, EMA, and multi-timescale EMA states on the same training trajectory and asks whether selector choice alone moves `score_bpb` beyond control spread.",
+          "expected_observable": "Pre-quant training metrics may look almost unchanged, but one held state should beat the terminal raw export on the quantized sliding-window metric if the current artifact selector is leaving quality on the table.",
+          "falsifier": "If the chosen selector state is never meaningfully better than raw and cannot clear control spread on `score_bpb`, then artifact selection is not the missing degree of freedom here.",
+          "novelty_vs_history": "Distinct from the published base because it attacks the winner-selection contract, not the training stack; distinct from checkpoint-selection stories because it stays within one run and searches EMA state families rather than step index alone.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "ema_selector",
+          "self_scores": {
+            "consequence": 4,
+            "novelty": 4,
+            "falsifiability": 5,
+            "lane_integrity": 5,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Very lane-aligned: it directly targets artifact selection on the metric that matters, with a crisp same-run falsifier and no hidden missing machinery."
+        },
+        {
+          "id": "trajectory_004_h4",
+          "candidate_id": "trajectory_004/trajectory_004_h4",
+          "name": "Sensitivity-Aware Mixed Bit Allocation",
+          "search_level": "program_family",
+          "lane": "deployment path under the fixed 16 MB contract",
+          "mechanism": "Use Hessian-derived sensitivity ranking to assign higher bitwidth to the most sensitive matrices and lower bitwidth to the least sensitive ones, replacing uniform matrix quantization with a bounded deployment allocation policy.",
+          "broken_invariant": "All non-embedding matrices should share one quantization bitwidth because the export budget is too tight for per-matrix specialization to matter.",
+          "consequence_axes": [
+            "deployment_path"
+          ],
+          "not_local_tuning_reason": "This is not a bitwidth sweep. It changes the deployment program from uniform quantization to sensitivity-conditioned resource allocation across matrices, which is a different compression family.",
+          "measurement_plan": "Pre-quant val_bpb should remain identical, while post-quant and sliding-window score improve if uniform bit allocation is mis-spending the artifact budget.",
+          "smallest_decisive_probe": "Run one `sensitivity_bits` candidate that promotes a small top-k set of matrices to higher bits and demotes a small bottom-k set, while holding the overall base and evaluation lane fixed, and compare downstream `score_bpb` against the uniform-bit controls.",
+          "expected_observable": "Pre-quant val_bpb should remain identical, while post-quant and sliding-window score improve if uniform bit allocation is mis-spending the artifact budget.",
+          "falsifier": "If mixed sensitivity-based allocation does not beat uniform quantization on downstream `score_bpb`, or wins only by inflating artifact size beyond the intended contract, the mechanism fails.",
+          "novelty_vs_history": "Distinct from SDClip-style clip tuning because it reallocates discrete deployment precision across tensors rather than changing one shared quantizer shape; distinct from training families because it acts only on export.",
+          "implementation_mode": "catalog_executable_now",
+          "implementation_basis": "catalog_executable_now",
+          "family_group": "sensitivity_bits",
+          "self_scores": {
+            "consequence": 4,
+            "novelty": 4,
+            "falsifiability": 4,
+            "lane_integrity": 5,
+            "implementation_honesty": 5
+          },
+          "self_check_summary": "Consequential because it changes the deployment allocation rule itself; cleanly falsifiable on the downstream lane; honestly executable now."
+        }
+      ],
+      "rejected_lines": [
+        "skip_gate_schedule: the broad story is plausible, but the current executable form collapses to a global skip-gate bias schedule and reads too much like a scalar routing-shape tweak for this trajectory.",
+        "quant_clip_anneal: interesting train-time internalization of export pressure, but within this worldview it is too adjacent to `sensitivity_bits` on the same deployment lane and is weaker as a first admission family than the cleaner mixed-bit allocation story."
+      ]
+    }
+  ]
+}

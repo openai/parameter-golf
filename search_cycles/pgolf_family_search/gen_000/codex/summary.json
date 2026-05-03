@@ -1,0 +1,7 @@
+{
+  "status": "failed",
+  "attempts_used": 6,
+  "generation": 0,
+  "last_error": "'admission_policy'",
+  "resumed": true
+}

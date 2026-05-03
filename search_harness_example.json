@@ -1,0 +1,89 @@
+{
+  "cycle_id": "example_cycle",
+  "history_window": 3,
+  "max_generations": 3,
+  "gpu_pool": ["0", "1", "2", "3", "4", "5", "6", "7"],
+  "workspace": {
+    "root": "search_cycles",
+    "sync_mode": "bundle"
+  },
+  "prompts": {
+    "generator": "search_reset_agent_prompt.md",
+    "verifier": "search_verifier_codex.md",
+    "compiler": null
+  },
+  "base": {
+    "default_base_script": "train_gpt.py",
+    "default_patch_module": null,
+    "default_entrypoint": "python3 {script}",
+    "defaults": {
+      "PYTHONUNBUFFERED": "1"
+    }
+  },
+  "codex": {
+    "bin": "codex",
+    "model": null,
+    "reasoning_effort": null,
+    "profile": null,
+    "sandbox": "workspace-write",
+    "cd": ".",
+    "catalog_root": ".",
+    "max_attempts": 4,
+    "compiled_schema": "search_harness_compiled_generation_schema.json",
+    "verifier_schema": "search_harness_verifier_report_schema.json",
+    "full_auto": true,
+    "skip_git_repo_check": true,
+    "extra_args": []
+  },
+  "admission": {
+    "mode": "survival",
+    "require_single_base": true,
+    "require_unique_family_groups": true,
+    "require_predicate_audit": true,
+    "freeze_env_keys": [
+      "DATA_PATH",
+      "TOKENIZER_PATH",
+      "VOCAB_SIZE"
+    ],
+    "fixed_base_script": null,
+    "min_candidate_slots": 1,
+    "max_candidate_slots": 6
+  },
+  "hooks": {
+    "generator": {
+      "command": null,
+      "cwd": ".",
+      "env": {}
+    },
+    "verifier": {
+      "command": null,
+      "cwd": ".",
+      "env": {}
+    },
+    "compiler": {
+      "command": null,
+      "cwd": ".",
+      "env": {}
+    },
+    "extractor": {
+      "command": null,
+      "cwd": ".",
+      "env": {}
+    }
+  },
+  "selection": {
+    "pass_verdicts": ["PASS", "PASS_WITH_WARNINGS"],
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": ["C0", "C1"],
+    "max_control_spread": 0.02,
+    "top_k": 2
+  },
+  "remote": {
+    "enabled": false,
+    "ssh_target": "user@host",
+    "rsync_target": "user@host:/remote/search_cycles/example_cycle",
+    "remote_python": "python3",
+    "pre_command": "source ~/venv/bin/activate"
+  }
+}

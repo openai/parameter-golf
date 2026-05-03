@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "candidate_id",
+    "family_group",
+    "lane",
+    "phase_window",
+    "pack_kind",
+    "verdict",
+    "summary",
+    "compiler_pass_k",
+    "realizations",
+    "dropped_realizations"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "candidate_id": { "type": "string" },
+    "family_group": { "type": "string" },
+    "lane": { "type": "string" },
+    "phase_window": { "type": "string" },
+    "pack_kind": {
+      "type": "string",
+      "enum": [
+        "base_frontier_pack",
+        "early_training_pack",
+        "mid_training_pack",
+        "late_training_pack",
+        "selector_pack",
+        "deployment_pack",
+        "pairwise_composition_pack",
+        "hybrid_pack"
+      ]
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["READY", "RETRY", "FAIL"]
+    },
+    "summary": { "type": "string" },
+    "compiler_pass_k": { "type": "integer", "minimum": 1 },
+    "realizations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "realization_id",
+          "title",
+          "mechanism_preservation",
+          "implementation_target",
+          "lane",
+          "phase_window",
+          "pack_kind",
+          "instructions",
+          "control_plan",
+          "admission_rules",
+          "metric_plan",
+          "implementation_notes",
+          "composition_tags",
+          "incompatible_with",
+          "mutate_after_survival"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "realization_id": { "type": "string" },
+          "title": { "type": "string" },
+          "mechanism_preservation": { "type": "string" },
+          "implementation_target": {
+            "type": "string",
+            "enum": [
+              "current_search_harness_catalog",
+              "needs_new_primitive",
+              "needs_new_base_cycle"
+            ]
+          },
+          "lane": { "type": "string" },
+          "phase_window": { "type": "string" },
+          "pack_kind": {
+            "type": "string",
+            "enum": [
+              "base_frontier_pack",
+              "early_training_pack",
+              "mid_training_pack",
+              "late_training_pack",
+              "selector_pack",
+              "deployment_pack",
+              "pairwise_composition_pack",
+              "hybrid_pack"
+            ]
+          },
+          "instructions": { "type": "string" },
+          "control_plan": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "admission_rules": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "metric_plan": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "implementation_notes": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "composition_tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "incompatible_with": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "mutate_after_survival": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "dropped_realizations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

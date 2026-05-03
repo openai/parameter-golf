@@ -1,0 +1,12 @@
+{
+  "verdict": "PASS_WITH_WARNINGS",
+  "summary": "The generation pack is executable and now fills the 8-GPU budget with two unpatched controls plus six first-order candidates. Because the executable catalog does not provide six aligned state-conditioned families on one frozen base, the nearest runnable pack spans multiple stage bases while keeping every candidate first-order and catalog-backed.",
+  "errors": [],
+  "warnings": [
+    "This full-8-slot pack mixes executable bases across hm2, stage3_1, stage3_2, stage3_3, stage3_4, and stage3_5 because the catalog lacks six state-conditioned first-order families on one frozen base.",
+    "H2 intentionally overrides tokenizer/data env to the stage3_2 SP8192 base, while the controls and most other candidates inherit the cycle's SP1024 defaults."
+  ],
+  "fixes": [
+    "If you want strict base-freeze family admission, split this into separate per-base generations instead of one 8-slot mixed-base sweep."
+  ]
+}

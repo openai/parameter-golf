@@ -1,0 +1,7 @@
+{
+  "verdict": "PASS",
+  "summary": "The generation pack is executable: it preserves two unpatched controls, admits one first-order executable `state_controller` candidate from the catalog, and keeps selection aligned with the requested state-conditioned-control focus.",
+  "errors": [],
+  "warnings": [],
+  "fixes": []
+}

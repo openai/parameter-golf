@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["verdict", "summary", "errors", "warnings", "fixes"],
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["PASS", "PASS_WITH_WARNINGS", "RETRY", "FAIL"]
+    },
+    "summary": { "type": "string" },
+    "errors": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fixes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

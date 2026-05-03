@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "verdict",
+    "summary",
+    "global_errors",
+    "global_warnings",
+    "feedback_to_generator",
+    "family_reviews",
+    "keep_ids"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["PASS", "RETRY", "FAIL"]
+    },
+    "summary": { "type": "string" },
+    "global_errors": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "global_warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "feedback_to_generator": { "type": "string" },
+    "family_reviews": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "verdict",
+          "consequence_score",
+          "novelty_score",
+          "falsifiability_score",
+          "lane_integrity_score",
+          "implementation_honesty_score",
+          "reasons",
+          "rewrite_instructions"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "verdict": {
+            "type": "string",
+            "enum": ["KEEP", "REWRITE", "DROP"]
+          },
+          "consequence_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "novelty_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "falsifiability_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "lane_integrity_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "implementation_honesty_score": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "reasons": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "rewrite_instructions": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "keep_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

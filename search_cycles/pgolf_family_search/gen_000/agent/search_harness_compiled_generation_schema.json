@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["slots", "selection"],
+  "additionalProperties": true,
+  "properties": {
+    "slots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["slot", "role", "family"],
+        "additionalProperties": true,
+        "properties": {
+          "slot": { "type": "string" },
+          "role": { "type": "string", "enum": ["control", "candidate"] },
+          "family": { "type": "string" },
+          "base_script": { "type": "string" },
+          "patch_module": { "type": ["string", "null"] },
+          "patches": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "metric_path": { "type": "string" },
+          "selector_metric_path": { "type": "string" },
+          "entrypoint": { "type": "string" },
+          "nproc_per_slot": { "type": "integer", "minimum": 1 },
+          "gpu_spec": { "type": ["string", "null"] },
+          "output_script_name": { "type": "string" },
+          "copy_files": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["string", "number", "boolean"]
+            }
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "required": ["primary_metric_path", "goal", "control_slots", "top_k"],
+      "additionalProperties": true,
+      "properties": {
+        "primary_metric_path": { "type": "string" },
+        "goal": { "type": "string", "enum": ["minimize", "maximize"] },
+        "control_slots": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "max_control_spread": { "type": ["number", "null"] },
+        "top_k": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

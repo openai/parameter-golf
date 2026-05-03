@@ -1,0 +1,36 @@
+{
+  "cycle_id": "pr1394_frontier_6p2",
+  "generation": 0,
+  "slot": "H1",
+  "role": "candidate",
+  "family": "loop_ramp",
+  "patches": [
+    "loop_ramp"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/frontier_rebase/pr1394/train_gpt_human.py",
+  "base_sha256": "eee8118acd1e0dc00c29a00686046b61c67f1faff176fdad31b376fad5e8b08b",
+  "patched_sha256": "e2bdbe25f4396dadbe9aeca900a0f3e63c81d2fad9d33b8fda675508ad20f7dd",
+  "nproc_per_slot": 8,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "purpose": "Turn shared-depth recurrence on progressively instead of a single full late switch.",
+    "broken_invariant": "The best recurrence schedule is an abrupt 0-to-full activation event.",
+    "probe": "Ramp loop repeats from 0 to 1 to 2 across training fractions 0.16 to 0.52.",
+    "family_group": "loop_ramp"
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_DIR": "/data/parameter-golf/data",
+    "VOCAB_SIZE": "8192",
+    "TRAIN_LOG_EVERY": "500",
+    "VAL_LOSS_EVERY": "4000",
+    "MAX_WALLCLOCK_SECONDS": "600",
+    "SEED": "1337",
+    "RUN_ID": "pr1394-h1-loop-ramp",
+    "LOOP_RAMP_START": "0.16",
+    "LOOP_RAMP_FULL": "0.52"
+  }
+}

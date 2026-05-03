@@ -1,0 +1,88 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "campaign_goal": "Validate the pg_enigma campaign harness on the fixed `frontier_rebase/pr1394/train_gpt_human.py` base by enforcing downstream-only control-paired comparison first, then testing same-trace checkpoint/export selection, while carrying recurrence handoff and shared-trunk late branching as deferred next mechanisms once the harness exposes the needed primitives.",
+  "selection_basis": "packed",
+  "selected_family_ids": [
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h1"
+  ],
+  "selected_families": [
+    {
+      "candidate_id": "trajectory_003/trajectory_003_h3",
+      "name": "Checkpoint And Export Selector Family",
+      "family_group": "checkpoint_export_selector",
+      "search_level": "program_family",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "verifier_review_verdict": "KEEP",
+      "kept_by_verifier": true,
+      "consequence": null,
+      "minimal_probe": "From one training trace, evaluate a bounded late-checkpoint window against a fixed small export menu, with 2 controls carrying the published default checkpoint/export choice.",
+      "expected_signal": "A non-default checkpoint/export pair wins on downstream `score_bpb` by more than control spread, and the winner is not recoverable from final-step or pre-quant ranking alone.",
+      "compile_status": {
+        "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_003_trajectory_003_h3.json",
+        "verdict": "READY",
+        "realization_count": 3
+      },
+      "pack_ids": [
+        "selector_pack_selector_post_train_001",
+        "selector_pack_selector_post_train_002"
+      ],
+      "deferred_reasons": [],
+      "runnable_now": true,
+      "ready_for_pack": true,
+      "current_state": "packed"
+    },
+    {
+      "candidate_id": "trajectory_004/trajectory_004_h1",
+      "name": "Control-Paired Delta Admission On Downstream Sliding Score",
+      "family_group": "control_delta_admission",
+      "search_level": "reset",
+      "lane": "selector",
+      "phase_window": "frontier",
+      "pack_kind": "selector_pack",
+      "implementation_mode": "catalog_executable_now",
+      "verifier_review_verdict": "KEEP",
+      "kept_by_verifier": true,
+      "consequence": null,
+      "minimal_probe": "Run one 8-slot frontier selector pack with 2 exact controls, 2 replay-equivalent control clones, and 4 novel slots. Admit only by pack-local delta to paired controls on downstream `quantized_sliding_window` `score_bpb`.",
+      "expected_signal": "Control clones define a stable noise band and at least one non-control clears that band on downstream `score_bpb` without relying on pre-quant ranking.",
+      "compile_status": {
+        "compile_path": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h1.json",
+        "verdict": "READY",
+        "realization_count": 3
+      },
+      "pack_ids": [
+        "selector_pack_selector_frontier_001",
+        "selector_pack_selector_frontier_002"
+      ],
+      "deferred_reasons": [],
+      "runnable_now": true,
+      "ready_for_pack": true,
+      "current_state": "packed"
+    }
+  ],
+  "runnable_now_ids": [
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h1"
+  ],
+  "ready_for_pack_ids": [
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h1"
+  ],
+  "packed_family_ids": [
+    "trajectory_003/trajectory_003_h3",
+    "trajectory_004/trajectory_004_h1"
+  ],
+  "blocked_backlog_ids": [
+    "trajectory_004/trajectory_004_h3",
+    "trajectory_004/trajectory_004_h4"
+  ],
+  "artifacts": {
+    "family_status_report": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_status_report.json",
+    "runnable_families": "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/runnable_families.json"
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "cycle_id": "pr1394_enigma_6p2_pr1394_enigma_harness_r000",
+  "generation": 3,
+  "user_instructions": "Use pg_enigma round 0 pack selector_pack_002 as the execution contract.\nPack kind: selector_pack\nLane: selector\nPhase window: post_train\n\nCreate exactly these control slots and keep them unpatched:\n- C0\n- C1\n\nCreate candidate slots using these exact slot ids:\n- H00: trajectory_003/trajectory_003_h3 / trajectory_003_h3_r3 (Export-Menu Sweep On Frozen Default Checkpoint)\n  family_group: checkpoint_export_selector\n  rationale: Run immediately after control-delta calibration because it is executable now, lane-aligned, and tests a first-order searchable object without inventing new training machinery.\n  instructions: Prepare a selector pack that isolates export choice while freezing the checkpoint to the published default final checkpoint from one pr1394 training trace. Use the same frozen base stack and the same final checkpoint across the whole pack. Materialize a bounded export menu consisting of the published default export recipe plus up to 5 non-default export realizations that are already in the current search harness catalog for downstream evaluation on pr1394. Each candidate slot is one explicit export recipe applied to the same final checkpoint. Keep 2 controls as exact repeats of the default final checkpoint/default export pair. Evaluate every exported artifact on the same downstream `quantized_sliding_window` lane and record both downstream `score_bpb` and artifact bytes. The purpose is to falsify the invariant that export is just a passive tail step once the training trace is fixed.\n  composition_tags: same_trace, artifact_selection, post_train, deployment_touchpoint, export_selector\n  incompatible_with: none\n  mutate_after_survival: expand_fixed_export_menu, selector_robustness_across_seeds, checkpoint_export_cross_after_solo_support\n\nControl principles:\n- Keep the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack frozen for all family admission comparisons.\n- Include 2 controls in every executable pack; for calibration packs use replay-equivalent control clones to estimate pack-local noise.\n- Never let a pre-quant improvement override a downstream-negative result.\n- Reserve 2 exact control slots using the default final checkpoint and default export recipe.\n- Freeze checkpoint identity for every non-control candidate; only export recipe may vary.\n- Use the same downstream evaluator configuration for all slots.\n\nAdmission principles:\n- Run `trajectory_004/trajectory_004_h1` first and reuse its delta law for every later executable solo pack.\n- Promote only families that beat the paired-control band on downstream `score_bpb` with repeated directional support.\n- Keep `trajectory_004/trajectory_004_h3` and `trajectory_004/trajectory_004_h4` deferred until their required primitives exist.\n- A realization is positive only if a non-default export recipe beats both controls on downstream `score_bpb` beyond the calibrated control band.\n- If an export recipe only improves size while downstream `score_bpb` is flat or worse, do not admit it.\n- Do not mix in alternate checkpoints inside this realization; keep export choice as the only varying axis.\n\nMetric principles:\n- Primary metric is downstream `score_bpb` from `quantized_sliding_window` when present.\n- Use pre-quant `val_bpb` only as secondary evidence for diagnosis or early kill guards.\n- Use artifact size only as a tie-breaker after downstream and pre-quant evidence already agree.\n- Primary metric: downstream `score_bpb` from `quantized_sliding_window`.\n- Secondary metric: pre-quant `val_bpb` is expected to stay constant and should be logged mainly as a sanity check.\n- Tie-breaker: artifact bytes among downstream-positive exports.\n\nImplementation principles:\n- Be exact about catalog coverage: executable-now means current harness support; otherwise leave the family blocked with explicit primitive backlog.\n- Keep probes minimal and lane-aligned: same-trace selector tests for selector families, mid-training probes for handoff programs, pairwise packs for branch portfolios.\n- When a blocked family becomes runnable, start with its smallest decisive probe rather than a widened mutation slate.\n- Use only export/eval recipes already exposed by the current harness catalog; no new quantization primitive should be invented here.\n- Treat each export recipe as an explicit named candidate so later mutation can expand the menu cleanly.\n- Because checkpoint is frozen, any downstream win directly supports export-path selection as a first-order object.\n\nGlobal campaign instruction:\nUse `ncycle/pr1394_enigma_cycle.json` against the frozen `frontier_rebase/pr1394/train_gpt_human.py` base, with `frontier_rebase/pr1394/README.md` and `frontier_rebase/pr1394/submission.json` as the base contract. Execute solo packs first, always with 2 controls and up to 6 candidate slots, judge admission and promotion only on downstream `quantized_sliding_window` `score_bpb`, and record pack-local deltas to paired controls before promoting any family.\n\nHard execution rules:\n- Preserve the requested slot ids exactly so downstream promotion can attribute outcomes.\n- Do not substitute filler candidates if one realization cannot be mapped honestly.\n- Prefer fewer executable candidates over invented or mixed-lane fillers.\n- Treat this as one campaign pack, not a whole-strategy rewrite.",
+  "default_base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+  "default_entrypoint": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node={nproc_per_slot} {script}",
+  "base_defaults": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_DIR": "/data/parameter-golf/data",
+    "VOCAB_SIZE": "8192",
+    "TRAIN_LOG_EVERY": "500",
+    "VAL_LOSS_EVERY": "4000",
+    "MAX_WALLCLOCK_SECONDS": "600"
+  },
+  "frozen_env_contract": {
+    "DATA_DIR": "/data/parameter-golf/data",
+    "VOCAB_SIZE": "8192"
+  },
+  "primary_metric_path": "metrics.score_bpb",
+  "control_slots": [
+    "C0",
+    "C1"
+  ],
+  "focus_files": [
+    "frontier_rebase/pr1394/train_gpt_human.py",
+    "frontier_rebase/pr1394/README.md",
+    "frontier_rebase/pr1394/submission.json",
+    "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/SEARCH_HANDOFF.md",
+    "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/campaign.json",
+    "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_queue.json",
+    "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_002_SEARCH_HANDOFF.md",
+    "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json",
+    "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h4.json"
+  ],
+  "history_context": {
+    "cycle_id": "pr1394_enigma_6p2_pr1394_enigma_harness_r000",
+    "generation": 3,
+    "history": []
+  },
+  "postmortem_memory": {
+    "history_window": [],
+    "prior_generations": [],
+    "reference_docs": [
+      {
+        "path": "parameter-golf/findings.md",
+        "excerpt": "# Findings\n\n## Main conclusion\n\nThe repo keeps rediscovering the same useful abstraction under different names:\n\n- `hm2` = bootstrap -> handoff -> receiver\n- `stage3_2` = bounded controller\n- `stage3_4` = shared trunk -> late branch portfolio\n- `stage3_5` = event-triggered branch tournament\n\nThose are not four separate ideas. They are one search strategy: **search over small state-conditioned programs**, not over isolated patch packs.\n\nThe repeated mistake is that the harness still evaluates most work as stage-specific folders, prose-only hypotheses, or static patch slates. So it never compounds the one abstraction that actually looks general.\n\n## Directory-level findings\n\n| Dir | What it contributes | Specific mistake |\n| --- | --- | --- |\n| `hailmary/` | Best wide map of attack surfaces and high-upside families. | The **materialized runs** are still on `SP1024`, even though the source `run_configs.json` and docs now describe an `SP8192` strong base. Example: `hailmary/run_configs.json` defaults to `VOCAB_SIZE=8192`, but `hailmary/runs/tournament_20260411_001130/.../H2_exact_overlap_eval/config.json` still has `VOCAB_SIZE=1024`, `DATA_PATH=/data/...sp1024`, `TOKENIZER_PATH=/data/...1024_bpe.model`. |\n| `hm2/` | First stage that clearly says the search unit is the **handoff policy**, not the patch. | It promises reusable evidence (`phase_diagnostics.json`) in `hm2/README.md`, but the repo contains no `train.log`, `summary.json`, or `phase_diagnostics.json` under `hm2/`. The idea is good, but the feedback loop never closed. |\n| `stage3_1/` | Strongest admission bar for hypotheses; export-only lane is the right kind of isolation. | The stage has almost no run evidence in the repo. Current config/code point toward a real export-only bakeoff, but without artifacts the lane-honesty claim is still mostly architectural intent, not learned evidence. |\n| `stage3_2/` | Best formal search substrate in the repo: bounded controller DSL, candidate metadata, canonicalization, m..."
+      },
+      {
+        "path": "parameter-golf/search_reset.md",
+        "excerpt": "# Search Reset\n\n## Goal\n\nStart fresh with a search process that avoids local patch-chasing and instead searches over **bounded programs** that can be mutated, ranked, retired, and composed.\n\nThe key shift is:\n\n> do not search patches  \n> search **Phase -> Trigger -> Action -> Portfolio -> Selector** programs\n\n---\n\n## 1. Core shift\n\n### Old pattern\n\n- strong hypotheses in prose\n- weaker code proxies\n- mixed lanes in one tournament\n- local patch tuning before the family premise is proven\n\n### New pattern\n\n- freeze one executable base\n- search only a few first-order mechanism families\n- compile each family into the **smallest decisive probe**\n- mutate specs, not source files\n- compose only surviving families\n\n---\n\n## 2. The unit of search\n\nEach candidate should be a **bounded execution program**, not a patch pack.\n\n### Candidate grammar\n\n```text\ncandidate:\n  base_variant\n  family\n  broken_invariant\n  signals[]            # cheap observable state\n  phase_boundaries[]   # early/mid/late or equivalent\n  triggers[]           # threshold/event logic\n  actions[]            # what changes when a trigger fires\n  portfolio[]          # alternate late finishers/export modes\n  selector             # how the winning artifact/state is chosen\n  matched_control\n  early_signal\n  expected_horizon\n  kill_rule\n  composition_role\n  code_burden\n```\n\n### Why this is the right abstraction\n\nThe repo already keeps rediscovering this same object:\n\n- `hm2` -> bootstrap / handoff / receiver\n- `stage3_2` -> controller spec\n- `stage3_4` -> late finisher portfolio\n- `stage3_5` -> event-triggered branch tournament\n\nThese are not separate species. They are the same search object in different forms.\n\n---\n\n## 3. Freeze the base\n\nDo **not** search these at the same time as program search:\n\n- tokenizer\n- architecture depth/width\n- training base stack\n- frontier rebase\n\nPick one executable base and keep it fixed for a full search cycle.\n\nIf the base changes, start a **new cycle**.\n\nThis separates:\n\n1. *..."
+      },
+      {
+        "path": "parameter-golf/search_reset_agent_prompt.md",
+        "excerpt": "# Agent Prompt for Automatic Search Design\n\nThis file turns the search reset into something you can hand to a language model or coding agent.\n\nUse it when you want the model to:\n\n- generate hypothesis families automatically\n- compile those families into minimal executable probes\n- design a tournament\n- identify which primitives need to be implemented\n\n---\n\n## How to use\n\nBefore sending the prompt, fill in:\n\n- `<BASE_DESCRIPTION>`\n- `<AVAILABLE_PRIMITIVES>`\n- `<DISALLOWED_CHANGES>`\n- `<CURRENT_FAILURE_PATTERNS>`\n- `<BUDGET>`\n\nThen ask the model to return **JSON only**.\n\n---\n\n## Copy-paste prompt\n\n```text\nYou are designing a bounded program search harness for optimizing training code under a fixed budget.\n\nYour job is NOT to produce random patch ideas.\nYour job is to generate a search plan over bounded execution programs.\n\n## Goal\n\nGiven one frozen executable base, produce:\n\n1. a small set of first-order hypothesis families\n2. the smallest executable probe for each family\n3. a tournament plan that can distinguish real families from fake ones\n4. a primitive implementation backlog\n\n## Search doctrine\n\nFollow these rules strictly:\n\n1. Search bounded programs, not patch packs.\n2. Do not change the base stack during this cycle.\n3. Search families before child variants.\n4. Do not propose compounds before solo families survive.\n5. Use only the allowed candidate grammar:\n   - signals\n   - phase_boundaries\n   - triggers\n   - actions\n   - portfolio\n   - selector\n6. If a family cannot be expressed with available primitives, mark it as requiring a new primitive instead of silently inventing a full patch stack.\n\n## Frozen base\n\n<BASE_DESCRIPTION>\n\n## Available primitives\n\n<AVAILABLE_PRIMITIVES>\n\n## Disallowed changes in this cycle\n\n<DISALLOWED_CHANGES>\n\n## Known failure patterns to avoid\n\n<CURRENT_FAILURE_PATTERNS>\n\n## Budget\n\n<BUDGET>\n\n## Task\n\nGenerate exactly 4 first-order hypothesis families that break different false invariants.\n\nFor each family:\n\n- state the broken invari..."
+      },
+      {
+        "path": "parameter-golf/search_verifier_codex.md",
+        "excerpt": "# Search Verifier Codex\n\n## Purpose\n\nThis file is the **verifier** for the new search process.\n\nIts job is not to invent hypotheses.\n\nIts job is to answer:\n\n> is this search track structurally valid?\n\nThat means checking whether a proposed search track:\n\n- is searching the right unit\n- is isolating the right causal lane\n- is using the right controls\n- is budgeting the tournament correctly\n- is mutating at the right level\n- is collecting enough evidence to learn\n\nThis verifier should be run:\n\n1. **before** implementing a new family pack\n2. **before** promoting survivors into mutation\n3. **before** composing winners\n4. **after** a pack runs, to decide whether the evidence is trustworthy\n\n---\n\n## What is a \"track\"?\n\nA **track** is the whole executable search proposal for one cycle:\n\n```text\ntrack:\n  base_contract\n  candidate_grammar\n  families[]\n  family_admission_pack\n  promotion_rules\n  retirement_rules\n  mutation_policy\n  composition_policy\n  primitive_backlog\n  evidence_contract\n```\n\nThe verifier is not judging whether the ideas are genius.\n\nIt is judging whether the track is **coherent enough to teach you something**.\n\n---\n\n## Core principle\n\nThe verifier should reject any track that collapses back into:\n\n- patch-chasing\n- lane mixing\n- uncontrolled family proliferation\n- unstable anchors\n- non-falsifiable compounds\n- no-evidence execution\n\n---\n\n## Verification gates\n\nEvery track must pass all of these gates.\n\n## Gate 1: Base Freeze Gate\n\n### Question\n\nDoes the track keep the executable base fixed for this cycle?\n\n### Pass if\n\n- tokenizer is fixed\n- architecture base is fixed\n- training base stack is fixed\n- the same frozen base is used for all family admission comparisons\n\n### Fail if\n\n- some families silently include tokenizer or architecture shifts\n- some candidates are evaluated on a different base than others\n- frontier rebase is bundled into the same family search cycle\n\n### Why this matters\n\nIf the base moves during family search, you are no longer compa..."
+      }
+    ]
+  },
+  "admission_policy": {
+    "mode": "survival",
+    "require_single_base": true,
+    "require_unique_family_groups": true,
+    "freeze_env_keys": [
+      "DATA_DIR",
+      "VOCAB_SIZE"
+    ],
+    "min_candidate_slots": 1,
+    "max_candidate_slots": 1,
+    "fixed_base_script": "frontier_rebase/pr1394/train_gpt_human.py"
+  },
+  "catalog_summary": [
+    {
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "family_count": 6,
+      "family_group_count": 6,
+      "family_groups": [
+        "ema_selector",
+        "loop_ramp",
+        "phase_split_optim",
+        "quant_clip_anneal",
+        "sensitivity_bits",
+        "skip_gate_schedule"
+      ],
+      "families": [
+        {
+          "family": "ema_selector",
+          "family_group": "ema_selector",
+          "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+          "stage": "pr1394_catalog"
+        },
+        {
+          "family": "loop_ramp",
+          "family_group": "loop_ramp",
+          "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+          "stage": "pr1394_catalog"
+        },
+        {
+          "family": "phase_split_optim",
+          "family_group": "phase_split_optim",
+          "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+          "stage": "pr1394_catalog"
+        },
+        {
+          "family": "quant_clip_anneal",
+          "family_group": "quant_clip_anneal",
+          "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+          "stage": "pr1394_catalog"
+        },
+        {
+          "family": "sensitivity_bits",
+          "family_group": "sensitivity_bits",
+          "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+          "stage": "pr1394_catalog"
+        },
+        {
+          "family": "skip_gate_schedule",
+          "family_group": "skip_gate_schedule",
+          "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+          "stage": "pr1394_catalog"
+        }
+      ]
+    }
+  ],
+  "catalog": [
+    {
+      "family": "ema_selector",
+      "family_group": "ema_selector",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "ema_selector"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_ema_selector"
+    },
+    {
+      "family": "loop_ramp",
+      "family_group": "loop_ramp",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "loop_ramp"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_loop_ramp"
+    },
+    {
+      "family": "phase_split_optim",
+      "family_group": "phase_split_optim",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "phase_split_optim"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_phase_split_optim"
+    },
+    {
+      "family": "quant_clip_anneal",
+      "family_group": "quant_clip_anneal",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "quant_clip_anneal"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_quant_clip_anneal"
+    },
+    {
+      "family": "sensitivity_bits",
+      "family_group": "sensitivity_bits",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "sensitivity_bits"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_sensitivity_bits"
+    },
+    {
+      "family": "skip_gate_schedule",
+      "family_group": "skip_gate_schedule",
+      "base_script": "frontier_rebase/pr1394/train_gpt_human.py",
+      "patch_module": "parameter-golf/pr1394_catalog/patches.py",
+      "patches": [
+        "skip_gate_schedule"
+      ],
+      "stage": "pr1394_catalog",
+      "patch_function": "patch_skip_gate_schedule"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "cycle_id": "example_cycle",
+  "generation": 0,
+  "slot": "H0",
+  "role": "candidate",
+  "family": "state_controller",
+  "patches": [
+    "state_controller"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage3_2/base_train_gpt.py",
+  "base_sha256": "4719167881b230ab63ad2b4896b9420580fa5e30e09ee8ec4495ba8636c22aed",
+  "patched_sha256": "07716468856e80ae973bb92f90b54433cd488125354eab5acee4f459f4c7a9a0",
+  "nproc_per_slot": 1,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "family_order": "first-order",
+    "admission_pack": "single_family",
+    "focus": "state-conditioned control",
+    "broken_invariant": "Static schedules cannot react to observed training state during training and export.",
+    "probe": "Bounded controller that gates optimizer-family actions and snapshot/export behavior from training state.",
+    "focus_files": [
+      "stage3_2/base_train_gpt.py",
+      "train_gpt.py"
+    ]
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1"
+  }
+}

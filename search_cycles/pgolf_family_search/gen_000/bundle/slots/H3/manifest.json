@@ -1,0 +1,33 @@
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "slot": "H3",
+  "role": "candidate",
+  "family": "velocity_gate",
+  "patches": [
+    "velocity_gate"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage3_3/base_train_gpt.py",
+  "base_sha256": "d80101df9ffcb2d90ea163bd8ca7add6fc504e7856dfa4250589572c1e600d22",
+  "patched_sha256": "f5efa8f799a7d0c43b707efe060d088e1d4b4723accd1cc666f5ca0257a99c11",
+  "nproc_per_slot": 1,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "family_order": "first-order",
+    "focus": "state-conditioned control",
+    "broken_invariant": "Optimizer-family updates should not respond to measured training velocity or regime shifts.",
+    "probe": "State-dependent gating of training dynamics on the stage3_3 adaptive-hyperparameter base.",
+    "matched_control": "C0"
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "MAX_WALLCLOCK_SECONDS": "180"
+  }
+}

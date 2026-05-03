@@ -1,0 +1,63 @@
+{
+  "slots": [
+    {
+      "slot": "C0",
+      "role": "control",
+      "family": "base_root",
+      "base_script": "train_gpt.py",
+      "metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Primary frozen control",
+        "focus_files": [
+          "train_gpt.py"
+        ]
+      }
+    },
+    {
+      "slot": "C1",
+      "role": "control",
+      "family": "base_root_repeat",
+      "base_script": "train_gpt.py",
+      "metric_path": "metrics.score_bpb",
+      "metadata": {
+        "purpose": "Repeat frozen control for spread anchoring",
+        "focus_files": [
+          "train_gpt.py"
+        ]
+      }
+    },
+    {
+      "slot": "H0",
+      "role": "candidate",
+      "family": "state_controller",
+      "base_script": "stage3_2/base_train_gpt.py",
+      "patch_module": "stage3_2/patches.py",
+      "patches": [
+        "state_controller"
+      ],
+      "metric_path": "metrics.score_bpb",
+      "selector_metric_path": "metrics.score_bpb",
+      "metadata": {
+        "family_order": "first-order",
+        "admission_pack": "single_family",
+        "focus": "state-conditioned control",
+        "broken_invariant": "Static schedules cannot react to observed training state during training and export.",
+        "probe": "Bounded controller that gates optimizer-family actions and snapshot/export behavior from training state.",
+        "focus_files": [
+          "stage3_2/base_train_gpt.py",
+          "train_gpt.py"
+        ]
+      }
+    }
+  ],
+  "selection": {
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": [
+      "C0",
+      "C1"
+    ],
+    "max_control_spread": 0.02,
+    "top_k": 1
+  }
+}

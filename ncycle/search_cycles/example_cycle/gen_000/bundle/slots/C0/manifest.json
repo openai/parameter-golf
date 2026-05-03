@@ -1,0 +1,24 @@
+{
+  "cycle_id": "example_cycle",
+  "generation": 0,
+  "slot": "C0",
+  "role": "control",
+  "family": "base_root",
+  "patches": [],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/train_gpt.py",
+  "base_sha256": "c6cae5e767aa0464e8767620f3bbdb08048c99f4b7ae0f0e146dd9b17e68e673",
+  "patched_sha256": "c6cae5e767aa0464e8767620f3bbdb08048c99f4b7ae0f0e146dd9b17e68e673",
+  "nproc_per_slot": 1,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": null,
+  "metadata": {
+    "purpose": "Primary frozen control",
+    "focus_files": [
+      "train_gpt.py"
+    ]
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "handoffs": [
+    {
+      "pack_id": "selector_pack_001",
+      "round": 0,
+      "search_harness_config": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_001_search_harness_config.json",
+      "base_search_harness_config": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/ncycle/pr1394_enigma_cycle.json",
+      "generation": 1,
+      "generation_dir": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/search_cycles/pr1394_enigma_6p2_pr1394_enigma_harness_r000/gen_001",
+      "agent_dir": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/search_cycles/pr1394_enigma_6p2_pr1394_enigma_harness_r000/gen_001/agent",
+      "pack_kind": "selector_pack",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "control_slot_ids": [
+        "C0",
+        "C1"
+      ],
+      "candidate_slot_map": {
+        "H00": {
+          "candidate_id": "trajectory_003/trajectory_003_h3",
+          "family_group": "checkpoint_export_selector",
+          "realization_id": "trajectory_003_h3_r1",
+          "realization_key": "trajectory_003/trajectory_003_h3/trajectory_003_h3_r1",
+          "title": "Late-Window Crossed Checkpoint x Export Sweep"
+        },
+        "H01": {
+          "candidate_id": "trajectory_003/trajectory_003_h3",
+          "family_group": "checkpoint_export_selector",
+          "realization_id": "trajectory_003_h3_r2",
+          "realization_key": "trajectory_003/trajectory_003_h3/trajectory_003_h3_r2",
+          "title": "Checkpoint-Only Sweep Under Frozen Default Export"
+        }
+      },
+      "focus_files": [
+        "frontier_rebase/pr1394/train_gpt_human.py",
+        "frontier_rebase/pr1394/README.md",
+        "frontier_rebase/pr1394/submission.json",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/SEARCH_HANDOFF.md",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/campaign.json",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_queue.json",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_001_SEARCH_HANDOFF.md",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h4.json"
+      ],
+      "handoff_markdown": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_001_SEARCH_HANDOFF.md",
+      "handoff_prompt": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_001_SEARCH_HANDOFF_PROMPT.txt",
+      "status": "staged"
+    },
+    {
+      "pack_id": "selector_pack_002",
+      "round": 0,
+      "search_harness_config": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_002_search_harness_config.json",
+      "base_search_harness_config": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/ncycle/pr1394_enigma_cycle.json",
+      "generation": 3,
+      "generation_dir": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/search_cycles/pr1394_enigma_6p2_pr1394_enigma_harness_r000/gen_003",
+      "agent_dir": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/search_cycles/pr1394_enigma_6p2_pr1394_enigma_harness_r000/gen_003/agent",
+      "pack_kind": "selector_pack",
+      "lane": "selector",
+      "phase_window": "post_train",
+      "control_slot_ids": [
+        "C0",
+        "C1"
+      ],
+      "candidate_slot_map": {
+        "H00": {
+          "candidate_id": "trajectory_003/trajectory_003_h3",
+          "family_group": "checkpoint_export_selector",
+          "realization_id": "trajectory_003_h3_r3",
+          "realization_key": "trajectory_003/trajectory_003_h3/trajectory_003_h3_r3",
+          "title": "Export-Menu Sweep On Frozen Default Checkpoint"
+        }
+      },
+      "focus_files": [
+        "frontier_rebase/pr1394/train_gpt_human.py",
+        "frontier_rebase/pr1394/README.md",
+        "frontier_rebase/pr1394/submission.json",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/SEARCH_HANDOFF.md",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/campaign.json",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_queue.json",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_002_SEARCH_HANDOFF.md",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_dossiers/trajectory_003_trajectory_003_h3.json",
+        "parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/family_compiles/trajectory_004_trajectory_004_h4.json"
+      ],
+      "handoff_markdown": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_002_SEARCH_HANDOFF.md",
+      "handoff_prompt": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/pg_enigma/runs/pr1394_enigma_harness/round_000/pack_handoffs/selector_pack_002_SEARCH_HANDOFF_PROMPT.txt",
+      "status": "staged"
+    }
+  ]
+}

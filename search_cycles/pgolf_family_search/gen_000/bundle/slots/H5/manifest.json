@@ -1,0 +1,33 @@
+{
+  "cycle_id": "pgolf_family_search",
+  "generation": 0,
+  "slot": "H5",
+  "role": "candidate",
+  "family": "event_branch_tournament",
+  "patches": [
+    "event_branch_tournament"
+  ],
+  "base_script": "/Users/ankit/Documents/dev/RL/nanoe/nanoevolve/pgolf/parameter-golf/stage3_5/base_train_gpt.py",
+  "base_sha256": "4719167881b230ab63ad2b4896b9420580fa5e30e09ee8ec4495ba8636c22aed",
+  "patched_sha256": "bb1a52fd5a0b979229e369ee6024b9853179a78e470004f64bf631716c53b8fa",
+  "nproc_per_slot": 1,
+  "gpu_spec": null,
+  "metric_path": "metrics.score_bpb",
+  "selector_metric_path": "metrics.score_bpb",
+  "metadata": {
+    "family_order": "first-order",
+    "focus": "event-triggered branch selection",
+    "broken_invariant": "Late branching should happen on fixed time only, not on observed training events and branch-local export outcomes.",
+    "probe": "Event-triggered branch tournament with bounded finisher DSL and portfolio selection.",
+    "matched_control": "C0"
+  },
+  "env": {
+    "PYTHONUNBUFFERED": "1",
+    "PGOLF_PYTHON": "/data/pgolf_venv/bin/python",
+    "DATA_PATH": "/data/parameter-golf/data/datasets/fineweb10B_sp1024",
+    "TOKENIZER_PATH": "/data/parameter-golf/data/tokenizers/fineweb_1024_bpe.model",
+    "TRAIN_LOG_EVERY": "50",
+    "VAL_LOSS_EVERY": "200",
+    "MAX_WALLCLOCK_SECONDS": "180"
+  }
+}

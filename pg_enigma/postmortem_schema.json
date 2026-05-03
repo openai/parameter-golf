@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "verdict",
+    "summary",
+    "round_assessment",
+    "family_reviews",
+    "search_level_diagnosis",
+    "lane_diagnosis",
+    "keep_for_next_round",
+    "drop_for_next_round",
+    "new_family_requests",
+    "compile_biases",
+    "pack_biases",
+    "stop_doing",
+    "generation_instruction_delta"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["READY", "RETRY", "FAIL"]
+    },
+    "summary": { "type": "string" },
+    "round_assessment": { "type": "string" },
+    "family_reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "family_group",
+          "outcome",
+          "evidence",
+          "metric_takeaway",
+          "hypothesis_takeaway",
+          "next_action",
+          "next_generation_bias"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "family_group": { "type": "string" },
+          "outcome": {
+            "type": "string",
+            "enum": ["confirmed", "weakened", "rejected", "inconclusive", "pending"]
+          },
+          "evidence": { "type": "string" },
+          "metric_takeaway": { "type": "string" },
+          "hypothesis_takeaway": { "type": "string" },
+          "next_action": {
+            "type": "string",
+            "enum": ["promote", "hold", "drop", "reframe", "compose_later", "wait_for_data"]
+          },
+          "next_generation_bias": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "search_level_diagnosis": { "type": "string" },
+    "lane_diagnosis": { "type": "string" },
+    "keep_for_next_round": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "drop_for_next_round": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "new_family_requests": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "compile_biases": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "pack_biases": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "stop_doing": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "generation_instruction_delta": { "type": "string" }
+  }
+}

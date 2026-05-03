@@ -1,0 +1,690 @@
+You are the adversarial verifier for pg_enigma.
+Return JSON only.
+
+AUDIT MODE
+- The explorer already supplied structured claim cards with justifications.
+- The harness already enforced schema validity, required fields, candidate-id uniqueness, and within-trajectory family_group uniqueness.
+- Do not rediscover the ideas from scratch. Audit contradictions, weak premises, fake novelty, lane mismatch, and dishonest implementation claims.
+
+VERDICT RULES
+- PASS: enough consequential ideas survive to justify a multi-family campaign
+- RETRY: the exploration is repairable, but the generator should try again
+- FAIL: there is no credible consequential direction in the current material
+
+HARD RULES
+- Review every candidate exactly once.
+- keep_ids should contain at least 2 candidates only if they are truly strong keeps.
+- Any keep should plausibly score at least 4 on consequence, 3 on falsifiability, and 3 on implementation honesty.
+- If an idea is promising but too local, use REWRITE and explain how to move it up one search level.
+- Do not keep local retunes just to satisfy a quota.
+
+VERIFICATION REQUEST SUMMARY JSON
+{
+  "cycle_id": "pr1394_enigma_harness",
+  "round": 0,
+  "user_instructions": "Test the pg_enigma campaign harness itself on frontier_rebase/pr1394/train_gpt_human.py. The goal is the same: minimize credible val_bpb on this real frontier-rebase base. Produce only consequential hypothesis families. Prefer executable-now families that honestly map to the current search_harness catalog; if a family needs new machinery, mark it blocked or deferred instead of faking executability. Treat the published SP8192 + GPTQ embeddings + depth recurrence + MuonEq-R + SDClip stack as th...",
+  "objective": "{'target_script': 'frontier_rebase/pr1394/train_gpt_human.py', 'goal': 'minimize credible val_bpb', 'primary_metric': 'downstream score_bpb from quantized_sliding_window when present', 'secondary_metrics': ['pre-quant val_bpb', 'control spread', 'artifact size only as a tie-breaker'], 'notes': ['The fixed frontier b...",
+  "exploration": {
+    "trajectory_count": 0,
+    "families_per_trajectory": 4
+  },
+  "verification": {
+    "min_keep": 2,
+    "min_consequence_score": 4,
+    "min_falsifiability_score": 3,
+    "min_implementation_honesty_score": 3
+  },
+  "focus_files": [
+    "frontier_rebase/pr1394/train_gpt_human.py"
+  ],
+  "evidence_files": [
+    "frontier_rebase/pr1394/README.md",
+    "frontier_rebase/pr1394/submission.json",
+    "parameter-golf/findings.md"
+  ],
+  "reference_doc_paths": [
+    "parameter-golf/findings.md",
+    "parameter-golf/search_strategy_catalog.md",
+    "parameter-golf/search_strategy_meta_prompt.md",
+    "parameter-golf/search_verifier_codex.md",
+    "parameter-golf/pg_enigma/self_check_rubric.md",
+    "frontier_rebase/pr1394/README.md",
+    "frontier_rebase/pr1394/submission.json"
+  ]
+}
+
+CANDIDATE CLAIM CARDS JSON
+[
+  {
+    "candidate_id": "trajectory_001/trajectory_001_h1",
+    "family_group": "downstream_gate",
+    "search_level": "metric_lane",
+    "lane": "base_frontier",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Treat `metrics.score_bpb` from `quantized_sliding_window` as the only admission and promotion metric for this cycle, with pre-quant val_bpb retained strictly as diagnostic evidence and two repeated controls required i...",
+    "broken_invariant": "A strong frozen base can still be searched honestly with blended pre-quant and downstream impressions rather than an explicit downstream-first lane contract.",
+    "consequence_axes": [
+      "search_strategy_reset"
+    ],
+    "not_local_tuning_reason": "This changes the comparison law for the whole cycle, not a threshold inside any one family. It decides what survives, what is retired, and whether the harness is even measuring the right object.",
+    "measurement_plan": "Pack ordering should visibly differ from a casual pre-quant reading, with at least one candidate that looks acceptable pre-quant but loses on downstream score_bpb and gets filtered out.",
+    "smallest_decisive_probe": "Run the first 6-candidate plus 2-control admission pack with strict downstream-only ranking and explicit control-spread reporting; check whether pre-quant-only movers are retired rather than promoted.",
+    "expected_observable": "Pack ordering should visibly differ from a casual pre-quant reading, with at least one candidate that looks acceptable pre-quant but loses on downstream score_bpb and gets filtered out.",
+    "falsifier": "If downstream-only ranking produces the same practical survivor set as pre-quant inspection and repeated controls already make rankings unambiguous, the lane gate is not the mai...",
+    "novelty_vs_history": "This directly attacks the documented lane-mixing failure mode in the repo, but keeps the fix narrow and executable on the real pr1394 base instead of inventing new model-side machinery.",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 5,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "Kept because it is a true metric-lane move, aligned to the stated objective, and executable with the current score_bpb-first harness contract.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": [
+        "consequence_axes includes search_strategy_reset outside search_level=reset"
+      ]
+    }
+  },
+  {
+    "candidate_id": "trajectory_001/trajectory_001_h2",
+    "family_group": "loop_ramp",
+    "search_level": "program_family",
+    "lane": "training",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Replace the single recurrence enable step with a staged loop program that ramps shared-loop depth from none to partial to full, so the model absorbs recurrence as a curriculum instead of an abrupt phase jump.",
+    "broken_invariant": "If depth recurrence is useful on pr1394, the best way to introduce it is a one-shot switch at a single training fraction.",
+    "consequence_axes": [
+      "compute_allocation",
+      "regime_transition"
+    ],
+    "not_local_tuning_reason": "The object being searched is the recurrence program shape, not the exact numeric enable point. That is a change in training-phase structure and compute allocation, not a scalar retune.",
+    "measurement_plan": "Loss and downstream score should transition more smoothly around the current loop-on region, with at least one realization beating control spread on score_bpb rather than only nudging pre-quant metrics.",
+    "smallest_decisive_probe": "Use the explicit `loop_ramp` catalog family on the frozen base and compare one 0->1->2 repeat ramp against two abrupt-enable controls on downstream score_bpb.",
+    "expected_observable": "Loss and downstream score should transition more smoothly around the current loop-on region, with at least one realization beating control spread on score_bpb rather than only nudging pre-quant met...",
+    "falsifier": "If the ramp never clears control spread on downstream score_bpb and shows no smoother behavior near recurrence onset, the staged-transition story is false on this base.",
+    "novelty_vs_history": "This keeps the published recurrence insight but challenges the hidden assumption that recurrence timing is a scalar, not a program family.",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 4,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 5,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "Kept because it breaks a real regime-transition invariant with a named runnable family and a crisp downstream falsifier.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_001/trajectory_001_h3",
+    "family_group": "ema_selector",
+    "search_level": "program_family",
+    "lane": "selector",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Train one path on the frozen base, preserve raw plus multiple EMA late states, and explicitly select the deployable winner by downstream score_bpb instead of assuming one default terminal state is correct.",
+    "broken_invariant": "Once the training path is fixed, there is one obvious final export state, so selector logic does not deserve its own family search.",
+    "consequence_axes": [
+      "artifact_selection"
+    ],
+    "not_local_tuning_reason": "This is not tuning a single EMA decay. It changes the searchable object from one precommitted export state to a bounded selector over several same-run late states.",
+    "measurement_plan": "Training curves stay nearly unchanged, but one held late state repeatedly beats the default export on downstream score_bpb beyond control spread.",
+    "smallest_decisive_probe": "Use the explicit `ema_selector` catalog family and compare raw, base EMA, fast EMA, and slow EMA states from the same training trajectory, ranked only by downstream score_bpb.",
+    "expected_observable": "Training curves stay nearly unchanged, but one held late state repeatedly beats the default export on downstream score_bpb beyond control spread.",
+    "falsifier": "If raw and EMA variants cluster inside control spread and never reorder the downstream metric meaningfully, selector search is not the missing degree of freedom here.",
+    "novelty_vs_history": "This narrows earlier vague checkpoint-selection ideas to a named current primitive and isolates the selector lane cleanly from training-side stories.",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 4,
+      "novelty": 4,
+      "falsifiability": 5,
+      "lane_integrity": 5,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "Kept because it is a clean same-run artifact-selection family with a sharp probe and no fake machinery.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_001/trajectory_001_h4",
+    "family_group": "sensitivity_bits",
+    "search_level": "program_family",
+    "lane": "deployment",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Replace uniform matrix precision with a bounded export policy that promotes the most sensitivity-critical matrices and demotes the least critical ones while staying in the same artifact budget class.",
+    "broken_invariant": "Under the pr1394 byte budget, per-matrix precision specialization is too fine-grained to matter, so uniform bit allocation is effectively optimal.",
+    "consequence_axes": [
+      "representation_contract",
+      "deployment_path"
+    ],
+    "not_local_tuning_reason": "This is not a bitwidth sweep. It changes the deployment representation contract from homogeneous precision to sensitivity-conditioned resource allocation across tensors.",
+    "measurement_plan": "Pre-quant metrics remain unchanged, while post-quant and sliding-window score improve if the current export path is misallocating precision.",
+    "smallest_decisive_probe": "Use the explicit `sensitivity_bits` catalog family to promote a small top-sensitive set and demote a small low-sensitive set while holding bytes nearly fixed, then compare downstream score_bpb against uniform-bit cont...",
+    "expected_observable": "Pre-quant metrics remain unchanged, while post-quant and sliding-window score improve if the current export path is misallocating precision.",
+    "falsifier": "If mixed allocation fails to beat uniform allocation at comparable bytes, or only wins by violating the practical size contract, the deployment-allocation story fails.",
+    "novelty_vs_history": "This attacks where precision lives rather than how one global quantizer is tuned, so it is distinct from SDClip-style scalar adjustments and from training-phase families.",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 5,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "Kept because it changes a first-order deployment contract, is easy to judge on the real metric, and honestly maps to a named runnable family.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_002/trajectory_002_h1",
+    "family_group": "artifact_selector_programs",
+    "search_level": "program_family",
+    "lane": "downstream_quantized_sliding_window",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "The downstream winner may be an earlier or differently selected checkpoint whose weights quantize and compress more favorably than the terminal training winner. A bounded selector program over a fixed late-checkpoint ...",
+    "broken_invariant": "On pr1394, the last checkpoint or the lowest pre-quant checkpoint is an adequate proxy for the downstream sliding-window winner.",
+    "consequence_axes": [
+      "artifact_selection",
+      "deployment_path"
+    ],
+    "not_local_tuning_reason": "This changes the searched object from training scalars to an explicit artifact-selection program over the same run, which is a first-order change in what the harness is optimizing.",
+    "measurement_plan": "At least one selector consistently picks a non-control checkpoint that improves downstream `score_bpb` while pre-quant rank is unchanged or inverted.",
+    "smallest_decisive_probe": "On one frozen training trace with dense late saves, run an 8-slot bakeoff: 2 controls (`last_step`, `best_prequant`) plus 6 selector programs that choose one checkpoint from the same pool using late-slope, quant-proxy...",
+    "expected_observable": "At least one selector consistently picks a non-control checkpoint that improves downstream `score_bpb` while pre-quant rank is unchanged or inverted.",
+    "falsifier": "Across matched traces or seeds, no selector beats the best control beyond control spread, and selector choices collapse back to `last_step` or `best_prequant`.",
+    "novelty_vs_history": "This keeps the published base fixed but breaks from static patch chasing by making artifact choice itself the family. It is distinct from direct training mutations and aligns with the repo\u2019s repeated selector/portfoli...",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 4,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 5,
+      "implementation_honesty": 4
+    },
+    "self_check_summary": "Consequential because it directly changes artifact selection on the real downstream lane; falsifiable with same-trace controls; honest as an export/selector family rather than a hidden training stack.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_002/trajectory_002_h2",
+    "family_group": "state_handoff_controllers",
+    "search_level": "program_family",
+    "lane": "regime_transition_to_downstream",
+    "implementation_mode": "needs_new_primitive",
+    "mechanism": "The fixed pr1394 stack may need explicit phase transitions between aggressive early fitting and conservative late stabilization. A small controller that switches among predeclared phase presets based on cheap state si...",
+    "broken_invariant": "A single static optimizer/schedule regime with fixed warmup and warmdown is sufficient for the whole run on the frontier base.",
+    "consequence_axes": [
+      "regime_transition",
+      "compute_allocation"
+    ],
+    "not_local_tuning_reason": "The proposal is not a threshold nudge; it changes the search unit to a state-conditioned transition program that decides when the training regime changes.",
+    "measurement_plan": "Surviving controllers separate themselves by transition timing, showing improved late pre-quant slope and at least directional support on downstream sliding-window bpb.",
+    "smallest_decisive_probe": "Compare 2 static controls against 6 bounded controllers that choose among three existing phase presets using only cheap signals such as step fraction, train-loss slope, and update-norm trend.",
+    "expected_observable": "Surviving controllers separate themselves by transition timing, showing improved late pre-quant slope and at least directional support on downstream sliding-window bpb.",
+    "falsifier": "Controllers do not beat matched static presets, or their transition decisions show no stable relationship to either late pre-quant behavior or downstream outcome.",
+    "novelty_vs_history": "This is the hm2/stage3_2 idea applied honestly to the real pr1394 base: search the handoff policy, not another patch slate.",
+    "implementation_basis": "needs_new_primitive",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 4,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "Strongly consequential because it changes regime transitions themselves; falsifiable with bounded controllers and matched static controls; blocked honestly because the active campaign harness may not yet expose state-...",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_002/trajectory_002_h3",
+    "family_group": "late_branch_portfolios",
+    "search_level": "composition",
+    "lane": "late_branch_downstream",
+    "implementation_mode": "needs_new_primitive",
+    "mechanism": "The last segment of training likely has several incompatible finishers that trade off pre-quant fit, quantization robustness, and export quality. Forking a shared trunk into a small late-branch portfolio and selecting...",
+    "broken_invariant": "Once the trunk is fixed, there is one best late finisher worth committing to for the entire run.",
+    "consequence_axes": [
+      "compute_allocation",
+      "artifact_selection"
+    ],
+    "not_local_tuning_reason": "This reallocates compute structurally from full-run variants to branch portfolios and changes the comparison object from a single run to a shared-trunk composition.",
+    "measurement_plan": "Branching creates real spread among late outcomes, and the best branch beats the best single committed finisher without needing a different base contract.",
+    "smallest_decisive_probe": "From one matched trunk checkpoint, run 2 control finishers and 6 branch finishers under equal late-step budgets, then select only by downstream `quantized_sliding_window` score.",
+    "expected_observable": "Branching creates real spread among late outcomes, and the best branch beats the best single committed finisher without needing a different base contract.",
+    "falsifier": "Late branches do not create outcome spread beyond control noise, or branch overhead erases any gain so the portfolio cannot beat the best control.",
+    "novelty_vs_history": "This is distinct from handoff controllers and selector-only families: it treats branching itself as the compute allocation primitive, matching stage3_4/stage3_5\u2019s core claim without pretending the current harness alre...",
+    "implementation_basis": "needs_new_primitive",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 4,
+      "falsifiability": 3,
+      "lane_integrity": 4,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "Consequential because it changes compute allocation and artifact selection together; still falsifiable with a minimal shared-trunk branch pack; honestly marked blocked because branch-resume portfolio machinery may not...",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_002/trajectory_002_h4",
+    "family_group": "metric_lane_reset",
+    "search_level": "metric_lane",
+    "lane": "metric_lane_integrity",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Training-side and export-side families attack different causal bottlenecks. If the harness ranks them together too early, it destroys real signal through metric inversion between pre-quant loss and downstream sliding-...",
+    "broken_invariant": "A single pooled tournament score can fairly admit and promote both training families and artifact families from the first pack.",
+    "consequence_axes": [
+      "search_strategy_reset"
+    ],
+    "not_local_tuning_reason": "This changes the search protocol and evidence contract for the entire campaign rather than tuning any model scalar or family parameter.",
+    "measurement_plan": "Lower control inversion, tighter top-2 survivor agreement across repeats, and fewer cases where a pre-quant winner washes out on the downstream target.",
+    "smallest_decisive_probe": "Take the same 6-candidate plus 2-control slate and evaluate it as two matched subpacks: training-side candidates admitted by lane-pure pre-quant evidence, artifact-side candidates admitted by same-checkpoint downstrea...",
+    "expected_observable": "Lower control inversion, tighter top-2 survivor agreement across repeats, and fewer cases where a pre-quant winner washes out on the downstream target.",
+    "falsifier": "Lane-split admission does not improve control stability or survivor reproducibility relative to pooled ranking on the same slate.",
+    "novelty_vs_history": "This directly attacks the repo\u2019s documented single-metric failure mode and is orthogonal to selector, controller, and branch families because it changes the harness contract itself.",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 5,
+      "falsifiability": 4,
+      "lane_integrity": 5,
+      "implementation_honesty": 4
+    },
+    "self_check_summary": "This is a real metric-lane move, not a patch family. It is easy to falsify with matched packs and directly targets the harness failure mode most likely to hide true downstream winners.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": [
+        "consequence_axes includes search_strategy_reset outside search_level=reset"
+      ]
+    }
+  },
+  {
+    "candidate_id": "trajectory_003/trajectory_003_h1",
+    "family_group": "bounded_controller",
+    "search_level": "program_family",
+    "lane": "training_regime",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Search a bounded controller program that changes existing phase actions on the frozen pr1394 stack, especially when looping activates, how warmdown begins, and how optimizer warmup/handoff phases are sequenced, instea...",
+    "broken_invariant": "The published pr1394 stack is close enough to optimal under one fixed global schedule; only scalar retunes remain.",
+    "consequence_axes": [
+      "compute_allocation",
+      "regime_transition"
+    ],
+    "not_local_tuning_reason": "The search object is a state-conditioned phase program over multiple existing actions, not a single warmdown fraction or momentum number. It changes the unit of search from static hyperparameters to bounded transition...",
+    "measurement_plan": "If the family is real, at least one controller should beat control spread on downstream quantized_sliding_window score_bpb, with pre-quant val_bpb improving earlier than the control and without larger seed instability.",
+    "smallest_decisive_probe": "Run one 8-slot admission pack with 2 frozen-base controls and up to 3 controller realizations that only alter phase-transition logic while keeping the architecture, tokenizer, and export path fixed.",
+    "expected_observable": "If the family is real, at least one controller should beat control spread on downstream quantized_sliding_window score_bpb, with pre-quant val_bpb improving earlier than the control and without lar...",
+    "falsifier": "If controller variants only reshuffle pre-quant loss transiently, or none clear the control spread on downstream score_bpb, the fixed-schedule invariant survives.",
+    "novelty_vs_history": "This is the cleanest way to actually exercise the stage3_2-style bounded-program substrate on the real pr1394 target instead of another static patch slate.",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 4,
+      "implementation_honesty": 4
+    },
+    "self_check_summary": "Consequential because it changes the search unit to a bounded transition program; falsifiable with one admission pack; executable-now claim is plausible but still limited to catalog-supported actions.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_003/trajectory_003_h2",
+    "family_group": "bootstrap_handoff",
+    "search_level": "program_family",
+    "lane": "training_handoff",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Search explicit handoff programs that reassign learning ownership across phases, such as an aggressive bootstrap regime for embeddings/head followed by a receiver regime dominated by stable matrix optimization, instea...",
+    "broken_invariant": "A single optimizer-role allocation across embeddings, head, matrices, and scalars is best for all phases of the pr1394 run.",
+    "consequence_axes": [
+      "compute_allocation",
+      "regime_transition"
+    ],
+    "not_local_tuning_reason": "This is not a learning-rate sweep. It changes which subsystem is supposed to learn when, with a bootstrap, handoff trigger, and receiver regime as the searchable object.",
+    "measurement_plan": "A true handoff family should show a different early-vs-late profile from controls: faster early pre-quant improvement without the usual late downstream regression, or reduced control spread at the same mean.",
+    "smallest_decisive_probe": "Use 2 controls plus 2-3 handoff-program probes in one admission pack, all on the frozen base, where each probe differs in ownership pattern and handoff timing rather than isolated scalar magnitudes.",
+    "expected_observable": "A true handoff family should show a different early-vs-late profile from controls: faster early pre-quant improvement without the usual late downstream regression, or reduced control spread at the ...",
+    "falsifier": "If early gains disappear by the downstream sliding-window metric, or all viable probes collapse back to effectively static ownership, the handoff story is false.",
+    "novelty_vs_history": "This operationalizes the hm2 insight that the real object is the handoff policy, but does so on the real SP8192 pr1394 base instead of abstract stage-local evidence.",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 4,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 4,
+      "implementation_honesty": 4
+    },
+    "self_check_summary": "Strong family because it searches optimizer-role transitions rather than numbers; probe is crisp; distinct from the general controller family because the mechanism is ownership transfer, not arbitrary scheduling.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_003/trajectory_003_h3",
+    "family_group": "checkpoint_export_selector",
+    "search_level": "program_family",
+    "lane": "artifact_selection",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Search selector programs over late checkpoints and export choices on an otherwise fixed training trajectory, because pr1394 already shows meaningful separation between pre-quant, post-quant, and sliding-window outcome...",
+    "broken_invariant": "The final/default checkpoint plus default export path is automatically the best artifact once the training run is fixed.",
+    "consequence_axes": [
+      "artifact_selection",
+      "deployment_path"
+    ],
+    "not_local_tuning_reason": "This changes what artifact is allowed to win. The searchable unit is a selector over candidate checkpoints and export realizations, not a minor export threshold retune.",
+    "measurement_plan": "If the family is real, the downstream winner will come from a non-default checkpoint/export pair, and the ranking will disagree with simple final-step or pre-quant ranking often enough to exceed control noise.",
+    "smallest_decisive_probe": "Use the same trained trajectory for a same-checkpoint bakeoff over a small late-checkpoint window and a small fixed menu of catalog export realizations, with downstream quantized_sliding_window as admission metric.",
+    "expected_observable": "If the family is real, the downstream winner will come from a non-default checkpoint/export pair, and the ranking will disagree with simple final-step or pre-quant ranking often enough to exceed co...",
+    "falsifier": "If the selector almost always returns the final/default artifact, or ranking differences are within control spread, the artifact-selection family is not doing real work.",
+    "novelty_vs_history": "This directly tests a lane the repo keeps underusing: artifact choice as a first-order search object rather than an afterthought behind training patches.",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 4,
+      "novelty": 5,
+      "falsifiability": 5,
+      "lane_integrity": 5,
+      "implementation_honesty": 4
+    },
+    "self_check_summary": "High lane integrity because it is judged entirely on downstream artifact metrics; clearly not local tuning because the winner artifact itself is the object under search.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_003/trajectory_003_h4",
+    "family_group": "signal_triggered_branch_tournament",
+    "search_level": "program_family",
+    "lane": "branching",
+    "implementation_mode": "needs_new_primitive",
+    "mechanism": "Branch the shared trunk only when cheap run-state signals indicate regime exhaustion, then run a small late finisher tournament, instead of forking at a fixed step or never forking. The trigger should use signals like...",
+    "broken_invariant": "If branching helps, a fixed fork point is sufficient; run-state-dependent triggers are unnecessary.",
+    "consequence_axes": [
+      "regime_transition",
+      "artifact_selection"
+    ],
+    "not_local_tuning_reason": "This changes whether and when extra compute is allocated at all. The search object is a trigger-plus-branch policy, not a later finisher scalar tweak.",
+    "measurement_plan": "A valid family would produce branch times that vary by run state and occasionally beat both fixed-step branching and no-branch on downstream sliding-window bpb.",
+    "smallest_decisive_probe": "The smallest decisive probe is one shared trunk with one trigger-based branch policy versus one fixed-step branch control and one no-branch control, all judged on downstream score_bpb.",
+    "expected_observable": "A valid family would produce branch times that vary by run state and occasionally beat both fixed-step branching and no-branch on downstream sliding-window bpb.",
+    "falsifier": "If trigger times collapse to a narrow fixed-step window, or the signal-triggered policy never beats simpler controls, the extra trigger machinery is unjustified.",
+    "novelty_vs_history": "This is the most direct bridge between stage3_3 signals and stage3_5 branch programs, and it breaks a different invariant from static handoff or selector families.",
+    "implementation_basis": "needs_new_primitive",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 5,
+      "falsifiability": 3,
+      "lane_integrity": 4,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "Highly consequential and distinct, but honestly blocked because the useful trigger signals are described in the repo history as stranded outside the active runner/catalog.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_004/trajectory_004_h1",
+    "family_group": "control_delta_admission",
+    "search_level": "metric_lane",
+    "lane": "downstream_quantized_sliding_window",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Replace raw ranking by control-paired delta ranking: each candidate is admitted and promoted only by its improvement over matched controls on downstream quantized sliding-window `score_bpb`, with pre-quant `val_bpb` u...",
+    "broken_invariant": "Absolute downstream means from a fresh pr1394 pack are stable enough to rank families without explicitly estimating pack-specific control spread.",
+    "consequence_axes": [
+      "search_strategy_reset"
+    ],
+    "not_local_tuning_reason": "This changes the unit of comparison for the whole campaign and therefore which families survive at all; it does not retune any model scalar inside the pr1394 stack.",
+    "measurement_plan": "Replay-equivalent controls establish a tight delta band, and real winners exceed that band on downstream `score_bpb` even when pre-quant improvements are smaller.",
+    "smallest_decisive_probe": "Run one 8-slot admission pack with 2 exact controls, 2 replay-equivalent control clones, and 4 novel candidates. Promote only if a novel candidate clears the control-clone noise floor on downstream `score_bpb`.",
+    "expected_observable": "Replay-equivalent controls establish a tight delta band, and real winners exceed that band on downstream `score_bpb` even when pre-quant improvements are smaller.",
+    "falsifier": "If control clones rank as winners or their spread is comparable to the claimed gains from novel candidates, the pack is not learning enough to justify family promotion.",
+    "novelty_vs_history": "This is distinct from prior patch-pack search because it changes campaign comparison semantics instead of introducing another model edit. It directly addresses the recorded failure mode of single-metric ranking under ...",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 4,
+      "falsifiability": 5,
+      "lane_integrity": 5,
+      "implementation_honesty": 4
+    },
+    "self_check_summary": "Consequential because it changes campaign admission, not a local threshold. The probe is cheap and decisive, the lane is explicitly downstream, and the executability claim stays within control/candidate packing the ha...",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": [
+        "consequence_axes includes search_strategy_reset outside search_level=reset"
+      ]
+    }
+  },
+  {
+    "candidate_id": "trajectory_004/trajectory_004_h2",
+    "family_group": "artifact_selector_family",
+    "search_level": "program_family",
+    "lane": "downstream_quantized_sliding_window",
+    "implementation_mode": "catalog_executable_now",
+    "mechanism": "Search over selector programs that choose which already-trained checkpoint/export state becomes the artifact: last-step export, best pre-quant checkpoint, post-warmdown checkpoint, or stability-window checkpoint, all ...",
+    "broken_invariant": "The final training state is automatically the best downstream sliding-window artifact on the pr1394 base.",
+    "consequence_axes": [
+      "artifact_selection"
+    ],
+    "not_local_tuning_reason": "The family changes which trained state is exported and compared; that is an artifact-selection hypothesis, not a scalar retune within one export recipe.",
+    "measurement_plan": "At least one non-final selector beats the published last-step-style control on downstream `score_bpb`, possibly with similar or slightly worse pre-quant `val_bpb`.",
+    "smallest_decisive_probe": "From one shared training trace, export 3 selector-defined checkpoints plus a matched final-step control and compare downstream quantized sliding-window `score_bpb` with pre-quant `val_bpb` as secondary evidence.",
+    "expected_observable": "At least one non-final selector beats the published last-step-style control on downstream `score_bpb`, possibly with similar or slightly worse pre-quant `val_bpb`.",
+    "falsifier": "If all selector-defined exports collapse within control spread or the best pre-quant checkpoint consistently underperforms on downstream score, the selector family is false for ...",
+    "novelty_vs_history": "Distinct from optimizer or architecture mutation because it attacks the artifact-selection contract directly. It is also aligned with the repo finding that the searchable object should include selector programs, not j...",
+    "implementation_basis": "catalog_executable_now",
+    "self_scores": {
+      "consequence": 4,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 5,
+      "implementation_honesty": 4
+    },
+    "self_check_summary": "This is a first-order artifact-selection family with a same-trace probe and a crisp falsifier. It stays honest by keeping the published training base fixed and only varying which state becomes the candidate artifact.",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_004/trajectory_004_h3",
+    "family_group": "recurrence_handoff_program",
+    "search_level": "program_family",
+    "lane": "downstream_quantized_sliding_window",
+    "implementation_mode": "needs_new_primitive",
+    "mechanism": "Replace the single fixed recurrence schedule with a bounded handoff program: keep the non-looped trunk until cheap training signals indicate stabilization, then enable depth recurrence together with its finisher regim...",
+    "broken_invariant": "The best way to use recurrence on pr1394 is a fixed wall-clock fraction such as `ENABLE_LOOPING_AT`, rather than a state-triggered transition program.",
+    "consequence_axes": [
+      "compute_allocation",
+      "regime_transition"
+    ],
+    "not_local_tuning_reason": "This family changes when recurrent compute exists and why the optimizer crosses regimes; it rewrites the training program around a handoff, rather than nudging one schedule scalar.",
+    "measurement_plan": "A real handoff program should show a cleaner post-transition pre-quant slope and then a better downstream sliding-window score at similar wall-clock budget.",
+    "smallest_decisive_probe": "Compare three programs: fixed published recurrence control, late handoff by coarse phase rule, and signal-triggered handoff using cheap observables such as loss slope or update norm. Judge first by post-handoff pre-qu...",
+    "expected_observable": "A real handoff program should show a cleaner post-transition pre-quant slope and then a better downstream sliding-window score at similar wall-clock budget.",
+    "falsifier": "If signal-triggered handoff is indistinguishable from the fixed control within control spread, or it destabilizes immediately after transition, the mechanism is false.",
+    "novelty_vs_history": "This line is different from a bare `ENABLE_LOOPING_AT` sweep because the object of search is the handoff policy itself, matching the repo's recurring controller/handoff abstraction rather than another static threshold...",
+    "implementation_basis": "needs_new_primitive",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 5,
+      "falsifiability": 4,
+      "lane_integrity": 4,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "Strong consequence and novelty because it turns static recurrence timing into a transition program. It remains honest by marking the idea blocked until the target script or harness exposes runtime state-conditioned co...",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  },
+  {
+    "candidate_id": "trajectory_004/trajectory_004_h4",
+    "family_group": "late_branch_portfolio",
+    "search_level": "composition",
+    "lane": "downstream_quantized_sliding_window",
+    "implementation_mode": "needs_new_primitive",
+    "mechanism": "Train a shared pr1394 trunk once, then fork a small portfolio of late finishers or export selectors near warmdown and pick the best downstream artifact from the branch set instead of committing to one endgame path for...",
+    "broken_invariant": "One committed finisher is the right compute topology; late branching cannot produce better downstream artifacts per unit compute than independent single-path runs.",
+    "consequence_axes": [
+      "compute_allocation",
+      "regime_transition",
+      "artifact_selection"
+    ],
+    "not_local_tuning_reason": "This changes the topology of the run by reallocating compute from full independent candidates to a shared-trunk plus portfolio program, which is a composition-level search move rather than a parameter tweak.",
+    "measurement_plan": "At least one late branch beats the single-path control on downstream `score_bpb` by more than control spread while consuming less total compute than training the same number of full independent candidates.",
+    "smallest_decisive_probe": "Run 2 controls and up to 4 branches off the same trunk checkpoint, where each branch differs only in finisher/export policy. Compare marginal downstream gain per additional finisher budget against a single-path control.",
+    "expected_observable": "At least one late branch beats the single-path control on downstream `score_bpb` by more than control spread while consuming less total compute than training the same number of full independent can...",
+    "falsifier": "If branch winners never clear control spread, or branch-specific variance dominates any apparent gain, the portfolio story is false on this base.",
+    "novelty_vs_history": "Distinct from both selector-only and handoff-only families because the searchable object is a branch portfolio over a shared trunk. It maps directly to the repo's recurring late-branch abstraction instead of another s...",
+    "implementation_basis": "needs_new_primitive",
+    "self_scores": {
+      "consequence": 5,
+      "novelty": 4,
+      "falsifiability": 4,
+      "lane_integrity": 4,
+      "implementation_honesty": 5
+    },
+    "self_check_summary": "This is consequential because it changes compute topology and artifact selection together. The probe is still compact, but the current harness likely lacks shared-trunk branch orchestration, so the blocked classificat...",
+    "static_audit": {
+      "self_scores_clear_keep_floor": {
+        "consequence": true,
+        "falsifiability": true,
+        "implementation_honesty": true
+      },
+      "alignment_warnings": []
+    }
+  }
+]
+
+VERIFIER DOCTRINE
+# Verifier Prompt Doctrine
+
+You are the adversarial verifier for `pg_enigma`.
+
+Your job is not to be agreeable.
+
+Your job is to decide which proposed hypotheses are actually consequential enough to deserve the next unit of implementation or tournament budget.
+
+The explorer already provides a structured claim packet for each idea, and the harness already enforces schema-level shape constraints.
+
+Your role is to **audit**, not to rediscover the idea from scratch.
+
+## Principles
+
+1. Weak keeps are worse than strong drops.
+2. If an idea is only local tuning, mark it `DROP` or `REWRITE`.
+3. If an idea is promising but too small, rewrite it **up one search level**.
+4. Use the claim packet and static audit as your first inputs. Spend reasoning on contradictions, weak premises, fake novelty, lane mismatch, and dishonest executable-now claims.
+5. Score every candidate on:
+   - consequence
+   - novelty
+   - falsifiability
+   - lane integrity
+   - implementation honesty
+6. Only put ideas into `keep_ids` if they are strong enough to survive downstream distillation.
+
+## What to reject
+
+- local threshold nudges
+- child variants of unproven parents
+- mixed-lane claims
+- hidden compounds
+- hand-wavy probes
+- dishonest "catalog executable now" claims
+
+## What to reward
+
+- first-order mechanism shifts
+- sharp probes and kill rules
+- honest search-level reframes
+- real differences from prior failed lines
+
+## Rewrite behavior
+
+When you choose `REWRITE`, say how to make the idea consequential:
+
+- what false invariant should be broken instead
+- what search level it should move to
+- what the smallest decisive probe should become
+
+Do not merely say "be more specific."
+Do not rewrite the whole candidate from a different worldview unless the claim packet itself is incoherent.

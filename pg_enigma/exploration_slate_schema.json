@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["trajectory_id", "worldview", "hypotheses", "rejected_lines"],
+  "additionalProperties": false,
+  "properties": {
+    "trajectory_id": { "type": "string" },
+    "worldview": { "type": "string" },
+    "hypotheses": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "search_level",
+          "lane",
+          "mechanism",
+          "broken_invariant",
+          "consequence_axes",
+          "not_local_tuning_reason",
+          "measurement_plan",
+          "smallest_decisive_probe",
+          "expected_observable",
+          "falsifier",
+          "novelty_vs_history",
+          "implementation_mode",
+          "implementation_basis",
+          "family_group",
+          "self_scores",
+          "self_check_summary"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "search_level": {
+            "type": "string",
+            "enum": ["metric_lane", "base_contract", "program_family", "composition", "reset"]
+          },
+          "lane": { "type": "string" },
+          "mechanism": { "type": "string" },
+          "broken_invariant": { "type": "string" },
+          "consequence_axes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "representation_contract",
+                "compute_allocation",
+                "regime_transition",
+                "artifact_selection",
+                "deployment_path",
+                "model_contract",
+                "search_strategy_reset"
+              ]
+            }
+          },
+          "not_local_tuning_reason": { "type": "string" },
+          "measurement_plan": { "type": "string" },
+          "smallest_decisive_probe": { "type": "string" },
+          "expected_observable": { "type": "string" },
+          "falsifier": { "type": "string" },
+          "novelty_vs_history": { "type": "string" },
+          "implementation_mode": {
+            "type": "string",
+            "enum": [
+              "catalog_executable_now",
+              "needs_new_primitive",
+              "needs_new_base_cycle"
+            ]
+          },
+          "implementation_basis": { "type": "string" },
+          "family_group": { "type": "string" },
+          "self_scores": {
+            "type": "object",
+            "required": [
+              "consequence",
+              "novelty",
+              "falsifiability",
+              "lane_integrity",
+              "implementation_honesty"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "consequence": { "type": "integer", "minimum": 1, "maximum": 5 },
+              "novelty": { "type": "integer", "minimum": 1, "maximum": 5 },
+              "falsifiability": { "type": "integer", "minimum": 1, "maximum": 5 },
+              "lane_integrity": { "type": "integer", "minimum": 1, "maximum": 5 },
+              "implementation_honesty": { "type": "integer", "minimum": 1, "maximum": 5 }
+            }
+          },
+          "self_check_summary": { "type": "string" }
+        }
+      }
+    },
+    "rejected_lines": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "cycle_id": "pr1394_frontier_6p2",
+  "generation": 0,
+  "gpu_pool": [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7"
+  ],
+  "selection": {
+    "pass_verdicts": [
+      "PASS",
+      "PASS_WITH_WARNINGS"
+    ],
+    "primary_metric_path": "metrics.score_bpb",
+    "goal": "minimize",
+    "control_slots": [
+      "C0",
+      "C1"
+    ],
+    "max_control_spread": 0.03,
+    "top_k": 2
+  },
+  "slots": [
+    {
+      "slot": "C0",
+      "role": "control",
+      "family": "control_base",
+      "path": "slots/C0",
+      "results_path": "slots/C0/results",
+      "nproc_per_slot": 8,
+      "gpu_spec": null,
+      "command": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt_human.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "C1",
+      "role": "control",
+      "family": "control_base",
+      "path": "slots/C1",
+      "results_path": "slots/C1/results",
+      "nproc_per_slot": 8,
+      "gpu_spec": null,
+      "command": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt_human.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H1",
+      "role": "candidate",
+      "family": "loop_ramp",
+      "path": "slots/H1",
+      "results_path": "slots/H1/results",
+      "nproc_per_slot": 8,
+      "gpu_spec": null,
+      "command": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt_human.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H2",
+      "role": "candidate",
+      "family": "skip_gate_schedule",
+      "path": "slots/H2",
+      "results_path": "slots/H2/results",
+      "nproc_per_slot": 8,
+      "gpu_spec": null,
+      "command": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt_human.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H3",
+      "role": "candidate",
+      "family": "ema_selector",
+      "path": "slots/H3",
+      "results_path": "slots/H3/results",
+      "nproc_per_slot": 8,
+      "gpu_spec": null,
+      "command": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt_human.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H4",
+      "role": "candidate",
+      "family": "quant_clip_anneal",
+      "path": "slots/H4",
+      "results_path": "slots/H4/results",
+      "nproc_per_slot": 8,
+      "gpu_spec": null,
+      "command": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt_human.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H5",
+      "role": "candidate",
+      "family": "sensitivity_bits",
+      "path": "slots/H5",
+      "results_path": "slots/H5/results",
+      "nproc_per_slot": 8,
+      "gpu_spec": null,
+      "command": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt_human.py",
+      "metric_path": "metrics.score_bpb"
+    },
+    {
+      "slot": "H6",
+      "role": "candidate",
+      "family": "phase_split_optim",
+      "path": "slots/H6",
+      "results_path": "slots/H6/results",
+      "nproc_per_slot": 8,
+      "gpu_spec": null,
+      "command": "${PGOLF_PYTHON} -m torch.distributed.run --standalone --nproc_per_node=8 train_gpt_human.py",
+      "metric_path": "metrics.score_bpb"
+    }
+  ]
+}

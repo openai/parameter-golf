@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "verdict",
+    "summary",
+    "campaign_goal",
+    "dominant_search_level",
+    "keep_ids",
+    "families",
+    "stop_doing",
+    "pack_strategy",
+    "promotion_policy",
+    "composition_policy",
+    "campaign_handoff"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["READY", "RETRY", "FAIL"]
+    },
+    "summary": { "type": "string" },
+    "campaign_goal": { "type": "string" },
+    "dominant_search_level": {
+      "type": "string",
+      "enum": ["metric_lane", "base_contract", "program_family", "composition", "reset"]
+    },
+    "keep_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "families": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "name",
+          "family_group",
+          "search_level",
+          "lane",
+          "phase_window",
+          "pack_kind",
+          "implementation_mode",
+          "compiler_pass_k",
+          "why_keep",
+          "minimal_probe",
+          "expected_signal",
+          "composition_tags",
+          "incompatible_with",
+          "mutate_after_survival",
+          "pack_rationale"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "name": { "type": "string" },
+          "family_group": { "type": "string" },
+          "search_level": {
+            "type": "string",
+            "enum": ["metric_lane", "base_contract", "program_family", "composition", "reset"]
+          },
+          "lane": {
+            "type": "string",
+            "enum": [
+              "base_frontier",
+              "training",
+              "selector",
+              "deployment",
+              "composition"
+            ]
+          },
+          "phase_window": {
+            "type": "string",
+            "enum": [
+              "frontier",
+              "early",
+              "mid",
+              "late",
+              "post_train",
+              "pairwise",
+              "hybrid"
+            ]
+          },
+          "pack_kind": {
+            "type": "string",
+            "enum": [
+              "base_frontier_pack",
+              "early_training_pack",
+              "mid_training_pack",
+              "late_training_pack",
+              "selector_pack",
+              "deployment_pack",
+              "pairwise_composition_pack",
+              "hybrid_pack"
+            ]
+          },
+          "implementation_mode": {
+            "type": "string",
+            "enum": [
+              "catalog_executable_now",
+              "needs_new_primitive",
+              "needs_new_base_cycle"
+            ]
+          },
+          "compiler_pass_k": { "type": "integer", "minimum": 1 },
+          "why_keep": { "type": "string" },
+          "minimal_probe": { "type": "string" },
+          "expected_signal": { "type": "string" },
+          "composition_tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "incompatible_with": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "mutate_after_survival": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "pack_rationale": { "type": "string" }
+        }
+      }
+    },
+    "stop_doing": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "pack_strategy": {
+      "type": "object",
+      "required": [
+        "controls_per_pack",
+        "max_candidates_per_pack",
+        "pack_order",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "controls_per_pack": { "type": "integer", "minimum": 1 },
+        "max_candidates_per_pack": { "type": "integer", "minimum": 1 },
+        "pack_order": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "promotion_policy": {
+      "type": "object",
+      "required": [
+        "min_positive_realizations",
+        "require_directional_support",
+        "family_survival_rule",
+        "composition_entry_rule"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "min_positive_realizations": { "type": "integer", "minimum": 1 },
+        "require_directional_support": { "type": "boolean" },
+        "family_survival_rule": { "type": "string" },
+        "composition_entry_rule": { "type": "string" }
+      }
+    },
+    "composition_policy": {
+      "type": "object",
+      "required": [
+        "pairwise_after_solo_survival",
+        "max_pairwise_candidates",
+        "max_hybrid_candidates",
+        "hybrid_entry_rule",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pairwise_after_solo_survival": { "type": "boolean" },
+        "max_pairwise_candidates": { "type": "integer", "minimum": 1 },
+        "max_hybrid_candidates": { "type": "integer", "minimum": 1 },
+        "hybrid_entry_rule": { "type": "string" },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "campaign_handoff": {
+      "type": "object",
+      "required": [
+        "global_instructions",
+        "control_principles",
+        "admission_principles",
+        "metric_principles",
+        "implementation_principles"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "global_instructions": { "type": "string" },
+        "control_principles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "admission_principles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "metric_principles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "implementation_principles": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
