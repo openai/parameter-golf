@@ -1,0 +1,69 @@
+{
+  "author": "alertcat",
+  "github_id": "alertcat",
+  "name": "PR #1735 + CaseOps Tokenizer (V15)",
+  "date": "2026-04-19",
+  "track": "10min_16mb",
+  "val_loss": 2.26584965,
+  "val_bpb": 1.03540487,
+  "val_bpb_std": 0.00056684,
+  "seeds": [
+    1337,
+    42,
+    999
+  ],
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.26461669,
+      "val_bpb": 1.03484145,
+      "artifact_bytes": 15996061
+    },
+    "42": {
+      "val_loss": 2.26754687,
+      "val_bpb": 1.03618043,
+      "artifact_bytes": 15996195
+    },
+    "999": {
+      "val_loss": 2.2653854,
+      "val_bpb": 1.03519273,
+      "artifact_bytes": 15994993
+    }
+  },
+  "independent_reproduction": {
+    "date": "2026-04-28",
+    "seed": 1337,
+    "val_loss": 2.26406706,
+    "val_bpb": 1.03459029,
+    "artifact_bytes": 15996563,
+    "hardware": "8xH100 80GB HBM3",
+    "notes": "Reproduced from this record folder with PREQUANT_TTT_ENABLED=1 and PREQUANT_TTT_EPOCHS=21. Training stopped at 588132ms, post-prequant-ttt val_bpb was 1.02819756, quantized non-sliding val_bpb was 1.04801825."
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_eval_time_adaptation": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "fixed_predictor": true,
+    "three_seeds": true,
+    "score_first_ttt": true
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "CaseOps V15 integration from PR #1738 (alertcat), combining PR #1735 (AjAnubolu) parallel pre-quant AdamW TTT with PR #1729 (romeerp) CaseOps tokenizer and byte-sidecar BPB accounting: SP8192 lossless-case tokenizer + original-byte sidecars + XSA all layers + 3-layer recurrence (L3-5) + parallel residuals (L7+) + QK-Gain 5.25 + LeakyReLU^2 MLP + EMA/SWA + Muon-family optimization + high-WD compression pressure + 21-epoch 8-GPU pre-quant AdamW TTT + full-Hessian GPTQ SDClip int6 + int8 embeddings + Brotli",
+  "attribution": {
+    "v15_integration": "@alertcat (PR #1738) - CaseOps V15 integration and byte-sidecar support added to PR #1735 stack",
+    "pr1735_base": "@AjAnubolu (PR #1735) - 8-GPU parallel pre-quant AdamW TTT, 21 epochs, federated averaging, epoch-level cosine LR",
+    "caseops_tokenizer": "@romeerp (PR #1729) - lossless caps tokenizer, public CaseOps dataset/tokenizer export, byte-sidecar BPB accounting",
+    "prequant_ttt_concept": "@stukenov (PR #1364) - pre-quant AdamW TTT concept",
+    "qk_gain_525": "@bigbag (PR #1493) - QK-Gain 5.25 and frontier stack consolidation",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204) - parallel residual lineage",
+    "depth_recurrence": "@dexhunter (PR #1331, PR #1285), @msisovic (PR #1204) - 3-layer recurrence / mini-depth-recurrence lineage",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394, PR #1218, PR #1089, PR #1060) - SP8192, SDClip, GPTQ embedding quantization, compression path",
+    "optimizer_and_training_lineage": "@abaybektursun (PR #1019, PR #549, PR #399), @bigbag (PR #1217), @X-Abhishek-X (PR #1445)",
+    "architecture_lineage": "@parinzee (PR #493), @gowtham0992 (PR #478), @jainpranjal97 (PR #1125), @jfprincz (PR #315), @newjordan (PR #401)",
+    "ttt_and_caseops_lineage": "@Christopher-Lee-McClendon (PR #461), @dexhunter (PR #1626), @samacqua (PR #1530), @romeerp (PR #1610)"
+  }
+}
