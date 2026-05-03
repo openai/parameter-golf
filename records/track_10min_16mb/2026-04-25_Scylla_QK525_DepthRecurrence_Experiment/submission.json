@@ -1,0 +1,62 @@
+{
+  "author": "Djeidy",
+  "github_id": "djeidy",
+  "name": "Scylla + QK-Gain 5.25 + 3-Layer Depth Recurrence + GPTQ",
+  "date": "2026-04-25",
+  "track": "10min_16mb",
+  "val_bpb": 0.94166052,
+  "val_bpb_std": 0.00066536,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 0.94106817,
+      "roundtrip_bpb": 0.96107371,
+      "post_ema_bpb": 0.9585,
+      "artifact_bytes": 15860133,
+      "steps": 5249,
+      "train_time_ms": 591141
+    },
+    "42": {
+      "val_bpb": 0.94238042,
+      "roundtrip_bpb": 0.96234529,
+      "post_ema_bpb": 0.9596,
+      "artifact_bytes": 15868157,
+      "steps": 5260,
+      "train_time_ms": 591041
+    },
+    "2025": {
+      "val_bpb": 0.94153297,
+      "roundtrip_bpb": 0.96145544,
+      "post_ema_bpb": 0.9588,
+      "artifact_bytes": 15854517,
+      "steps": 5254,
+      "train_time_ms": 591103
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Scylla tokenizer/data + XSA-all + FA3 + QK-Gain 5.25 + 3-layer depth recurrence on layers 3-5 activated at 35% training + BIGRAM_DIM=40 + full GPTQ int6 + LZMA",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_ttt": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "validation_not_used_for_training": true,
+    "three_seeds": true
+  },
+  "lineage": {
+    "base": "Scylla + Full GPTQ + XSA-all + FA3",
+    "added": [
+      "QK_GAIN_INIT=5.25",
+      "NUM_LOOPS=2",
+      "LOOP_START=3",
+      "LOOP_END=5",
+      "ENABLE_LOOPING_AT=0.35",
+      "BIGRAM_DIM=40"
+    ]
+  }
+}
