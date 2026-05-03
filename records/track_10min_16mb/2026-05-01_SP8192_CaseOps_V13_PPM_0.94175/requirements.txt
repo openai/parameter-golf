@@ -1,0 +1,8 @@
+numpy
+sentencepiece
+brotli
+triton
+flash-attn
+
+# System package required before running:
+#   lrzip
