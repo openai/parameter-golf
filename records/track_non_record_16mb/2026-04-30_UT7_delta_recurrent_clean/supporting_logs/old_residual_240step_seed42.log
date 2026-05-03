@@ -1,0 +1,62 @@
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Thu Apr 30 06:58:56 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   31C    P0            115W /  700W |    1185MiB /  81559MiB |     10%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+submission:UT-K6 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=240
+model_params:20197418
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=12330 embed=8388608
+residual_scale:0.35355
+starting training: iterations=240 warmup=20 warmdown=60
+step:1/240 train_loss:9.2106 lr_scale:0.000 muon_mom:0.850 train_time:1671ms step_avg:1670.99ms
+step:2/240 train_loss:9.2092 lr_scale:0.050 muon_mom:0.850 train_time:2923ms step_avg:1461.53ms
+step:3/240 train_loss:8.9707 lr_scale:0.100 muon_mom:0.850 train_time:4172ms step_avg:1390.58ms
+step:4/240 train_loss:8.5226 lr_scale:0.150 muon_mom:0.851 train_time:5421ms step_avg:1355.16ms
+step:5/240 train_loss:8.1252 lr_scale:0.200 muon_mom:0.851 train_time:6669ms step_avg:1333.84ms
+step:6/240 train_loss:7.6509 lr_scale:0.250 muon_mom:0.851 train_time:7918ms step_avg:1319.65ms
+step:7/240 train_loss:7.3169 lr_scale:0.300 muon_mom:0.851 train_time:9167ms step_avg:1309.51ms
+step:8/240 train_loss:7.0791 lr_scale:0.350 muon_mom:0.851 train_time:10415ms step_avg:1301.87ms
+step:9/240 train_loss:7.0872 lr_scale:0.400 muon_mom:0.852 train_time:11664ms step_avg:1295.95ms
+step:10/240 train_loss:6.9781 lr_scale:0.450 muon_mom:0.852 train_time:12912ms step_avg:1291.24ms
+step:20/240 train_loss:6.3794 lr_scale:0.950 muon_mom:0.854 train_time:25406ms step_avg:1270.30ms
+step:40/240 train_loss:5.8091 lr_scale:1.000 muon_mom:0.858 train_time:50407ms step_avg:1260.17ms
+step:60/240 train_loss:5.6479 lr_scale:1.000 muon_mom:0.862 train_time:75433ms step_avg:1257.21ms
+step:80/240 train_loss:5.4315 lr_scale:1.000 muon_mom:0.866 train_time:100442ms step_avg:1255.53ms
+step:100/240 train_loss:5.2849 lr_scale:1.000 muon_mom:0.870 train_time:125453ms step_avg:1254.53ms
+step:120/240 train_loss:5.2727 lr_scale:1.000 muon_mom:0.874 train_time:150473ms step_avg:1253.95ms
+step:140/240 train_loss:5.1794 lr_scale:1.000 muon_mom:0.878 train_time:175485ms step_avg:1253.46ms
+step:160/240 train_loss:5.1602 lr_scale:1.000 muon_mom:0.882 train_time:200503ms step_avg:1253.14ms
+step:180/240 train_loss:5.0498 lr_scale:1.000 muon_mom:0.886 train_time:225515ms step_avg:1252.86ms
+step:200/240 train_loss:5.0108 lr_scale:0.683 muon_mom:0.890 train_time:250527ms step_avg:1252.64ms
+step:220/240 train_loss:4.7791 lr_scale:0.350 muon_mom:0.894 train_time:275537ms step_avg:1252.44ms
+step:240/240 train_loss:4.6650 lr_scale:0.100 muon_mom:0.898 train_time:300548ms step_avg:1252.28ms
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=28 param_count=20197418
+baseline_bytes:80789672 stored_bytes:18803796
+compressed_blob_bytes:14222242 code_bytes:56806 total:14279048
+target_artifact_bytes:16000000 headroom:1720952
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:4.7006 val_bpb:1.8404 eval_time:7622ms artifact_bytes:14279048
+final_quant_roundtrip_exact val_loss:4.70060781 val_bpb:1.84038776

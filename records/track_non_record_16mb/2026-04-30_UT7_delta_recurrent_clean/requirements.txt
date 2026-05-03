@@ -1,0 +1,4 @@
+# Local additions to the root requirements.txt for this submission.
+# Inherits: numpy, tqdm, torch, huggingface-hub, kernels, setuptools,
+# typing-extensions, datasets, tiktoken, sentencepiece (from root).
+zstandard>=0.22.0

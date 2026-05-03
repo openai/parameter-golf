@@ -1,0 +1,336 @@
+=== u00_oldres start 2026-04-30T05:48:57Z ===
+logs/u00_oldres.txt
+submission:UT-K6 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=60
+model_params:20197418
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=12330 embed=8388608
+residual_scale:0.35355
+starting training: iterations=60 warmup=5 warmdown=15
+step:1/60 train_loss:9.2092 lr_scale:0.000 muon_mom:0.850 train_time:1664ms step_avg:1663.83ms
+step:2/60 train_loss:9.2075 lr_scale:0.200 muon_mom:0.850 train_time:2914ms step_avg:1456.95ms
+step:3/60 train_loss:8.4546 lr_scale:0.400 muon_mom:0.850 train_time:4162ms step_avg:1387.49ms
+step:4/60 train_loss:7.6326 lr_scale:0.600 muon_mom:0.851 train_time:5411ms step_avg:1352.77ms
+step:5/60 train_loss:7.3579 lr_scale:0.800 muon_mom:0.851 train_time:6660ms step_avg:1331.92ms
+step:6/60 train_loss:7.2919 lr_scale:1.000 muon_mom:0.851 train_time:7908ms step_avg:1317.99ms
+step:7/60 train_loss:7.5465 lr_scale:1.000 muon_mom:0.851 train_time:9157ms step_avg:1308.08ms
+step:8/60 train_loss:7.8304 lr_scale:1.000 muon_mom:0.851 train_time:10405ms step_avg:1300.65ms
+step:9/60 train_loss:7.0425 lr_scale:1.000 muon_mom:0.852 train_time:11654ms step_avg:1294.92ms
+step:10/60 train_loss:7.0496 lr_scale:1.000 muon_mom:0.852 train_time:12903ms step_avg:1290.34ms
+step:15/60 train_loss:6.6435 lr_scale:1.000 muon_mom:0.853 train_time:19149ms step_avg:1276.60ms
+step:20/60 train_loss:6.3028 lr_scale:1.000 muon_mom:0.854 train_time:25388ms step_avg:1269.40ms
+step:25/60 train_loss:6.0915 lr_scale:1.000 muon_mom:0.855 train_time:31622ms step_avg:1264.89ms
+step:30/60 train_loss:5.9794 lr_scale:1.000 muon_mom:0.856 train_time:37858ms step_avg:1261.94ms
+step:35/60 train_loss:5.7839 lr_scale:1.000 muon_mom:0.857 train_time:44096ms step_avg:1259.88ms
+step:40/60 train_loss:5.7745 lr_scale:1.000 muon_mom:0.858 train_time:50344ms step_avg:1258.60ms
+step:45/60 train_loss:5.6432 lr_scale:1.000 muon_mom:0.859 train_time:56593ms step_avg:1257.62ms
+step:50/60 train_loss:5.5817 lr_scale:0.733 muon_mom:0.860 train_time:62848ms step_avg:1256.96ms
+step:55/60 train_loss:5.5349 lr_scale:0.400 muon_mom:0.861 train_time:69115ms step_avg:1256.63ms
+step:60/60 train_loss:5.4872 lr_scale:0.100 muon_mom:0.862 train_time:75364ms step_avg:1256.06ms
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=28 param_count=20197418
+baseline_bytes:80789672 stored_bytes:18803796
+compressed_blob_bytes:14300399 code_bytes:56806 total:14357205
+target_artifact_bytes:16000000 headroom:1642795
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:5.4035 val_bpb:2.1156 eval_time:7493ms artifact_bytes:14357205
+final_quant_roundtrip_exact val_loss:5.40354873 val_bpb:2.11560405
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+compressed_blob_bytes:14300399 code_bytes:56806 total:14357205
+target_artifact_bytes:16000000 headroom:1642795
+final_quant_roundtrip_exact val_loss:5.40354873 val_bpb:2.11560405
+=== u00_oldres end 2026-04-30T05:51:03Z ===
+=== u01_delta_default start 2026-04-30T05:51:03Z ===
+logs/u01_delta_default.txt
+submission:UT-K6 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=60
+model_params:20197418
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=12330 embed=8388608
+residual_scale:0.35355
+starting training: iterations=60 warmup=5 warmdown=15
+step:1/60 train_loss:12.0534 lr_scale:0.000 muon_mom:0.850 train_time:1664ms step_avg:1663.76ms
+step:2/60 train_loss:12.0494 lr_scale:0.200 muon_mom:0.850 train_time:2914ms step_avg:1456.83ms
+step:3/60 train_loss:11.1904 lr_scale:0.400 muon_mom:0.850 train_time:4163ms step_avg:1387.79ms
+step:4/60 train_loss:9.7238 lr_scale:0.600 muon_mom:0.851 train_time:5413ms step_avg:1353.28ms
+step:5/60 train_loss:8.5970 lr_scale:0.800 muon_mom:0.851 train_time:6663ms step_avg:1332.57ms
+step:6/60 train_loss:7.5337 lr_scale:1.000 muon_mom:0.851 train_time:7913ms step_avg:1318.79ms
+step:7/60 train_loss:6.9911 lr_scale:1.000 muon_mom:0.851 train_time:9162ms step_avg:1308.87ms
+step:8/60 train_loss:6.8863 lr_scale:1.000 muon_mom:0.851 train_time:10411ms step_avg:1301.41ms
+step:9/60 train_loss:6.8743 lr_scale:1.000 muon_mom:0.852 train_time:11661ms step_avg:1295.61ms
+step:10/60 train_loss:6.5078 lr_scale:1.000 muon_mom:0.852 train_time:12910ms step_avg:1291.02ms
+step:15/60 train_loss:5.8751 lr_scale:1.000 muon_mom:0.853 train_time:19158ms step_avg:1277.21ms
+step:20/60 train_loss:5.6498 lr_scale:1.000 muon_mom:0.854 train_time:25410ms step_avg:1270.50ms
+step:25/60 train_loss:5.5757 lr_scale:1.000 muon_mom:0.855 train_time:31661ms step_avg:1266.44ms
+step:30/60 train_loss:5.5195 lr_scale:1.000 muon_mom:0.856 train_time:37912ms step_avg:1263.72ms
+step:35/60 train_loss:5.4180 lr_scale:1.000 muon_mom:0.857 train_time:44161ms step_avg:1261.75ms
+step:40/60 train_loss:5.4284 lr_scale:1.000 muon_mom:0.858 train_time:50412ms step_avg:1260.29ms
+step:45/60 train_loss:5.3376 lr_scale:1.000 muon_mom:0.859 train_time:56660ms step_avg:1259.12ms
+step:50/60 train_loss:5.3101 lr_scale:0.733 muon_mom:0.860 train_time:62911ms step_avg:1258.22ms
+step:55/60 train_loss:5.2978 lr_scale:0.400 muon_mom:0.861 train_time:69159ms step_avg:1257.44ms
+step:60/60 train_loss:5.2627 lr_scale:0.100 muon_mom:0.862 train_time:75407ms step_avg:1256.78ms
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=28 param_count=20197418
+baseline_bytes:80789672 stored_bytes:18803796
+compressed_blob_bytes:14523670 code_bytes:56806 total:14580476
+target_artifact_bytes:16000000 headroom:1419524
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:5.1647 val_bpb:2.0221 eval_time:7485ms artifact_bytes:14580476
+final_quant_roundtrip_exact val_loss:5.16470193 val_bpb:2.02209046
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+compressed_blob_bytes:14523670 code_bytes:56806 total:14580476
+target_artifact_bytes:16000000 headroom:1419524
+final_quant_roundtrip_exact val_loss:5.16470193 val_bpb:2.02209046
+=== u01_delta_default end 2026-04-30T05:53:08Z ===
+=== u02_delta_scale025 start 2026-04-30T05:53:08Z ===
+logs/u02_delta_scale025.txt
+submission:UT-K6 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=60
+model_params:20197418
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=12330 embed=8388608
+residual_scale:0.25000
+starting training: iterations=60 warmup=5 warmdown=15
+step:1/60 train_loss:14.0990 lr_scale:0.000 muon_mom:0.850 train_time:1852ms step_avg:1852.12ms
+step:2/60 train_loss:14.0961 lr_scale:0.200 muon_mom:0.850 train_time:3104ms step_avg:1551.80ms
+step:3/60 train_loss:13.4046 lr_scale:0.400 muon_mom:0.850 train_time:4355ms step_avg:1451.69ms
+step:4/60 train_loss:11.9088 lr_scale:0.600 muon_mom:0.851 train_time:5607ms step_avg:1401.70ms
+step:5/60 train_loss:10.0492 lr_scale:0.800 muon_mom:0.851 train_time:6858ms step_avg:1371.69ms
+step:6/60 train_loss:8.5305 lr_scale:1.000 muon_mom:0.851 train_time:8110ms step_avg:1351.68ms
+step:7/60 train_loss:7.4653 lr_scale:1.000 muon_mom:0.851 train_time:9361ms step_avg:1337.26ms
+step:8/60 train_loss:6.8794 lr_scale:1.000 muon_mom:0.851 train_time:10612ms step_avg:1326.44ms
+step:9/60 train_loss:6.9483 lr_scale:1.000 muon_mom:0.852 train_time:11863ms step_avg:1318.12ms
+step:10/60 train_loss:6.8409 lr_scale:1.000 muon_mom:0.852 train_time:13115ms step_avg:1311.45ms
+step:15/60 train_loss:5.9413 lr_scale:1.000 muon_mom:0.853 train_time:19372ms step_avg:1291.49ms
+step:20/60 train_loss:5.7006 lr_scale:1.000 muon_mom:0.854 train_time:25629ms step_avg:1281.46ms
+step:25/60 train_loss:5.5812 lr_scale:1.000 muon_mom:0.855 train_time:31885ms step_avg:1275.39ms
+step:30/60 train_loss:5.5220 lr_scale:1.000 muon_mom:0.856 train_time:38143ms step_avg:1271.44ms
+step:35/60 train_loss:5.4246 lr_scale:1.000 muon_mom:0.857 train_time:44404ms step_avg:1268.67ms
+step:40/60 train_loss:5.4336 lr_scale:1.000 muon_mom:0.858 train_time:50665ms step_avg:1266.62ms
+step:45/60 train_loss:5.3200 lr_scale:1.000 muon_mom:0.859 train_time:56930ms step_avg:1265.12ms
+step:50/60 train_loss:5.3035 lr_scale:0.733 muon_mom:0.860 train_time:63192ms step_avg:1263.84ms
+step:55/60 train_loss:5.2873 lr_scale:0.400 muon_mom:0.861 train_time:69450ms step_avg:1262.73ms
+step:60/60 train_loss:5.2527 lr_scale:0.100 muon_mom:0.862 train_time:75709ms step_avg:1261.82ms
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=28 param_count=20197418
+baseline_bytes:80789672 stored_bytes:18803796
+compressed_blob_bytes:14529082 code_bytes:56806 total:14585888
+target_artifact_bytes:16000000 headroom:1414112
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:5.1560 val_bpb:2.0187 eval_time:7561ms artifact_bytes:14585888
+final_quant_roundtrip_exact val_loss:5.15604453 val_bpb:2.01870091
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+compressed_blob_bytes:14529082 code_bytes:56806 total:14585888
+target_artifact_bytes:16000000 headroom:1414112
+final_quant_roundtrip_exact val_loss:5.15604453 val_bpb:2.01870091
+=== u02_delta_scale025 end 2026-04-30T05:55:14Z ===
+=== u03_delta_scale015 start 2026-04-30T05:55:14Z ===
+logs/u03_delta_scale015.txt
+submission:UT-K6 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=60
+model_params:20197418
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=12330 embed=8388608
+residual_scale:0.15000
+starting training: iterations=60 warmup=5 warmdown=15
+step:1/60 train_loss:16.0888 lr_scale:0.000 muon_mom:0.850 train_time:2272ms step_avg:2272.26ms
+step:2/60 train_loss:16.0855 lr_scale:0.200 muon_mom:0.850 train_time:3523ms step_avg:1761.64ms
+step:3/60 train_loss:15.6264 lr_scale:0.400 muon_mom:0.850 train_time:4775ms step_avg:1591.53ms
+step:4/60 train_loss:14.6304 lr_scale:0.600 muon_mom:0.851 train_time:6026ms step_avg:1506.41ms
+step:5/60 train_loss:13.0765 lr_scale:0.800 muon_mom:0.851 train_time:7277ms step_avg:1455.34ms
+step:6/60 train_loss:10.9220 lr_scale:1.000 muon_mom:0.851 train_time:8528ms step_avg:1421.30ms
+step:7/60 train_loss:9.0160 lr_scale:1.000 muon_mom:0.851 train_time:9779ms step_avg:1396.95ms
+step:8/60 train_loss:7.7695 lr_scale:1.000 muon_mom:0.851 train_time:11029ms step_avg:1378.68ms
+step:9/60 train_loss:7.0809 lr_scale:1.000 muon_mom:0.852 train_time:12280ms step_avg:1364.47ms
+step:10/60 train_loss:6.8739 lr_scale:1.000 muon_mom:0.852 train_time:13531ms step_avg:1353.12ms
+step:15/60 train_loss:6.1832 lr_scale:1.000 muon_mom:0.853 train_time:19786ms step_avg:1319.06ms
+step:20/60 train_loss:5.7851 lr_scale:1.000 muon_mom:0.854 train_time:26041ms step_avg:1302.04ms
+step:25/60 train_loss:5.6429 lr_scale:1.000 muon_mom:0.855 train_time:32296ms step_avg:1291.83ms
+step:30/60 train_loss:5.5448 lr_scale:1.000 muon_mom:0.856 train_time:38552ms step_avg:1285.07ms
+step:35/60 train_loss:5.4320 lr_scale:1.000 muon_mom:0.857 train_time:44808ms step_avg:1280.23ms
+step:40/60 train_loss:5.4349 lr_scale:1.000 muon_mom:0.858 train_time:51064ms step_avg:1276.60ms
+step:45/60 train_loss:5.3161 lr_scale:1.000 muon_mom:0.859 train_time:57320ms step_avg:1273.79ms
+step:50/60 train_loss:5.3224 lr_scale:0.733 muon_mom:0.860 train_time:63578ms step_avg:1271.55ms
+step:55/60 train_loss:5.2899 lr_scale:0.400 muon_mom:0.861 train_time:69835ms step_avg:1269.73ms
+step:60/60 train_loss:5.2586 lr_scale:0.100 muon_mom:0.862 train_time:76092ms step_avg:1268.20ms
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=28 param_count=20197418
+baseline_bytes:80789672 stored_bytes:18803796
+compressed_blob_bytes:14195136 code_bytes:56806 total:14251942
+target_artifact_bytes:16000000 headroom:1748058
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:5.1598 val_bpb:2.0202 eval_time:7575ms artifact_bytes:14251942
+final_quant_roundtrip_exact val_loss:5.15978531 val_bpb:2.02016550
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+compressed_blob_bytes:14195136 code_bytes:56806 total:14251942
+target_artifact_bytes:16000000 headroom:1748058
+final_quant_roundtrip_exact val_loss:5.15978531 val_bpb:2.02016550
+=== u03_delta_scale015 end 2026-04-30T05:57:19Z ===
+=== u04_delta_branch05 start 2026-04-30T05:57:19Z ===
+logs/u04_delta_branch05.txt
+submission:UT-K6 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=60
+model_params:20197418
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=12330 embed=8388608
+residual_scale:0.35355
+starting training: iterations=60 warmup=5 warmdown=15
+step:1/60 train_loss:15.5835 lr_scale:0.000 muon_mom:0.850 train_time:1924ms step_avg:1923.61ms
+step:2/60 train_loss:15.5808 lr_scale:0.200 muon_mom:0.850 train_time:3173ms step_avg:1586.45ms
+step:3/60 train_loss:15.0941 lr_scale:0.400 muon_mom:0.850 train_time:4422ms step_avg:1473.86ms
+step:4/60 train_loss:13.9315 lr_scale:0.600 muon_mom:0.851 train_time:5671ms step_avg:1417.68ms
+step:5/60 train_loss:12.1862 lr_scale:0.800 muon_mom:0.851 train_time:6919ms step_avg:1383.88ms
+step:6/60 train_loss:10.0014 lr_scale:1.000 muon_mom:0.851 train_time:8169ms step_avg:1361.42ms
+step:7/60 train_loss:8.4292 lr_scale:1.000 muon_mom:0.851 train_time:9417ms step_avg:1345.34ms
+step:8/60 train_loss:7.3607 lr_scale:1.000 muon_mom:0.851 train_time:10666ms step_avg:1333.27ms
+step:9/60 train_loss:6.9285 lr_scale:1.000 muon_mom:0.852 train_time:11915ms step_avg:1323.87ms
+step:10/60 train_loss:6.9026 lr_scale:1.000 muon_mom:0.852 train_time:13163ms step_avg:1316.33ms
+step:15/60 train_loss:6.0622 lr_scale:1.000 muon_mom:0.853 train_time:19405ms step_avg:1293.67ms
+step:20/60 train_loss:5.7488 lr_scale:1.000 muon_mom:0.854 train_time:25648ms step_avg:1282.38ms
+step:25/60 train_loss:5.6132 lr_scale:1.000 muon_mom:0.855 train_time:31890ms step_avg:1275.59ms
+step:30/60 train_loss:5.5480 lr_scale:1.000 muon_mom:0.856 train_time:38132ms step_avg:1271.07ms
+step:35/60 train_loss:5.4143 lr_scale:1.000 muon_mom:0.857 train_time:44376ms step_avg:1267.87ms
+step:40/60 train_loss:5.4355 lr_scale:1.000 muon_mom:0.858 train_time:50619ms step_avg:1265.47ms
+step:45/60 train_loss:5.3189 lr_scale:1.000 muon_mom:0.859 train_time:56863ms step_avg:1263.62ms
+step:50/60 train_loss:5.3113 lr_scale:0.733 muon_mom:0.860 train_time:63108ms step_avg:1262.15ms
+step:55/60 train_loss:5.2841 lr_scale:0.400 muon_mom:0.861 train_time:69351ms step_avg:1260.93ms
+step:60/60 train_loss:5.2524 lr_scale:0.100 muon_mom:0.862 train_time:75594ms step_avg:1259.91ms
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=28 param_count=20197418
+baseline_bytes:80789672 stored_bytes:18803796
+compressed_blob_bytes:14230746 code_bytes:56806 total:14287552
+target_artifact_bytes:16000000 headroom:1712448
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:5.1546 val_bpb:2.0181 eval_time:7533ms artifact_bytes:14287552
+final_quant_roundtrip_exact val_loss:5.15459635 val_bpb:2.01813391
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+compressed_blob_bytes:14230746 code_bytes:56806 total:14287552
+target_artifact_bytes:16000000 headroom:1712448
+final_quant_roundtrip_exact val_loss:5.15459635 val_bpb:2.01813391
+=== u04_delta_branch05 end 2026-04-30T05:59:24Z ===
+=== u05_delta_alpha05 start 2026-04-30T05:59:24Z ===
+logs/u05_delta_alpha05.txt
+submission:UT-K6 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=60
+model_params:20197418
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=12330 embed=8388608
+residual_scale:0.35355
+starting training: iterations=60 warmup=5 warmdown=15
+step:1/60 train_loss:17.5391 lr_scale:0.000 muon_mom:0.850 train_time:1668ms step_avg:1667.89ms
+step:2/60 train_loss:17.5353 lr_scale:0.200 muon_mom:0.850 train_time:2919ms step_avg:1459.47ms
+step:3/60 train_loss:17.1892 lr_scale:0.400 muon_mom:0.850 train_time:4168ms step_avg:1389.34ms
+step:4/60 train_loss:16.3681 lr_scale:0.600 muon_mom:0.851 train_time:5417ms step_avg:1354.22ms
+step:5/60 train_loss:15.2256 lr_scale:0.800 muon_mom:0.851 train_time:6666ms step_avg:1333.24ms
+step:6/60 train_loss:13.5426 lr_scale:1.000 muon_mom:0.851 train_time:7915ms step_avg:1319.22ms
+step:7/60 train_loss:11.3935 lr_scale:1.000 muon_mom:0.851 train_time:9165ms step_avg:1309.22ms
+step:8/60 train_loss:9.2542 lr_scale:1.000 muon_mom:0.851 train_time:10414ms step_avg:1301.70ms
+step:9/60 train_loss:7.9852 lr_scale:1.000 muon_mom:0.852 train_time:11662ms step_avg:1295.83ms
+step:10/60 train_loss:7.2615 lr_scale:1.000 muon_mom:0.852 train_time:12911ms step_avg:1291.12ms
+step:15/60 train_loss:6.6013 lr_scale:1.000 muon_mom:0.853 train_time:19160ms step_avg:1277.34ms
+step:20/60 train_loss:6.0243 lr_scale:1.000 muon_mom:0.854 train_time:25417ms step_avg:1270.86ms
+step:25/60 train_loss:5.7610 lr_scale:1.000 muon_mom:0.855 train_time:31675ms step_avg:1267.01ms
+step:30/60 train_loss:5.6702 lr_scale:1.000 muon_mom:0.856 train_time:37942ms step_avg:1264.73ms
+step:35/60 train_loss:5.4948 lr_scale:1.000 muon_mom:0.857 train_time:44214ms step_avg:1263.26ms
+step:40/60 train_loss:5.4750 lr_scale:1.000 muon_mom:0.858 train_time:50472ms step_avg:1261.80ms
+step:45/60 train_loss:5.3764 lr_scale:1.000 muon_mom:0.859 train_time:56729ms step_avg:1260.65ms
+step:50/60 train_loss:5.3435 lr_scale:0.733 muon_mom:0.860 train_time:62986ms step_avg:1259.73ms
+step:55/60 train_loss:5.2948 lr_scale:0.400 muon_mom:0.861 train_time:69243ms step_avg:1258.97ms
+step:60/60 train_loss:5.2494 lr_scale:0.100 muon_mom:0.862 train_time:75500ms step_avg:1258.34ms
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=28 param_count=20197418
+baseline_bytes:80789672 stored_bytes:18803796
+compressed_blob_bytes:14280233 code_bytes:56806 total:14337039
+target_artifact_bytes:16000000 headroom:1662961
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:5.1564 val_bpb:2.0188 eval_time:7572ms artifact_bytes:14337039
+final_quant_roundtrip_exact val_loss:5.15641842 val_bpb:2.01884729
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+compressed_blob_bytes:14280233 code_bytes:56806 total:14337039
+target_artifact_bytes:16000000 headroom:1662961
+final_quant_roundtrip_exact val_loss:5.15641842 val_bpb:2.01884729
+=== u05_delta_alpha05 end 2026-04-30T06:01:29Z ===
+=== u06_delta_stepgates start 2026-04-30T06:01:29Z ===
+logs/u06_delta_stepgates.txt
+submission:UT-K6 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=60
+model_params:20209706
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=24618 embed=8388608
+residual_scale:0.35355
+starting training: iterations=60 warmup=5 warmdown=15
+step:1/60 train_loss:12.0534 lr_scale:0.000 muon_mom:0.850 train_time:1923ms step_avg:1922.70ms
+step:2/60 train_loss:12.0494 lr_scale:0.200 muon_mom:0.850 train_time:3178ms step_avg:1588.79ms
+step:3/60 train_loss:11.1867 lr_scale:0.400 muon_mom:0.850 train_time:4430ms step_avg:1476.65ms
+step:4/60 train_loss:9.7162 lr_scale:0.600 muon_mom:0.851 train_time:5681ms step_avg:1420.13ms
+step:5/60 train_loss:8.5896 lr_scale:0.800 muon_mom:0.851 train_time:6932ms step_avg:1386.40ms
+step:6/60 train_loss:7.5273 lr_scale:1.000 muon_mom:0.851 train_time:8183ms step_avg:1363.77ms
+step:7/60 train_loss:6.9916 lr_scale:1.000 muon_mom:0.851 train_time:9434ms step_avg:1347.70ms
+step:8/60 train_loss:6.8884 lr_scale:1.000 muon_mom:0.851 train_time:10685ms step_avg:1335.57ms
+step:9/60 train_loss:6.8742 lr_scale:1.000 muon_mom:0.852 train_time:11935ms step_avg:1326.15ms
+step:10/60 train_loss:6.5074 lr_scale:1.000 muon_mom:0.852 train_time:13187ms step_avg:1318.69ms
+step:15/60 train_loss:5.8758 lr_scale:1.000 muon_mom:0.853 train_time:19445ms step_avg:1296.32ms
+step:20/60 train_loss:5.6511 lr_scale:1.000 muon_mom:0.854 train_time:25713ms step_avg:1285.66ms
+step:25/60 train_loss:5.5748 lr_scale:1.000 muon_mom:0.855 train_time:31982ms step_avg:1279.27ms
+step:30/60 train_loss:5.5206 lr_scale:1.000 muon_mom:0.856 train_time:38250ms step_avg:1275.00ms
+step:35/60 train_loss:5.4188 lr_scale:1.000 muon_mom:0.857 train_time:44519ms step_avg:1271.99ms
+step:40/60 train_loss:5.4278 lr_scale:1.000 muon_mom:0.858 train_time:50789ms step_avg:1269.72ms
+step:45/60 train_loss:5.3270 lr_scale:1.000 muon_mom:0.859 train_time:57059ms step_avg:1267.97ms
+step:50/60 train_loss:5.3145 lr_scale:0.733 muon_mom:0.860 train_time:63330ms step_avg:1266.60ms
+step:55/60 train_loss:5.2977 lr_scale:0.400 muon_mom:0.861 train_time:69600ms step_avg:1265.46ms
+step:60/60 train_loss:5.2621 lr_scale:0.100 muon_mom:0.862 train_time:75870ms step_avg:1264.51ms
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=29 param_count=20209706
+baseline_bytes:80838824 stored_bytes:18828372
+compressed_blob_bytes:14336255 code_bytes:56806 total:14393061
+target_artifact_bytes:16000000 headroom:1606939
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:5.1630 val_bpb:2.0214 eval_time:7571ms artifact_bytes:14393061
+final_quant_roundtrip_exact val_loss:5.16297520 val_bpb:2.02141441
+peak memory allocated: 18385 MiB reserved: 20628 MiB
+compressed_blob_bytes:14336255 code_bytes:56806 total:14393061
+target_artifact_bytes:16000000 headroom:1606939
+final_quant_roundtrip_exact val_loss:5.16297520 val_bpb:2.02141441
+=== u06_delta_stepgates end 2026-04-30T06:03:36Z ===
+=== u07_delta_k8 start 2026-04-30T06:03:36Z ===
+logs/u07_delta_k8.txt
+submission:UT-K8 RLMA(rank=256,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=60
+model_params:20199466
+world_size:1 grad_accum_steps:8
+opt_split:matrix=11796480 scalar=14378 embed=8388608
+residual_scale:0.31623
+starting training: iterations=60 warmup=5 warmdown=15
+step:1/60 train_loss:12.0209 lr_scale:0.000 muon_mom:0.850 train_time:2117ms step_avg:2117.04ms
+step:2/60 train_loss:12.0233 lr_scale:0.200 muon_mom:0.850 train_time:3661ms step_avg:1830.63ms
+step:3/60 train_loss:11.1483 lr_scale:0.400 muon_mom:0.850 train_time:5206ms step_avg:1735.25ms
+step:4/60 train_loss:9.6865 lr_scale:0.600 muon_mom:0.851 train_time:6750ms step_avg:1687.42ms
+step:5/60 train_loss:8.5669 lr_scale:0.800 muon_mom:0.851 train_time:8294ms step_avg:1658.80ms
+step:6/60 train_loss:7.5063 lr_scale:1.000 muon_mom:0.851 train_time:9838ms step_avg:1639.64ms
+step:7/60 train_loss:7.0269 lr_scale:1.000 muon_mom:0.851 train_time:11381ms step_avg:1625.90ms
+step:8/60 train_loss:6.9433 lr_scale:1.000 muon_mom:0.851 train_time:12925ms step_avg:1615.65ms
+step:9/60 train_loss:6.9169 lr_scale:1.000 muon_mom:0.852 train_time:14473ms step_avg:1608.06ms
+step:10/60 train_loss:6.5402 lr_scale:1.000 muon_mom:0.852 train_time:16017ms step_avg:1601.68ms
+step:15/60 train_loss:5.8911 lr_scale:1.000 muon_mom:0.853 train_time:23739ms step_avg:1582.58ms
+step:20/60 train_loss:5.6612 lr_scale:1.000 muon_mom:0.854 train_time:31460ms step_avg:1573.02ms
+step:25/60 train_loss:5.5929 lr_scale:1.000 muon_mom:0.855 train_time:39182ms step_avg:1567.27ms
+step:30/60 train_loss:5.5272 lr_scale:1.000 muon_mom:0.856 train_time:46903ms step_avg:1563.44ms
+step:35/60 train_loss:5.4322 lr_scale:1.000 muon_mom:0.857 train_time:54626ms step_avg:1560.73ms
+step:40/60 train_loss:5.4385 lr_scale:1.000 muon_mom:0.858 train_time:62347ms step_avg:1558.67ms
+step:45/60 train_loss:5.3428 lr_scale:1.000 muon_mom:0.859 train_time:70068ms step_avg:1557.07ms
+step:50/60 train_loss:5.3386 lr_scale:0.733 muon_mom:0.860 train_time:77789ms step_avg:1555.77ms
+step:55/60 train_loss:5.2993 lr_scale:0.400 muon_mom:0.861 train_time:85510ms step_avg:1554.73ms
+step:60/60 train_loss:5.2673 lr_scale:0.100 muon_mom:0.862 train_time:93231ms step_avg:1553.85ms
+peak memory allocated: 21893 MiB reserved: 24132 MiB
+ar_self_gen_calib:n=1024
+quant_stats:int6=36 int8=1 passthrough=28 param_count=20199466
+baseline_bytes:80797864 stored_bytes:18807892
+compressed_blob_bytes:14235474 code_bytes:56806 total:14292280
+target_artifact_bytes:16000000 headroom:1707720
+val_tokens:524289 eval_ctx:8192 eval_stride:8192 val_token_limit:524288
+final_quant_roundtrip val_loss:5.1663 val_bpb:2.0227 eval_time:9346ms artifact_bytes:14292280
+final_quant_roundtrip_exact val_loss:5.16630136 val_bpb:2.02271667
+peak memory allocated: 21893 MiB reserved: 24132 MiB
+compressed_blob_bytes:14235474 code_bytes:56806 total:14292280
+target_artifact_bytes:16000000 headroom:1707720
+final_quant_roundtrip_exact val_loss:5.16630136 val_bpb:2.02271667
+=== u07_delta_k8 end 2026-04-30T06:06:04Z ===
