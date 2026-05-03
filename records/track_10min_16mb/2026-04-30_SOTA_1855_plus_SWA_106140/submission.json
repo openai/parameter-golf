@@ -1,0 +1,56 @@
+{
+  "author": "Ishan Godawatta",
+  "github_id": "IshanG97",
+  "name": "[Non-record] 11L XSA + LQER + SparseAttnGate + BOS-Fixed SmearGate + 9-hparam stack + SWA blend",
+  "blurb": "Non-record submission. PR #1855's full stack PLUS Stochastic Weight Averaging blended into the EMA shadow before GPTQ. 3-seed mean: 1.06140 BPB (std 0.00044) \u2014 +0.32 mbpb worse than current SOTA (PR #1855, 1.06108). Submitted as non-record to contribute three findings: (1) hardware-calibration shift of +1.25 mbpb measured on this hardware via byte-identical PR #1855 vanilla replication (Pod F, val_bpb 1.06114 vs published 1.05989), confirming PR #1981's calibration observation at smaller magnitude; (2) SWA composes cleanly with the LQER asymmetric int4 + per-group lrzip pipeline, giving ~0.9 mbpb improvement vs vanilla on the same hardware (not enough to overcome the calibration shift and clear the 1.05608 record bar); (3) reproducibility checkpoint within \u00b10.4 mbpb per seed of published numbers.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 2.322734023333333,
+  "val_bpb": 1.0613988066666666,
+  "val_loss_std": 0.0009727061579086543,
+  "val_bpb_std": 0.0004444895085750733,
+  "seeds": [
+    42,
+    0,
+    1234
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.32162466,
+      "val_bpb": 1.06089187,
+      "artifact_bytes": 15905575,
+      "steps": 4500,
+      "step_avg_ms": null,
+      "eval_time_s": 527.076
+    },
+    "0": {
+      "val_loss": 2.32313658,
+      "val_bpb": 1.06158276,
+      "artifact_bytes": 15905785,
+      "steps": 4500,
+      "step_avg_ms": null,
+      "eval_time_s": 459.04
+    },
+    "1234": {
+      "val_loss": 2.32344083,
+      "val_bpb": 1.06172179,
+      "artifact_bytes": 15914864,
+      "steps": 4500,
+      "step_avg_ms": null,
+      "eval_time_s": 457.644
+    }
+  },
+  "comparison_baseline_bpb": 1.06108,
+  "delta_vs_leaderboard_bpb": 0.0003188066666666156,
+  "delta_vs_leaderboard_nats": 0.0002209799421436789,
+  "artifact_bytes_mean": 15908741.333333334,
+  "artifact_bytes_max": 15914864,
+  "bytes_total": 15914864,
+  "train_steps_mean": 4500.0,
+  "step_avg_ms_mean": null,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "technique_summary": "PR #1855 stack (11L XSA + LQER int4-rank4 + SparseAttnGate + BOS-fixed SmearGate + Polar-Express Muon + per-group lrzip compression + 9-hparam stack) + SWA blend (final 5%, snapshot every 50 steps, blend 0.5 into EMA shadow before GPTQ)."
+}
