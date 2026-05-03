@@ -1,0 +1,626 @@
+W0401 01:24:09.302000 2082 torch/distributed/run.py:803] 
+W0401 01:24:09.302000 2082 torch/distributed/run.py:803] *****************************************
+W0401 01:24:09.302000 2082 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0401 01:24:09.302000 2082 torch/distributed/run.py:803] *****************************************
+logs/50115f2d-9ce2-4e3a-b448-74ca9c6f1b42.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26928220
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:0 warmup_steps:20 max_wallclock_seconds:1.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/0 val_loss:6.9317 val_bpb:4.1054 train_time:0ms step_avg:0.02ms
+peak memory allocated: 20570 MiB reserved: 20682 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:6.9317 val_bpb:4.1054 eval_time:1930ms
+eval_only: loading existing artifact final_model.int6.ptz
+final_int6_roundtrip val_loss:1.9348 val_bpb:1.1459 eval_time:35632ms
+final_int6_roundtrip_exact val_loss:1.93477175 val_bpb:1.14588081
+evs:rank:5 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:4 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:6 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:1 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:7 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:2 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:0 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:3 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:4 32/121136 (0%) run_bpb=1.3793 elapsed=11s
+evs:rank:2 32/121136 (0%) run_bpb=1.1025 elapsed=11s
+evs:rank:5 32/121136 (0%) run_bpb=1.1847 elapsed=11s
+evs:rank:0 32/121136 (0%) run_bpb=1.1929 elapsed=11s
+evs:rank:3 32/121136 (0%) run_bpb=1.0739 elapsed=11s
+evs:rank:6 32/121136 (0%) run_bpb=1.0799 elapsed=11s
+evs:rank:7 32/121136 (0%) run_bpb=1.3204 elapsed=11s
+evs:rank:1 32/121136 (0%) run_bpb=1.0620 elapsed=12s
+evs:rank:4 12128/121136 (10%) run_bpb=1.1523 elapsed=18s
+evs:rank:0 12128/121136 (10%) run_bpb=1.1198 elapsed=18s
+evs:rank:3 12128/121136 (10%) run_bpb=1.1238 elapsed=18s
+evs:rank:2 12128/121136 (10%) run_bpb=1.1343 elapsed=18s
+evs:rank:5 12128/121136 (10%) run_bpb=1.1317 elapsed=18s
+evs:rank:6 12128/121136 (10%) run_bpb=1.1432 elapsed=18s
+evs:rank:7 12128/121136 (10%) run_bpb=1.1376 elapsed=18s
+evs:rank:1 12128/121136 (10%) run_bpb=1.1159 elapsed=19s
+evs:rank:4 24224/121136 (20%) run_bpb=1.1414 elapsed=25s
+evs:rank:3 24224/121136 (20%) run_bpb=1.1185 elapsed=25s
+evs:rank:0 24224/121136 (20%) run_bpb=1.1265 elapsed=25s
+evs:rank:2 24224/121136 (20%) run_bpb=1.1165 elapsed=25s
+evs:rank:5 24224/121136 (20%) run_bpb=1.1297 elapsed=25s
+evs:rank:6 24224/121136 (20%) run_bpb=1.1418 elapsed=25s
+evs:rank:7 24224/121136 (20%) run_bpb=1.1420 elapsed=25s
+evs:rank:1 24224/121136 (20%) run_bpb=1.1242 elapsed=26s
+evs:rank:4 36320/121136 (30%) run_bpb=1.1412 elapsed=32s
+evs:rank:3 36320/121136 (30%) run_bpb=1.1202 elapsed=32s
+evs:rank:0 36320/121136 (30%) run_bpb=1.1312 elapsed=32s
+evs:rank:2 36320/121136 (30%) run_bpb=1.1242 elapsed=32s
+evs:rank:5 36320/121136 (30%) run_bpb=1.1107 elapsed=33s
+evs:rank:6 36320/121136 (30%) run_bpb=1.1422 elapsed=33s
+evs:rank:7 36320/121136 (30%) run_bpb=1.1315 elapsed=33s
+evs:rank:1 36320/121136 (30%) run_bpb=1.1263 elapsed=33s
+evs:rank:4 48416/121136 (40%) run_bpb=1.1483 elapsed=39s
+evs:rank:3 48416/121136 (40%) run_bpb=1.1188 elapsed=40s
+evs:rank:0 48416/121136 (40%) run_bpb=1.1262 elapsed=40s
+evs:rank:2 48416/121136 (40%) run_bpb=1.1204 elapsed=40s
+evs:rank:5 48416/121136 (40%) run_bpb=1.1048 elapsed=40s
+evs:rank:6 48416/121136 (40%) run_bpb=1.1371 elapsed=40s
+evs:rank:7 48416/121136 (40%) run_bpb=1.1237 elapsed=40s
+evs:rank:1 48416/121136 (40%) run_bpb=1.1281 elapsed=40s
+evs:rank:4 60512/121136 (50%) run_bpb=1.1425 elapsed=47s
+evs:rank:3 60512/121136 (50%) run_bpb=1.1179 elapsed=47s
+evs:rank:0 60512/121136 (50%) run_bpb=1.1237 elapsed=47s
+evs:rank:2 60512/121136 (50%) run_bpb=1.1175 elapsed=47s
+evs:rank:5 60512/121136 (50%) run_bpb=1.1045 elapsed=47s
+evs:rank:6 60512/121136 (50%) run_bpb=1.1383 elapsed=47s
+evs:rank:7 60512/121136 (50%) run_bpb=1.1236 elapsed=47s
+evs:rank:1 60512/121136 (50%) run_bpb=1.1295 elapsed=47s
+evs:rank:3 72608/121136 (60%) run_bpb=1.1166 elapsed=54s
+evs:rank:4 72608/121136 (60%) run_bpb=1.1432 elapsed=54s
+evs:rank:0 72608/121136 (60%) run_bpb=1.1225 elapsed=54s
+evs:rank:2 72608/121136 (60%) run_bpb=1.1173 elapsed=54s
+evs:rank:5 72608/121136 (60%) run_bpb=1.1010 elapsed=54s
+evs:rank:6 72608/121136 (60%) run_bpb=1.1404 elapsed=54s
+evs:rank:7 72608/121136 (60%) run_bpb=1.1175 elapsed=54s
+evs:rank:1 72608/121136 (60%) run_bpb=1.1312 elapsed=55s
+evs:rank:3 84704/121136 (70%) run_bpb=1.1186 elapsed=61s
+evs:rank:4 84704/121136 (70%) run_bpb=1.1400 elapsed=61s
+evs:rank:0 84704/121136 (70%) run_bpb=1.1261 elapsed=61s
+evs:rank:2 84704/121136 (70%) run_bpb=1.1148 elapsed=61s
+evs:rank:5 84704/121136 (70%) run_bpb=1.1014 elapsed=61s
+evs:rank:6 84704/121136 (70%) run_bpb=1.1415 elapsed=61s
+evs:rank:7 84704/121136 (70%) run_bpb=1.1176 elapsed=61s
+evs:rank:1 84704/121136 (70%) run_bpb=1.1299 elapsed=62s
+evs:rank:3 96800/121136 (80%) run_bpb=1.1172 elapsed=68s
+evs:rank:0 96800/121136 (80%) run_bpb=1.1285 elapsed=68s
+evs:rank:4 96800/121136 (80%) run_bpb=1.1347 elapsed=68s
+evs:rank:2 96800/121136 (80%) run_bpb=1.1143 elapsed=68s
+evs:rank:5 96800/121136 (80%) run_bpb=1.1058 elapsed=69s
+evs:rank:7 96800/121136 (80%) run_bpb=1.1155 elapsed=69s
+evs:rank:6 96800/121136 (80%) run_bpb=1.1416 elapsed=69s
+evs:rank:1 96800/121136 (80%) run_bpb=1.1293 elapsed=69s
+evs:rank:3 108896/121136 (90%) run_bpb=1.1174 elapsed=75s
+evs:rank:0 108896/121136 (90%) run_bpb=1.1273 elapsed=76s
+evs:rank:2 108896/121136 (90%) run_bpb=1.1112 elapsed=76s
+evs:rank:4 108896/121136 (90%) run_bpb=1.1328 elapsed=76s
+evs:rank:5 108896/121136 (90%) run_bpb=1.1079 elapsed=76s
+evs:rank:7 108896/121136 (90%) run_bpb=1.1149 elapsed=76s
+evs:rank:6 108896/121136 (90%) run_bpb=1.1393 elapsed=76s
+evs:rank:1 108896/121136 (90%) run_bpb=1.1284 elapsed=76s
+evs:rank:3 120992/121136 (100%) run_bpb=1.1193 elapsed=82s
+evs:rank:0 120992/121136 (100%) run_bpb=1.1277 elapsed=83s
+evs:rank:2 120992/121136 (100%) run_bpb=1.1112 elapsed=83s
+evs:rank:4 120992/121136 (100%) run_bpb=1.1294 elapsed=83s
+evs:rank:5 120992/121136 (100%) run_bpb=1.1103 elapsed=83s
+evs:rank:7 120992/121136 (100%) run_bpb=1.1136 elapsed=83s
+evs:rank:6 120992/121136 (100%) run_bpb=1.1397 elapsed=83s
+evs:rank:1 120992/121136 (100%) run_bpb=1.1267 elapsed=83s
+evs:rank:7 DONE val_loss=1.894741 val_bpb=1.122175 tokens=62023616 bytes=151084796 elapsed=96s
+evs:rank:6 DONE val_loss=1.894741 val_bpb=1.122175 tokens=62023616 bytes=151084796 elapsed=96sevs:rank:5 DONE val_loss=1.894741 val_bpb=1.122175 tokens=62023616 bytes=151084796 elapsed=96sevs:rank:2 DONE val_loss=1.894741 val_bpb=1.122175 tokens=62023616 bytes=151084796 elapsed=96s
+evs:rank:0 DONE val_loss=1.894741 val_bpb=1.122175 tokens=62023616 bytes=151084796 elapsed=96s
+
+
+evs:rank:4 DONE val_loss=1.894741 val_bpb=1.122175 tokens=62023616 bytes=151084796 elapsed=96s
+evs:rank:1 DONE val_loss=1.894741 val_bpb=1.122175 tokens=62023616 bytes=151084796 elapsed=96s
+evs:rank:3 DONE val_loss=1.894741 val_bpb=1.122175 tokens=62023616 bytes=151084796 elapsed=96s
+final_int6_sliding_window val_loss:1.8947 val_bpb:1.1222 stride:64 eval_time:95963ms
+final_int6_sliding_window_exact val_loss:1.89474094 val_bpb:1.12217528
+final_int8_zlib_roundtrip_exact val_loss:1.89474094 val_bpb:1.12217528
+artifact_manifest: wrote ./artifact_manifest.json
+ttt:static_10k baseline (before TTT)
+DIAGNOSTIC static_10k val_loss:1.9067 val_bpb:1.1268 (10K windows, same sample)
+DIAGNOSTIC static_10k_exact val_loss:1.90672981 val_bpb:1.12676362
+ttt:starting eval-time adaptation
+ttt:doc_cluster rank:2 waiting for cluster broadcastttt:sgd lr=0.002 mom=0.9 epochs=3 seq=2048 stride=64 chunks=1892 shards=8
+ttt:doc_cluster rank:7 waiting for cluster broadcastttt:doc_cluster rank:4 waiting for cluster broadcastttt:doc_cluster rank:5 waiting for cluster broadcast
+
+
+
+ttt:doc_cluster rank:1 waiting for cluster broadcast
+ttt:doc_cluster rank:6 waiting for cluster broadcast
+ttt:doc_cluster rank:3 waiting for cluster broadcast
+ttt:doc_cluster rank:0 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:0 pre_balance doc_sizes=[709, 2114, 1615, 2327, 1918, 579, 2364, 1132, 1628, 1453, 1075, 851, 273, 945, 1268, 1918, 2917, 343, 2814, 984, 1779, 1431, 1155, 2151, 2794, 3065, 602, 2803, 180, 1764, 1887, 1162]
+ttt:doc_cluster rank:0 pre_balance chunk_sizes=[725, 2187, 1679, 2447, 1963, 628, 2478, 1132, 1674, 1466, 1092, 869, 281, 971, 1370, 1948, 3037, 351, 2891, 1056, 1870, 1489, 1198, 2171, 2970, 3200, 623, 2984, 186, 1837, 1920, 1177]
+ttt:doc_cluster rank:0 post_balance doc_sizes=[1086, 1865, 1771, 1864, 1864, 1583, 1864, 1148, 1801, 1623, 1351, 1767, 1022, 1276, 1703, 1866, 1864, 374, 1865, 1623, 1776, 1754, 1620, 1864, 1866, 1865, 624, 1864, 185, 1778, 1859, 1765]
+ttt:doc_cluster rank:0 post_balance chunk_sizes=[1181, 1864, 1864, 1864, 1864, 1864, 1864, 1151, 1864, 1665, 1413, 1864, 1113, 1355, 1864, 1864, 1864, 400, 1864, 1864, 1864, 1864, 1744, 1864, 1864, 1864, 648, 1864, 192, 1864, 1864, 1864] moved_docs=6705
+ttt:doc_cluster rank:0 owner_chunk_counts=[21, 55, 77, 104, 30, 227, 106, 1, 34, 3, 4, 48, 20, 35, 209, 2, 101, 20, 46, 104, 82, 44, 48, 0, 137, 99, 9, 145, 3, 56, 2, 20]
+ttt:doc_cluster rank:0 gpu_microclusters=[[5, 17], [0, 9, 14], [8, 11, 27, 31], [1, 13, 24, 26], [6, 12, 22, 28, 29], [3, 15, 20, 21, 23], [2, 7, 10, 18, 19], [4, 16, 25, 30]]
+ttt:doc_cluster rank:0 gpu_chunk_counts=[247, 233, 247, 236, 233, 232, 232, 232]
+ttt:doc_cluster rank:0 ordered_docs=1957 my_microclusters=[5, 17]
+ttt:doc_cluster rank:0 ordered_docs=1957 chunks=247 total_chunks=1892
+ttt:doc_cluster rank:1 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:1 pre_balance doc_sizes=[709, 2114, 1615, 2327, 1918, 579, 2364, 1132, 1628, 1453, 1075, 851, 273, 945, 1268, 1918, 2917, 343, 2814, 984, 1779, 1431, 1155, 2151, 2794, 3065, 602, 2803, 180, 1764, 1887, 1162]
+ttt:doc_cluster rank:1 pre_balance chunk_sizes=[725, 2187, 1679, 2447, 1963, 628, 2478, 1132, 1674, 1466, 1092, 869, 281, 971, 1370, 1948, 3037, 351, 2891, 1056, 1870, 1489, 1198, 2171, 2970, 3200, 623, 2984, 186, 1837, 1920, 1177]
+ttt:doc_cluster rank:1 post_balance doc_sizes=[1086, 1865, 1771, 1864, 1864, 1583, 1864, 1148, 1801, 1623, 1351, 1767, 1022, 1276, 1703, 1866, 1864, 374, 1865, 1623, 1776, 1754, 1620, 1864, 1866, 1865, 624, 1864, 185, 1778, 1859, 1765]
+ttt:doc_cluster rank:1 post_balance chunk_sizes=[1181, 1864, 1864, 1864, 1864, 1864, 1864, 1151, 1864, 1665, 1413, 1864, 1113, 1355, 1864, 1864, 1864, 400, 1864, 1864, 1864, 1864, 1744, 1864, 1864, 1864, 648, 1864, 192, 1864, 1864, 1864] moved_docs=6705
+ttt:doc_cluster rank:1 owner_chunk_counts=[21, 55, 77, 104, 30, 227, 106, 1, 34, 3, 4, 48, 20, 35, 209, 2, 101, 20, 46, 104, 82, 44, 48, 0, 137, 99, 9, 145, 3, 56, 2, 20]
+ttt:doc_cluster rank:1 gpu_microclusters=[[5, 17], [0, 9, 14], [8, 11, 27, 31], [1, 13, 24, 26], [6, 12, 22, 28, 29], [3, 15, 20, 21, 23], [2, 7, 10, 18, 19], [4, 16, 25, 30]]
+ttt:doc_cluster rank:1 gpu_chunk_counts=[247, 233, 247, 236, 233, 232, 232, 232]
+ttt:doc_cluster rank:1 ordered_docs=4412 my_microclusters=[0, 9, 14]
+ttt:doc_cluster rank:1 ordered_docs=4412 chunks=233 total_chunks=1892
+ttt:doc_cluster rank:2 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:2 pre_balance doc_sizes=[709, 2114, 1615, 2327, 1918, 579, 2364, 1132, 1628, 1453, 1075, 851, 273, 945, 1268, 1918, 2917, 343, 2814, 984, 1779, 1431, 1155, 2151, 2794, 3065, 602, 2803, 180, 1764, 1887, 1162]
+ttt:doc_cluster rank:2 pre_balance chunk_sizes=[725, 2187, 1679, 2447, 1963, 628, 2478, 1132, 1674, 1466, 1092, 869, 281, 971, 1370, 1948, 3037, 351, 2891, 1056, 1870, 1489, 1198, 2171, 2970, 3200, 623, 2984, 186, 1837, 1920, 1177]
+ttt:doc_cluster rank:2 post_balance doc_sizes=[1086, 1865, 1771, 1864, 1864, 1583, 1864, 1148, 1801, 1623, 1351, 1767, 1022, 1276, 1703, 1866, 1864, 374, 1865, 1623, 1776, 1754, 1620, 1864, 1866, 1865, 624, 1864, 185, 1778, 1859, 1765]
+ttt:doc_cluster rank:2 post_balance chunk_sizes=[1181, 1864, 1864, 1864, 1864, 1864, 1864, 1151, 1864, 1665, 1413, 1864, 1113, 1355, 1864, 1864, 1864, 400, 1864, 1864, 1864, 1864, 1744, 1864, 1864, 1864, 648, 1864, 192, 1864, 1864, 1864] moved_docs=6705
+ttt:doc_cluster rank:2 owner_chunk_counts=[21, 55, 77, 104, 30, 227, 106, 1, 34, 3, 4, 48, 20, 35, 209, 2, 101, 20, 46, 104, 82, 44, 48, 0, 137, 99, 9, 145, 3, 56, 2, 20]
+ttt:doc_cluster rank:2 gpu_microclusters=[[5, 17], [0, 9, 14], [8, 11, 27, 31], [1, 13, 24, 26], [6, 12, 22, 28, 29], [3, 15, 20, 21, 23], [2, 7, 10, 18, 19], [4, 16, 25, 30]]
+ttt:doc_cluster rank:2 gpu_chunk_counts=[247, 233, 247, 236, 233, 232, 232, 232]
+ttt:doc_cluster rank:2 ordered_docs=7197 my_microclusters=[8, 11, 27, 31]
+ttt:doc_cluster rank:2 ordered_docs=7197 chunks=247 total_chunks=1892
+ttt:doc_cluster rank:3 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:3 pre_balance doc_sizes=[709, 2114, 1615, 2327, 1918, 579, 2364, 1132, 1628, 1453, 1075, 851, 273, 945, 1268, 1918, 2917, 343, 2814, 984, 1779, 1431, 1155, 2151, 2794, 3065, 602, 2803, 180, 1764, 1887, 1162]
+ttt:doc_cluster rank:3 pre_balance chunk_sizes=[725, 2187, 1679, 2447, 1963, 628, 2478, 1132, 1674, 1466, 1092, 869, 281, 971, 1370, 1948, 3037, 351, 2891, 1056, 1870, 1489, 1198, 2171, 2970, 3200, 623, 2984, 186, 1837, 1920, 1177]
+ttt:doc_cluster rank:3 post_balance doc_sizes=[1086, 1865, 1771, 1864, 1864, 1583, 1864, 1148, 1801, 1623, 1351, 1767, 1022, 1276, 1703, 1866, 1864, 374, 1865, 1623, 1776, 1754, 1620, 1864, 1866, 1865, 624, 1864, 185, 1778, 1859, 1765]
+ttt:doc_cluster rank:3 post_balance chunk_sizes=[1181, 1864, 1864, 1864, 1864, 1864, 1864, 1151, 1864, 1665, 1413, 1864, 1113, 1355, 1864, 1864, 1864, 400, 1864, 1864, 1864, 1864, 1744, 1864, 1864, 1864, 648, 1864, 192, 1864, 1864, 1864] moved_docs=6705
+ttt:doc_cluster rank:3 owner_chunk_counts=[21, 55, 77, 104, 30, 227, 106, 1, 34, 3, 4, 48, 20, 35, 209, 2, 101, 20, 46, 104, 82, 44, 48, 0, 137, 99, 9, 145, 3, 56, 2, 20]
+ttt:doc_cluster rank:3 gpu_microclusters=[[5, 17], [0, 9, 14], [8, 11, 27, 31], [1, 13, 24, 26], [6, 12, 22, 28, 29], [3, 15, 20, 21, 23], [2, 7, 10, 18, 19], [4, 16, 25, 30]]
+ttt:doc_cluster rank:3 gpu_chunk_counts=[247, 233, 247, 236, 233, 232, 232, 232]
+ttt:doc_cluster rank:3 ordered_docs=5631 my_microclusters=[1, 13, 24, 26]
+ttt:doc_cluster rank:3 ordered_docs=5631 chunks=236 total_chunks=1892
+ttt:doc_cluster rank:4 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:4 pre_balance doc_sizes=[709, 2114, 1615, 2327, 1918, 579, 2364, 1132, 1628, 1453, 1075, 851, 273, 945, 1268, 1918, 2917, 343, 2814, 984, 1779, 1431, 1155, 2151, 2794, 3065, 602, 2803, 180, 1764, 1887, 1162]
+ttt:doc_cluster rank:4 pre_balance chunk_sizes=[725, 2187, 1679, 2447, 1963, 628, 2478, 1132, 1674, 1466, 1092, 869, 281, 971, 1370, 1948, 3037, 351, 2891, 1056, 1870, 1489, 1198, 2171, 2970, 3200, 623, 2984, 186, 1837, 1920, 1177]
+ttt:doc_cluster rank:4 post_balance doc_sizes=[1086, 1865, 1771, 1864, 1864, 1583, 1864, 1148, 1801, 1623, 1351, 1767, 1022, 1276, 1703, 1866, 1864, 374, 1865, 1623, 1776, 1754, 1620, 1864, 1866, 1865, 624, 1864, 185, 1778, 1859, 1765]
+ttt:doc_cluster rank:4 post_balance chunk_sizes=[1181, 1864, 1864, 1864, 1864, 1864, 1864, 1151, 1864, 1665, 1413, 1864, 1113, 1355, 1864, 1864, 1864, 400, 1864, 1864, 1864, 1864, 1744, 1864, 1864, 1864, 648, 1864, 192, 1864, 1864, 1864] moved_docs=6705
+ttt:doc_cluster rank:4 owner_chunk_counts=[21, 55, 77, 104, 30, 227, 106, 1, 34, 3, 4, 48, 20, 35, 209, 2, 101, 20, 46, 104, 82, 44, 48, 0, 137, 99, 9, 145, 3, 56, 2, 20]
+ttt:doc_cluster rank:4 gpu_microclusters=[[5, 17], [0, 9, 14], [8, 11, 27, 31], [1, 13, 24, 26], [6, 12, 22, 28, 29], [3, 15, 20, 21, 23], [2, 7, 10, 18, 19], [4, 16, 25, 30]]
+ttt:doc_cluster rank:4 gpu_chunk_counts=[247, 233, 247, 236, 233, 232, 232, 232]
+ttt:doc_cluster rank:4 ordered_docs=6469 my_microclusters=[6, 12, 22, 28, 29]
+ttt:doc_cluster rank:4 ordered_docs=6469 chunks=233 total_chunks=1892
+ttt:doc_cluster rank:5 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:5 pre_balance doc_sizes=[709, 2114, 1615, 2327, 1918, 579, 2364, 1132, 1628, 1453, 1075, 851, 273, 945, 1268, 1918, 2917, 343, 2814, 984, 1779, 1431, 1155, 2151, 2794, 3065, 602, 2803, 180, 1764, 1887, 1162]
+ttt:doc_cluster rank:5 pre_balance chunk_sizes=[725, 2187, 1679, 2447, 1963, 628, 2478, 1132, 1674, 1466, 1092, 869, 281, 971, 1370, 1948, 3037, 351, 2891, 1056, 1870, 1489, 1198, 2171, 2970, 3200, 623, 2984, 186, 1837, 1920, 1177]
+ttt:doc_cluster rank:5 post_balance doc_sizes=[1086, 1865, 1771, 1864, 1864, 1583, 1864, 1148, 1801, 1623, 1351, 1767, 1022, 1276, 1703, 1866, 1864, 374, 1865, 1623, 1776, 1754, 1620, 1864, 1866, 1865, 624, 1864, 185, 1778, 1859, 1765]
+ttt:doc_cluster rank:5 post_balance chunk_sizes=[1181, 1864, 1864, 1864, 1864, 1864, 1864, 1151, 1864, 1665, 1413, 1864, 1113, 1355, 1864, 1864, 1864, 400, 1864, 1864, 1864, 1864, 1744, 1864, 1864, 1864, 648, 1864, 192, 1864, 1864, 1864] moved_docs=6705
+ttt:doc_cluster rank:5 owner_chunk_counts=[21, 55, 77, 104, 30, 227, 106, 1, 34, 3, 4, 48, 20, 35, 209, 2, 101, 20, 46, 104, 82, 44, 48, 0, 137, 99, 9, 145, 3, 56, 2, 20]
+ttt:doc_cluster rank:5 gpu_microclusters=[[5, 17], [0, 9, 14], [8, 11, 27, 31], [1, 13, 24, 26], [6, 12, 22, 28, 29], [3, 15, 20, 21, 23], [2, 7, 10, 18, 19], [4, 16, 25, 30]]
+ttt:doc_cluster rank:5 gpu_chunk_counts=[247, 233, 247, 236, 233, 232, 232, 232]
+ttt:doc_cluster rank:5 ordered_docs=9124 my_microclusters=[3, 15, 20, 21, 23]
+ttt:doc_cluster rank:5 ordered_docs=9124 chunks=232 total_chunks=1892
+ttt:doc_cluster rank:6 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:6 pre_balance doc_sizes=[709, 2114, 1615, 2327, 1918, 579, 2364, 1132, 1628, 1453, 1075, 851, 273, 945, 1268, 1918, 2917, 343, 2814, 984, 1779, 1431, 1155, 2151, 2794, 3065, 602, 2803, 180, 1764, 1887, 1162]
+ttt:doc_cluster rank:6 pre_balance chunk_sizes=[725, 2187, 1679, 2447, 1963, 628, 2478, 1132, 1674, 1466, 1092, 869, 281, 971, 1370, 1948, 3037, 351, 2891, 1056, 1870, 1489, 1198, 2171, 2970, 3200, 623, 2984, 186, 1837, 1920, 1177]
+ttt:doc_cluster rank:6 post_balance doc_sizes=[1086, 1865, 1771, 1864, 1864, 1583, 1864, 1148, 1801, 1623, 1351, 1767, 1022, 1276, 1703, 1866, 1864, 374, 1865, 1623, 1776, 1754, 1620, 1864, 1866, 1865, 624, 1864, 185, 1778, 1859, 1765]
+ttt:doc_cluster rank:6 post_balance chunk_sizes=[1181, 1864, 1864, 1864, 1864, 1864, 1864, 1151, 1864, 1665, 1413, 1864, 1113, 1355, 1864, 1864, 1864, 400, 1864, 1864, 1864, 1864, 1744, 1864, 1864, 1864, 648, 1864, 192, 1864, 1864, 1864] moved_docs=6705
+ttt:doc_cluster rank:6 owner_chunk_counts=[21, 55, 77, 104, 30, 227, 106, 1, 34, 3, 4, 48, 20, 35, 209, 2, 101, 20, 46, 104, 82, 44, 48, 0, 137, 99, 9, 145, 3, 56, 2, 20]
+ttt:doc_cluster rank:6 gpu_microclusters=[[5, 17], [0, 9, 14], [8, 11, 27, 31], [1, 13, 24, 26], [6, 12, 22, 28, 29], [3, 15, 20, 21, 23], [2, 7, 10, 18, 19], [4, 16, 25, 30]]
+ttt:doc_cluster rank:6 gpu_chunk_counts=[247, 233, 247, 236, 233, 232, 232, 232]
+ttt:doc_cluster rank:6 ordered_docs=7758 my_microclusters=[2, 7, 10, 18, 19]
+ttt:doc_cluster rank:6 ordered_docs=7758 chunks=232 total_chunks=1892
+ttt:doc_cluster rank:7 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:7 pre_balance doc_sizes=[709, 2114, 1615, 2327, 1918, 579, 2364, 1132, 1628, 1453, 1075, 851, 273, 945, 1268, 1918, 2917, 343, 2814, 984, 1779, 1431, 1155, 2151, 2794, 3065, 602, 2803, 180, 1764, 1887, 1162]
+ttt:doc_cluster rank:7 pre_balance chunk_sizes=[725, 2187, 1679, 2447, 1963, 628, 2478, 1132, 1674, 1466, 1092, 869, 281, 971, 1370, 1948, 3037, 351, 2891, 1056, 1870, 1489, 1198, 2171, 2970, 3200, 623, 2984, 186, 1837, 1920, 1177]
+ttt:doc_cluster rank:7 post_balance doc_sizes=[1086, 1865, 1771, 1864, 1864, 1583, 1864, 1148, 1801, 1623, 1351, 1767, 1022, 1276, 1703, 1866, 1864, 374, 1865, 1623, 1776, 1754, 1620, 1864, 1866, 1865, 624, 1864, 185, 1778, 1859, 1765]
+ttt:doc_cluster rank:7 post_balance chunk_sizes=[1181, 1864, 1864, 1864, 1864, 1864, 1864, 1151, 1864, 1665, 1413, 1864, 1113, 1355, 1864, 1864, 1864, 400, 1864, 1864, 1864, 1864, 1744, 1864, 1864, 1864, 648, 1864, 192, 1864, 1864, 1864] moved_docs=6705
+ttt:doc_cluster rank:7 owner_chunk_counts=[21, 55, 77, 104, 30, 227, 106, 1, 34, 3, 4, 48, 20, 35, 209, 2, 101, 20, 46, 104, 82, 44, 48, 0, 137, 99, 9, 145, 3, 56, 2, 20]
+ttt:doc_cluster rank:7 gpu_microclusters=[[5, 17], [0, 9, 14], [8, 11, 27, 31], [1, 13, 24, 26], [6, 12, 22, 28, 29], [3, 15, 20, 21, 23], [2, 7, 10, 18, 19], [4, 16, 25, 30]]
+ttt:doc_cluster rank:7 gpu_chunk_counts=[247, 233, 247, 236, 233, 232, 232, 232]
+ttt:doc_cluster rank:7 ordered_docs=7452 my_microclusters=[4, 16, 25, 30]
+ttt:doc_cluster rank:7 ordered_docs=7452 chunks=232 total_chunks=1892
+ttt:doc_cluster rank:0 computed all clusters in 420.9s
+ttt:doc_cluster rank:0 waiting for cluster broadcast
+ttt:doc_cluster rank:0 broadcast_chunks=247 (NN-ordered)
+ttt:doc_cluster rank:2 broadcast_chunks=247 (NN-ordered)ttt:doc_cluster rank:1 broadcast_chunks=233 (NN-ordered)
+ttt:doc_cluster rank:3 broadcast_chunks=236 (NN-ordered)
+
+ttt:doc_cluster rank:4 broadcast_chunks=233 (NN-ordered)
+ttt:doc_cluster rank:5 broadcast_chunks=232 (NN-ordered)
+ttt:doc_cluster rank:7 broadcast_chunks=232 (NN-ordered)
+ttt:doc_cluster rank:6 broadcast_chunks=232 (NN-ordered)
+ttt:saved cluster assignment to cluster_assignment.json (1051432 bytes)
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:warmup_tokens.any()=False numel=32768
+ttt:rank:0 schedule:per_rank step_idx=0 n_steps=741 chunks=247 lr_start=0.002 lr_end~0
+ttt:warmup_tokens.any()=False numel=32768ttt:warmup_tokens.any()=False numel=32768
+
+ttt:warmup_tokens.any()=False numel=32768
+ttt:warmup_tokens.any()=False numel=32768
+ttt:warmup_tokens.any()=False numel=32768ttt:rank:3 schedule:per_rank step_idx=0 n_steps=741 chunks=236 lr_start=0.002 lr_end~0
+
+ttt:rank:1 schedule:per_rank step_idx=0 n_steps=741 chunks=233 lr_start=0.002 lr_end~0
+ttt:rank:4 schedule:per_rank step_idx=0 n_steps=741 chunks=233 lr_start=0.002 lr_end~0
+ttt:warmup_tokens.any()=False numel=32768
+ttt:rank:7 schedule:per_rank step_idx=0 n_steps=741 chunks=232 lr_start=0.002 lr_end~0
+ttt:rank:2 schedule:per_rank step_idx=0 n_steps=741 chunks=247 lr_start=0.002 lr_end~0
+ttt:warmup_tokens.any()=False numel=32768ttt:rank:5 schedule:per_rank step_idx=0 n_steps=741 chunks=232 lr_start=0.002 lr_end~0
+
+ttt:rank:6 schedule:per_rank step_idx=0 n_steps=741 chunks=232 lr_start=0.002 lr_end~0
+ttt:rank:1 global_windows=969088 my_windows=119296 chunks=1892 seq_len=2048 stride=64
+ttt:rank:4 global_windows=969088 my_windows=119296 chunks=1892 seq_len=2048 stride=64
+ttt:rank:2 global_windows=969088 my_windows=126464 chunks=1892 seq_len=2048 stride=64
+ttt:rank:0 global_windows=969088 my_windows=126433 chunks=1892 seq_len=2048 stride=64
+ttt:rank:3 global_windows=969088 my_windows=120832 chunks=1892 seq_len=2048 stride=64
+ttt:rank:6 global_windows=969088 my_windows=118784 chunks=1892 seq_len=2048 stride=64
+ttt:rank:5 global_windows=969088 my_windows=119199 chunks=1892 seq_len=2048 stride=64
+ttt:rank:7 global_windows=969088 my_windows=118784 chunks=1892 seq_len=2048 stride=64
+ttt:STATIC_CURVE rank:1 chunk 0/233 ci=128 run_bpb=1.0365 marginal=1.0365
+ttt:STATIC_CURVE rank:3 chunk 0/236 ci=1607 run_bpb=1.1244 marginal=1.1244
+ttt:STATIC_CURVE rank:2 chunk 0/247 ci=1580 run_bpb=1.1207 marginal=1.1207
+ttt:STATIC_CURVE rank:4 chunk 0/233 ci=1273 run_bpb=1.0661 marginal=1.0661
+ttt:STATIC_CURVE rank:6 chunk 0/232 ci=1351 run_bpb=1.1103 marginal=1.1103
+ttt:STATIC_CURVE rank:5 chunk 0/232 ci=1312 run_bpb=1.1257 marginal=1.1257
+ttt:STATIC_CURVE rank:7 chunk 0/232 ci=1666 run_bpb=1.1712 marginal=1.1712
+ttt:STATIC_CURVE rank:0 chunk 0/247 ci=967 run_bpb=1.1994 marginal=1.1994
+ttt:STATIC_CURVE rank:3 chunk 50/236 ci=1511 run_bpb=1.0900 marginal=1.0585
+ttt:STATIC_CURVE rank:1 chunk 50/233 ci=1857 run_bpb=1.1148 marginal=1.0283
+ttt:STATIC_CURVE rank:2 chunk 50/247 ci=862 run_bpb=1.1176 marginal=1.1719
+ttt:STATIC_CURVE rank:5 chunk 50/232 ci=1620 run_bpb=1.1382 marginal=1.1622
+ttt:STATIC_CURVE rank:7 chunk 50/232 ci=1001 run_bpb=1.1539 marginal=1.0634
+ttt:STATIC_CURVE rank:6 chunk 50/232 ci=1221 run_bpb=1.1254 marginal=1.0921
+ttt:STATIC_CURVE rank:4 chunk 50/233 ci=994 run_bpb=1.1125 marginal=1.1263
+ttt:STATIC_CURVE rank:0 chunk 50/247 ci=596 run_bpb=1.1390 marginal=1.1674
+ttt:STATIC_CURVE rank:3 chunk 100/236 ci=737 run_bpb=1.0931 marginal=1.1169
+ttt:STATIC_CURVE rank:1 chunk 100/233 ci=372 run_bpb=1.1039 marginal=1.0706
+ttt:STATIC_CURVE rank:2 chunk 100/247 ci=1256 run_bpb=1.1214 marginal=1.1065
+ttt:STATIC_CURVE rank:5 chunk 100/232 ci=992 run_bpb=1.1425 marginal=1.1861
+ttt:STATIC_CURVE rank:7 chunk 100/232 ci=977 run_bpb=1.1473 marginal=1.1238
+ttt:STATIC_CURVE rank:4 chunk 100/233 ci=1190 run_bpb=1.1195 marginal=1.1583
+ttt:STATIC_CURVE rank:6 chunk 100/232 ci=662 run_bpb=1.1187 marginal=1.0708
+ttt:STATIC_CURVE rank:3 chunk 150/236 ci=1632 run_bpb=1.0975 marginal=1.0334
+ttt:STATIC_CURVE rank:1 chunk 150/233 ci=1659 run_bpb=1.1066 marginal=0.9592
+ttt:STATIC_CURVE rank:2 chunk 150/247 ci=629 run_bpb=1.1175 marginal=1.1406
+ttt:STATIC_CURVE rank:5 chunk 150/232 ci=1806 run_bpb=1.1445 marginal=1.1131
+ttt:STATIC_CURVE rank:7 chunk 150/232 ci=1797 run_bpb=1.1425 marginal=1.1151
+ttt:STATIC_CURVE rank:6 chunk 150/232 ci=1721 run_bpb=1.1156 marginal=1.1858
+ttt:STATIC_CURVE rank:4 chunk 150/233 ci=907 run_bpb=1.1205 marginal=1.1760
+ttt:STATIC_CURVE rank:0 chunk 100/247 ci=438 run_bpb=1.1546 marginal=1.0743
+ttt:STATIC_CURVE rank:3 chunk 200/236 ci=187 run_bpb=1.0907 marginal=1.1090
+ttt:STATIC_CURVE rank:1 chunk 200/233 ci=1825 run_bpb=1.1038 marginal=1.0507
+ttt:STATIC_CURVE rank:2 chunk 200/247 ci=581 run_bpb=1.1243 marginal=1.1909
+ttt:STATIC_CURVE rank:5 chunk 200/232 ci=90 run_bpb=1.1478 marginal=1.1171
+ttt:STATIC_CURVE rank:7 chunk 200/232 ci=1234 run_bpb=1.1350 marginal=1.0159
+ttt:STATIC_CURVE rank:6 chunk 200/232 ci=1247 run_bpb=1.1053 marginal=1.0029
+ttt:STATIC_CURVE rank:4 chunk 200/233 ci=139 run_bpb=1.1252 marginal=1.0883
+ttt:STATIC_CURVE rank:0 chunk 150/247 ci=352 run_bpb=1.1484 marginal=1.1661
+ttt:STATIC_BASELINE rank:1 bpb=1.101207 tokens=7634944 windows=119296
+ttt:NN_COSINE rank:1 chunk 50/233 ci=1857 cosine=0.9550
+ttt:NN_COSINE rank:1 chunk 100/233 ci=372 cosine=0.9536
+ttt:NN_COSINE rank:1 chunk 150/233 ci=1659 cosine=0.9219
+ttt:NN_COSINE rank:1 chunk 200/233 ci=1825 cosine=0.9495
+ttt:rank:1 chunk 0/233 ci=128 wins=512 run_bpb=nan lr=0.002000
+ttt:STATIC_BASELINE rank:7 bpb=1.132912 tokens=7602176 windows=118784
+ttt:STATIC_BASELINE rank:6 bpb=1.103485 tokens=7602176 windows=118784
+ttt:MARGINAL rank:1 chunk 0/233 ci=128 static=1.0365 adapted=1.0365 delta=+0.0000
+ttt:NN_COSINE rank:7 chunk 50/232 ci=1001 cosine=0.9653
+ttt:NN_COSINE rank:7 chunk 100/232 ci=977 cosine=0.9735
+ttt:NN_COSINE rank:7 chunk 150/232 ci=1797 cosine=0.9385
+ttt:NN_COSINE rank:7 chunk 200/232 ci=1234 cosine=0.9473
+ttt:rank:7 chunk 0/232 ci=1666 wins=512 run_bpb=nan lr=0.002000
+ttt:NN_COSINE rank:6 chunk 50/232 ci=1221 cosine=0.9433
+ttt:NN_COSINE rank:6 chunk 100/232 ci=662 cosine=0.9690
+ttt:NN_COSINE rank:6 chunk 150/232 ci=1721 cosine=0.9679
+ttt:NN_COSINE rank:6 chunk 200/232 ci=1247 cosine=0.9631
+ttt:rank:6 chunk 0/232 ci=1351 wins=512 run_bpb=nan lr=0.002000
+ttt:STATIC_BASELINE rank:4 bpb=1.125100 tokens=7634944 windows=119296
+ttt:STATIC_BASELINE rank:3 bpb=1.094683 tokens=7733248 windows=120832
+ttt:MARGINAL rank:7 chunk 0/232 ci=1666 static=1.1712 adapted=1.1712 delta=+0.0000
+ttt:MARGINAL rank:6 chunk 0/232 ci=1351 static=1.1103 adapted=1.1103 delta=+0.0000
+ttt:NN_COSINE rank:4 chunk 50/233 ci=994 cosine=0.9799
+ttt:NN_COSINE rank:4 chunk 100/233 ci=1190 cosine=0.9747
+ttt:NN_COSINE rank:4 chunk 150/233 ci=907 cosine=0.9608
+ttt:NN_COSINE rank:4 chunk 200/233 ci=139 cosine=0.9747
+ttt:rank:4 chunk 0/233 ci=1273 wins=512 run_bpb=nan lr=0.002000
+ttt:NN_COSINE rank:3 chunk 50/236 ci=1511 cosine=0.9713
+ttt:NN_COSINE rank:3 chunk 100/236 ci=737 cosine=0.9717
+ttt:NN_COSINE rank:3 chunk 150/236 ci=1632 cosine=0.9750
+ttt:NN_COSINE rank:3 chunk 200/236 ci=187 cosine=0.9640
+ttt:rank:3 chunk 0/236 ci=1607 wins=512 run_bpb=nan lr=0.002000
+ttt:MARGINAL rank:4 chunk 0/233 ci=1273 static=1.0661 adapted=1.0661 delta=+0.0000
+ttt:MARGINAL rank:3 chunk 0/236 ci=1607 static=1.1244 adapted=1.1244 delta=+0.0000
+ttt:STATIC_BASELINE rank:2 bpb=1.123293 tokens=8093696 windows=126464
+ttt:NN_COSINE rank:2 chunk 50/247 ci=862 cosine=0.9756
+ttt:NN_COSINE rank:2 chunk 100/247 ci=1256 cosine=0.9687
+ttt:NN_COSINE rank:2 chunk 150/247 ci=629 cosine=0.9756
+ttt:NN_COSINE rank:2 chunk 200/247 ci=581 cosine=0.9633
+ttt:rank:2 chunk 0/247 ci=1580 wins=512 run_bpb=nan lr=0.002000
+ttt:MARGINAL rank:2 chunk 0/247 ci=1580 static=1.1207 adapted=1.1207 delta=+0.0000
+ttt:STATIC_BASELINE rank:5 bpb=1.151096 tokens=7628736 windows=119199
+ttt:NN_COSINE rank:5 chunk 50/232 ci=1620 cosine=0.9754
+ttt:NN_COSINE rank:5 chunk 100/232 ci=992 cosine=0.8593
+ttt:NN_COSINE rank:5 chunk 150/232 ci=1806 cosine=0.9728
+ttt:NN_COSINE rank:5 chunk 200/232 ci=90 cosine=0.9704
+ttt:rank:5 chunk 0/232 ci=1312 wins=512 run_bpb=nan lr=0.002000
+ttt:STATIC_CURVE rank:0 chunk 200/247 ci=37 run_bpb=1.1452 marginal=1.0840
+ttt:MARGINAL rank:5 chunk 0/232 ci=1312 static=1.1257 adapted=1.1257 delta=+0.0000
+ttt:DIAG rank:1 ci_local=50 run_bpb=1.1165 weight_drift_l2=0.2860 lr=0.001807
+ttt:STATIC_BASELINE rank:0 bpb=1.144631 tokens=8093696 windows=126433
+ttt:DIAG rank:7 ci_local=50 run_bpb=1.1555 weight_drift_l2=0.2831 lr=0.001807
+ttt:NN_COSINE rank:0 chunk 50/247 ci=596 cosine=0.9312
+ttt:NN_COSINE rank:0 chunk 100/247 ci=438 cosine=0.9663
+ttt:NN_COSINE rank:0 chunk 150/247 ci=352 cosine=0.9632
+ttt:NN_COSINE rank:0 chunk 200/247 ci=37 cosine=0.7075
+ttt:rank:0 chunk 0/247 ci=967 wins=512 run_bpb=nan lr=0.002000
+ttt:DIAG rank:6 ci_local=50 run_bpb=1.1259 weight_drift_l2=0.2913 lr=0.001807
+ttt:MARGINAL rank:0 chunk 0/247 ci=967 static=1.1994 adapted=1.1994 delta=+0.0000
+ttt:DIAG rank:3 ci_local=50 run_bpb=1.0905 weight_drift_l2=0.2814 lr=0.001807
+ttt:DIAG rank:4 ci_local=50 run_bpb=1.1122 weight_drift_l2=0.2912 lr=0.001807
+ttt:DIAG_SW rank:1 ci_local=50 sample_sw_bpb=1.1044 (2000 windows from my chunks)
+ttt:rank:1 chunk 50/233 ci=1857 wins=512 run_bpb=1.1165 lr=0.001807
+ttt:MARGINAL rank:1 chunk 50/233 ci=1857 static=1.0283 adapted=1.0277 delta=-0.0006
+ttt:DIAG_SW rank:7 ci_local=50 sample_sw_bpb=1.1576 (2000 windows from my chunks)
+ttt:rank:7 chunk 50/232 ci=1001 wins=512 run_bpb=1.1555 lr=0.001807
+ttt:DIAG_SW rank:6 ci_local=50 sample_sw_bpb=1.1219 (2000 windows from my chunks)
+ttt:rank:6 chunk 50/232 ci=1221 wins=512 run_bpb=1.1259 lr=0.001807
+ttt:MARGINAL rank:7 chunk 50/232 ci=1001 static=1.0634 adapted=1.0635 delta=+0.0000
+ttt:DIAG_SW rank:3 ci_local=50 sample_sw_bpb=1.0811 (2000 windows from my chunks)
+ttt:rank:3 chunk 50/236 ci=1511 wins=512 run_bpb=1.0905 lr=0.001807
+ttt:DIAG_SW rank:4 ci_local=50 sample_sw_bpb=1.1100 (2000 windows from my chunks)
+ttt:rank:4 chunk 50/233 ci=994 wins=512 run_bpb=1.1122 lr=0.001807
+ttt:MARGINAL rank:6 chunk 50/232 ci=1221 static=1.0921 adapted=1.0919 delta=-0.0002
+ttt:MARGINAL rank:3 chunk 50/236 ci=1511 static=1.0585 adapted=1.0581 delta=-0.0003
+ttt:MARGINAL rank:4 chunk 50/233 ci=994 static=1.1263 adapted=1.1263 delta=-0.0000
+ttt:DIAG rank:2 ci_local=50 run_bpb=1.1164 weight_drift_l2=0.2876 lr=0.001807
+ttt:DIAG_SW rank:2 ci_local=50 sample_sw_bpb=1.1196 (2000 windows from my chunks)
+ttt:rank:2 chunk 50/247 ci=862 wins=512 run_bpb=1.1164 lr=0.001807
+ttt:MARGINAL rank:2 chunk 50/247 ci=862 static=1.1719 adapted=1.1712 delta=-0.0007
+ttt:DIAG rank:5 ci_local=50 run_bpb=1.1377 weight_drift_l2=0.2929 lr=0.001807
+ttt:DIAG_SW rank:5 ci_local=50 sample_sw_bpb=1.1380 (2000 windows from my chunks)
+ttt:rank:5 chunk 50/232 ci=1620 wins=512 run_bpb=1.1377 lr=0.001807
+ttt:MARGINAL rank:5 chunk 50/232 ci=1620 static=1.1622 adapted=1.1620 delta=-0.0002
+ttt:DIAG rank:0 ci_local=50 run_bpb=1.1384 weight_drift_l2=0.2851 lr=0.001807
+ttt:DIAG rank:1 ci_local=100 run_bpb=1.1039 weight_drift_l2=0.3650 lr=0.001297
+ttt:DIAG rank:7 ci_local=100 run_bpb=1.1471 weight_drift_l2=0.3704 lr=0.001297
+ttt:DIAG_SW rank:0 ci_local=50 sample_sw_bpb=1.1398 (2000 windows from my chunks)
+ttt:rank:0 chunk 50/247 ci=596 wins=512 run_bpb=1.1384 lr=0.001807
+ttt:DIAG rank:3 ci_local=100 run_bpb=1.0926 weight_drift_l2=0.3666 lr=0.001297
+ttt:MARGINAL rank:0 chunk 50/247 ci=596 static=1.1674 adapted=1.1665 delta=-0.0009
+ttt:DIAG rank:6 ci_local=100 run_bpb=1.1188 weight_drift_l2=0.3724 lr=0.001297
+ttt:DIAG rank:4 ci_local=100 run_bpb=1.1189 weight_drift_l2=0.3670 lr=0.001297
+ttt:DIAG_SW rank:1 ci_local=100 sample_sw_bpb=1.0974 (2000 windows from my chunks)
+ttt:rank:1 chunk 100/233 ci=372 wins=512 run_bpb=1.1039 lr=0.001297
+ttt:MARGINAL rank:1 chunk 100/233 ci=372 static=1.0706 adapted=1.0702 delta=-0.0004
+ttt:DIAG_SW rank:7 ci_local=100 sample_sw_bpb=1.1492 (2000 windows from my chunks)
+ttt:rank:7 chunk 100/232 ci=977 wins=512 run_bpb=1.1471 lr=0.001297
+ttt:DIAG_SW rank:3 ci_local=100 sample_sw_bpb=1.0877 (2000 windows from my chunks)
+ttt:rank:3 chunk 100/236 ci=737 wins=512 run_bpb=1.0926 lr=0.001297
+ttt:MARGINAL rank:7 chunk 100/232 ci=977 static=1.1238 adapted=1.1228 delta=-0.0009
+ttt:DIAG_SW rank:6 ci_local=100 sample_sw_bpb=1.1287 (2000 windows from my chunks)
+ttt:rank:6 chunk 100/232 ci=662 wins=512 run_bpb=1.1188 lr=0.001297
+ttt:MARGINAL rank:3 chunk 100/236 ci=737 static=1.1169 adapted=1.1159 delta=-0.0009
+ttt:DIAG_SW rank:4 ci_local=100 sample_sw_bpb=1.1313 (2000 windows from my chunks)
+ttt:rank:4 chunk 100/233 ci=1190 wins=512 run_bpb=1.1189 lr=0.001297
+ttt:MARGINAL rank:6 chunk 100/232 ci=662 static=1.0708 adapted=1.0702 delta=-0.0005
+ttt:MARGINAL rank:4 chunk 100/233 ci=1190 static=1.1583 adapted=1.1573 delta=-0.0010
+ttt:DIAG rank:2 ci_local=100 run_bpb=1.1212 weight_drift_l2=0.3728 lr=0.001297
+ttt:DIAG_SW rank:2 ci_local=100 sample_sw_bpb=1.1175 (2000 windows from my chunks)
+ttt:rank:2 chunk 100/247 ci=1256 wins=512 run_bpb=1.1212 lr=0.001297
+ttt:MARGINAL rank:2 chunk 100/247 ci=1256 static=1.1065 adapted=1.1061 delta=-0.0004
+ttt:DIAG rank:5 ci_local=100 run_bpb=1.1419 weight_drift_l2=0.3777 lr=0.001297
+ttt:DIAG_SW rank:5 ci_local=100 sample_sw_bpb=1.1454 (2000 windows from my chunks)
+ttt:rank:5 chunk 100/232 ci=992 wins=512 run_bpb=1.1419 lr=0.001297
+ttt:MARGINAL rank:5 chunk 100/232 ci=992 static=1.1861 adapted=1.1854 delta=-0.0007
+ttt:DIAG rank:0 ci_local=100 run_bpb=1.1552 weight_drift_l2=0.3663 lr=0.001297
+ttt:DIAG rank:1 ci_local=150 run_bpb=1.1072 weight_drift_l2=0.3923 lr=0.000671
+ttt:DIAG_SW rank:0 ci_local=100 sample_sw_bpb=1.1585 (2000 windows from my chunks)
+ttt:rank:0 chunk 100/247 ci=438 wins=512 run_bpb=1.1552 lr=0.001297
+ttt:DIAG rank:3 ci_local=150 run_bpb=1.0975 weight_drift_l2=0.3924 lr=0.000671
+ttt:DIAG rank:7 ci_local=150 run_bpb=1.1421 weight_drift_l2=0.3992 lr=0.000671
+ttt:MARGINAL rank:0 chunk 100/247 ci=438 static=1.0743 adapted=1.0739 delta=-0.0004
+ttt:DIAG rank:6 ci_local=150 run_bpb=1.1146 weight_drift_l2=0.3975 lr=0.000671
+ttt:DIAG rank:4 ci_local=150 run_bpb=1.1197 weight_drift_l2=0.3917 lr=0.000671
+ttt:DIAG_SW rank:1 ci_local=150 sample_sw_bpb=1.1014 (2000 windows from my chunks)
+ttt:rank:1 chunk 150/233 ci=1659 wins=512 run_bpb=1.1072 lr=0.000671
+ttt:MARGINAL rank:1 chunk 150/233 ci=1659 static=0.9592 adapted=0.9589 delta=-0.0002
+ttt:DIAG_SW rank:3 ci_local=150 sample_sw_bpb=1.0988 (2000 windows from my chunks)
+ttt:rank:3 chunk 150/236 ci=1632 wins=512 run_bpb=1.0975 lr=0.000671
+ttt:DIAG_SW rank:7 ci_local=150 sample_sw_bpb=1.1507 (2000 windows from my chunks)
+ttt:rank:7 chunk 150/232 ci=1797 wins=512 run_bpb=1.1421 lr=0.000671
+ttt:MARGINAL rank:3 chunk 150/236 ci=1632 static=1.0334 adapted=1.0327 delta=-0.0007
+ttt:MARGINAL rank:7 chunk 150/232 ci=1797 static=1.1151 adapted=1.1146 delta=-0.0005
+ttt:DIAG_SW rank:6 ci_local=150 sample_sw_bpb=1.1097 (2000 windows from my chunks)
+ttt:rank:6 chunk 150/232 ci=1721 wins=512 run_bpb=1.1146 lr=0.000671
+ttt:DIAG_SW rank:4 ci_local=150 sample_sw_bpb=1.1261 (2000 windows from my chunks)
+ttt:rank:4 chunk 150/233 ci=907 wins=512 run_bpb=1.1197 lr=0.000671
+ttt:MARGINAL rank:6 chunk 150/232 ci=1721 static=1.1858 adapted=1.1850 delta=-0.0008
+ttt:MARGINAL rank:4 chunk 150/233 ci=907 static=1.1760 adapted=1.1752 delta=-0.0009
+ttt:DIAG rank:2 ci_local=150 run_bpb=1.1168 weight_drift_l2=0.3988 lr=0.000671
+ttt:DIAG_SW rank:2 ci_local=150 sample_sw_bpb=1.1159 (2000 windows from my chunks)
+ttt:rank:2 chunk 150/247 ci=629 wins=512 run_bpb=1.1168 lr=0.000671
+ttt:MARGINAL rank:2 chunk 150/247 ci=629 static=1.1406 adapted=1.1397 delta=-0.0009
+ttt:DIAG rank:5 ci_local=150 run_bpb=1.1443 weight_drift_l2=0.4017 lr=0.000671
+ttt:DIAG_SW rank:5 ci_local=150 sample_sw_bpb=1.1448 (2000 windows from my chunks)
+ttt:rank:5 chunk 150/232 ci=1806 wins=512 run_bpb=1.1443 lr=0.000671
+ttt:MARGINAL rank:5 chunk 150/232 ci=1806 static=1.1131 adapted=1.1121 delta=-0.0010
+ttt:DIAG rank:0 ci_local=150 run_bpb=1.1479 weight_drift_l2=0.3940 lr=0.000671
+ttt:DIAG rank:1 ci_local=200 run_bpb=1.1035 weight_drift_l2=0.3962 lr=0.000174
+ttt:DIAG_SW rank:0 ci_local=150 sample_sw_bpb=1.1558 (2000 windows from my chunks)
+ttt:rank:0 chunk 150/247 ci=352 wins=512 run_bpb=1.1479 lr=0.000671
+ttt:DIAG rank:3 ci_local=200 run_bpb=1.0900 weight_drift_l2=0.3971 lr=0.000174
+ttt:MARGINAL rank:0 chunk 150/247 ci=352 static=1.1661 adapted=1.1653 delta=-0.0008
+ttt:DIAG rank:7 ci_local=200 run_bpb=1.1349 weight_drift_l2=0.4042 lr=0.000174
+ttt:DIAG rank:4 ci_local=200 run_bpb=1.1248 weight_drift_l2=0.3957 lr=0.000174
+ttt:DIAG_SW rank:1 ci_local=200 sample_sw_bpb=1.0919 (2000 windows from my chunks)
+ttt:rank:1 chunk 200/233 ci=1825 wins=512 run_bpb=1.1035 lr=0.000174
+ttt:DIAG rank:6 ci_local=200 run_bpb=1.1052 weight_drift_l2=0.4026 lr=0.000174
+ttt:MARGINAL rank:1 chunk 200/233 ci=1825 static=1.0507 adapted=1.0499 delta=-0.0008
+ttt:DIAG_SW rank:3 ci_local=200 sample_sw_bpb=1.0902 (2000 windows from my chunks)
+ttt:rank:3 chunk 200/236 ci=187 wins=512 run_bpb=1.0900 lr=0.000174
+ttt:DIAG_SW rank:7 ci_local=200 sample_sw_bpb=1.1396 (2000 windows from my chunks)
+ttt:rank:7 chunk 200/232 ci=1234 wins=512 run_bpb=1.1349 lr=0.000174
+ttt:MARGINAL rank:3 chunk 200/236 ci=187 static=1.1090 adapted=1.1076 delta=-0.0014
+ttt:MARGINAL rank:7 chunk 200/232 ci=1234 static=1.0159 adapted=1.0149 delta=-0.0011
+ttt:DIAG_SW rank:4 ci_local=200 sample_sw_bpb=1.1365 (2000 windows from my chunks)
+ttt:rank:4 chunk 200/233 ci=139 wins=512 run_bpb=1.1248 lr=0.000174
+ttt:DIAG_SW rank:6 ci_local=200 sample_sw_bpb=1.1082 (2000 windows from my chunks)
+ttt:rank:6 chunk 200/232 ci=1247 wins=512 run_bpb=1.1052 lr=0.000174
+ttt:MARGINAL rank:4 chunk 200/233 ci=139 static=1.0883 adapted=1.0870 delta=-0.0012
+ttt:MARGINAL rank:6 chunk 200/232 ci=1247 static=1.0029 adapted=1.0026 delta=-0.0004
+ttt:DIAG rank:2 ci_local=200 run_bpb=1.1233 weight_drift_l2=0.4009 lr=0.000174
+ttt:DIAG_SW rank:2 ci_local=200 sample_sw_bpb=1.1182 (2000 windows from my chunks)
+ttt:rank:2 chunk 200/247 ci=581 wins=512 run_bpb=1.1233 lr=0.000174
+ttt:MARGINAL rank:2 chunk 200/247 ci=581 static=1.1909 adapted=1.1892 delta=-0.0017
+ttt:DIAG rank:5 ci_local=200 run_bpb=1.1474 weight_drift_l2=0.4041 lr=0.000174
+ttt:DIAG_SW rank:5 ci_local=200 sample_sw_bpb=1.1563 (2000 windows from my chunks)
+ttt:rank:5 chunk 200/232 ci=90 wins=512 run_bpb=1.1474 lr=0.000174
+ttt:MARGINAL rank:5 chunk 200/232 ci=90 static=1.1171 adapted=1.1161 delta=-0.0010
+ttt:DIAG rank:0 ci_local=200 run_bpb=1.1449 weight_drift_l2=0.3977 lr=0.000174
+ttt:DIAG_SW rank:0 ci_local=200 sample_sw_bpb=1.1503 (2000 windows from my chunks)
+ttt:rank:0 chunk 200/247 ci=37 wins=512 run_bpb=1.1449 lr=0.000174
+ttt:MARGINAL rank:0 chunk 200/247 ci=37 static=1.0840 adapted=1.0821 delta=-0.0019
+ttt:score_first val_loss:1.8936 val_bpb:1.1215 eval_time:643141ms
+ttt:score_first_exact val_loss:1.89360564 val_bpb:1.12150289
+ttt:adapted_exact val_loss:1.89360564 val_bpb:1.12150289
+final_adapted_bpb val_bpb:1.12150289
+DIAGNOSTIC post_ttt_fp32_10k val_loss:1.9046 val_bpb:1.1255 eval_time:1891ms (10K windows)
+DIAGNOSTIC post_ttt_fp32_10k_exact val_loss:1.90455675 val_bpb:1.12547947
+DIAGNOSTIC post_ttt_bf16_10k val_loss:1.9046 val_bpb:1.1255 eval_time:1832ms (10K windows)
+DIAGNOSTIC post_ttt_bf16_10k_exact val_loss:1.90455675 val_bpb:1.12547947
+evs:rank:1 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:4 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:6 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:7 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:5 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:2 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:3 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:0 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:4 32/121136 (0%) run_bpb=1.3761 elapsed=2s
+evs:rank:1 32/121136 (0%) run_bpb=1.0595 elapsed=2s
+evs:rank:0 32/121136 (0%) run_bpb=1.1918 elapsed=2s
+evs:rank:5 32/121136 (0%) run_bpb=1.1836 elapsed=2s
+evs:rank:2 32/121136 (0%) run_bpb=1.0985 elapsed=2s
+evs:rank:6 32/121136 (0%) run_bpb=1.0790 elapsed=2s
+evs:rank:7 32/121136 (0%) run_bpb=1.3193 elapsed=2s
+evs:rank:3 32/121136 (0%) run_bpb=1.0723 elapsed=2s
+evs:rank:1 12128/121136 (10%) run_bpb=1.1147 elapsed=9s
+evs:rank:0 12128/121136 (10%) run_bpb=1.1185 elapsed=9s
+evs:rank:4 12128/121136 (10%) run_bpb=1.1511 elapsed=9s
+evs:rank:5 12128/121136 (10%) run_bpb=1.1305 elapsed=9s
+evs:rank:2 12128/121136 (10%) run_bpb=1.1332 elapsed=9s
+evs:rank:3 12128/121136 (10%) run_bpb=1.1227 elapsed=10s
+evs:rank:6 12128/121136 (10%) run_bpb=1.1421 elapsed=10s
+evs:rank:7 12128/121136 (10%) run_bpb=1.1365 elapsed=10s
+evs:rank:1 24224/121136 (20%) run_bpb=1.1230 elapsed=16s
+evs:rank:0 24224/121136 (20%) run_bpb=1.1253 elapsed=16s
+evs:rank:4 24224/121136 (20%) run_bpb=1.1402 elapsed=16s
+evs:rank:2 24224/121136 (20%) run_bpb=1.1154 elapsed=16s
+evs:rank:5 24224/121136 (20%) run_bpb=1.1285 elapsed=16s
+evs:rank:3 24224/121136 (20%) run_bpb=1.1174 elapsed=17s
+evs:rank:6 24224/121136 (20%) run_bpb=1.1407 elapsed=17s
+evs:rank:7 24224/121136 (20%) run_bpb=1.1409 elapsed=17s
+evs:rank:1 36320/121136 (30%) run_bpb=1.1251 elapsed=23s
+evs:rank:0 36320/121136 (30%) run_bpb=1.1300 elapsed=23s
+evs:rank:2 36320/121136 (30%) run_bpb=1.1231 elapsed=23s
+evs:rank:5 36320/121136 (30%) run_bpb=1.1096 elapsed=23s
+evs:rank:4 36320/121136 (30%) run_bpb=1.1400 elapsed=23s
+evs:rank:3 36320/121136 (30%) run_bpb=1.1190 elapsed=24s
+evs:rank:6 36320/121136 (30%) run_bpb=1.1410 elapsed=24s
+evs:rank:7 36320/121136 (30%) run_bpb=1.1305 elapsed=24s
+evs:rank:1 48416/121136 (40%) run_bpb=1.1270 elapsed=30s
+evs:rank:0 48416/121136 (40%) run_bpb=1.1251 elapsed=30s
+evs:rank:2 48416/121136 (40%) run_bpb=1.1193 elapsed=30s
+evs:rank:5 48416/121136 (40%) run_bpb=1.1037 elapsed=30s
+evs:rank:4 48416/121136 (40%) run_bpb=1.1471 elapsed=30s
+evs:rank:3 48416/121136 (40%) run_bpb=1.1177 elapsed=31s
+evs:rank:6 48416/121136 (40%) run_bpb=1.1359 elapsed=31s
+evs:rank:7 48416/121136 (40%) run_bpb=1.1226 elapsed=31s
+evs:rank:1 60512/121136 (50%) run_bpb=1.1284 elapsed=37s
+evs:rank:0 60512/121136 (50%) run_bpb=1.1225 elapsed=37s
+evs:rank:2 60512/121136 (50%) run_bpb=1.1164 elapsed=37s
+evs:rank:5 60512/121136 (50%) run_bpb=1.1035 elapsed=37s
+evs:rank:4 60512/121136 (50%) run_bpb=1.1413 elapsed=37s
+evs:rank:3 60512/121136 (50%) run_bpb=1.1168 elapsed=38s
+evs:rank:6 60512/121136 (50%) run_bpb=1.1372 elapsed=38s
+evs:rank:7 60512/121136 (50%) run_bpb=1.1226 elapsed=38s
+evs:rank:1 72608/121136 (60%) run_bpb=1.1301 elapsed=44s
+evs:rank:0 72608/121136 (60%) run_bpb=1.1213 elapsed=44s
+evs:rank:2 72608/121136 (60%) run_bpb=1.1161 elapsed=44s
+evs:rank:5 72608/121136 (60%) run_bpb=1.0999 elapsed=44s
+evs:rank:4 72608/121136 (60%) run_bpb=1.1420 elapsed=45s
+evs:rank:3 72608/121136 (60%) run_bpb=1.1155 elapsed=45s
+evs:rank:6 72608/121136 (60%) run_bpb=1.1392 elapsed=45s
+evs:rank:7 72608/121136 (60%) run_bpb=1.1164 elapsed=45s
+evs:rank:1 84704/121136 (70%) run_bpb=1.1288 elapsed=51s
+evs:rank:0 84704/121136 (70%) run_bpb=1.1249 elapsed=51s
+evs:rank:2 84704/121136 (70%) run_bpb=1.1137 elapsed=52s
+evs:rank:5 84704/121136 (70%) run_bpb=1.1003 elapsed=52s
+evs:rank:4 84704/121136 (70%) run_bpb=1.1389 elapsed=52s
+evs:rank:3 84704/121136 (70%) run_bpb=1.1175 elapsed=52s
+evs:rank:7 84704/121136 (70%) run_bpb=1.1166 elapsed=53s
+evs:rank:6 84704/121136 (70%) run_bpb=1.1403 elapsed=53s
+evs:rank:1 96800/121136 (80%) run_bpb=1.1282 elapsed=58s
+evs:rank:0 96800/121136 (80%) run_bpb=1.1274 elapsed=59s
+evs:rank:2 96800/121136 (80%) run_bpb=1.1132 elapsed=59s
+evs:rank:5 96800/121136 (80%) run_bpb=1.1047 elapsed=59s
+evs:rank:4 96800/121136 (80%) run_bpb=1.1336 elapsed=59s
+evs:rank:3 96800/121136 (80%) run_bpb=1.1160 elapsed=59s
+evs:rank:7 96800/121136 (80%) run_bpb=1.1145 elapsed=60s
+evs:rank:6 96800/121136 (80%) run_bpb=1.1404 elapsed=60s
+evs:rank:1 108896/121136 (90%) run_bpb=1.1273 elapsed=66s
+evs:rank:0 108896/121136 (90%) run_bpb=1.1261 elapsed=66s
+evs:rank:2 108896/121136 (90%) run_bpb=1.1100 elapsed=66s
+evs:rank:5 108896/121136 (90%) run_bpb=1.1068 elapsed=66s
+evs:rank:4 108896/121136 (90%) run_bpb=1.1317 elapsed=66s
+evs:rank:3 108896/121136 (90%) run_bpb=1.1163 elapsed=66s
+evs:rank:7 108896/121136 (90%) run_bpb=1.1139 elapsed=67s
+evs:rank:6 108896/121136 (90%) run_bpb=1.1381 elapsed=67s
+evs:rank:1 120992/121136 (100%) run_bpb=1.1255 elapsed=73s
+evs:rank:0 120992/121136 (100%) run_bpb=1.1266 elapsed=73s
+evs:rank:2 120992/121136 (100%) run_bpb=1.1100 elapsed=73s
+evs:rank:5 120992/121136 (100%) run_bpb=1.1092 elapsed=73s
+evs:rank:4 120992/121136 (100%) run_bpb=1.1282 elapsed=73s
+evs:rank:3 120992/121136 (100%) run_bpb=1.1182 elapsed=74s
+evs:rank:7 120992/121136 (100%) run_bpb=1.1126 elapsed=74s
+evs:rank:6 120992/121136 (100%) run_bpb=1.1386 elapsed=74s
+evs:rank:4 DONE val_loss=1.892831 val_bpb=1.121044 tokens=62023616 bytes=151084796 elapsed=76sevs:rank:6 DONE val_loss=1.892831 val_bpb=1.121044 tokens=62023616 bytes=151084796 elapsed=76s
+evs:rank:7 DONE val_loss=1.892831 val_bpb=1.121044 tokens=62023616 bytes=151084796 elapsed=76s
+evs:rank:0 DONE val_loss=1.892831 val_bpb=1.121044 tokens=62023616 bytes=151084796 elapsed=76s
+
+evs:rank:2 DONE val_loss=1.892831 val_bpb=1.121044 tokens=62023616 bytes=151084796 elapsed=76s
+evs:rank:1 DONE val_loss=1.892831 val_bpb=1.121044 tokens=62023616 bytes=151084796 elapsed=76s
+evs:rank:5 DONE val_loss=1.892831 val_bpb=1.121044 tokens=62023616 bytes=151084796 elapsed=76sevs:rank:3 DONE val_loss=1.892831 val_bpb=1.121044 tokens=62023616 bytes=151084796 elapsed=76s
+
+DIAGNOSTIC post_ttt_full_sw val_loss:1.8928 val_bpb:1.1210 eval_time:76026ms
+DIAGNOSTIC post_ttt_full_sw_exact val_loss:1.89283100 val_bpb:1.12104410
+ttt:total_time:723464ms

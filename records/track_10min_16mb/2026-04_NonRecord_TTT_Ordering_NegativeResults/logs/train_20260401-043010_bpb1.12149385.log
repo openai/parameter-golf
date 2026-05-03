@@ -1,0 +1,626 @@
+W0401 04:04:26.649000 2058 torch/distributed/run.py:803] 
+W0401 04:04:26.649000 2058 torch/distributed/run.py:803] *****************************************
+W0401 04:04:26.649000 2058 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0401 04:04:26.649000 2058 torch/distributed/run.py:803] *****************************************
+logs/fce28372-fdba-49ab-a3ae-ff900a6d790c.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26928220
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:0 warmup_steps:20 max_wallclock_seconds:1.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/0 val_loss:6.9317 val_bpb:4.1054 train_time:0ms step_avg:0.01ms
+peak memory allocated: 20570 MiB reserved: 20682 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:6.9317 val_bpb:4.1054 eval_time:1929ms
+eval_only: loading existing artifact final_model.int6.ptz
+final_int6_roundtrip val_loss:1.9348 val_bpb:1.1459 eval_time:38056ms
+final_int6_roundtrip_exact val_loss:1.93477200 val_bpb:1.14588096
+evs:rank:4 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:6 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:1 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:7 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:5 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:0 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:3 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:2 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:1 32/121136 (0%) run_bpb=1.0620 elapsed=11s
+evs:rank:6 32/121136 (0%) run_bpb=1.0799 elapsed=11s
+evs:rank:2 32/121136 (0%) run_bpb=1.1025 elapsed=11s
+evs:rank:7 32/121136 (0%) run_bpb=1.3199 elapsed=11s
+evs:rank:3 32/121136 (0%) run_bpb=1.0737 elapsed=11s
+evs:rank:0 32/121136 (0%) run_bpb=1.1929 elapsed=11s
+evs:rank:5 32/121136 (0%) run_bpb=1.1843 elapsed=11s
+evs:rank:4 32/121136 (0%) run_bpb=1.3793 elapsed=12s
+evs:rank:1 12128/121136 (10%) run_bpb=1.1159 elapsed=18s
+evs:rank:2 12128/121136 (10%) run_bpb=1.1343 elapsed=18s
+evs:rank:3 12128/121136 (10%) run_bpb=1.1238 elapsed=18s
+evs:rank:6 12128/121136 (10%) run_bpb=1.1432 elapsed=18s
+evs:rank:0 12128/121136 (10%) run_bpb=1.1198 elapsed=18s
+evs:rank:7 12128/121136 (10%) run_bpb=1.1376 elapsed=18s
+evs:rank:5 12128/121136 (10%) run_bpb=1.1317 elapsed=18s
+evs:rank:4 12128/121136 (10%) run_bpb=1.1523 elapsed=20s
+evs:rank:1 24224/121136 (20%) run_bpb=1.1242 elapsed=25s
+evs:rank:2 24224/121136 (20%) run_bpb=1.1165 elapsed=25s
+evs:rank:3 24224/121136 (20%) run_bpb=1.1186 elapsed=25s
+evs:rank:0 24224/121136 (20%) run_bpb=1.1265 elapsed=25s
+evs:rank:6 24224/121136 (20%) run_bpb=1.1418 elapsed=25s
+evs:rank:7 24224/121136 (20%) run_bpb=1.1420 elapsed=25s
+evs:rank:5 24224/121136 (20%) run_bpb=1.1297 elapsed=26s
+evs:rank:4 24224/121136 (20%) run_bpb=1.1414 elapsed=27s
+evs:rank:1 36320/121136 (30%) run_bpb=1.1263 elapsed=32s
+evs:rank:2 36320/121136 (30%) run_bpb=1.1242 elapsed=32s
+evs:rank:3 36320/121136 (30%) run_bpb=1.1202 elapsed=32s
+evs:rank:0 36320/121136 (30%) run_bpb=1.1312 elapsed=32s
+evs:rank:6 36320/121136 (30%) run_bpb=1.1422 elapsed=32s
+evs:rank:7 36320/121136 (30%) run_bpb=1.1315 elapsed=33s
+evs:rank:5 36320/121136 (30%) run_bpb=1.1107 elapsed=33s
+evs:rank:4 36320/121136 (30%) run_bpb=1.1412 elapsed=34s
+evs:rank:1 48416/121136 (40%) run_bpb=1.1281 elapsed=39s
+evs:rank:2 48416/121136 (40%) run_bpb=1.1204 elapsed=39s
+evs:rank:3 48416/121136 (40%) run_bpb=1.1188 elapsed=40s
+evs:rank:0 48416/121136 (40%) run_bpb=1.1262 elapsed=40s
+evs:rank:6 48416/121136 (40%) run_bpb=1.1371 elapsed=40s
+evs:rank:7 48416/121136 (40%) run_bpb=1.1237 elapsed=40s
+evs:rank:5 48416/121136 (40%) run_bpb=1.1048 elapsed=40s
+evs:rank:4 48416/121136 (40%) run_bpb=1.1483 elapsed=41s
+evs:rank:1 60512/121136 (50%) run_bpb=1.1295 elapsed=47s
+evs:rank:2 60512/121136 (50%) run_bpb=1.1175 elapsed=47s
+evs:rank:3 60512/121136 (50%) run_bpb=1.1179 elapsed=47s
+evs:rank:0 60512/121136 (50%) run_bpb=1.1237 elapsed=47s
+evs:rank:6 60512/121136 (50%) run_bpb=1.1383 elapsed=47s
+evs:rank:7 60512/121136 (50%) run_bpb=1.1236 elapsed=47s
+evs:rank:5 60512/121136 (50%) run_bpb=1.1046 elapsed=47s
+evs:rank:4 60512/121136 (50%) run_bpb=1.1425 elapsed=48s
+evs:rank:1 72608/121136 (60%) run_bpb=1.1312 elapsed=54s
+evs:rank:2 72608/121136 (60%) run_bpb=1.1173 elapsed=54s
+evs:rank:3 72608/121136 (60%) run_bpb=1.1166 elapsed=54s
+evs:rank:0 72608/121136 (60%) run_bpb=1.1225 elapsed=54s
+evs:rank:6 72608/121136 (60%) run_bpb=1.1404 elapsed=54s
+evs:rank:5 72608/121136 (60%) run_bpb=1.1010 elapsed=54s
+evs:rank:7 72608/121136 (60%) run_bpb=1.1175 elapsed=54s
+evs:rank:4 72608/121136 (60%) run_bpb=1.1432 elapsed=56s
+evs:rank:1 84704/121136 (70%) run_bpb=1.1299 elapsed=61s
+evs:rank:2 84704/121136 (70%) run_bpb=1.1148 elapsed=61s
+evs:rank:3 84704/121136 (70%) run_bpb=1.1186 elapsed=61s
+evs:rank:0 84704/121136 (70%) run_bpb=1.1261 elapsed=61s
+evs:rank:5 84704/121136 (70%) run_bpb=1.1014 elapsed=61s
+evs:rank:6 84704/121136 (70%) run_bpb=1.1415 elapsed=61s
+evs:rank:7 84704/121136 (70%) run_bpb=1.1176 elapsed=61s
+evs:rank:4 84704/121136 (70%) run_bpb=1.1400 elapsed=63s
+evs:rank:1 96800/121136 (80%) run_bpb=1.1293 elapsed=68s
+evs:rank:2 96800/121136 (80%) run_bpb=1.1143 elapsed=68s
+evs:rank:3 96800/121136 (80%) run_bpb=1.1172 elapsed=68s
+evs:rank:5 96800/121136 (80%) run_bpb=1.1058 elapsed=68s
+evs:rank:0 96800/121136 (80%) run_bpb=1.1285 elapsed=68s
+evs:rank:7 96800/121136 (80%) run_bpb=1.1155 elapsed=68s
+evs:rank:6 96800/121136 (80%) run_bpb=1.1416 elapsed=68s
+evs:rank:4 96800/121136 (80%) run_bpb=1.1347 elapsed=70s
+evs:rank:2 108896/121136 (90%) run_bpb=1.1112 elapsed=75s
+evs:rank:1 108896/121136 (90%) run_bpb=1.1284 elapsed=75s
+evs:rank:5 108896/121136 (90%) run_bpb=1.1079 elapsed=76s
+evs:rank:3 108896/121136 (90%) run_bpb=1.1174 elapsed=76s
+evs:rank:0 108896/121136 (90%) run_bpb=1.1273 elapsed=76s
+evs:rank:7 108896/121136 (90%) run_bpb=1.1149 elapsed=76s
+evs:rank:6 108896/121136 (90%) run_bpb=1.1393 elapsed=76s
+evs:rank:4 108896/121136 (90%) run_bpb=1.1328 elapsed=77s
+evs:rank:2 120992/121136 (100%) run_bpb=1.1112 elapsed=82s
+evs:rank:1 120992/121136 (100%) run_bpb=1.1267 elapsed=82s
+evs:rank:5 120992/121136 (100%) run_bpb=1.1103 elapsed=83s
+evs:rank:3 120992/121136 (100%) run_bpb=1.1193 elapsed=83s
+evs:rank:7 120992/121136 (100%) run_bpb=1.1136 elapsed=83s
+evs:rank:0 120992/121136 (100%) run_bpb=1.1277 elapsed=83s
+evs:rank:6 120992/121136 (100%) run_bpb=1.1397 elapsed=83s
+evs:rank:4 120992/121136 (100%) run_bpb=1.1294 elapsed=85s
+evs:rank:4 DONE val_loss=1.894745 val_bpb=1.122178 tokens=62023616 bytes=151084796 elapsed=99s
+evs:rank:1 DONE val_loss=1.894745 val_bpb=1.122178 tokens=62023616 bytes=151084796 elapsed=99s
+evs:rank:6 DONE val_loss=1.894745 val_bpb=1.122178 tokens=62023616 bytes=151084796 elapsed=99s
+evs:rank:7 DONE val_loss=1.894745 val_bpb=1.122178 tokens=62023616 bytes=151084796 elapsed=99s
+evs:rank:2 DONE val_loss=1.894745 val_bpb=1.122178 tokens=62023616 bytes=151084796 elapsed=99sevs:rank:5 DONE val_loss=1.894745 val_bpb=1.122178 tokens=62023616 bytes=151084796 elapsed=99s
+
+evs:rank:3 DONE val_loss=1.894745 val_bpb=1.122178 tokens=62023616 bytes=151084796 elapsed=99s
+evs:rank:0 DONE val_loss=1.894745 val_bpb=1.122178 tokens=62023616 bytes=151084796 elapsed=99s
+final_int6_sliding_window val_loss:1.8947 val_bpb:1.1222 stride:64 eval_time:98704ms
+final_int6_sliding_window_exact val_loss:1.89474528 val_bpb:1.12217785
+final_int8_zlib_roundtrip_exact val_loss:1.89474528 val_bpb:1.12217785
+artifact_manifest: wrote ./artifact_manifest.json
+ttt:static_10k baseline (before TTT)
+DIAGNOSTIC static_10k val_loss:1.9067 val_bpb:1.1268 (10K windows, same sample)
+ttt:doc_cluster rank:5 waiting for cluster broadcastttt:doc_cluster rank:3 waiting for cluster broadcastttt:doc_cluster rank:2 waiting for cluster broadcastDIAGNOSTIC static_10k_exact val_loss:1.90672981 val_bpb:1.12676362
+
+
+ttt:doc_cluster rank:6 waiting for cluster broadcast
+
+ttt:doc_cluster rank:1 waiting for cluster broadcastttt:doc_cluster rank:7 waiting for cluster broadcast
+
+ttt:starting eval-time adaptation
+ttt:doc_cluster rank:4 waiting for cluster broadcast
+ttt:sgd lr=0.002 mom=0.9 epochs=3 seq=2048 stride=64 chunks=1892 shards=8
+ttt:doc_cluster rank:0 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:0 pre_balance doc_sizes=[5428, 7737, 7416, 6269, 5153, 7770, 6073, 4154]
+ttt:doc_cluster rank:0 pre_balance chunk_sizes=[5623, 7950, 7755, 6369, 5261, 8262, 6425, 4225]
+ttt:doc_cluster rank:0 post_balance doc_sizes=[5502, 7461, 7271, 6456, 5255, 7371, 6523, 4161]
+ttt:doc_cluster rank:0 post_balance chunk_sizes=[5763, 7456, 7456, 6737, 5461, 7456, 7304, 4237] moved_docs=821
+ttt:doc_cluster rank:0 owner_chunk_counts=[153, 105, 339, 53, 49, 603, 580, 10]
+ttt:doc_cluster rank:0 global_ordered_chunks=1892 global_ordered_docs=50000
+ttt:doc_cluster rank:0 shard_chunks=[237, 237, 237, 237, 236, 236, 236, 236] shard_start=0 shard_end=237
+ttt:doc_cluster rank:0 ordered_docs=50000 chunks=237 total_chunks=1892
+ttt:doc_cluster rank:1 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:1 pre_balance doc_sizes=[5428, 7737, 7416, 6269, 5153, 7770, 6073, 4154]
+ttt:doc_cluster rank:1 pre_balance chunk_sizes=[5623, 7950, 7755, 6369, 5261, 8262, 6425, 4225]
+ttt:doc_cluster rank:1 post_balance doc_sizes=[5502, 7461, 7271, 6456, 5255, 7371, 6523, 4161]
+ttt:doc_cluster rank:1 post_balance chunk_sizes=[5763, 7456, 7456, 6737, 5461, 7456, 7304, 4237] moved_docs=821
+ttt:doc_cluster rank:1 owner_chunk_counts=[153, 105, 339, 53, 49, 603, 580, 10]
+ttt:doc_cluster rank:1 global_ordered_chunks=1892 global_ordered_docs=50000
+ttt:doc_cluster rank:1 shard_chunks=[237, 237, 237, 237, 236, 236, 236, 236] shard_start=237 shard_end=474
+ttt:doc_cluster rank:1 ordered_docs=50000 chunks=237 total_chunks=1892
+ttt:doc_cluster rank:2 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:2 pre_balance doc_sizes=[5428, 7737, 7416, 6269, 5153, 7770, 6073, 4154]
+ttt:doc_cluster rank:2 pre_balance chunk_sizes=[5623, 7950, 7755, 6369, 5261, 8262, 6425, 4225]
+ttt:doc_cluster rank:2 post_balance doc_sizes=[5502, 7461, 7271, 6456, 5255, 7371, 6523, 4161]
+ttt:doc_cluster rank:2 post_balance chunk_sizes=[5763, 7456, 7456, 6737, 5461, 7456, 7304, 4237] moved_docs=821
+ttt:doc_cluster rank:2 owner_chunk_counts=[153, 105, 339, 53, 49, 603, 580, 10]
+ttt:doc_cluster rank:2 global_ordered_chunks=1892 global_ordered_docs=50000
+ttt:doc_cluster rank:2 shard_chunks=[237, 237, 237, 237, 236, 236, 236, 236] shard_start=474 shard_end=711
+ttt:doc_cluster rank:2 ordered_docs=50000 chunks=237 total_chunks=1892
+ttt:doc_cluster rank:3 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:3 pre_balance doc_sizes=[5428, 7737, 7416, 6269, 5153, 7770, 6073, 4154]
+ttt:doc_cluster rank:3 pre_balance chunk_sizes=[5623, 7950, 7755, 6369, 5261, 8262, 6425, 4225]
+ttt:doc_cluster rank:3 post_balance doc_sizes=[5502, 7461, 7271, 6456, 5255, 7371, 6523, 4161]
+ttt:doc_cluster rank:3 post_balance chunk_sizes=[5763, 7456, 7456, 6737, 5461, 7456, 7304, 4237] moved_docs=821
+ttt:doc_cluster rank:3 owner_chunk_counts=[153, 105, 339, 53, 49, 603, 580, 10]
+ttt:doc_cluster rank:3 global_ordered_chunks=1892 global_ordered_docs=50000
+ttt:doc_cluster rank:3 shard_chunks=[237, 237, 237, 237, 236, 236, 236, 236] shard_start=711 shard_end=948
+ttt:doc_cluster rank:3 ordered_docs=50000 chunks=237 total_chunks=1892
+ttt:doc_cluster rank:4 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:4 pre_balance doc_sizes=[5428, 7737, 7416, 6269, 5153, 7770, 6073, 4154]
+ttt:doc_cluster rank:4 pre_balance chunk_sizes=[5623, 7950, 7755, 6369, 5261, 8262, 6425, 4225]
+ttt:doc_cluster rank:4 post_balance doc_sizes=[5502, 7461, 7271, 6456, 5255, 7371, 6523, 4161]
+ttt:doc_cluster rank:4 post_balance chunk_sizes=[5763, 7456, 7456, 6737, 5461, 7456, 7304, 4237] moved_docs=821
+ttt:doc_cluster rank:4 owner_chunk_counts=[153, 105, 339, 53, 49, 603, 580, 10]
+ttt:doc_cluster rank:4 global_ordered_chunks=1892 global_ordered_docs=50000
+ttt:doc_cluster rank:4 shard_chunks=[237, 237, 237, 237, 236, 236, 236, 236] shard_start=948 shard_end=1184
+ttt:doc_cluster rank:4 ordered_docs=50000 chunks=236 total_chunks=1892
+ttt:doc_cluster rank:5 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:5 pre_balance doc_sizes=[5428, 7737, 7416, 6269, 5153, 7770, 6073, 4154]
+ttt:doc_cluster rank:5 pre_balance chunk_sizes=[5623, 7950, 7755, 6369, 5261, 8262, 6425, 4225]
+ttt:doc_cluster rank:5 post_balance doc_sizes=[5502, 7461, 7271, 6456, 5255, 7371, 6523, 4161]
+ttt:doc_cluster rank:5 post_balance chunk_sizes=[5763, 7456, 7456, 6737, 5461, 7456, 7304, 4237] moved_docs=821
+ttt:doc_cluster rank:5 owner_chunk_counts=[153, 105, 339, 53, 49, 603, 580, 10]
+ttt:doc_cluster rank:5 global_ordered_chunks=1892 global_ordered_docs=50000
+ttt:doc_cluster rank:5 shard_chunks=[237, 237, 237, 237, 236, 236, 236, 236] shard_start=1184 shard_end=1420
+ttt:doc_cluster rank:5 ordered_docs=50000 chunks=236 total_chunks=1892
+ttt:doc_cluster rank:6 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:6 pre_balance doc_sizes=[5428, 7737, 7416, 6269, 5153, 7770, 6073, 4154]
+ttt:doc_cluster rank:6 pre_balance chunk_sizes=[5623, 7950, 7755, 6369, 5261, 8262, 6425, 4225]
+ttt:doc_cluster rank:6 post_balance doc_sizes=[5502, 7461, 7271, 6456, 5255, 7371, 6523, 4161]
+ttt:doc_cluster rank:6 post_balance chunk_sizes=[5763, 7456, 7456, 6737, 5461, 7456, 7304, 4237] moved_docs=821
+ttt:doc_cluster rank:6 owner_chunk_counts=[153, 105, 339, 53, 49, 603, 580, 10]
+ttt:doc_cluster rank:6 global_ordered_chunks=1892 global_ordered_docs=50000
+ttt:doc_cluster rank:6 shard_chunks=[237, 237, 237, 237, 236, 236, 236, 236] shard_start=1420 shard_end=1656
+ttt:doc_cluster rank:6 ordered_docs=50000 chunks=236 total_chunks=1892
+ttt:doc_cluster rank:7 embed_layer=5 full_doc=1 weighted_pool=1
+ttt:doc_cluster rank:7 pre_balance doc_sizes=[5428, 7737, 7416, 6269, 5153, 7770, 6073, 4154]
+ttt:doc_cluster rank:7 pre_balance chunk_sizes=[5623, 7950, 7755, 6369, 5261, 8262, 6425, 4225]
+ttt:doc_cluster rank:7 post_balance doc_sizes=[5502, 7461, 7271, 6456, 5255, 7371, 6523, 4161]
+ttt:doc_cluster rank:7 post_balance chunk_sizes=[5763, 7456, 7456, 6737, 5461, 7456, 7304, 4237] moved_docs=821
+ttt:doc_cluster rank:7 owner_chunk_counts=[153, 105, 339, 53, 49, 603, 580, 10]
+ttt:doc_cluster rank:7 global_ordered_chunks=1892 global_ordered_docs=50000
+ttt:doc_cluster rank:7 shard_chunks=[237, 237, 237, 237, 236, 236, 236, 236] shard_start=1656 shard_end=1892
+ttt:doc_cluster rank:7 ordered_docs=50000 chunks=236 total_chunks=1892
+ttt:doc_cluster rank:0 computed all clusters in 956.4s
+ttt:doc_cluster rank:0 waiting for cluster broadcast
+ttt:doc_cluster rank:0 broadcast_chunks=237 (NN-ordered)
+ttt:doc_cluster rank:1 broadcast_chunks=237 (NN-ordered)
+ttt:doc_cluster rank:2 broadcast_chunks=237 (NN-ordered)
+ttt:doc_cluster rank:3 broadcast_chunks=237 (NN-ordered)
+ttt:doc_cluster rank:4 broadcast_chunks=236 (NN-ordered)
+ttt:doc_cluster rank:6 broadcast_chunks=236 (NN-ordered)ttt:doc_cluster rank:5 broadcast_chunks=236 (NN-ordered)
+
+ttt:doc_cluster rank:7 broadcast_chunks=236 (NN-ordered)
+ttt:saved cluster assignment to cluster_assignment.json (1072070 bytes)
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:freeze_blocks=0 train=26928220 frozen=0 lr=0.002 tok_emb.dtype=torch.bfloat16 master=fp32
+ttt:rank:0 shard_lr_mode=local n_global_steps=711
+ttt:rank:2 shard_lr_mode=local n_global_steps=711ttt:rank:5 shard_lr_mode=local n_global_steps=711
+
+ttt:rank:4 shard_lr_mode=local n_global_steps=711ttt:rank:1 shard_lr_mode=local n_global_steps=711ttt:rank:6 shard_lr_mode=local n_global_steps=711
+
+ttt:rank:7 shard_lr_mode=local n_global_steps=711ttt:rank:3 shard_lr_mode=local n_global_steps=711
+
+
+ttt:warmup_tokens.any()=False numel=32768
+ttt:warmup_tokens.any()=False numel=32768
+ttt:warmup_tokens.any()=False numel=32768
+ttt:warmup_tokens.any()=False numel=32768
+ttt:rank:2 schedule:per_rank step_idx=0 n_steps=711 chunks=237 lr_start=0.002 lr_end~0
+ttt:rank:4 schedule:per_rank step_idx=0 n_steps=711 chunks=236 lr_start=0.002 lr_end~0
+ttt:rank:3 schedule:per_rank step_idx=0 n_steps=711 chunks=237 lr_start=0.002 lr_end~0
+ttt:rank:1 schedule:per_rank step_idx=0 n_steps=711 chunks=237 lr_start=0.002 lr_end~0
+ttt:warmup_tokens.any()=False numel=32768
+ttt:rank:5 schedule:per_rank step_idx=0 n_steps=711 chunks=236 lr_start=0.002 lr_end~0
+ttt:warmup_tokens.any()=False numel=32768
+ttt:rank:0 schedule:per_rank step_idx=0 n_steps=711 chunks=237 lr_start=0.002 lr_end~0
+ttt:warmup_tokens.any()=False numel=32768
+ttt:rank:6 schedule:per_rank step_idx=0 n_steps=711 chunks=236 lr_start=0.002 lr_end~0
+ttt:warmup_tokens.any()=False numel=32768
+ttt:rank:7 schedule:per_rank step_idx=0 n_steps=711 chunks=236 lr_start=0.002 lr_end~0
+ttt:rank:1 global_windows=969088 my_windows=121344 chunks=1892 seq_len=2048 stride=64
+ttt:rank:3 global_windows=969088 my_windows=121344 chunks=1892 seq_len=2048 stride=64
+ttt:rank:2 global_windows=969088 my_windows=121344 chunks=1892 seq_len=2048 stride=64
+ttt:rank:4 global_windows=969088 my_windows=120801 chunks=1892 seq_len=2048 stride=64
+ttt:rank:6 global_windows=969088 my_windows=120832 chunks=1892 seq_len=2048 stride=64
+ttt:rank:7 global_windows=969088 my_windows=120832 chunks=1892 seq_len=2048 stride=64
+ttt:rank:0 global_windows=969088 my_windows=121759 chunks=1892 seq_len=2048 stride=64
+ttt:rank:5 global_windows=969088 my_windows=120832 chunks=1892 seq_len=2048 stride=64
+ttt:STATIC_CURVE rank:3 chunk 0/237 ci=1447 run_bpb=1.1365 marginal=1.1365
+ttt:STATIC_CURVE rank:1 chunk 0/237 ci=1221 run_bpb=1.0921 marginal=1.0921
+ttt:STATIC_CURVE rank:2 chunk 0/237 ci=370 run_bpb=1.1611 marginal=1.1611
+ttt:STATIC_CURVE rank:4 chunk 0/236 ci=451 run_bpb=1.1551 marginal=1.1551
+ttt:STATIC_CURVE rank:6 chunk 0/236 ci=939 run_bpb=1.1071 marginal=1.1071
+ttt:STATIC_CURVE rank:7 chunk 0/236 ci=202 run_bpb=1.1357 marginal=1.1357
+ttt:STATIC_CURVE rank:5 chunk 0/236 ci=1804 run_bpb=1.1233 marginal=1.1233
+ttt:STATIC_CURVE rank:0 chunk 0/237 ci=421 run_bpb=1.2207 marginal=1.2207
+ttt:STATIC_CURVE rank:2 chunk 50/237 ci=885 run_bpb=1.1100 marginal=0.9845
+ttt:STATIC_CURVE rank:5 chunk 50/236 ci=581 run_bpb=1.1271 marginal=1.1909
+ttt:STATIC_CURVE rank:3 chunk 50/237 ci=1809 run_bpb=1.1238 marginal=1.1470
+ttt:STATIC_CURVE rank:1 chunk 50/237 ci=764 run_bpb=1.1081 marginal=1.1177
+ttt:STATIC_CURVE rank:6 chunk 50/236 ci=380 run_bpb=1.1035 marginal=1.0298
+ttt:STATIC_CURVE rank:7 chunk 50/236 ci=1706 run_bpb=1.0864 marginal=1.1023
+ttt:STATIC_CURVE rank:4 chunk 50/236 ci=168 run_bpb=1.1426 marginal=1.1615
+ttt:STATIC_CURVE rank:0 chunk 50/237 ci=71 run_bpb=1.1366 marginal=1.0946
+ttt:STATIC_CURVE rank:2 chunk 100/237 ci=45 run_bpb=1.1005 marginal=1.1129
+ttt:STATIC_CURVE rank:5 chunk 100/236 ci=675 run_bpb=1.1378 marginal=1.1138
+ttt:STATIC_CURVE rank:3 chunk 100/237 ci=1296 run_bpb=1.1321 marginal=1.0893
+ttt:STATIC_CURVE rank:6 chunk 100/236 ci=208 run_bpb=1.1131 marginal=1.1425
+ttt:STATIC_CURVE rank:1 chunk 100/237 ci=1877 run_bpb=1.1034 marginal=1.0413
+ttt:STATIC_CURVE rank:7 chunk 100/236 ci=160 run_bpb=1.0860 marginal=1.1720
+ttt:STATIC_CURVE rank:4 chunk 100/236 ci=696 run_bpb=1.1305 marginal=1.1269
+ttt:STATIC_CURVE rank:5 chunk 150/236 ci=69 run_bpb=1.1396 marginal=1.1401
+ttt:STATIC_CURVE rank:2 chunk 150/237 ci=80 run_bpb=1.1068 marginal=1.1355
+ttt:STATIC_CURVE rank:3 chunk 150/237 ci=343 run_bpb=1.1328 marginal=1.0917
+ttt:STATIC_CURVE rank:6 chunk 150/236 ci=571 run_bpb=1.1107 marginal=1.0889
+ttt:STATIC_CURVE rank:1 chunk 150/237 ci=1659 run_bpb=1.1088 marginal=0.9592
+ttt:STATIC_CURVE rank:7 chunk 150/236 ci=985 run_bpb=1.0979 marginal=1.0442
+ttt:STATIC_CURVE rank:0 chunk 100/237 ci=1825 run_bpb=1.1430 marginal=1.0507
+ttt:STATIC_CURVE rank:4 chunk 150/236 ci=1200 run_bpb=1.1349 marginal=1.1657
+ttt:STATIC_CURVE rank:5 chunk 200/236 ci=814 run_bpb=1.1385 marginal=1.1110
+ttt:STATIC_CURVE rank:2 chunk 200/237 ci=749 run_bpb=1.1059 marginal=1.1195
+ttt:STATIC_CURVE rank:3 chunk 200/237 ci=1813 run_bpb=1.1327 marginal=1.1607
+ttt:STATIC_CURVE rank:6 chunk 200/236 ci=912 run_bpb=1.1156 marginal=1.1265
+ttt:STATIC_CURVE rank:1 chunk 200/237 ci=852 run_bpb=1.1080 marginal=1.1478
+ttt:STATIC_CURVE rank:7 chunk 200/236 ci=1430 run_bpb=1.1035 marginal=1.1001
+ttt:STATIC_CURVE rank:0 chunk 150/237 ci=21 run_bpb=1.1309 marginal=1.0684
+ttt:STATIC_BASELINE rank:5 bpb=1.135596 tokens=7733248 windows=120832
+ttt:NN_COSINE rank:5 chunk 50/236 ci=581 cosine=0.9410
+ttt:NN_COSINE rank:5 chunk 100/236 ci=675 cosine=0.9669
+ttt:NN_COSINE rank:5 chunk 150/236 ci=69 cosine=0.9749
+ttt:NN_COSINE rank:5 chunk 200/236 ci=814 cosine=0.9424
+ttt:rank:5 chunk 0/236 ci=1804 wins=512 run_bpb=nan lr=0.002000
+ttt:STATIC_BASELINE rank:2 bpb=1.107455 tokens=7766016 windows=121344
+ttt:STATIC_BASELINE rank:6 bpb=1.115284 tokens=7733248 windows=120832
+ttt:MARGINAL rank:5 chunk 0/236 ci=1804 static=1.1233 adapted=1.1233 delta=+0.0000
+ttt:STATIC_BASELINE rank:7 bpb=1.106381 tokens=7733248 windows=120832
+ttt:NN_COSINE rank:2 chunk 50/237 ci=885 cosine=0.9229
+ttt:NN_COSINE rank:2 chunk 100/237 ci=45 cosine=0.9767
+ttt:NN_COSINE rank:2 chunk 150/237 ci=80 cosine=0.9659
+ttt:NN_COSINE rank:2 chunk 200/237 ci=749 cosine=0.9436
+ttt:rank:2 chunk 0/237 ci=370 wins=512 run_bpb=nan lr=0.002000
+ttt:STATIC_BASELINE rank:3 bpb=1.135155 tokens=7766016 windows=121344
+ttt:NN_COSINE rank:6 chunk 50/236 ci=380 cosine=0.9539
+ttt:NN_COSINE rank:6 chunk 100/236 ci=208 cosine=0.9697
+ttt:NN_COSINE rank:6 chunk 150/236 ci=571 cosine=0.9739
+ttt:NN_COSINE rank:6 chunk 200/236 ci=912 cosine=0.9807
+ttt:rank:6 chunk 0/236 ci=939 wins=512 run_bpb=nan lr=0.002000
+ttt:STATIC_BASELINE rank:1 bpb=1.105256 tokens=7766016 windows=121344
+ttt:NN_COSINE rank:7 chunk 50/236 ci=1706 cosine=0.9401
+ttt:NN_COSINE rank:7 chunk 100/236 ci=160 cosine=0.9706
+ttt:NN_COSINE rank:7 chunk 150/236 ci=985 cosine=0.9208
+ttt:NN_COSINE rank:7 chunk 200/236 ci=1430 cosine=0.9578
+ttt:rank:7 chunk 0/236 ci=202 wins=512 run_bpb=nan lr=0.002000
+ttt:MARGINAL rank:2 chunk 0/237 ci=370 static=1.1611 adapted=1.1611 delta=+0.0000
+ttt:NN_COSINE rank:3 chunk 50/237 ci=1809 cosine=0.9705
+ttt:NN_COSINE rank:3 chunk 100/237 ci=1296 cosine=0.9722
+ttt:NN_COSINE rank:3 chunk 150/237 ci=343 cosine=0.9556
+ttt:NN_COSINE rank:3 chunk 200/237 ci=1813 cosine=0.9654
+ttt:rank:3 chunk 0/237 ci=1447 wins=512 run_bpb=nan lr=0.002000
+ttt:MARGINAL rank:6 chunk 0/236 ci=939 static=1.1071 adapted=1.1071 delta=+0.0000
+ttt:NN_COSINE rank:1 chunk 50/237 ci=764 cosine=0.9687
+ttt:NN_COSINE rank:1 chunk 100/237 ci=1877 cosine=0.9542
+ttt:NN_COSINE rank:1 chunk 150/237 ci=1659 cosine=0.9516
+ttt:NN_COSINE rank:1 chunk 200/237 ci=852 cosine=0.9553
+ttt:rank:1 chunk 0/237 ci=1221 wins=512 run_bpb=nan lr=0.002000
+ttt:MARGINAL rank:7 chunk 0/236 ci=202 static=1.1357 adapted=1.1357 delta=+0.0000
+ttt:MARGINAL rank:3 chunk 0/237 ci=1447 static=1.1365 adapted=1.1365 delta=+0.0000
+ttt:MARGINAL rank:1 chunk 0/237 ci=1221 static=1.0921 adapted=1.0921 delta=+0.0000
+ttt:STATIC_CURVE rank:4 chunk 200/236 ci=145 run_bpb=1.1355 marginal=1.1618
+ttt:STATIC_BASELINE rank:4 bpb=1.137401 tokens=7733248 windows=120801
+ttt:STATIC_CURVE rank:0 chunk 200/237 ci=1698 run_bpb=1.1411 marginal=1.3269
+ttt:NN_COSINE rank:4 chunk 50/236 ci=168 cosine=0.9608
+ttt:NN_COSINE rank:4 chunk 100/236 ci=696 cosine=0.9747
+ttt:NN_COSINE rank:4 chunk 150/236 ci=1200 cosine=0.9263
+ttt:NN_COSINE rank:4 chunk 200/236 ci=145 cosine=0.9741
+ttt:rank:4 chunk 0/236 ci=451 wins=512 run_bpb=nan lr=0.002000
+ttt:MARGINAL rank:4 chunk 0/236 ci=451 static=1.1551 adapted=1.1551 delta=+0.0000
+ttt:STATIC_BASELINE rank:0 bpb=1.134638 tokens=7792576 windows=121759
+ttt:NN_COSINE rank:0 chunk 50/237 ci=71 cosine=0.9542
+ttt:NN_COSINE rank:0 chunk 100/237 ci=1825 cosine=0.9457
+ttt:NN_COSINE rank:0 chunk 150/237 ci=21 cosine=0.9290
+ttt:NN_COSINE rank:0 chunk 200/237 ci=1698 cosine=0.9591
+ttt:rank:0 chunk 0/237 ci=421 wins=512 run_bpb=nan lr=0.002000
+ttt:MARGINAL rank:0 chunk 0/237 ci=421 static=1.2207 adapted=1.2207 delta=+0.0000
+ttt:DIAG rank:5 ci_local=50 run_bpb=1.1256 weight_drift_l2=0.2887 lr=0.001790
+ttt:DIAG rank:2 ci_local=50 run_bpb=1.1126 weight_drift_l2=0.2801 lr=0.001790
+ttt:DIAG rank:6 ci_local=50 run_bpb=1.1049 weight_drift_l2=0.2907 lr=0.001790
+ttt:DIAG rank:3 ci_local=50 run_bpb=1.1232 weight_drift_l2=0.2885 lr=0.001790
+ttt:DIAG rank:7 ci_local=50 run_bpb=1.0859 weight_drift_l2=0.2804 lr=0.001790
+ttt:DIAG rank:1 ci_local=50 run_bpb=1.1078 weight_drift_l2=0.2861 lr=0.001790
+ttt:DIAG_SW rank:5 ci_local=50 sample_sw_bpb=1.1329 (2000 windows from my chunks)
+ttt:rank:5 chunk 50/236 ci=581 wins=512 run_bpb=1.1256 lr=0.001790
+ttt:MARGINAL rank:5 chunk 50/236 ci=581 static=1.1909 adapted=1.1900 delta=-0.0010
+ttt:DIAG_SW rank:2 ci_local=50 sample_sw_bpb=1.1077 (2000 windows from my chunks)
+ttt:rank:2 chunk 50/237 ci=885 wins=512 run_bpb=1.1126 lr=0.001790
+ttt:DIAG_SW rank:6 ci_local=50 sample_sw_bpb=1.1062 (2000 windows from my chunks)
+ttt:rank:6 chunk 50/236 ci=380 wins=512 run_bpb=1.1049 lr=0.001790
+ttt:MARGINAL rank:2 chunk 50/237 ci=885 static=0.9845 adapted=0.9838 delta=-0.0007
+ttt:DIAG_SW rank:3 ci_local=50 sample_sw_bpb=1.1181 (2000 windows from my chunks)
+ttt:rank:3 chunk 50/237 ci=1809 wins=512 run_bpb=1.1232 lr=0.001790
+ttt:DIAG_SW rank:7 ci_local=50 sample_sw_bpb=1.0875 (2000 windows from my chunks)
+ttt:rank:7 chunk 50/236 ci=1706 wins=512 run_bpb=1.0859 lr=0.001790
+ttt:MARGINAL rank:6 chunk 50/236 ci=380 static=1.0298 adapted=1.0299 delta=+0.0001
+ttt:DIAG_SW rank:1 ci_local=50 sample_sw_bpb=1.1049 (2000 windows from my chunks)
+ttt:rank:1 chunk 50/237 ci=764 wins=512 run_bpb=1.1078 lr=0.001790
+ttt:MARGINAL rank:3 chunk 50/237 ci=1809 static=1.1470 adapted=1.1466 delta=-0.0004
+ttt:MARGINAL rank:7 chunk 50/236 ci=1706 static=1.1023 adapted=1.1022 delta=-0.0001
+ttt:MARGINAL rank:1 chunk 50/237 ci=764 static=1.1177 adapted=1.1176 delta=-0.0001
+ttt:DIAG rank:4 ci_local=50 run_bpb=1.1422 weight_drift_l2=0.2887 lr=0.001790
+ttt:DIAG_SW rank:4 ci_local=50 sample_sw_bpb=1.1357 (2000 windows from my chunks)
+ttt:rank:4 chunk 50/236 ci=168 wins=512 run_bpb=1.1422 lr=0.001790
+ttt:MARGINAL rank:4 chunk 50/236 ci=168 static=1.1615 adapted=1.1609 delta=-0.0006
+ttt:DIAG rank:0 ci_local=50 run_bpb=1.1373 weight_drift_l2=0.2878 lr=0.001790
+ttt:DIAG_SW rank:0 ci_local=50 sample_sw_bpb=1.1449 (2000 windows from my chunks)
+ttt:rank:0 chunk 50/237 ci=71 wins=512 run_bpb=1.1373 lr=0.001790
+ttt:MARGINAL rank:0 chunk 50/237 ci=71 static=1.0946 adapted=1.0940 delta=-0.0007
+ttt:DIAG rank:5 ci_local=100 run_bpb=1.1377 weight_drift_l2=0.3717 lr=0.001245
+ttt:DIAG rank:2 ci_local=100 run_bpb=1.1001 weight_drift_l2=0.3650 lr=0.001245
+ttt:DIAG rank:6 ci_local=100 run_bpb=1.1126 weight_drift_l2=0.3672 lr=0.001245
+ttt:DIAG rank:3 ci_local=100 run_bpb=1.1322 weight_drift_l2=0.3635 lr=0.001245
+ttt:DIAG rank:7 ci_local=100 run_bpb=1.0847 weight_drift_l2=0.3648 lr=0.001245
+ttt:DIAG rank:1 ci_local=100 run_bpb=1.1036 weight_drift_l2=0.3687 lr=0.001245
+ttt:DIAG_SW rank:5 ci_local=100 sample_sw_bpb=1.1430 (2000 windows from my chunks)
+ttt:rank:5 chunk 100/236 ci=675 wins=512 run_bpb=1.1377 lr=0.001245
+ttt:DIAG_SW rank:2 ci_local=100 sample_sw_bpb=1.1088 (2000 windows from my chunks)
+ttt:rank:2 chunk 100/237 ci=45 wins=512 run_bpb=1.1001 lr=0.001245
+ttt:MARGINAL rank:5 chunk 100/236 ci=675 static=1.1138 adapted=1.1134 delta=-0.0004
+ttt:MARGINAL rank:2 chunk 100/237 ci=45 static=1.1129 adapted=1.1118 delta=-0.0011
+ttt:DIAG_SW rank:6 ci_local=100 sample_sw_bpb=1.1017 (2000 windows from my chunks)
+ttt:rank:6 chunk 100/236 ci=208 wins=512 run_bpb=1.1126 lr=0.001245
+ttt:DIAG_SW rank:3 ci_local=100 sample_sw_bpb=1.1316 (2000 windows from my chunks)
+ttt:rank:3 chunk 100/237 ci=1296 wins=512 run_bpb=1.1322 lr=0.001245
+ttt:DIAG_SW rank:7 ci_local=100 sample_sw_bpb=1.0742 (2000 windows from my chunks)
+ttt:rank:7 chunk 100/236 ci=160 wins=512 run_bpb=1.0847 lr=0.001245
+ttt:MARGINAL rank:6 chunk 100/236 ci=208 static=1.1425 adapted=1.1415 delta=-0.0010
+ttt:DIAG_SW rank:1 ci_local=100 sample_sw_bpb=1.1118 (2000 windows from my chunks)
+ttt:rank:1 chunk 100/237 ci=1877 wins=512 run_bpb=1.1036 lr=0.001245
+ttt:MARGINAL rank:3 chunk 100/237 ci=1296 static=1.0893 adapted=1.0883 delta=-0.0010
+ttt:MARGINAL rank:7 chunk 100/236 ci=160 static=1.1720 adapted=1.1709 delta=-0.0011
+ttt:MARGINAL rank:1 chunk 100/237 ci=1877 static=1.0413 adapted=1.0407 delta=-0.0006
+ttt:DIAG rank:4 ci_local=100 run_bpb=1.1303 weight_drift_l2=0.3651 lr=0.001245
+ttt:DIAG_SW rank:4 ci_local=100 sample_sw_bpb=1.1211 (2000 windows from my chunks)
+ttt:rank:4 chunk 100/236 ci=696 wins=512 run_bpb=1.1303 lr=0.001245
+ttt:MARGINAL rank:4 chunk 100/236 ci=696 static=1.1269 adapted=1.1260 delta=-0.0009
+ttt:DIAG rank:0 ci_local=100 run_bpb=1.1437 weight_drift_l2=0.3666 lr=0.001245
+ttt:DIAG_SW rank:0 ci_local=100 sample_sw_bpb=1.1486 (2000 windows from my chunks)
+ttt:rank:0 chunk 100/237 ci=1825 wins=512 run_bpb=1.1437 lr=0.001245
+ttt:MARGINAL rank:0 chunk 100/237 ci=1825 static=1.0507 adapted=1.0503 delta=-0.0004
+ttt:DIAG rank:5 ci_local=150 run_bpb=1.1391 weight_drift_l2=0.3911 lr=0.000596
+ttt:DIAG rank:2 ci_local=150 run_bpb=1.1062 weight_drift_l2=0.3857 lr=0.000596
+ttt:DIAG rank:6 ci_local=150 run_bpb=1.1105 weight_drift_l2=0.3898 lr=0.000596
+ttt:DIAG rank:3 ci_local=150 run_bpb=1.1326 weight_drift_l2=0.3876 lr=0.000596
+ttt:DIAG_SW rank:5 ci_local=150 sample_sw_bpb=1.1371 (2000 windows from my chunks)
+ttt:rank:5 chunk 150/236 ci=69 wins=512 run_bpb=1.1391 lr=0.000596
+ttt:DIAG rank:7 ci_local=150 run_bpb=1.0977 weight_drift_l2=0.3878 lr=0.000596
+ttt:DIAG rank:1 ci_local=150 run_bpb=1.1093 weight_drift_l2=0.3910 lr=0.000596
+ttt:DIAG_SW rank:2 ci_local=150 sample_sw_bpb=1.1008 (2000 windows from my chunks)
+ttt:rank:2 chunk 150/237 ci=80 wins=512 run_bpb=1.1062 lr=0.000596
+ttt:MARGINAL rank:5 chunk 150/236 ci=69 static=1.1401 adapted=1.1393 delta=-0.0008
+ttt:MARGINAL rank:2 chunk 150/237 ci=80 static=1.1355 adapted=1.1345 delta=-0.0010
+ttt:DIAG_SW rank:6 ci_local=150 sample_sw_bpb=1.1021 (2000 windows from my chunks)
+ttt:rank:6 chunk 150/236 ci=571 wins=512 run_bpb=1.1105 lr=0.000596
+ttt:DIAG_SW rank:3 ci_local=150 sample_sw_bpb=1.1354 (2000 windows from my chunks)
+ttt:rank:3 chunk 150/237 ci=343 wins=512 run_bpb=1.1326 lr=0.000596
+ttt:MARGINAL rank:6 chunk 150/236 ci=571 static=1.0889 adapted=1.0877 delta=-0.0012
+ttt:DIAG_SW rank:7 ci_local=150 sample_sw_bpb=1.0899 (2000 windows from my chunks)
+ttt:rank:7 chunk 150/236 ci=985 wins=512 run_bpb=1.0977 lr=0.000596
+ttt:MARGINAL rank:3 chunk 150/237 ci=343 static=1.0917 adapted=1.0906 delta=-0.0011
+ttt:DIAG_SW rank:1 ci_local=150 sample_sw_bpb=1.1065 (2000 windows from my chunks)
+ttt:rank:1 chunk 150/237 ci=1659 wins=512 run_bpb=1.1093 lr=0.000596
+ttt:MARGINAL rank:7 chunk 150/236 ci=985 static=1.0442 adapted=1.0431 delta=-0.0011
+ttt:MARGINAL rank:1 chunk 150/237 ci=1659 static=0.9592 adapted=0.9585 delta=-0.0007
+ttt:DIAG rank:4 ci_local=150 run_bpb=1.1343 weight_drift_l2=0.3910 lr=0.000596
+ttt:DIAG_SW rank:4 ci_local=150 sample_sw_bpb=1.1284 (2000 windows from my chunks)
+ttt:rank:4 chunk 150/236 ci=1200 wins=512 run_bpb=1.1343 lr=0.000596
+ttt:MARGINAL rank:4 chunk 150/236 ci=1200 static=1.1657 adapted=1.1646 delta=-0.0011
+ttt:DIAG rank:0 ci_local=150 run_bpb=1.1309 weight_drift_l2=0.3881 lr=0.000596
+ttt:DIAG_SW rank:0 ci_local=150 sample_sw_bpb=1.1461 (2000 windows from my chunks)
+ttt:rank:0 chunk 150/237 ci=21 wins=512 run_bpb=1.1309 lr=0.000596
+ttt:MARGINAL rank:0 chunk 150/237 ci=21 static=1.0684 adapted=1.0674 delta=-0.0010
+ttt:DIAG rank:5 ci_local=200 run_bpb=1.1380 weight_drift_l2=0.3944 lr=0.000118
+ttt:DIAG rank:2 ci_local=200 run_bpb=1.1053 weight_drift_l2=0.3891 lr=0.000118
+ttt:DIAG rank:6 ci_local=200 run_bpb=1.1150 weight_drift_l2=0.3926 lr=0.000118
+ttt:DIAG rank:3 ci_local=200 run_bpb=1.1320 weight_drift_l2=0.3902 lr=0.000118
+ttt:DIAG_SW rank:5 ci_local=200 sample_sw_bpb=1.1327 (2000 windows from my chunks)
+ttt:rank:5 chunk 200/236 ci=814 wins=512 run_bpb=1.1380 lr=0.000118
+ttt:DIAG_SW rank:2 ci_local=200 sample_sw_bpb=1.1097 (2000 windows from my chunks)
+ttt:rank:2 chunk 200/237 ci=749 wins=512 run_bpb=1.1053 lr=0.000118
+ttt:DIAG rank:7 ci_local=200 run_bpb=1.1028 weight_drift_l2=0.3904 lr=0.000118
+ttt:DIAG rank:1 ci_local=200 run_bpb=1.1072 weight_drift_l2=0.3934 lr=0.000118
+ttt:MARGINAL rank:5 chunk 200/236 ci=814 static=1.1110 adapted=1.1099 delta=-0.0011
+ttt:MARGINAL rank:2 chunk 200/237 ci=749 static=1.1195 adapted=1.1189 delta=-0.0006
+ttt:DIAG_SW rank:6 ci_local=200 sample_sw_bpb=1.1097 (2000 windows from my chunks)
+ttt:rank:6 chunk 200/236 ci=912 wins=512 run_bpb=1.1150 lr=0.000118
+ttt:DIAG_SW rank:3 ci_local=200 sample_sw_bpb=1.1279 (2000 windows from my chunks)
+ttt:rank:3 chunk 200/237 ci=1813 wins=512 run_bpb=1.1320 lr=0.000118
+ttt:MARGINAL rank:6 chunk 200/236 ci=912 static=1.1265 adapted=1.1257 delta=-0.0007
+ttt:MARGINAL rank:3 chunk 200/237 ci=1813 static=1.1607 adapted=1.1596 delta=-0.0011
+ttt:DIAG_SW rank:7 ci_local=200 sample_sw_bpb=1.1095 (2000 windows from my chunks)
+ttt:rank:7 chunk 200/236 ci=1430 wins=512 run_bpb=1.1028 lr=0.000118
+ttt:DIAG_SW rank:1 ci_local=200 sample_sw_bpb=1.1048 (2000 windows from my chunks)
+ttt:rank:1 chunk 200/237 ci=852 wins=512 run_bpb=1.1072 lr=0.000118
+ttt:MARGINAL rank:7 chunk 200/236 ci=1430 static=1.1001 adapted=1.0996 delta=-0.0005
+ttt:MARGINAL rank:1 chunk 200/237 ci=852 static=1.1478 adapted=1.1471 delta=-0.0007
+ttt:DIAG rank:4 ci_local=200 run_bpb=1.1347 weight_drift_l2=0.3953 lr=0.000118
+ttt:DIAG_SW rank:4 ci_local=200 sample_sw_bpb=1.1247 (2000 windows from my chunks)
+ttt:rank:4 chunk 200/236 ci=145 wins=512 run_bpb=1.1347 lr=0.000118
+ttt:MARGINAL rank:4 chunk 200/236 ci=145 static=1.1618 adapted=1.1603 delta=-0.0015
+ttt:DIAG rank:0 ci_local=200 run_bpb=1.1396 weight_drift_l2=0.3905 lr=0.000118
+ttt:DIAG_SW rank:0 ci_local=200 sample_sw_bpb=1.1433 (2000 windows from my chunks)
+ttt:rank:0 chunk 200/237 ci=1698 wins=512 run_bpb=1.1396 lr=0.000118
+ttt:MARGINAL rank:0 chunk 200/237 ci=1698 static=1.3269 adapted=1.3262 delta=-0.0007
+ttt:score_first val_loss:1.8936 val_bpb:1.1215 eval_time:1172234ms
+ttt:score_first_exact val_loss:1.89359037 val_bpb:1.12149385
+ttt:adapted_exact val_loss:1.89359037 val_bpb:1.12149385
+final_adapted_bpb val_bpb:1.12149385
+DIAGNOSTIC post_ttt_fp32_10k val_loss:1.9047 val_bpb:1.1255 eval_time:1822ms (10K windows)
+DIAGNOSTIC post_ttt_fp32_10k_exact val_loss:1.90466472 val_bpb:1.12554328
+DIAGNOSTIC post_ttt_bf16_10k val_loss:1.9047 val_bpb:1.1255 eval_time:1829ms (10K windows)
+DIAGNOSTIC post_ttt_bf16_10k_exact val_loss:1.90466472 val_bpb:1.12554328
+evs:rank:7 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:6 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:3 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:5 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:1 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:2 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:0 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:4 windows=121136/969088 seq_len=2048 stride=64 bs=32
+evs:rank:1 32/121136 (0%) run_bpb=1.0585 elapsed=2s
+evs:rank:2 32/121136 (0%) run_bpb=1.0995 elapsed=2s
+evs:rank:3 32/121136 (0%) run_bpb=1.0722 elapsed=2s
+evs:rank:6 32/121136 (0%) run_bpb=1.0772 elapsed=2s
+evs:rank:5 32/121136 (0%) run_bpb=1.1836 elapsed=2s
+evs:rank:0 32/121136 (0%) run_bpb=1.1917 elapsed=2s
+evs:rank:7 32/121136 (0%) run_bpb=1.3189 elapsed=2s
+evs:rank:4 32/121136 (0%) run_bpb=1.3754 elapsed=2s
+evs:rank:2 12128/121136 (10%) run_bpb=1.1332 elapsed=9s
+evs:rank:1 12128/121136 (10%) run_bpb=1.1147 elapsed=9s
+evs:rank:3 12128/121136 (10%) run_bpb=1.1226 elapsed=9s
+evs:rank:5 12128/121136 (10%) run_bpb=1.1305 elapsed=9s
+evs:rank:6 12128/121136 (10%) run_bpb=1.1421 elapsed=9s
+evs:rank:0 12128/121136 (10%) run_bpb=1.1186 elapsed=9s
+evs:rank:7 12128/121136 (10%) run_bpb=1.1365 elapsed=9s
+evs:rank:4 12128/121136 (10%) run_bpb=1.1512 elapsed=9s
+evs:rank:2 24224/121136 (20%) run_bpb=1.1155 elapsed=16s
+evs:rank:3 24224/121136 (20%) run_bpb=1.1174 elapsed=16s
+evs:rank:5 24224/121136 (20%) run_bpb=1.1285 elapsed=16s
+evs:rank:1 24224/121136 (20%) run_bpb=1.1230 elapsed=16s
+evs:rank:6 24224/121136 (20%) run_bpb=1.1407 elapsed=16s
+evs:rank:0 24224/121136 (20%) run_bpb=1.1254 elapsed=16s
+evs:rank:7 24224/121136 (20%) run_bpb=1.1409 elapsed=16s
+evs:rank:4 24224/121136 (20%) run_bpb=1.1402 elapsed=16s
+evs:rank:2 36320/121136 (30%) run_bpb=1.1231 elapsed=23s
+evs:rank:5 36320/121136 (30%) run_bpb=1.1096 elapsed=23s
+evs:rank:3 36320/121136 (30%) run_bpb=1.1190 elapsed=23s
+evs:rank:1 36320/121136 (30%) run_bpb=1.1251 elapsed=23s
+evs:rank:6 36320/121136 (30%) run_bpb=1.1411 elapsed=23s
+evs:rank:0 36320/121136 (30%) run_bpb=1.1301 elapsed=23s
+evs:rank:7 36320/121136 (30%) run_bpb=1.1304 elapsed=23s
+evs:rank:4 36320/121136 (30%) run_bpb=1.1400 elapsed=23s
+evs:rank:2 48416/121136 (40%) run_bpb=1.1193 elapsed=30s
+evs:rank:5 48416/121136 (40%) run_bpb=1.1036 elapsed=30s
+evs:rank:3 48416/121136 (40%) run_bpb=1.1177 elapsed=30s
+evs:rank:1 48416/121136 (40%) run_bpb=1.1270 elapsed=30s
+evs:rank:6 48416/121136 (40%) run_bpb=1.1360 elapsed=30s
+evs:rank:0 48416/121136 (40%) run_bpb=1.1252 elapsed=30s
+evs:rank:7 48416/121136 (40%) run_bpb=1.1226 elapsed=30s
+evs:rank:4 48416/121136 (40%) run_bpb=1.1471 elapsed=30s
+evs:rank:2 60512/121136 (50%) run_bpb=1.1164 elapsed=37s
+evs:rank:5 60512/121136 (50%) run_bpb=1.1034 elapsed=37s
+evs:rank:3 60512/121136 (50%) run_bpb=1.1167 elapsed=37s
+evs:rank:1 60512/121136 (50%) run_bpb=1.1284 elapsed=37s
+evs:rank:6 60512/121136 (50%) run_bpb=1.1373 elapsed=37s
+evs:rank:0 60512/121136 (50%) run_bpb=1.1226 elapsed=37s
+evs:rank:7 60512/121136 (50%) run_bpb=1.1225 elapsed=37s
+evs:rank:4 60512/121136 (50%) run_bpb=1.1413 elapsed=37s
+evs:rank:2 72608/121136 (60%) run_bpb=1.1162 elapsed=44s
+evs:rank:5 72608/121136 (60%) run_bpb=1.0999 elapsed=44s
+evs:rank:3 72608/121136 (60%) run_bpb=1.1155 elapsed=44s
+evs:rank:1 72608/121136 (60%) run_bpb=1.1301 elapsed=44s
+evs:rank:6 72608/121136 (60%) run_bpb=1.1394 elapsed=44s
+evs:rank:0 72608/121136 (60%) run_bpb=1.1214 elapsed=44s
+evs:rank:7 72608/121136 (60%) run_bpb=1.1164 elapsed=44s
+evs:rank:4 72608/121136 (60%) run_bpb=1.1420 elapsed=45s
+evs:rank:2 84704/121136 (70%) run_bpb=1.1137 elapsed=51s
+evs:rank:5 84704/121136 (70%) run_bpb=1.1003 elapsed=51s
+evs:rank:3 84704/121136 (70%) run_bpb=1.1175 elapsed=51s
+evs:rank:1 84704/121136 (70%) run_bpb=1.1288 elapsed=51s
+evs:rank:6 84704/121136 (70%) run_bpb=1.1405 elapsed=52s
+evs:rank:0 84704/121136 (70%) run_bpb=1.1250 elapsed=52s
+evs:rank:7 84704/121136 (70%) run_bpb=1.1166 elapsed=52s
+evs:rank:4 84704/121136 (70%) run_bpb=1.1389 elapsed=52s
+evs:rank:2 96800/121136 (80%) run_bpb=1.1132 elapsed=58s
+evs:rank:5 96800/121136 (80%) run_bpb=1.1046 elapsed=58s
+evs:rank:3 96800/121136 (80%) run_bpb=1.1160 elapsed=58s
+evs:rank:1 96800/121136 (80%) run_bpb=1.1282 elapsed=59s
+evs:rank:6 96800/121136 (80%) run_bpb=1.1406 elapsed=59s
+evs:rank:7 96800/121136 (80%) run_bpb=1.1144 elapsed=59s
+evs:rank:0 96800/121136 (80%) run_bpb=1.1275 elapsed=59s
+evs:rank:4 96800/121136 (80%) run_bpb=1.1336 elapsed=59s
+evs:rank:2 108896/121136 (90%) run_bpb=1.1100 elapsed=65s
+evs:rank:5 108896/121136 (90%) run_bpb=1.1068 elapsed=65s
+evs:rank:3 108896/121136 (90%) run_bpb=1.1163 elapsed=66s
+evs:rank:1 108896/121136 (90%) run_bpb=1.1272 elapsed=66s
+evs:rank:6 108896/121136 (90%) run_bpb=1.1383 elapsed=66s
+evs:rank:7 108896/121136 (90%) run_bpb=1.1139 elapsed=66s
+evs:rank:0 108896/121136 (90%) run_bpb=1.1262 elapsed=66s
+evs:rank:4 108896/121136 (90%) run_bpb=1.1317 elapsed=66s
+evs:rank:2 120992/121136 (100%) run_bpb=1.1100 elapsed=72s
+evs:rank:5 120992/121136 (100%) run_bpb=1.1091 elapsed=73s
+evs:rank:3 120992/121136 (100%) run_bpb=1.1182 elapsed=73s
+evs:rank:1 120992/121136 (100%) run_bpb=1.1255 elapsed=73s
+evs:rank:7 120992/121136 (100%) run_bpb=1.1125 elapsed=73s
+evs:rank:6 120992/121136 (100%) run_bpb=1.1387 elapsed=73s
+evs:rank:0 120992/121136 (100%) run_bpb=1.1267 elapsed=73s
+evs:rank:4 120992/121136 (100%) run_bpb=1.1283 elapsed=73s
+evs:rank:0 DONE val_loss=1.892863 val_bpb=1.121063 tokens=62023616 bytes=151084796 elapsed=76s
+evs:rank:1 DONE val_loss=1.892863 val_bpb=1.121063 tokens=62023616 bytes=151084796 elapsed=76sevs:rank:7 DONE val_loss=1.892863 val_bpb=1.121063 tokens=62023616 bytes=151084796 elapsed=76s
+evs:rank:3 DONE val_loss=1.892863 val_bpb=1.121063 tokens=62023616 bytes=151084796 elapsed=76s
+
+evs:rank:5 DONE val_loss=1.892863 val_bpb=1.121063 tokens=62023616 bytes=151084796 elapsed=76s
+evs:rank:6 DONE val_loss=1.892863 val_bpb=1.121063 tokens=62023616 bytes=151084796 elapsed=76sevs:rank:2 DONE val_loss=1.892863 val_bpb=1.121063 tokens=62023616 bytes=151084796 elapsed=76s
+evs:rank:4 DONE val_loss=1.892863 val_bpb=1.121063 tokens=62023616 bytes=151084796 elapsed=76s
+
+DIAGNOSTIC post_ttt_full_sw val_loss:1.8929 val_bpb:1.1211 eval_time:75802ms
+DIAGNOSTIC post_ttt_full_sw_exact val_loss:1.89286261 val_bpb:1.12106282
+ttt:total_time:1252277ms
