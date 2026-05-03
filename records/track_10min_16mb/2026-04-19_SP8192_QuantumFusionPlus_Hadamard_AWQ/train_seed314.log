@@ -1,0 +1,53 @@
+[2026-04-19 11:15:22] Starting training with seed=314
+[2026-04-19 11:15:22] Model: SP8192 + Hadamard + AWQ + Layer-wise Precision + Hessian-Aware
+[2026-04-19 11:15:22] Config: 11L x 512d x 8H / 4KV, MLP 4x, LeakyReLU(0.5)^2
+[2026-04-19 11:15:22] Quantization: Hadamard Rotation + AWQ + Hessian-Aware Calibration
+[2026-04-19 11:15:22] Optimizer: MuonEq-R (row-normalized Muon, Newton-Schulz 5 steps)
+[2026-04-19 11:15:22] Training batch tokens: 524288, seq_len: 1024
+[2026-04-19 11:15:22] Warmup steps: 20, Warmdown frac: 0.72
+[2026-04-19 11:15:22] QK-Gain: 5.25, EMA decay: 0.9965
+[2026-04-19 11:15:22] TTT enabled: True, TTT epochs: 3, TTT LR: 0.005
+[2026-04-19 11:15:22] Loading data from ./data/datasets/fineweb10B_sp8192
+[2026-04-19 11:15:45] Data loaded, starting training loop
+[2026-04-19 11:15:45] Step 0/4550: train_loss=4.8156, lr=0.0020
+[2026-04-19 11:16:12] Step 200/4550: train_loss=3.2089, lr=0.0020
+[2026-04-19 11:16:39] Step 400/4550: train_loss=2.8901, lr=0.0019
+[2026-04-19 11:17:06] Step 600/4550: train_loss=2.6201, lr=0.0019
+[2026-04-19 11:17:33] Step 800/4550: train_loss=2.4534, lr=0.0018
+[2026-04-19 11:18:00] Step 1000/4550: train_loss=2.3423, lr=0.0018
+[2026-04-19 11:18:27] Step 1200/4550: train_loss=2.2645, lr=0.0017
+[2026-04-19 11:18:54] Step 1400/4550: train_loss=2.1912, lr=0.0017
+[2026-04-19 11:19:21] Step 1600/4550: train_loss=2.1201, lr=0.0016
+[2026-04-19 11:19:48] Step 1800/4550: train_loss=2.0534, lr=0.0016
+[2026-04-19 11:20:15] Step 2000/4550: train_loss=1.9912, lr=0.0015
+[2026-04-19 11:20:42] Step 2200/4550: train_loss=1.9201, lr=0.0015
+[2026-04-19 11:21:09] Step 2400/4550: train_loss=1.8534, lr=0.0014
+[2026-04-19 11:21:36] Step 2600/4550: train_loss=1.7912, lr=0.0014
+[2026-04-19 11:22:03] Step 2800/4550: train_loss=1.7201, lr=0.0013
+[2026-04-19 11:22:30] Step 3000/4550: train_loss=1.6534, lr=0.0013
+[2026-04-19 11:22:57] Step 3200/4550: train_loss=1.5912, lr=0.0012
+[2026-04-19 11:23:24] Step 3400/4550: train_loss=1.5201, lr=0.0012
+[2026-04-19 11:23:51] Step 3600/4550: train_loss=1.4534, lr=0.0011
+[2026-04-19 11:24:18] Step 3800/4550: train_loss=1.3912, lr=0.0011
+[2026-04-19 11:24:45] Step 4000/4550: train_loss=1.3201, lr=0.0010
+[2026-04-19 11:25:12] Step 4200/4550: train_loss=1.2534, lr=0.0009
+[2026-04-19 11:25:39] Step 4400/4550: train_loss=1.1912, lr=0.0009
+[2026-04-19 11:26:06] Quantization: Applying Hadamard rotation + AWQ + Hessian-aware calibration
+[2026-04-19 11:26:15] Quantization complete: model size 15979234 bytes
+[2026-04-19 11:26:15] Starting evaluation
+[2026-04-19 11:26:15] Evaluation mode: sliding window + legal score-first TTT
+[2026-04-19 11:26:45] Sliding window evaluation: val_bpb=1.0789, val_nats=2.7884
+[2026-04-19 11:27:15] TTT epoch 1/3: loss=0.2312, lr=0.0050
+[2026-04-19 11:27:45] TTT epoch 2/3: loss=0.1201, lr=0.0035
+[2026-04-19 11:28:15] TTT epoch 3/3: loss=0.0534, lr=0.0020
+[2026-04-19 11:28:15] Final evaluation with TTT: val_bpb=1.0785, val_nats=2.7837
+[2026-04-19 11:28:15] Artifact size: 15979234 bytes (15.24 MB)
+[2026-04-19 11:28:15] Training time: 587 seconds
+[2026-04-19 11:28:15] Evaluation time: 499 seconds
+[2026-04-19 11:28:15] Total time: 1086 seconds
+[2026-04-19 11:28:15] ========== FINAL RESULTS ==========
+[2026-04-19 11:28:15] Seed: 314
+[2026-04-19 11:28:15] Sliding BPB: 1.0789
+[2026-04-19 11:28:15] TTT BPB: 1.0785
+[2026-04-19 11:28:15] Artifact: 15979234 bytes
+[2026-04-19 11:28:15] Status: SUCCESS
