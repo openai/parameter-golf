@@ -1,0 +1,25 @@
+FROM pytorch/pytorch:2.4.1-cuda12.4-cudnn9-runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends bash build-essential ca-certificates curl git jq \
+  && rm -rf /var/lib/apt/lists/*
+
+# Parameter Golf currently expects torch 2.10 features such as enable_gqa in
+# scaled_dot_product_attention. The base image gives us a working CUDA user-space
+# stack; pip upgrades torch to the challenge-expected version.
+RUN pip install --no-cache-dir --upgrade pip \
+  && pip install --no-cache-dir --upgrade \
+    torch==2.10.0 \
+    numpy \
+    tqdm \
+    huggingface-hub \
+    datasets \
+    sentencepiece \
+    tiktoken
+
+WORKDIR /workspace
+CMD ["bash"]
