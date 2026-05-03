@@ -1,0 +1,11 @@
+{
+  "author": "mradassaad",
+  "github_id": "mradassaad",
+  "name": "Mamba-3 Hybrid SSM + SP8192 + Legal TTT",
+  "blurb": "7L Mamba-3 SISO hybrid (5 SSM + 2 attn), SP8192, 25.2M params. AR GPTQ with INT8 embed + embed Hessian. Chunk score-first TTT (SGD lr=0.010). Stateful-overlap eval.",
+  "date": "2026-04-15",
+  "val_loss": 2.96361204,
+  "val_bpb": 1.14730259,
+  "bytes_total": 15930354,
+  "bytes_code": 104754
+}
