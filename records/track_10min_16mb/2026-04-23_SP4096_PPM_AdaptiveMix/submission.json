@@ -1,0 +1,57 @@
+{
+  "author": "OE-GOD",
+  "github_id": "OE-GOD",
+  "name": "SP4096 + Byte-Level PPM Adaptive-λ Mixture (strict-legal gate, full-val)",
+  "date": "2026-04-24",
+  "track": "10min_16mb",
+  "val_bpb": 1.01252,
+  "val_bpb_std": 0.00044,
+  "val_bpb_nn_token_mean": 1.09764,
+  "val_bpb_nn_byte_mean": 1.08687,
+  "val_bpb_delta_mean": -0.07435,
+  "measurement": "Full FineWeb validation set (45,508,608 tokens, 152,570,124 bytes). Mixture BPB computed per-byte after spreading NN per-token logprob uniformly across UTF-8 bytes; outcome-independent adaptive-λ gate on byte-level PPM-D order-4 state (max_count/total at deepest seen context).",
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42":   {"val_bpb": 1.01228, "val_bpb_nn_token": 1.09740, "val_bpb_nn_byte": 1.08664, "val_bpb_delta": -0.07436, "artifact_bytes": 15953442, "eval_time_ms": 521086},
+    "1337": {"val_bpb": 1.01303, "val_bpb_nn_token": 1.09823, "val_bpb_nn_byte": 1.08746, "val_bpb_delta": -0.07443, "artifact_bytes": 15921608, "eval_time_ms": 506272},
+    "2025": {"val_bpb": 1.01226, "val_bpb_nn_token": 1.09728, "val_bpb_nn_byte": 1.08652, "val_bpb_delta": -0.07426, "artifact_bytes": 15924697, "eval_time_ms": 485453}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Base: @clarkkev 2026-04-01 SP4096 + 11L + MLP4x submission (record 1.09785). Addition: byte-level PPM-D order-4 mixed with the NN's per-token target logprob in byte-probability space during final sliding-window eval on FULL val. Mixture weight λ is a function of prefix + PPM state only (outcome-independent gate): cf = max_count / total at the deepest context with data, frozen before the observed byte is scored.",
+  "mixture_technique": {
+    "predictor": "byte-level PPM-D order 4 (pure Python, online, legal score-before-update on already-scored val bytes)",
+    "mixing": "adaptive λ gate: cf = max_count / total at deepest seen context; λ=0.05 when cf > 0.9, else λ=0.9",
+    "gate_is_outcome_independent": true,
+    "gate_legality_note": "cf is computed from PPM state + prefix only, before any d.get(observed_byte) call. For any two possible next-bytes x_a, x_b at the same position, cf and λ are identical. Addresses PR #1795 comment by @nprime06 on target-conditioned gates.",
+    "byte_marginalization": "spread NN token logprob uniformly across UTF-8 bytes (conserves total NN bits)",
+    "measurement_basis": "full val (45.5M tokens, 152.6MB bytes) — same as all merged records"
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "artifact_under_16mb_note": "All 3 seeds 15.92-15.95 MB natively.",
+    "eval_under_600s": true,
+    "eval_under_600s_note": "All 3 seeds 485-521s. Order-4 PPM chosen over order-5 to ensure eval fits within 600s cap; order 4 was 0.02 BPB worse than order 5 but gave 100+s margin.",
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": false,
+    "no_ngram_cache_note": "Byte-level online PPM predictor trained from empty counters during sliding eval. Per-byte score-before-update: score byte_i using counters from bytes 0..i-1, then add byte_i for future bytes. Zero precomputed statistics shipped in the artifact. Organizer ruling requested on this predictor class per PR #1795 discussion.",
+    "three_seeds": true,
+    "three_seeds_significance": "t-stat for the 0.005-nat improvement bar: (1.0595 − 1.01252)/0.00044/sqrt(3) ≈ 185; p ≪ 1e-10"
+  },
+  "attribution": {
+    "base_submission": "@clarkkev 2026-04-01 SP4096 submission (record 1.09785) — NN stack unchanged",
+    "byte_ppm": "Cleary & Witten 1984; Moffat 1990 (PPM-D escape method)",
+    "adaptive_lambda_gate": "designed for this submission; strict-legal form responds to @nprime06 review on PR #1795"
+  },
+  "history": {
+    "supersedes": "PR #1795 (earlier version with illegal target-conditioned gate, mix BPB 0.95145)",
+    "changelog": [
+      "Fixed target-conditioned gate: cf now outcome-independent (max_count/total at deepest seen context, frozen before observing next byte)",
+      "Reduced PPM order 5 -> 4 to keep eval under 600s cap with the max_count tracking overhead",
+      "Mix BPB reported is the legal strict version (1.01252); previous illegal-gate number (0.95145) is retracted"
+    ]
+  }
+}
