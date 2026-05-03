@@ -1,0 +1,57 @@
+{
+  "author": "Julian Quick",
+  "github_id": "kilojoules",
+  "name": "PR #1738 + PreQuant TTT LR=1e-3 + Unfrozen (freeze_blocks=0)",
+  "date": "2026-04-21",
+  "track": "10min_16mb",
+  "val_loss": 2.25051707,
+  "val_bpb": 1.02839848,
+  "val_bpb_std": 0.00025055,
+  "seeds": [
+    43,
+    44,
+    45
+  ],
+  "seed_results": {
+    "43": {
+      "val_loss": 2.25064699,
+      "val_bpb": 1.02845785,
+      "artifact_bytes": 15999201
+    },
+    "44": {
+      "val_loss": 2.24991549,
+      "val_bpb": 1.02812358,
+      "artifact_bytes": 15993435
+    },
+    "45": {
+      "val_loss": 2.25098873,
+      "val_bpb": 1.02861401,
+      "artifact_bytes": 15999551
+    }
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_eval_time_adaptation": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "fixed_predictor": true,
+    "three_seeds": true,
+    "score_first_ttt": true
+  },
+  "hardware": "8xH100 80GB SXM (vast.ai)",
+  "pytorch_version": "2.5.1+cu124",
+  "technique_summary": "PR #1738 (alertcat) base unchanged. Two pre-quant TTT hyperparameters retuned via os.environ.setdefault prepended to train_gpt.py: PREQUANT_TTT_LR 5e-4 -> 1e-3 (TTT was undertuned - epoch-21 TTT loss still descending at default LR), PREQUANT_TTT_FREEZE_BLOCKS 2 -> 0 (allow full model to adapt during the 21-epoch pre-quant TTT). The packed train_gpt.py blob also contains a small FlashAttention-3 compatibility patch (q/k/v .to(bf16) cast before flash_attn_3_func) because PR #1738's packed blob crashes on pytorch 2.5.1 without it; behaviorally identical on pytorch 2.9.1. Same architecture, tokenizer, main training.",
+  "attribution": {
+    "pr1738_base": "@alertcat (PR #1738) - CaseOps + PR #1735 stack (unchanged)",
+    "pr1735_base": "@AjAnubolu (PR #1735) - Parallel Pre-Quant AdamW TTT",
+    "caseops_tokenizer": "@romeerp (PR #1729) - lossless caps tokenizer + byte sidecar",
+    "depth_recurrence": "@dexhunter (PR #1331)",
+    "parallel_residuals": "@Robby955 (PR #1412)",
+    "qk_gain_525": "@bigbag (PR #1493)",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "ttt_retune": "this PR (@kilojoules) - PREQUANT_TTT_LR=1e-3 + PREQUANT_TTT_FREEZE_BLOCKS=0 + FA3 bf16 cast for pytorch 2.5.1 compatibility"
+  }
+}
