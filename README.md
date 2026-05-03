@@ -103,7 +103,7 @@ We'd love to see weird & creative ideas in the challenge, since you never know w
 
 - [x] 1-bit quantization - [implementation](records/track_non_record_16mb/2026-03-24_106M_Binary_Asymmetric_UNet_FP8_15L_8192BPE_YaRN_NeoMuon_Smear/README.md)
 - [x] Ternary quantization - [implementation](records/track_10min_16mb/2026-03-24_74M_Ternary_UNet_FP8_10L_8192BPE_YaRN_NeoMuon/README.md)
-- [ ] JEPA
+- [ ] JEPA - [implementation](records/track_non_record_16mb/2026-03-30_ByteJEPA/README.md)
 - [ ] Text diffusion
 - [ ] H-net tokenization
 - [ ] Universal transformer - [We have lots of depth recurrence submissions, but I'd love to see one 4 hour
