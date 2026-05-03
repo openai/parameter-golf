@@ -4,7 +4,7 @@
   "name": "PR #1855 stack + MP3 marker-pair fusion + alias smear boundary",
   "blurb": "Built on PR #1855 (11L XSA + LQER asym int4 + SparseAttnGate + BOS-fixed SmearGate + Polar-Express MuonEqR + fused softcapped CE + GPTQ int6 + int7 embed + per-row int8 attn-gate + per-group lrzip+brotli + phased TTT + 9-hparam stack). Two orthogonal additions: (1) MP3 marker-pair fusion — 3 alias donor tokens for [SPACE,TITLE]/[SPACE,ALLCAPS]/[SPACE,CAPNEXT], 8.47% train-token saving, word X preserved (no d=1 collapse); (2) alias smear boundary — SmearGate fully disabled (ALIAS_PREV_SMEAR_SCALE=0.0) at positions immediately following an alias token, since alias donors already encode dense (SPACE + marker) signal at one position. Code patch: +62/-2 lines vs PR #1855's train_gpt.py. 3-seed mean (42, 0, 314) phased TTT val_bpb 1.05858203 beats PR #1855 author's 3-seed mean 1.06108 by 0.00250 BPB.",
   "date": "2026-04-30",
-  "track": "10min_16mb",
+  "track": "non_record_16mb",
   "val_loss": 2.53279710,
   "val_bpb": 1.05858203,
   "val_loss_std": 0.00069,

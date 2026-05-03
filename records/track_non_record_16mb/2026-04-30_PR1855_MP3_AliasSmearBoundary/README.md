@@ -1,10 +1,11 @@
-# Record candidate: PR #1855 stack + MP3 marker-pair fusion + alias smear boundary
+# Non-record submission: PR #1855 stack + MP3 marker-pair fusion + alias smear boundary
 
 **val_bpb: 1.05858203** (3-seed mean of 42, 0, 314; phased TTT, canonical 50 K-val-doc on DGX) | size_max 15,906,335 bytes (15.17 MiB) | 8×H100 80 GB SXM, 600 s wallclock | TTT (phased)
 
 Beats PR #1855's 3-seed mean **1.06108** by **−0.00250 BPB** (3-seed mean).
 
-> Note: the originally submitted numbers (runpod, val_tokens 36,562,944) were updated to this **DGX corrected canonical reproduction** (val_tokens 43,767,808) using the byte-identical `train_gpt.py` and identical seeds/hparams. See the PR comment for the val-partition correction story.
+> **Track**: non-record (`track_non_record_16mb`).
+> The pre-cutoff (2026-05-02T00:00:00Z) state used a non-canonical validation partition (runpod, val_tokens 36,562,944). The canonical correction (DGX, val_tokens 43,767,808) using the byte-identical `train_gpt.py` and identical seeds/hparams was pushed post-cutoff, so this submission is filed as **non-record** rather than as a leaderboard record. The methodology is documented here for reference.
 
 ## Base record extended by this submission
 
