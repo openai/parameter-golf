@@ -1,0 +1,14 @@
+{
+  "val_bpb": 1.15088552,
+  "val_loss": 1.94321685,
+  "pre_quant_val_bpb": 1.1655,
+  "pre_quant_val_loss": 1.9680,
+  "bytes_total": 15316405,
+  "bytes_model": 15226312,
+  "bytes_code": 90093,
+  "step_stop": 3796,
+  "wallclock_seconds": 1585.3,
+  "hardware": "8xH100 SXM",
+  "seeds": 1,
+  "note": "Score is from sliding window eval (stride=64). TTT (AdamW, LR=0.002, 3 epochs) was enabled but degraded performance to 1.2804 bpb — see README."
+}
