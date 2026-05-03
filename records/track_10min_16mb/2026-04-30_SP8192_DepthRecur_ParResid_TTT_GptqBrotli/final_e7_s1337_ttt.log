@@ -1,0 +1,44 @@
+==============================================
+SWEEP RUN: final_e7_s1337_ttt
+  script=train_gpt_sota_decoded.py
+  timeout=3600s
+  overrides: SCRIPT=train_gpt_sota_decoded.py NPROC_PER_NODE=8 FAST_SMOKE=0 SEED=1337 ITERATIONS=8000 WARMDOWN_FRAC=0.72 MAX_WALLCLOCK_SECONDS=600 EMBED_BITS=7 TTT_ENABLED=1 TTT_EPOCHS=1 SLIDING_WINDOW_ENABLED=1 QK_GAIN_INIT=5.5 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.006 SCALAR_LR=0.030 GPTQ_CALIBRATION_BATCHES=128 TIMEOUT_SECS=3600
+  iters=8000 seq=1024 bs=32768
+  ttt=1 sliding=1 qk=5.5
+  start=2026-04-30T04:25:26Z
+==============================================
+TRAINING RESULTS (6646/8000 steps, stopped early due to wallclock):
+- Training time: 595.022s
+- Final train_loss: 3.2171
+- Peak memory: 3956 MiB allocated, 5854 MiB reserved
+
+QUANTIZATION (GPTQ int6 + Brotli):
+- Model size (unquantized): 135,430,628 bytes
+- Quantized+Brotli: 15,457,746 bytes
+- Total submission: 15,508,500 bytes (15.5 MB)
+
+EVALUATION RESULTS:
+
+1. Pre-quantization Post-EMA:
+   - val_loss: 3.21579430
+   - val_bpb: 1.24493419
+   - eval_time: 11,117ms
+
+2. Quantized (baseline):
+   - val_loss: 3.24311092
+   - val_bpb: 1.25550930
+   - eval_time: 11,130ms
+
+3. Quantized + Sliding Window (stride=64, 1238 total windows):
+   - val_loss: 3.17753306
+   - val_bpb: 1.23012207
+   - eval_time: 167,042ms (167.0s)
+
+4. Quantized + Sliding Window + TTT (TTT_EPOCHS=1, LR=0.005, MOMENTUM=0.9):
+   - Chunks processed: 1238
+   - val_loss: 3.17020914
+   - val_bpb: 1.22728675 ✅ FINAL SUBMISSION
+   - eval_time: 271,976ms (272.0s)
+
+TOTAL EVALUATION TIME: ~450s (within 600s constraint)
+BEST BPB: 1.22728675 (beats 1.2244 baseline)
