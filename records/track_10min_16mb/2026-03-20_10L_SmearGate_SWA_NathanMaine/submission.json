@@ -1,0 +1,23 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "10L Int6 QAT + Per-Dim SmearGate + SWA + Decoupled WD",
+  "author": "Nathan Maine",
+  "github_id": "NathanMaine",
+  "blurb": "10 layers with int6 per-row QAT (STE), 3x MLP, per-dim SmearGate, SWA/50 over last 50%, Muon WD 0.038, seq2048, sliding window eval stride=64, zstd-22. NVIDIA Inception member. Brain Trust-informed approach (205K-chunk expert knowledge base consulted).",
+  "val_loss": 1.95430498,
+  "val_bpb": 1.15745255,
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.95430498,
+      "val_bpb": 1.15745255,
+      "steps": 9156,
+      "ms_per_step": 65.49
+    }
+  },
+  "mean_val_loss": 1.95430498,
+  "mean_val_bpb": 1.15745255,
+  "bytes_total": 14725978,
+  "bytes_model_int6_zstd": 14641490,
+  "bytes_code": 84488
+}
