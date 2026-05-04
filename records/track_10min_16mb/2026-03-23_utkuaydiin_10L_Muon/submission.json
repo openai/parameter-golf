@@ -1,0 +1,9 @@
+{
+  "author": "Utku Aydin",
+  "github_id": "utkuaydiin",
+  "blurb": "10L Muon + Int5/Int6 PTQ + BigramHash + SmearGate",
+  "date": "2026-03-23",
+  "val_bpb": 1.18,
+  "bytes_total": 15460000,
+  "notes": "Reproduction of current SOTA stack with corrected SWA and real FineWeb loader"
+}

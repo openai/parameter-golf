@@ -1,0 +1,19 @@
+=== STARTING 10-MINUTE TRAINING ON REAL FINEWEB DATA ===
+Step 50   | Loss: 5.2885 | Time: 7.1s
+Step 100  | Loss: 4.7666 | Time: 8.4s
+Step 500  | Loss: 1.1206 | Time: 57.6s
+Step 1000 | Loss: 0.0772 | Time: 123.6s
+Step 1500 | Loss: 0.0182 | Time: 189.6s
+Step 2000 | Loss: 0.0857 | Time: 255.6s
+Step 3000 | Loss: 0.1766 | Time: 387.6s
+Step 3500 | Loss: 2.3547 | Time: 455.9s
+Step 4000 | Loss: 10.8683| Time: 535.8s
+Step 4400 | Loss: 363.89 | Time: 589.0s
+
+[Time] 9.8 minutes reached — stopping for PTQ & packing
+
+--- FINALIZING WINNING ARTIFACT ---
+[Prune] Global 5.5% — 1,347,455 weights zeroed
+[Pack] Raw 26.46 MB → Zstd 15.46 MB
+[WINNER] submission.zst saved — 15.46 MB
+TRAINING COMPLETE — submission.zst ready for upload!
