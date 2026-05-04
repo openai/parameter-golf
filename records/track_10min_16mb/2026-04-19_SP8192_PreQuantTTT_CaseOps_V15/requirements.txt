@@ -1,0 +1,7 @@
+# The official RunPod challenge image already provides the core stack.
+# These are the Python packages this record needs when setting up manually.
+numpy
+sentencepiece
+brotli
+huggingface-hub
+hf_transfer
