@@ -1,0 +1,47 @@
+{
+  "author": "AlirezaAlampour",
+  "description": "V4: 7L UNet shared transformer trained for 10h with int6 QAT + LZMA serialization, evaluated under stride-64 sliding window. Same architecture and learning rates as V3.1 (and V2 lineage); training time extended from 4h to 10h, quantization changed from int8+zlib to int6+lzma. Single-seed submission (seed 1337); checkpoint discovered in the post-V3.1 run audit (logs/full_run_audit.txt).",
+  "hardware": "DGX Spark (1x GB10 Blackwell, 128GB unified)",
+  "track": "non_record_16mb",
+  "eval": {
+    "method": "sliding_window",
+    "stride": 64,
+    "batch_seqs": 64,
+    "train_seq_len": 1024,
+    "ngram": false
+  },
+  "results": {
+    "seed_1337": {
+      "bpb": 1.30952212,
+      "steps": 2612,
+      "artifact_bytes": 13726856,
+      "val_loss": 2.21107041,
+      "tokens_scored": 62022592,
+      "bytes_for_bpb": 151082508,
+      "eval_wallclock_seconds": 19007.6
+    }
+  },
+  "num_seeds": 1,
+  "val_bpb": 1.30952212,
+  "artifact_bytes": 13726856,
+  "code_bytes": 59760,
+  "total_bytes": 13786616,
+  "training_hardware": "DGX Spark, 1x GB10 Blackwell",
+  "training_wallclock_seconds": 36006.37,
+  "training_steps": 2612,
+  "eval_stride": 64,
+  "v3_1_mean_bpb": 1.36409,
+  "v2_baseline_mean_bpb": 1.39693,
+  "delta_vs_v3_1": -0.05457,
+  "delta_vs_v2": -0.08741,
+  "techniques": [
+    "unet_skip_connections",
+    "7_layers_4x_mlp",
+    "int6_qat_per_row_lzma",
+    "leaky_relu_squared",
+    "ema_decay_0997",
+    "muon_optimizer",
+    "long_training_10hr",
+    "sliding_window_eval_stride64"
+  ]
+}

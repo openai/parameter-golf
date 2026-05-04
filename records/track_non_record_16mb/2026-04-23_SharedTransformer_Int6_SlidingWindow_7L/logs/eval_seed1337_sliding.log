@@ -1,0 +1,24 @@
+seed: 1337
+ckpt: final_model.int6.ptz
+loader: lzma + dequantize_mixed_int6
+stride: 64
+batch_seqs: 64
+n_windows: 969088
+val_loss: 2.21107041
+val_bpb: 1.30952212
+total_tokens_scored: 62022592
+bytes: 151082508
+tokens_per_byte: 0.41052133
+wallclock_seconds: 19007.573
+artifact_size_bytes: 13726856
+
+# Reference baselines (from logs/full_run_audit.txt)
+v31_mean_bpb: 1.36409
+v2_mean_bpb:  1.39693
+
+delta_vs_v31_mean: -0.05457  (int6_best beats v3.1 by 0.05457 BPB)
+delta_vs_v2_mean:  -0.08741  (int6_best beats v2  by 0.08741 BPB)
+delta_vs_int6_chunked_self: -0.03216  (sliding 1.30952 vs chunked 1.34168, audit estimate was ~-0.009; actual gain is much larger)
+
+decision_threshold: 1.360
+verdict: BEATS THRESHOLD (1.30952 < 1.360 by 0.05048 BPB)

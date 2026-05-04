@@ -1,0 +1,128 @@
+PROVENANCE — overnight_int8_best (a.k.a. v4 source checkpoint)
+================================================================
+Generated: 2026-04-26
+Source logs:
+  /home/xxfactionsxx/parameter-golf/logs/overnight_int8_best.txt
+  /home/xxfactionsxx/parameter-golf/logs/overnight_int8_best_stdout.log
+  /home/xxfactionsxx/parameter-golf/logs/full_run_audit.txt
+  /home/xxfactionsxx/parameter-golf/logs/int6_best_sliding_eval.log
+
+RUN IDENTITY
+------------
+  Run ID:                 overnight_int8_best
+                          (Despite the name, USE_INT6=1; the artifact is int6+lzma.)
+  Date completed:         2026-04-11 12:01 (file mtime of final_model.int6.ptz)
+  Script:                 train_gpt_spark.py (local DGX Spark fork)
+                          Functionally equivalent to v3.1's train_gpt.py for the int6
+                          code path: same Hyperparameters class, same mixed_quantize_int6 /
+                          dequantize_mixed_int6, same eval_val. Differences vs v3.1's
+                          shipped train_gpt.py are non-substantive (eval_val_sliding was
+                          added to v3.1's script; the v4 submission ships v3.1's
+                          train_gpt.py for the eval-time loader, since that file already
+                          contains the int6+lzma round-trip with sliding-64 eval).
+  Train host:             DGX Spark, 1× GB10 Blackwell, sm_121, CUDA 13.0, ARM64
+  Run history JSON:       NOT TRACKED in run_history.json
+                          (run_history.json was last touched 2026-04-08; this Apr 11
+                          run pre-dated a tracker rebuild and was never registered.
+                          See logs/full_run_audit.txt for the same observation.)
+
+CONFIG (from log header dump)
+-----------------------------
+  seed:                   1337
+  vocab_size:             1024 (sentencepiece, ./data/tokenizers/fineweb_1024_bpe.model)
+  num_layers:             7    (inferred from checkpoint: blocks.0..blocks.6 each
+                                with 6 weight tensors; total params 20,725,304)
+  model_dim:              512
+  num_heads:              8    (logged: "attention_mode:gqa num_heads:8 num_kv_heads:4")
+  num_kv_heads:           4
+  mlp_mult:               4    (inferred from checkpoint: blocks.*.mlp.fc.weight is
+                                shape (2048, 512) = 512 * 4)
+  tie_embeddings:         True
+  total_params:           20,725,304  (matches v3.1 README count exactly)
+
+  TIED_EMBED_LR:          0.021552090970329115
+                          Logged as `embed_lr:0.021552090970329115` because the source
+                          line is `embed_lr:{token_lr}` where `token_lr =
+                          args.tied_embed_lr if args.tie_embeddings else args.embed_lr`
+                          (train_gpt_spark.py L1228).
+  HEAD_LR:                0.0      (tied-only head path)
+  MATRIX_LR:              0.08261619767374824
+  SCALAR_LR:              0.014691154447587356
+  TRAIN_BATCH_TOKENS:     524288   (grad_accum_steps=8, effective batch tokens 524,288)
+  TRAIN_SEQ_LEN:          1024
+  WARMUP_STEPS:           20
+  ITERATIONS:             20000    (cap; only 2,612 actually completed)
+  MAX_WALLCLOCK_SECONDS:  36000.000  (10.00 h)
+  EMA:                    enabled, decay=0.997, params=72
+  USE_INT6:               1        (Serialized as int6+lzma; see "Serialized model
+                                    int6+lzma: 13726856 bytes" in the log)
+
+CONFIG NOT RECOVERABLE FROM LOG
+-------------------------------
+The log dumps the LRs, attention shape, batch sizes, EMA state, and seed, but does NOT
+dump these env vars at runtime:
+  - MUON_MOMENTUM     (default 0.95; v3.1 used 0.9382982028913158 from Optuna)
+  - WARMDOWN_ITERS    (default 1200; v3.1 used 1558)
+  - QK_GAIN_INIT      (default 1.5)
+  - MUON_BACKEND_STEPS, MUON_MOMENTUM_WARMUP_*, BETA1, BETA2, ADAM_EPS,
+    GRAD_CLIP_NORM, MUON_WD, ADAM_WD
+
+Strong inference: every LR overnight_int8_best logged matches v3.1's Optuna-found
+values to all 17 significant digits, and the architecture and EMA settings match
+v3.1 exactly. The most plausible reading is that this run used v3.1's full Optuna
+config (incl. MUON_MOMENTUM=0.9383 and WARMDOWN_ITERS=1558), with only
+MAX_WALLCLOCK_SECONDS lifted from 14400 to 36000 and USE_INT6 left at default 1.
+But no log line confirms muon_momentum or warmdown_iters explicitly, so this is
+inference, not record. The README will note this.
+
+TRAINING TRAJECTORY
+-------------------
+  step:0     val_bpb:4.1081  (init)
+  step:500   val_bpb:1.4816
+  step:1000  val_bpb:1.3947  (chunked, no quant)
+  step:1500  val_bpb:1.3648
+  step:2000  val_bpb:1.3513
+  step:2500  val_bpb:1.3436
+  step:2612  val_bpb:1.3420  (final pre-quant, chunked)
+  stopping_early: wallclock_cap   train_time:36006370ms  step:2612/20000
+  step_avg ≈ 13.78 s   peak GPU memory: 25,436 MiB allocated / 25,874 MiB reserved
+
+POST-TRAINING (from same log)
+-----------------------------
+  EMA weights applied to base model.
+  Serialized .pt:                          81,874,819 bytes
+  Code size:                                   54,046 bytes
+  Serialized model int6+lzma:              13,726,856 bytes  (matches checkpoint on disk)
+  Total submission size int6+lzma:         13,780,902 bytes
+  final_int6_lzma_roundtrip val_bpb:       1.34167922  (chunked, post-quantize round-trip)
+  final_int8_zlib_roundtrip log line:      1.34167922  (vestigial unconditional log
+                                                        line; same number — eval was
+                                                        only run once on the int6
+                                                        round-trip path)
+
+SLIDING-64 EVAL (this v4 build)
+-------------------------------
+  Eval script:            eval_sliding_int6.py
+                          (scratch script adapted from eval_sliding_v31.py — only the
+                          loader was changed: lzma + dequantize_mixed_int6 in place of
+                          zlib + dequantize_state_dict_int8. Eval algorithm is byte-
+                          identical to v3.1's eval_val_sliding.)
+  Stride:                 64
+  Batch seqs:              64
+  Total windows:          969,088
+  Total tokens scored:     62,022,592
+  Total bytes (BPB den.): 151,082,508
+  val_loss:               2.21107041
+  val_bpb:                1.30952212
+  Wallclock:              19,007.6 s  (5.28 h on GB10)
+  Run log (live):         logs/int6_best_sliding_eval_run.log
+  Result log:             logs/int6_best_sliding_eval.log
+
+CHECKPOINT FACTS
+----------------
+  path:                   /home/xxfactionsxx/parameter-golf/final_model.int6.ptz
+  size:                   13,726,856 bytes  (under 16 MB cap by 2,254,360 B headroom)
+  format:                 int6+lzma; payload {'w': {param_q, param_scale, ...},
+                          'm': {param: meta, ...}}; 7L/512d/8h/4kv/mlp4 GPT
+  loader verified end-to-end (model.load_state_dict round-trips with no
+  missing/unexpected keys; forward pass works; sliding eval reads back 1.30952 BPB).
