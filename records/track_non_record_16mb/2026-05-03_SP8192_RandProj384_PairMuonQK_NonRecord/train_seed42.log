@@ -1,0 +1,331 @@
+W0503 07:05:50.736000 28930 torch/distributed/run.py:803] 
+W0503 07:05:50.736000 28930 torch/distributed/run.py:803] *****************************************
+W0503 07:05:50.736000 28930 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0503 07:05:50.736000 28930 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  agree_add_boost: 0.0
+  artifact_dir: /workspace/parameter-golf/runs/2026-05-03_2135_randproj384_pairmuon_lrelu03_qkgain525/seed42
+  asym_logit_rescale: True
+  attn_backend: fa3
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.99
+  caseops_enabled: True
+  compressor: pergroup
+  data_dir: ./data
+  datasets_dir: /workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 14.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2560
+  eval_stride: 64
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_every_n: 6
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_muon_nesterov: True
+  global_ttt_muon_ns_steps: 5
+  global_ttt_optimizer: sgd
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 32
+  gptq_reserve_seconds: 0.5
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_attn_window: 1024
+  local_global_pattern: 
+  local_rank: 0
+  logfile: /workspace/parameter-golf/runs/2026-05-03_2135_randproj384_pairmuon_lrelu03_qkgain525/seed42/2135_randproj384_pairmuon_lrelu03_qkgain525_seed42.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 32
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.028
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 11.5
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /workspace/parameter-golf/runs/2026-05-03_2135_randproj384_pairmuon_lrelu03_qkgain525/seed42/final_model.pt
+  muon_backend_steps: 5
+  muon_huber_delta: 0.1
+  muon_huber_wd: False
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_qk_pair_ortho: True
+  muon_qk_pair_size: 2
+  muon_row_normalize: True
+  muon_wd: 0.095
+  ngram_hint_precompute_outside: False
+  ngram_tilt_enabled: True
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  optrot_enabled: False
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2500
+  qk_gain_init: 5.25
+  qk_gain_schedule: []
+  quantized_model_path: /workspace/parameter-golf/runs/2026-05-03_2135_randproj384_pairmuon_lrelu03_qkgain525/seed42/final_model.int6.ptz
+  random_proj_embed_dim: 384
+  random_proj_embed_enabled: True
+  random_proj_seed: 1337
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: 2135_randproj384_pairmuon_lrelu03_qkgain525_seed42
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 0.5
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  token_boost: 2.625
+  token_order: 16
+  token_threshold: 0.8
+  tokenizer_path: /workspace/caseops_data/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: /workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.99
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2560
+  ttt_grad_steps: 1
+  ttt_grad_steps_clean: False
+  ttt_k_lora: False
+  ttt_lora_lr: 8e-05
+  ttt_lora_rank: 80
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 2.0
+  val_batch_tokens: 524288
+  val_bytes_files: /workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /workspace/caseops_data/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 0
+  vocab_size: 8192
+  warmdown_frac: 0.85
+  warmup_steps: 20
+  within_boost: 0.0
+  within_tau: 99.0
+  word_boost: 0.0
+  word_normalize: strip_punct_lower
+  word_order: 4
+  word_tau: 99.0
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 47851520
+model_params:34897097
+gptq:reserving 0s, effective=599500ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+1/20000 train_loss: 8.9983 train_time: 0.0m tok/s: 3068114
+2/20000 train_loss: 11.9106 train_time: 0.0m tok/s: 2458438
+3/20000 train_loss: 9.5449 train_time: 0.0m tok/s: 2573313
+4/20000 train_loss: 8.2694 train_time: 0.0m tok/s: 2637615
+5/20000 train_loss: 7.7865 train_time: 0.0m tok/s: 2676234
+500/20000 train_loss: 2.5851 train_time: 2.3m tok/s: 2886632
+layer_loop:enabled step:770 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+1000/20000 train_loss: 2.7498 train_time: 5.1m tok/s: 2589484
+1500/20000 train_loss: 2.4930 train_time: 8.5m tok/s: 2320947
+1724/20000 val_loss: 2.4662 val_bpb: 1.1269
+stopping_early: wallclock_cap train_time: 599714ms step: 1724/20000
+peak memory allocated: 59584 MiB reserved: 60268 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.47020597 val_bpb:1.12868936 eval_time:9217ms
+Serialized model: 133320959 bytes
+Code size (uncompressed): 202291 bytes
+Code size (compressed): 39405 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 6.9s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.attn_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda, softcap_neg, softcap_pos
+pergroup:similarity sort done in 36.6s (67 tensors)
+pergroup:Q 34865152 raw → 15164617 (lrzip) (43.5%)
+pergroup:remainder 272035 raw → 125834 brotli
+pergroup:total frame 15399365 bytes
+Serialized model quantized+pergroup: 15399365 bytes
+Total submission size quantized+pergroup: 15438770 bytes
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4647, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4641, in main
+[rank1]:     train_and_eval(h, device)
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4454, in train_and_eval
+[rank1]:     if compile_enabled:
+[rank1]:        ^^^^^^^^^^^^^^^
+[rank1]: NameError: name 'compile_enabled' is not defined. Did you mean: 'compile_elapsed'?
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4647, in <module>
+[rank7]:     main()
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4641, in main
+[rank7]:     train_and_eval(h, device)
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4454, in train_and_eval
+[rank7]:     if compile_enabled:
+[rank7]:        ^^^^^^^^^^^^^^^
+[rank7]: NameError: name 'compile_enabled' is not defined. Did you mean: 'compile_elapsed'?
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4647, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4641, in main
+[rank6]:     train_and_eval(h, device)
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4454, in train_and_eval
+[rank6]:     if compile_enabled:
+[rank6]:        ^^^^^^^^^^^^^^^
+[rank6]: NameError: name 'compile_enabled' is not defined. Did you mean: 'compile_elapsed'?
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4647, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4641, in main
+[rank0]:     train_and_eval(h, device)
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4454, in train_and_eval
+[rank0]:     if compile_enabled:
+[rank0]:        ^^^^^^^^^^^^^^^
+[rank0]: NameError: name 'compile_enabled' is not defined. Did you mean: 'compile_elapsed'?
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4647, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4641, in main
+[rank2]:     train_and_eval(h, device)
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4454, in train_and_eval
+[rank2]:     if compile_enabled:
+[rank2]:        ^^^^^^^^^^^^^^^
+[rank2]: NameError: name 'compile_enabled' is not defined. Did you mean: 'compile_elapsed'?
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4647, in <module>
+[rank4]:     main()
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4641, in main
+[rank4]:     train_and_eval(h, device)
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4454, in train_and_eval
+[rank4]:     if compile_enabled:
+[rank4]:        ^^^^^^^^^^^^^^^
+[rank4]: NameError: name 'compile_enabled' is not defined. Did you mean: 'compile_elapsed'?
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4647, in <module>
+[rank3]:     main()
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4641, in main
+[rank3]:     train_and_eval(h, device)
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4454, in train_and_eval
+[rank3]:     if compile_enabled:
+[rank3]:        ^^^^^^^^^^^^^^^
+[rank3]: NameError: name 'compile_enabled' is not defined. Did you mean: 'compile_elapsed'?
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4647, in <module>
+[rank5]:     main()
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4641, in main
+[rank5]:     train_and_eval(h, device)
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py", line 4454, in train_and_eval
+[rank5]:     if compile_enabled:
+[rank5]:        ^^^^^^^^^^^^^^^
+[rank5]: NameError: name 'compile_enabled' is not defined. Did you mean: 'compile_elapsed'?
+[rank0]:[W503 07:18:57.629920259 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+[rank1]:[W503 07:18:58.099625938 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[rank7]:[W503 07:18:58.110379517 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[rank6]:[W503 07:18:58.142569331 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[rank2]:[W503 07:18:58.551773028 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[rank4]:[W503 07:18:58.597566049 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[rank0]:[W503 07:18:58.672160143 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+W0503 07:18:59.388000 28930 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 28998 closing signal SIGTERM
+W0503 07:18:59.391000 28930 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 29000 closing signal SIGTERM
+W0503 07:18:59.391000 28930 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 29001 closing signal SIGTERM
+W0503 07:18:59.392000 28930 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 29002 closing signal SIGTERM
+W0503 07:18:59.393000 28930 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 29003 closing signal SIGTERM
+W0503 07:18:59.394000 28930 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 29004 closing signal SIGTERM
+W0503 07:18:59.395000 28930 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 29005 closing signal SIGTERM
+E0503 07:19:01.280000 28930 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 1 (pid: 28999) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/workspace/parameter-golf/records/track_10min_16mb/2026-05-03_SP8192_RandProj384_PairMuonQK_LegalTTT/train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-05-03_07:18:59
+  host      : f6b497c1899c
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 28999)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+[W503 07:19:01.439508924 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
