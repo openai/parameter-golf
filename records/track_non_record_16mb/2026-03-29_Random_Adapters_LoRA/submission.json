@@ -1,0 +1,12 @@
+{
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "name": "Learning Adapters on Random Linear Maps",
+  "blurb": "First random-linear-maps submission. Attention and MLP weights are frozen random orthogonal matrices (regenerated from seed, 0 bytes in artifact). Only LoRA adapters (rank 32) trained and stored. 30M effective params, 5.19 MB artifact. Sliding window eval only. 8xH100 SXM, 4307 steps at 129ms/step.",
+  "date": "2026-03-29T00:00:00Z",
+  "val_loss": 2.31399522,
+  "val_bpb": 1.37047831,
+  "bytes_total": 5191021,
+  "bytes_code": 75904,
+  "gpu": "8xH100 SXM"
+}
