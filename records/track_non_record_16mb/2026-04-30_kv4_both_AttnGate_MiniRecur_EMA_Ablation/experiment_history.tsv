@@ -1,0 +1,47 @@
+phase	run_name	seed	arch_layers	arch_mlp_mult	arch_kv	vocab	parallel_start	recur_layers	use_new_attention	use_k_gain	use_head_gate	muon_wd	ema_decay	eval_stride	last_step	last_live_bpb	pq_loss	pq_bpb	size_bytes	size_mb	source_log
+P1_shape_ablation	ablation_notie	1337			4										1000	1.3603	3.5393	1.3702	17280572	17.281	logs-2/ablation_notie.txt
+P1_shape_ablation	ablation_s4096	1337			4										1000	1.3801	3.6284	1.4047	15039402	15.039	logs-2/ablation_s4096.txt
+P1_shape_ablation	ablation_baseline	1337			4										1000	1.3844	3.6374	1.4081	15022415	15.022	logs-2/ablation_baseline.txt
+P1_shape_ablation	ablation_11L	1337			4										1000	1.3846	3.6399	1.4091	16354773	16.355	logs-2/ablation_11L.txt
+P1_shape_ablation	ablation_d576	1337			4										1000	1.3826	3.6423	1.41	17709382	17.709	logs-2/ablation_d576.txt
+P2_par_recur_grid	arch_par_l5_recur_45	42			4		5	4; 5				0.05		512	2500	1.2361	3.2953	1.2757	15032053	15.032	logs-2/arch_par_l5_recur_45.txt
+P2_par_recur_grid	arch_recur_4_5	42			4		-1	4; 5							1000	1.4596	3.8308	1.483	14765272	14.765	logs-2/arch_recur_4_5.txt
+P2_par_recur_grid	arch_baseline	42			4		-1								1000	1.4604	3.8312	1.4832	14802125	14.802	logs-2/arch_baseline.txt
+P2_par_recur_grid	arch_recur_5	42			4		-1	5							1000	1.461	3.8327	1.4837	14780346	14.78	logs-2/arch_recur_5.txt
+P2_par_recur_grid	arch_par_l6_recur_45	42			4		6	4; 5							1000	1.4615	3.8331	1.4839	14850224	14.85	logs-2/arch_par_l6_recur_45.txt
+P2_par_recur_grid	arch_recur_5_x2	42			4		-1	5							1000	1.4624	3.834	1.4843	14831992	14.832	logs-2/arch_recur_5_x2.txt
+P2_par_recur_grid	arch_par_l4	42			4		4								1000	1.4624	3.836	1.485	14697554	14.698	logs-2/arch_par_l4.txt
+P2_par_recur_grid	arch_par_l5	42			4		5								1000	1.4617	3.8369	1.4854	14814795	14.815	logs-2/arch_par_l5.txt
+P2_par_recur_grid	arch_par_l4_recur_5	42			4		4	5							1000	1.4626	3.8379	1.4858	14930872	14.931	logs-2/arch_par_l4_recur_5.txt
+P2_par_recur_grid	arch_par_l5_recur_56	42			4		5	5; 6							1000	1.4627	3.8381	1.4858	14691379	14.691	logs-2/arch_par_l5_recur_56.txt
+P2_par_recur_grid	arch_par_l6_recur_56	42			4		6	5; 6							1000	1.463	3.8396	1.4864	14846096	14.846	logs-2/arch_par_l6_recur_56.txt
+P2_par_recur_grid	arch_par_l5_recur_5x2	42			4		5	5							1000	1.4639	3.8405	1.4868	14746210	14.746	logs-2/arch_par_l5_recur_5x2.txt
+P2_par_recur_grid	arch_recur_4_5_6	42			4		-1	4; 5; 6							1000	1.4643	3.8459	1.4889	14540061	14.54	logs-2/arch_recur_4_5_6.txt
+P2_par_recur_grid	arch_par_l7_recur_456	42			4		7	4; 5; 6							1000	1.4693	3.8649	1.4962	14421094	14.421	logs-2/arch_par_l7_recur_456.txt
+P3_attn_ablation	exp_kv4_both	42	10	3	4	8192	5	4; 5				0.025		0	2500	1.2464	3.262996	1.263207	15025919	15.026	logs-1/exp_kv4_both.txt
+P3_attn_ablation	exp_kv4_headgate	42	10	3	4	8192	5	4; 5				0.025		0	2500	1.2478	3.271359	1.266445	14989580	14.99	logs-1/exp_kv4_headgate.txt
+P3_attn_ablation	exp_kv2_both	42	10	3	2	8192	5	4; 5				0.025		0	2500	1.2522	3.277462	1.268808	16271685	16.272	logs-1/exp_kv2_both.txt
+P3_attn_ablation	exp_baseline_kv4	42	10	3	4	8192	5	4; 5				0.025		0	2500	1.2465	3.279755	1.269695	15381968	15.382	logs-1/exp_baseline_kv4.txt
+P3_attn_ablation	exp_new_attn_kv4	42	10	3	4	8192	5	4; 5				0.025		0	2500	1.2481	3.279932	1.269764	15132737	15.133	logs-1/exp_new_attn_kv4.txt
+P3_attn_ablation	exp_kv4_kgain	42	10	3	4	8192	5	4; 5				0.025		0	2500	1.2492	3.280918	1.270146	15043918	15.044	logs-1/exp_kv4_kgain.txt
+P3_attn_ablation	exp_kv2_kgain	42	10	3	2	8192	5	4; 5				0.025		0	2500	1.2526	3.293634	1.275068	15936779	15.937	logs-1/exp_kv2_kgain.txt
+P3_attn_ablation	exp_new_attn_kv1	42	10	3	1	8192	5	4; 5				0.025		0	2500	1.2573	3.308609	1.280866	14846975	14.847	logs-1/exp_new_attn_kv1.txt
+P3_attn_ablation	exp_new_attn_kv2	42	10	3	2	8192	5	4; 5				0.025		0	2500	1.2541	3.309921	1.281374	16003453	16.003	logs-1/exp_new_attn_kv2.txt
+P4_8xh100_baseline	multi_par_l5_recur_45_64_sliding_eval	42			4		5	4; 5				0.015		0	6260	1.1604	3.0267	1.1717	16102293	16.102	logs-1/multi_par_l5_recur_45_64_sliding_eval.txt
+P4_8xh100_baseline	multi_par_l5_recur_45_64_sliding_eval_muon0.025	42			4		5	4; 5				0.025		64	6207	1.1654	3.0476	1.1798	14883135	14.883	logs-1/multi_par_l5_recur_45_64_sliding_eval_muon0.025.txt
+P4_8xh100_baseline	multi_par_l5_recur_45	42			4		5	4; 5				0.015		64	6872	1.1589	3.1999	1.2388	15026653	15.027	logs-1/multi_par_l5_recur_45.txt
+P5_no_EMA_3seed	exp_kv4_both_8xh100_2024	2024	10	3	4	8192	5	4; 5				0.025		64	8540	1.173	3.019598	1.168983	14862185	14.862	exp_kv4_both_8xh100_2024.txt
+P5_no_EMA_3seed	exp_kv4_both_8xh100	42	10	3	4	8192	5	4; 5				0.025		64	8526	1.1734	3.021308	1.169645	14883323	14.883	exp_kv4_both_8xh100.txt
+P5_no_EMA_3seed	exp_kv4_both_8xh100_1337	1337	10	3	4	8192	5	4; 5				0.025		64	8520	1.1738	3.022735	1.170197	14947101	14.947	exp_kv4_both_8xh100_1337.txt
+P6_EMA_3seed	exp_kv4_both_8xh100_EMA_1337	1337	10	3	4	8192	5	4; 5				0.025	0.9965	64	7419	1.1595	2.993812	1.159003	14867414	14.867	exp_kv4_both_8xh100_EMA_1337.txt
+P6_EMA_3seed	exp_kv4_both_8xh100_EMA_2024	2024	10	3	4	8192	5	4; 5				0.025	0.9965	64	7415	1.1613	2.999198	1.161088	14858254	14.858	exp_kv4_both_8xh100_EMA_2024.txt
+P6_EMA_3seed	exp_kv4_both_8xh100_EMA_42	42	10	3	4	8192	5	4; 5				0.025	0.9965	64	7418	1.1642	3.006437	1.16389	14877992	14.878	exp_kv4_both_8xh100_EMA_42.txt
+smoke	quick_smoke	42			4										50	2.1544	5.6826	2.1999	7282101	7.282	logs-2/quick_smoke.txt
+smoke	smoke_standard	42			4		5	4; 5				0.015		512	50	2.2493	5.8403	2.261	9186739	9.187	logs-1/smoke_standard.txt
+smoke	smoke_standard	42			4		5	4; 5				0.05		64	50	2.2491	5.8727	2.2735	7920265	7.92	logs-2/smoke_standard.txt
+smoke	smoke_recur	42			4		-1	5							20	2.5994	6.8914	2.6679	6016405	6.016	logs-2/smoke_recur.txt
+smoke	smoke_both	42			4		5	5							20	2.6012	6.916	2.6774	6079636	6.08	logs-2/smoke_both.txt
+smoke	smoke_off	42			4		-1								20	2.5991	6.929	2.6824	6168528	6.169	logs-2/smoke_off.txt
+smoke	smoke_par	42			4		5								20	2.6005	6.955	2.6925	6170172	6.17	logs-2/smoke_par.txt
+pre_experiment	sweep_lr_low	42			4																logs-2/sweep_lr_low.txt
+pre_experiment	train_baseline	42			4																logs-2/train_baseline.txt
