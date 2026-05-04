@@ -1,0 +1,13 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-11",
+  "author": "Tanush1912",
+  "title": "RecurLoRA v2: Pass Index Embeddings + Low-Rank Adapters on SP8192 Depth Recurrence",
+  "status": "pending_compute",
+  "base_techniques": "SP8192, 3-layer depth recurrence, parallel residuals, SDClip, MuonEq-R, QK-Gain 5.25, score-first TTT",
+  "novel_contribution": "Pass index embeddings (Universal Transformer-inspired, 3072 params) + rank-2 LoRA on attention projections (21507 params) for per-pass specialization in recurrent layers. Total overhead: 48KB (0.3% of 16MB budget)",
+  "results": {
+    "note": "Awaiting compute. Will update with 3-seed results.",
+    "seeds": [1337, 42, 314]
+  }
+}
