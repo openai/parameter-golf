@@ -1,0 +1,16 @@
+{
+  "author": "SkywardSyntax",
+  "github_id": "SkywardSyntax",
+  "name": "12L Low-Rank Q + QAT Research Pipeline (1xH100 development)",
+  "blurb": "12-layer transformer with Low-Rank Q factorization (r=128) and QAT, developed through a 3-stage pipeline: Apple Silicon prototyping → A100 validation → H100 refinement. Pre-quant val_bpb=1.2035 on 1xH100 (7900 steps). Includes clean negative results on FTLE-guided per-row precision (uniform quantization is strictly better) and Stride-OGD eval (too slow as-is). Awaiting 8xH100 compute for official scoring.",
+  "date": "2026-03-21T06:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null,
+  "track": "track_non_record_16mb",
+  "status": "awaiting_8xH100_compute",
+  "hardware_used": "1xH100 80GB (development)",
+  "pre_quant_val_bpb": 1.2035,
+  "projected_post_quant_bpb": 1.19
+}
