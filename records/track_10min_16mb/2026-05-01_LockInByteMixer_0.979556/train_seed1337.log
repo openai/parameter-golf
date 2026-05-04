@@ -1,0 +1,233 @@
+W0501 23:00:19.834000 292968 torch/distributed/run.py:803] 
+W0501 23:00:19.834000 292968 torch/distributed/run.py:803] *****************************************
+W0501 23:00:19.834000 292968 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0501 23:00:19.834000 292968 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: 
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  awq_lite_bits: 8
+  awq_lite_enabled: True
+  awq_lite_group_size: 64
+  awq_lite_group_top_k: 1
+  beta1: 0.9
+  beta2: 0.95
+  caseops_enabled: True
+  compressor: brotli
+  datasets_dir: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 6
+  embed_clip_sigmas: 15.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.85
+  eval_seq_len: 2560
+  eval_stride: 128
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 0.5
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/cond_ppm_seed1337.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 2
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 11.5
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  multi_exit_aux_weight: 0.1
+  multi_exit_enabled: False
+  multi_exit_layers: 4,6,8
+  multi_exit_mix_lr: 0.05
+  multi_exit_mix_steps: 80
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 5
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2000
+  ppm_byte_conditional_alpha: 25.0
+  ppm_byte_conditional_beta: 0.9999
+  ppm_byte_conditional_enabled: True
+  ppm_conf_threshold: 0.9
+  ppm_enabled: False
+  ppm_gate_mode: binary
+  ppm_lambda_hi: 0.9
+  ppm_lambda_lo: 0.05
+  ppm_mix_level: byte
+  ppm_order: 5
+  ppm_sigmoid_alpha: 15.0
+  ppm_sigmoid_beta: 0.8
+  ppm_subset_tokens: 5000000
+  ppm_token_conf_aggregate: mean
+  prequant_ttt_batch_seqs: 32
+  prequant_ttt_beta1: 0.9
+  prequant_ttt_beta2: 0.999
+  prequant_ttt_chunk_tokens: 32768
+  prequant_ttt_compile: True
+  prequant_ttt_enabled: False
+  prequant_ttt_epochs: 21
+  prequant_ttt_fedavg_weights: True
+  prequant_ttt_grad_clip: 1.0
+  prequant_ttt_lr: 0.0005
+  prequant_ttt_lr_final: 5e-05
+  prequant_ttt_optimizer: adamw
+  prequant_ttt_weight_decay: 0.0
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: cond_ppm_seed1337
+  scalar_lr: 0.02
+  seed: 1337
+  skip_gates_enabled: True
+  sliding_window_batch_seqs: 16
+  sliding_window_enabled: True
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 1.0
+  stoch_depth_max: 0.02
+  stoch_depth_schedule: linear
+  temp_cal_enabled: False
+  temp_cal_lr: 0.1
+  temp_cal_steps: 50
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: False
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 1.0
+  val_batch_tokens: 524288
+  val_bytes_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: ./data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.85
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 191
+val_tokens: 47851520
+model_params:35945671
+gptq:reserving 0s, effective=599500ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0070 val_bpb: 4.1155
+1/20000 train_loss: 9.0081 train_time: 0.0m tok/s: 11363660
+2/20000 train_loss: 13.0447 train_time: 0.0m tok/s: 11050278
+3/20000 train_loss: 10.2767 train_time: 0.0m tok/s: 9898471
+4/20000 train_loss: 8.7516 train_time: 0.0m tok/s: 9461543
+5/20000 train_loss: 7.9322 train_time: 0.0m tok/s: 9181326
+500/20000 train_loss: 2.7540 train_time: 0.8m tok/s: 8160756
+1000/20000 train_loss: 2.8037 train_time: 1.6m tok/s: 8128962
+1500/20000 train_loss: 2.7439 train_time: 2.4m tok/s: 8123551
+2000/20000 train_loss: 2.5105 train_time: 3.2m tok/s: 8124044
+2500/20000 train_loss: 2.6525 train_time: 4.0m tok/s: 8126867
+3000/20000 train_loss: 2.5891 train_time: 4.8m tok/s: 8129491
+3500/20000 train_loss: 2.6738 train_time: 5.6m tok/s: 8132298
+4000/20000 train_loss: 2.6863 train_time: 6.4m tok/s: 8134392
+4000/20000 val_loss: 2.5100 val_bpb: 1.1469
+4500/20000 train_loss: 2.4782 train_time: 7.2m tok/s: 8135604
+5000/20000 train_loss: 2.4559 train_time: 8.1m tok/s: 8138615
+layer_loop:enabled step:5274 frac:0.850 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+5500/20000 train_loss: 2.2726 train_time: 9.0m tok/s: 8036608
+5984/20000 val_loss: 2.3873 val_bpb: 1.0908
+stopping_early: wallclock_cap train_time: 599632ms step: 5984/20000
+peak memory allocated: 37566 MiB reserved: 42790 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.36431212 val_bpb:1.08030167 eval_time:11098ms
+Serialized model: 135417533 bytes
+Code size (uncompressed): 247422 bytes
+Code size (compressed): 42815 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians + 67 act_stats in 4.1s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+awqgrpint8+lqer_asym: tok_emb.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  passthrough (float16): blocks.attn.attn_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda
+Serialized model quantized+brotli: 15757591 bytes
+Total submission size quantized+brotli: 15800406 bytes
+diagnostic quantized val_loss:2.39181531 val_bpb:1.09286843 eval_time:12202ms
+cond_ppm tokens=47851520 bytes=164594398 cond_mix_bpb=0.979547 alpha=25.0 beta=0.9999 jit_seconds=115.7
+quantized_cond_ppm val_loss:2.33544778 val_bpb:0.97954725
+quantized_sliding_window val_loss:2.41030118 val_bpb:1.10141497 eval_time:208140ms
