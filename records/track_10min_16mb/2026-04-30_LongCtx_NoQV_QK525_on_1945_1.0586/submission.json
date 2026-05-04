@@ -1,0 +1,76 @@
+{
+  "author": "Andrew Baggio",
+  "github_id": "andrewbaggio1",
+  "name": "PR #1945 base + 2560 long-context + no_qv TTT mask + TTT LR 0.75 + QK_GAIN 5.25",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.05855370,
+  "val_bpb_std": 0.00029539,
+  "val_loss": 2.31650787,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.05824720,
+      "val_loss": 2.31583714,
+      "stop_step": 4895,
+      "train_wallclock_ms": 595955,
+      "eval_time_ms": 429969,
+      "artifact_bytes": 15988861,
+      "pre_quant_val_bpb": 1.06163175,
+      "quantized_val_bpb": 1.06993750,
+      "ttt_recovery_bpb": 0.01169030,
+      "wallclock_status": "strict under 600s"
+    },
+    "0": {
+      "val_bpb": 1.05846113,
+      "val_loss": 2.31630529,
+      "stop_step": 4896,
+      "train_wallclock_ms": 596123,
+      "eval_time_ms": 441503,
+      "artifact_bytes": 15988757,
+      "pre_quant_val_bpb": 1.06196584,
+      "quantized_val_bpb": 1.07029420,
+      "ttt_recovery_bpb": 0.01183307,
+      "wallclock_status": "strict under 600s"
+    },
+    "1234": {
+      "val_bpb": 1.05895276,
+      "val_loss": 2.31738117,
+      "stop_step": 4916,
+      "train_wallclock_ms": 596130,
+      "eval_time_ms": 513056,
+      "artifact_bytes": 15992914,
+      "pre_quant_val_bpb": 1.06199757,
+      "quantized_val_bpb": 1.07068689,
+      "ttt_recovery_bpb": 0.01173413,
+      "wallclock_status": "strict under 600s"
+    }
+  },
+  "stack_components": {
+    "base": "exact #1945 alertcat V21 record source: #1855 + #1908 AWQ-lite + #1923 Asymmetric Logit Rescale",
+    "eval_context": "EVAL_SEQ_LEN=2560 and TTT_EVAL_SEQ_LEN=2560",
+    "ttt_mask": "no_qv: TTT_Q_LORA=0, TTT_V_LORA=0, K/MLP/O/LM-head LoRA preserved",
+    "ttt_lr": "TTT_LOCAL_LR_MULT=0.75",
+    "qk_gain": "QK_GAIN_INIT=5.25",
+    "excluded": "slope0.3, Simon MATRIX_LR/PREFIX_DOCS changes, rotate/rank_offset loader, RANK56, HSM, MLPGate"
+  },
+  "compliance": {
+    "artifact_under_16mb": true,
+    "train_under_600s_strict": true,
+    "eval_under_600s": true,
+    "three_seeds": true,
+    "score_before_update": "inherits #1945 phased TTT score-first implementation; no_qv only removes Q/V LoRA adapters",
+    "no_pre_quant_ttt": true,
+    "no_loader_rotation": true
+  },
+  "comparison": {
+    "vs_submit_threshold_1.05893": -0.00037630,
+    "vs_alertcat_1945_mean_1.05943381": -0.00088011,
+    "vs_reproduced_1855_seed1234_1.06175657_on_seed1234": -0.00280381
+  },
+  "logs": {
+    "seed42": "train_seed42.log",
+    "seed0": "train_seed0.log",
+    "seed1234": "train_seed1234.log"
+  }
+}
