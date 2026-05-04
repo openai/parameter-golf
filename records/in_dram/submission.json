@@ -1,0 +1,15 @@
+{
+  "author": "Vassilios Kaxiras",
+  "github_id": "fingoldin",
+  "name": "In DRAM compute quantized ternary + int4",
+  "blurb": "Trained on 2xH100 SXM for 40 minutes. Ternary-quantized 10x1024 architecture targeting in-DRAM inference on unmodified DDR4 (RowCopy + MAJ3 primitives, per Kubo et al. 2025). Q/K/V/MLP weights are quantized to ternary + offset in 128-element blocks via a custom BitLinear; K and V activations are quantized to int4 with per-block offsets and scalings (SageAttention-style on K). STE makes training quantization-aware. Because ternary weights pack densely, the model widens to dim=1024 and deepens to 10 layers while keeping FFN and attention entirely in 4-bit arithmetic — matching or beating GPU latency and cutting energy ~75% per the in-DRAM GeMV reference.",
+  "date": "2026-05-01T00:00:00Z",
+  "pre_quant_val_loss": 2.0715,
+  "pre_quant_val_bpb": 1.2268,
+  "step_stop": 4391,
+  "wallclock_seconds": 2400.244,
+  "eval_time_seconds": 2400.244,
+  "bytes_total": 14950012,
+  "bytes_model_int8_zlib": 14896203,
+  "bytes_code": 53809
+}
