@@ -1,0 +1,18 @@
+{
+  "author": "Sebastian Laskowski",
+  "github_id": "Terraforming-Planet",
+  "name": "V5 SP1024 + Seq4096 (1xH100)",
+  "blurb": "Non-record 1xH100 submission on the official FineWeb sp1024 path. Uses TRAIN_SEQ_LEN=4096 and V5 code-side improvements to reach post-quant val_bpb 1.21430168 under the 16MB artifact cap.",
+  "date": "2026-04-17T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.05029752,
+  "val_bpb": 1.21430168,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": 6000,
+  "wallclock_seconds": 3218,
+  "bytes_total": 15841388,
+  "bytes_model_int8_zlib": 15793702,
+  "bytes_code": 47686,
+  "gpu": "1xH100"
+}

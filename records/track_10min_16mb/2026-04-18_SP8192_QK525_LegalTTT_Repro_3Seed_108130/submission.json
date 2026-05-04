@@ -1,0 +1,38 @@
+{
+  "author": "Sebastian Laskowski",
+  "github_id": "Terraforming-Planet",
+  "name": "SP8192 + QK-Gain 5.25 + Legal TTT Reproduction",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": 1.08130499,
+  "val_bpb_std": 0.00063240,
+  "seeds": [
+    42,
+    314,
+    999
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.7982063,
+      "val_bpb": 1.08041364
+    },
+    "314": {
+      "val_loss": 2.7941035,
+      "val_bpb": 1.08168719
+    },
+    "999": {
+      "val_loss": 2.79443824,
+      "val_bpb": 1.08181413
+    }
+  },
+  "hardware": "8xH100 80GB",
+  "technique_summary": "Independent 3-seed reproduction of the SP8192 + 3-layer recurrence + parallel residuals + QK-Gain 5.25 + legal score-first TTT stack.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "score_first_ttt": true,
+    "three_seeds": true,
+    "not_claiming_new_sota": true
+  }
+}

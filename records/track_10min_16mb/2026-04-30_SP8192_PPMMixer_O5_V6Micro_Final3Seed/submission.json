@@ -1,0 +1,19 @@
+{
+  "name": "SP8192 Byte-PPM O=5 + V6 Privacy-Web-Filtering Micro",
+  "author": "Sebastian Laskowski",
+  "github_id": "Terraforming-Planet",
+  "claiming_record_candidate": true,
+  "val_bpb": 0.9296755533333333,
+  "notes": "Final 8xH100 3-seed run. V6 is train-only sparse micro-injection; FineWeb validation untouched.",
+  "score_type": "ppm_mixer val_bpb",
+  "size_legal_all": true,
+  "dataset_modification": {
+    "uses_v6": true,
+    "v6_repo": "8Planetterraforming/Parameter-Golf-V6-Privacy-Web-Filtering",
+    "use": "train-only sparse micro-injection",
+    "injected_tokens": 8192,
+    "fineweb_validation": "untouched official fineweb_val files",
+    "disclosure": "V6_DATASET_DISCLOSURE.md",
+    "rebuild_script": "rebuild_and_run_v6_micro_8xh100.sh"
+  }
+}
