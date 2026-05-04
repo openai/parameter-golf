@@ -1,0 +1,17 @@
+{
+  "name": "SP8192 BPE + Mamba3 SSM Hybrid (d448, ssm_every_n:4, 1xH100, 30min)",
+  "val_bpb": 1.26060944,
+  "val_loss": 3.25624330,
+  "pre_quant_val_bpb": 1.2542,
+  "pre_quant_val_loss": 3.2398,
+  "bytes_total": 17260594,
+  "bytes_model_int8_zstd": 17028714,
+  "bytes_code": 231880,
+  "step_stop": 12278,
+  "wallclock_seconds": 1800.080,
+  "track": "non-record-16mb",
+  "blurb": "SP8192 BPE non-record run on 1xH100 with GPTQ int8+zstd export. Hybrid architecture: 9-layer stacked transformer with Mamba3 SSM blocks every 4th layer (2 SSM, 7 GQA attention). Trained for 30 minutes (1800s wallclock cap) with 20 warmup steps, SWA, and Muon optimizer. Over 16MB budget by ~1.26MB — demonstrates SSM hybrid viability for future budget-constrained entries.",
+  "author": "Dex Hunter",
+  "github_id": "dexhunter",
+  "date": "2026-04-30"
+}

@@ -1,0 +1,12 @@
+# mamba-ssm: install from GitHub source (requires CUDA toolkit):
+#   MAMBA_FORCE_BUILD=TRUE pip install --no-cache-dir --force-reinstall \
+#     git+https://github.com/state-spaces/mamba.git --no-build-isolation
+numpy
+tqdm
+huggingface-hub
+kernels
+setuptools
+typing-extensions==4.15.0
+datasets
+tiktoken
+sentencepiece
