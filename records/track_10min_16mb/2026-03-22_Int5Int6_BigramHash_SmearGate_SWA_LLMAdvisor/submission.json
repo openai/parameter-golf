@@ -1,0 +1,21 @@
+{
+  "author": "LLMAdvisor.ai",
+  "github_id": "harborglowvintage-oss",
+  "name": "10L Int5/Int6 + BigramHash(10240) + SmearGate + SWA Boost",
+  "blurb": "10L GQA (8h/4kv), MLP 3x relu^2, BigramHash(10240, dim=128), SmearGate, orthogonal init, U-Net skips. Mixed int5 MLP / int6 attention quantization + FP16 embeddings + zstd-22. Reduced batch (622592 tokens) for faster step throughput (~81ms, ~7370 steps in 600s). SWA boost: every=30 steps, start_frac=0.50, averaging 49 checkpoints. Sliding-window eval stride=64.",
+  "date": "2026-03-22",
+  "val_loss": 1.93561706,
+  "val_bpb": 1.14638448,
+  "seeds": [1337],
+  "seed_results": {
+    "1337_swa_boost": {"val_loss": 1.93561706, "val_bpb": 1.14638448, "note": "SWA_EVERY=30, SWA_START_FRAC=0.50, 49 ckpts"},
+    "1337_standard": {"val_loss": 1.93570710, "val_bpb": 1.14643781, "note": "SWA_EVERY=50, SWA_START_FRAC=0.36, 21 ckpts"},
+    "2024_wd2250": {"val_loss": 1.93680082, "val_bpb": 1.14708558, "note": "WARMDOWN=2250"}
+  },
+  "step_stop": 7372,
+  "wallclock_seconds": 599.989,
+  "eval_time_seconds": 258.721,
+  "bytes_total": 15736555,
+  "bytes_model_int6_zstd": 15673630,
+  "bytes_code": 62925
+}
