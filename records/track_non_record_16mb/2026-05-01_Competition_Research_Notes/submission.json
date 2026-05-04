@@ -1,0 +1,21 @@
+{
+  "kind": "non_record",
+  "title": "Competition Research Notes",
+  "author": "Himanshu Dongre",
+  "track": "track_non_record_16mb",
+  "leaderboard_claim": false,
+  "summary": "Research notes on mechanisms, legality, byte accounting, tokenization, eval-time memory, and small-model lessons from the 10min/16MB track.",
+  "companion_pr": 2110,
+  "major_topics": [
+    "clean neural and quantization frontier",
+    "tokenizer and representation work",
+    "token-level n-gram and byte/PPM eval methods",
+    "runtime memory gating",
+    "validation adaptation",
+    "byte accounting",
+    "small-model research lessons",
+    "production vs competition constraints",
+    "model memory vs working memory",
+    "distillation outside the competition rules"
+  ]
+}
