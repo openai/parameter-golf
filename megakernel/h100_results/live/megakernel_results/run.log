@@ -1,0 +1,107 @@
+[21:58:17] GPU: NVIDIA H100 80GB HBM3
+[21:58:17] Torch: 2.9.1+cu128  Triton: 3.5.1
+[21:58:17] CUDA cap: sm_90
+[21:58:17] TMA: AVAILABLE (Hopper HW)
+[21:58:17] 
+======================================================================
+[21:58:17] SECTION 1: Baseline Timings (reference for all comparisons)
+[21:58:17] ======================================================================
+[21:58:17]   BASELINE M=  4096  mlp=0.052ms  qkv=0.044ms
+[21:58:17]   BASELINE_MLP                                       M=  4096  fused=0.052ms  ref=0.052ms  speedup=1.000x
+[21:58:17]   BASELINE_QKV                                       M=  4096  fused=0.044ms  ref=0.044ms  speedup=1.000x
+[21:58:17]   BASELINE M= 16384  mlp=0.183ms  qkv=0.067ms
+[21:58:17]   BASELINE_MLP                                       M= 16384  fused=0.183ms  ref=0.183ms  speedup=1.000x
+[21:58:17]   BASELINE_QKV                                       M= 16384  fused=0.067ms  ref=0.067ms  speedup=1.000x
+[21:58:17]   BASELINE M= 73728  mlp=0.760ms  qkv=0.272ms
+[21:58:17]   BASELINE_MLP                                       M= 73728  fused=0.760ms  ref=0.760ms  speedup=1.000x
+[21:58:17]   BASELINE_QKV                                       M= 73728  fused=0.272ms  ref=0.272ms  speedup=1.000x
+[21:58:17] 
+======================================================================
+[21:58:17] SECTION 2: Triton Autotune — RMSNorm + QKV (ptr-based, all configs)
+[21:58:17] ======================================================================
+[21:58:17]   Total autotune configs: 576
+[22:06:11]   K2_QKV_AUTOTUNED                                   M=  4096  fused=0.102ms  ref=0.044ms  speedup=0.433x
+[22:08:21]   K2_QKV_AUTOTUNED                                   M= 16384  fused=0.100ms  ref=0.067ms  speedup=0.674x
+[22:10:36]   K2_QKV_AUTOTUNED                                   M= 73728  fused=0.223ms  ref=0.273ms  speedup=1.224x
+[22:10:36] 
+======================================================================
+[22:10:36] SECTION 3: Triton Autotune — RMSNorm + MLP activation (fused 2-op)
+[22:10:36] ======================================================================
+[22:15:49]   K1_MLP_AUTOTUNED                                   M=  4096  fused=0.051ms  ref=0.053ms  speedup=1.037x
+[22:16:58]   K1_MLP_AUTOTUNED                                   M= 16384  fused=0.125ms  ref=0.184ms  speedup=1.471x
+[22:18:12]   K1_MLP_AUTOTUNED                                   M= 73728  fused=0.583ms  ref=0.772ms  speedup=1.325x
+[22:18:12] 
+======================================================================
+[22:18:12] SECTION 4: TMA-based Kernels (Hopper sm_90)
+[22:18:12] ======================================================================
+[22:18:12]   TMA K2 M=4096 FAILED: unsupported format string passed to NoneType.__format__
+[22:18:12]   TMA K2 M=16384 FAILED: unsupported format string passed to NoneType.__format__
+[22:18:12]   TMA K2 M=73728 FAILED: unsupported format string passed to NoneType.__format__
+[22:18:12] 
+======================================================================
+[22:18:12] SECTION 5: 2-Pass RMSNorm+GEMM — compute stats first, apply in GEMM
+[22:18:12] ======================================================================
+[22:18:12]   2-pass M=4096 FAILED: unsupported format string passed to NoneType.__format__
+Traceback (most recent call last):
+  File "/workspace/autotune_24h.py", line 557, in <module>
+    record("K2_2PASS_QKV", {"type": "2pass"}, t_qkv, t_r_qkv, M)
+  File "/workspace/autotune_24h.py", line 86, in record
+    log(f"  {name:50s} M={M:6d}  fused={ms_fused:.3f}ms  ref={ms_ref:.3f}ms  speedup={status}")
+                                       ^^^^^^^^^^^^^^
+TypeError: unsupported format string passed to NoneType.__format__
+
+[22:18:12]   2-pass M=16384 FAILED: unsupported format string passed to NoneType.__format__
+Traceback (most recent call last):
+  File "/workspace/autotune_24h.py", line 557, in <module>
+    record("K2_2PASS_QKV", {"type": "2pass"}, t_qkv, t_r_qkv, M)
+  File "/workspace/autotune_24h.py", line 86, in record
+    log(f"  {name:50s} M={M:6d}  fused={ms_fused:.3f}ms  ref={ms_ref:.3f}ms  speedup={status}")
+                                       ^^^^^^^^^^^^^^
+TypeError: unsupported format string passed to NoneType.__format__
+
+[22:18:12]   2-pass M=73728 FAILED: unsupported format string passed to NoneType.__format__
+Traceback (most recent call last):
+  File "/workspace/autotune_24h.py", line 557, in <module>
+    record("K2_2PASS_QKV", {"type": "2pass"}, t_qkv, t_r_qkv, M)
+  File "/workspace/autotune_24h.py", line 86, in record
+    log(f"  {name:50s} M={M:6d}  fused={ms_fused:.3f}ms  ref={ms_ref:.3f}ms  speedup={status}")
+                                       ^^^^^^^^^^^^^^
+TypeError: unsupported format string passed to NoneType.__format__
+
+[22:18:12] 
+======================================================================
+[22:18:12] SECTION 6: Unified QKV (Q+K+V in one kernel, share K-loop over x)
+[22:18:12] ======================================================================
+[22:19:39]   K3_UNIFIED_QKV                                     M=  4096  fused=0.041ms  ref=0.044ms  speedup=1.058x
+[22:20:03]   K3_UNIFIED_QKV                                     M= 16384  fused=0.047ms  ref=0.070ms  speedup=1.505x
+[22:20:27]   K3_UNIFIED_QKV                                     M= 73728  fused=0.205ms  ref=0.278ms  speedup=1.356x
+[22:20:27] 
+======================================================================
+[22:20:27] SECTION 7: Extended scaling — M from 512 to 131072
+[22:20:27] ======================================================================
+[22:22:36]   K2_SCALE                                           M=   512  fused=0.099ms  ref=0.047ms  speedup=0.477x
+[22:24:44]   K2_SCALE                                           M=  1024  fused=0.099ms  ref=0.044ms  speedup=0.441x
+[22:26:53]   K2_SCALE                                           M=  2048  fused=0.100ms  ref=0.044ms  speedup=0.438x
+[22:26:53]   K2_SCALE                                           M=  4096  fused=0.100ms  ref=0.044ms  speedup=0.434x
+[22:29:39]   K2_SCALE                                           M=  8192  fused=0.101ms  ref=0.043ms  speedup=0.425x
+[22:29:39]   K2_SCALE                                           M= 16384  fused=0.100ms  ref=0.067ms  speedup=0.668x
+[22:31:51]   K2_SCALE                                           M= 32768  fused=0.103ms  ref=0.133ms  speedup=1.284x
+[22:34:06]   K2_SCALE                                           M= 65536  fused=0.193ms  ref=0.245ms  speedup=1.269x
+[22:34:06]   K2_SCALE                                           M= 73728  fused=0.233ms  ref=0.272ms  speedup=1.165x
+[22:36:24]   K2_SCALE                                           M=131072  fused=0.371ms  ref=0.473ms  speedup=1.276x
+[22:36:24] 
+======================================================================
+[22:36:24] FINAL REPORT
+[22:36:24] ======================================================================
+[22:36:24] 
+Top 10 kernels at M=73728:
+[22:36:24]   K3_UNIFIED_QKV                                      1.356x  fused=0.205ms  ref=0.278ms
+[22:36:24]   K1_MLP_AUTOTUNED                                    1.325x  fused=0.583ms  ref=0.772ms
+[22:36:24]   K2_QKV_AUTOTUNED                                    1.224x  fused=0.223ms  ref=0.273ms
+[22:36:24]   K2_SCALE                                            1.165x  fused=0.233ms  ref=0.272ms
+[22:36:24]   BASELINE_MLP                                        1.000x  fused=0.760ms  ref=0.760ms
+[22:36:24]   BASELINE_QKV                                        1.000x  fused=0.272ms  ref=0.272ms
+[22:36:24] 
+Done. Results written to /workspace/megakernel_results/
+[22:36:24]   results.json  — 41 records
+[22:36:24]   REPORT.md     — ranked table

@@ -1,0 +1,450 @@
+[
+  {
+    "name": "BASELINE_MLP",
+    "config": {
+      "type": "baseline"
+    },
+    "M": 4096,
+    "ms_fused": 0.05222772713750601,
+    "ms_ref": 0.05222772713750601,
+    "speedup": 1.0,
+    "extra": {}
+  },
+  {
+    "name": "BASELINE_QKV",
+    "config": {
+      "type": "baseline"
+    },
+    "M": 4096,
+    "ms_fused": 0.04398399963974953,
+    "ms_ref": 0.04398399963974953,
+    "speedup": 1.0,
+    "extra": {}
+  },
+  {
+    "name": "BASELINE_MLP",
+    "config": {
+      "type": "baseline"
+    },
+    "M": 16384,
+    "ms_fused": 0.18276039510965347,
+    "ms_ref": 0.18276039510965347,
+    "speedup": 1.0,
+    "extra": {}
+  },
+  {
+    "name": "BASELINE_QKV",
+    "config": {
+      "type": "baseline"
+    },
+    "M": 16384,
+    "ms_fused": 0.06680504884570837,
+    "ms_ref": 0.06680504884570837,
+    "speedup": 1.0,
+    "extra": {}
+  },
+  {
+    "name": "BASELINE_MLP",
+    "config": {
+      "type": "baseline"
+    },
+    "M": 73728,
+    "ms_fused": 0.7603746699169278,
+    "ms_ref": 0.7603746699169278,
+    "speedup": 1.0,
+    "extra": {}
+  },
+  {
+    "name": "BASELINE_QKV",
+    "config": {
+      "type": "baseline"
+    },
+    "M": 73728,
+    "ms_fused": 0.2724815160036087,
+    "ms_ref": 0.2724815160036087,
+    "speedup": 1.0,
+    "extra": {}
+  },
+  {
+    "name": "K2_QKV_AUTOTUNED",
+    "config": {
+      "best_config": "BLOCK_M: 64, BLOCK_N: 128, BLOCK_K: 64, num_warps: 8, num_ctas: 1, num_stages: 5, maxnreg: None",
+      "M": 4096
+    },
+    "M": 4096,
+    "ms_fused": 0.10180648416280746,
+    "ms_ref": 0.044033671729266644,
+    "speedup": 0.43252325322273805,
+    "extra": {}
+  },
+  {
+    "name": "K2_QKV_AUTOTUNED",
+    "config": {
+      "best_config": "BLOCK_M: 128, BLOCK_N: 128, BLOCK_K: 64, num_warps: 8, num_ctas: 1, num_stages: 3, maxnreg: None",
+      "M": 16384
+    },
+    "M": 16384,
+    "ms_fused": 0.09976033587008715,
+    "ms_ref": 0.06720850709825754,
+    "speedup": 0.6736996874767923,
+    "extra": {}
+  },
+  {
+    "name": "K2_QKV_AUTOTUNED",
+    "config": {
+      "best_config": "BLOCK_M: 128, BLOCK_N: 256, BLOCK_K: 64, num_warps: 8, num_ctas: 1, num_stages: 4, maxnreg: None",
+      "M": 73728
+    },
+    "M": 73728,
+    "ms_fused": 0.22263876162469387,
+    "ms_ref": 0.2725546760484576,
+    "speedup": 1.2242013657437958,
+    "extra": {}
+  },
+  {
+    "name": "K1_MLP_AUTOTUNED",
+    "config": {
+      "best_config": "BLOCK_M: 64, BLOCK_N: 128, BLOCK_K: 32, num_warps: 4, num_ctas: 1, num_stages: 4, maxnreg: None"
+    },
+    "M": 4096,
+    "ms_fused": 0.050730668008327484,
+    "ms_ref": 0.05262439139187336,
+    "speedup": 1.0373289660454503,
+    "extra": {}
+  },
+  {
+    "name": "K1_MLP_AUTOTUNED",
+    "config": {
+      "best_config": "BLOCK_M: 64, BLOCK_N: 256, BLOCK_K: 64, num_warps: 8, num_ctas: 1, num_stages: 3, maxnreg: None"
+    },
+    "M": 16384,
+    "ms_fused": 0.1253864960744977,
+    "ms_ref": 0.18442949745804071,
+    "speedup": 1.4708880400363284,
+    "extra": {}
+  },
+  {
+    "name": "K1_MLP_AUTOTUNED",
+    "config": {
+      "best_config": "BLOCK_M: 128, BLOCK_N: 256, BLOCK_K: 64, num_warps: 8, num_ctas: 1, num_stages: 5, maxnreg: None"
+    },
+    "M": 73728,
+    "ms_fused": 0.5825029266998172,
+    "ms_ref": 0.7715785363689065,
+    "speedup": 1.3245916904491815,
+    "extra": {}
+  },
+  {
+    "name": "K2_QKV_TMA",
+    "config": {
+      "type": "TMA"
+    },
+    "M": 4096,
+    "ms_fused": null,
+    "ms_ref": 0.04929983522742987,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_QKV_TMA",
+    "config": {
+      "type": "TMA"
+    },
+    "M": 16384,
+    "ms_fused": null,
+    "ms_ref": 0.06771611049771309,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_QKV_TMA",
+    "config": {
+      "type": "TMA"
+    },
+    "M": 73728,
+    "ms_fused": null,
+    "ms_ref": 0.27271864004433155,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_QKV",
+    "config": {
+      "type": "2pass"
+    },
+    "M": 4096,
+    "ms_fused": null,
+    "ms_ref": 0.0432267552241683,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_QKV",
+    "config": {
+      "type": "2pass"
+    },
+    "M": 16384,
+    "ms_fused": null,
+    "ms_ref": 0.0677527766674757,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_QKV",
+    "config": {
+      "type": "2pass"
+    },
+    "M": 73728,
+    "ms_fused": null,
+    "ms_ref": 0.27263197116553783,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K3_UNIFIED_QKV",
+    "config": {},
+    "M": 4096,
+    "ms_fused": 0.04124779254198074,
+    "ms_ref": 0.04364980384707451,
+    "speedup": 1.0582336934188434,
+    "extra": {}
+  },
+  {
+    "name": "K3_UNIFIED_QKV",
+    "config": {},
+    "M": 16384,
+    "ms_fused": 0.046703810803592205,
+    "ms_ref": 0.07028059102594852,
+    "speedup": 1.5048149137445315,
+    "extra": {}
+  },
+  {
+    "name": "K3_UNIFIED_QKV",
+    "config": {},
+    "M": 73728,
+    "ms_fused": 0.20502693485468626,
+    "ms_ref": 0.27803244534879923,
+    "speedup": 1.356077656556959,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 512
+    },
+    "M": 512,
+    "ms_fused": 0.09948528837412596,
+    "ms_ref": 0.04745898302644491,
+    "speedup": 0.4770452375628636,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 512
+    },
+    "M": 512,
+    "ms_fused": null,
+    "ms_ref": 0.04745898302644491,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 1024
+    },
+    "M": 1024,
+    "ms_fused": 0.09924862999469042,
+    "ms_ref": 0.043780491687357426,
+    "speedup": 0.44111935539764713,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 1024
+    },
+    "M": 1024,
+    "ms_fused": null,
+    "ms_ref": 0.043780491687357426,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 2048
+    },
+    "M": 2048,
+    "ms_fused": 0.09966831188648939,
+    "ms_ref": 0.04360660444945097,
+    "speedup": 0.43751723716474517,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 2048
+    },
+    "M": 2048,
+    "ms_fused": null,
+    "ms_ref": 0.04360660444945097,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 4096
+    },
+    "M": 4096,
+    "ms_fused": 0.10041619185358286,
+    "ms_ref": 0.04354583565145731,
+    "speedup": 0.43365352586713923,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 4096
+    },
+    "M": 4096,
+    "ms_fused": null,
+    "ms_ref": 0.04354583565145731,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 8192
+    },
+    "M": 8192,
+    "ms_fused": 0.10137428995221853,
+    "ms_ref": 0.04308970179408789,
+    "speedup": 0.42505552260240403,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 8192
+    },
+    "M": 8192,
+    "ms_fused": null,
+    "ms_ref": 0.04308970179408789,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 16384
+    },
+    "M": 16384,
+    "ms_fused": 0.10021586902439594,
+    "ms_ref": 0.06694243755191565,
+    "speedup": 0.6679824084109831,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 16384
+    },
+    "M": 16384,
+    "ms_fused": null,
+    "ms_ref": 0.06694243755191565,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 32768
+    },
+    "M": 32768,
+    "ms_fused": 0.10349573567509651,
+    "ms_ref": 0.1328878803178668,
+    "speedup": 1.283993774729433,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 32768
+    },
+    "M": 32768,
+    "ms_fused": null,
+    "ms_ref": 0.1328878803178668,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 65536
+    },
+    "M": 65536,
+    "ms_fused": 0.19304444547742605,
+    "ms_ref": 0.244903564453125,
+    "speedup": 1.268638234306323,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 65536
+    },
+    "M": 65536,
+    "ms_fused": null,
+    "ms_ref": 0.244903564453125,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 73728
+    },
+    "M": 73728,
+    "ms_fused": 0.23343410342931747,
+    "ms_ref": 0.27190495282411575,
+    "speedup": 1.164803894673629,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 73728
+    },
+    "M": 73728,
+    "ms_fused": null,
+    "ms_ref": 0.27190495282411575,
+    "speedup": null,
+    "extra": {}
+  },
+  {
+    "name": "K2_SCALE",
+    "config": {
+      "M": 131072
+    },
+    "M": 131072,
+    "ms_fused": 0.37070231046527624,
+    "ms_ref": 0.47306219581514597,
+    "speedup": 1.2761242173575764,
+    "extra": {}
+  },
+  {
+    "name": "K2_2PASS_SCALE",
+    "config": {
+      "M": 131072
+    },
+    "M": 131072,
+    "ms_fused": null,
+    "ms_ref": 0.47306219581514597,
+    "speedup": null,
+    "extra": {}
+  }
+]
