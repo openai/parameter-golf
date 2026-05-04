@@ -1,0 +1,18 @@
+{
+  "author": "Abhishek Dalvi",
+  "github_id": "Abhishek-Dalvi410",
+  "name": "Lottery Ticket Hypothesis with few Floats",
+  "blurb": "Supermask / LTH-style run on a 16x1024 KV4 SP-1024 transformer: all matmul weights are frozen at seed-derived init and only per-element binary masks plus a tiny set of continuous scale parameters are learned; the submission artifact is just the seed + bit-packed masks + fp16 scales, reaching val_bpb 1.2917 under the 16MB artifact cap on an A100-40GB.",
+  "date": "2026-04-20T00:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.18101480,
+  "val_bpb": 1.29171982,
+  "pre_quant_val_loss": 2.1810,
+  "pre_quant_val_bpb": 1.2917,
+  "step_stop": 50000,
+  "wallclock_seconds": 206285.390,
+  "bytes_total": 14891849,
+  "bytes_model_mask_zlib": 14845665,
+  "bytes_code": 46184,
+  "hardware": "NVIDIA A100-PCIE-40GB (1x), SLURM cluster"
+}
