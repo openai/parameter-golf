@@ -1,0 +1,9 @@
+seed=314
+eval_tokens=1048576
+model_bytes=15980750
+code_bytes=17545
+total_bytes=15998295
+control_int4_skip2_s314 val_loss:3.49532707 val_bpb:1.37206818 eval_time:25050ms
+candidate_int4_skip2_e4_s314 val_loss:3.34717138 val_bpb:1.31391062 eval_time:83060ms
+delta_bpb=-0.05815756
+train_loop_cap: stopping_early wallclock_cap train_time:589087ms step:598/20000
