@@ -1,0 +1,31 @@
+{
+  "name": "MHALM V2 — Multi-Head Atlas Language Model",
+  "author": "Alexandre Quemy",
+  "github_id": "aquemy",
+  "val_bpb": 1.3477,
+  "val_bpb_std": 0.004,
+  "seed_results": {
+    "seed1": {"val_loss": 2.2755, "val_bpb": 1.3477},
+    "seed2": {"val_loss": 2.2752, "val_bpb": 1.3475},
+    "seed3": {"val_loss": 2.2777, "val_bpb": 1.3490}
+  },
+  "artifact_bytes": 13160342,
+  "code_bytes": 90286,
+  "total_bytes": 13250628,
+  "training_time_seconds": 585,
+  "hardware": "8xH100 SXM",
+  "num_runs": 3,
+  "description": "Geometric language model with 3 Stäckel coordinate encoders (Stiefel-enforced), 5 kernel readout heads (Nyström, Gabor, Laplacian, Tucker GL, Linear), 2-pass FFT SSM + causal attention in z-space, Weyl spectral init. 18.3M params, 13.0 MB artifact (int8+zstd-22). Closes 47% of the V1→transformer gap.",
+  "techniques": [
+    "3 Stiefel-enforced chart encoders (512→160, 4-layer MLP, tanh+temperature)",
+    "5 kernel readout heads (Nyström Gegenbauer, Gabor, Laplacian RBF mix, Tucker GL, Linear)",
+    "2-pass temporal refinement: FFT SSM (cuFFT, Weyl spectral init) ∥ 8-head causal attention (RoPE, XSA)",
+    "Spatial + temporal paths combined at output (learned geom_scale gate)",
+    "Stäckel penalty (soft diagonal covariance, β=0.02)",
+    "Decoupled optimizer: Muon (2D matrices) + AdamW (scalars)",
+    "BigramHash (16384×160) + SmearGate",
+    "SWA, whole-model torch.compile with 3-step warmup",
+    "Int8 per-tensor quantisation + zstd-22 compression"
+  ],
+  "blog_post": "https://quemy.info/2026-04-29-mhalm-v3-lessons.html"
+}
