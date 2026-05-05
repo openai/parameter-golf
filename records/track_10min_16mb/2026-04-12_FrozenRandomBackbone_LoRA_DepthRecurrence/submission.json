@@ -1,0 +1,15 @@
+{
+  "track": "non_record_16mb",
+  "name": "Frozen Random Backbone + LoRA Adapters + Depth Recurrence",
+  "author": "Darrell",
+  "github_id": "dljr-github",
+  "date": "2026-04-12",
+  "val_bpb": 1.3220,
+  "val_loss": 3.4149,
+  "bytes_total": 13512579,
+  "step_stop": 439,
+  "wallclock_seconds": 593.5,
+  "eval_method": "sliding_window_stride256",
+  "gpu": "1xH100_80GB_SXM",
+  "blurb": "Frozen random backbone (reconstructed from seed, 0 artifact bytes) with rank-304 LoRA adapters. Only adapter weights are serialized. Combined with depth-recurrent virtual layers (loops 3-5, 2x), XSA, partial RoPE, GPTQ int6+brotli. 13.5MB artifact with 2.5MB headroom. Directly addresses the OpenAI wishlist item 'Learning adapters on random linear maps'."
+}
