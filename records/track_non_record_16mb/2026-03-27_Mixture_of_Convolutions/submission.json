@@ -1,0 +1,9 @@
+{
+  "author": "Andrew Mouldon",
+  "github_id": "andrewmouldon",
+  "name": "Mixture of Convolutions — Token-Adaptive Short Convolution",
+  "blurb": "MoC replaces static short convolution with token-adaptive kernels formed as mixtures over a small learned basis of convolution kernels. Directly builds on the initial naive baseline and is trained for a fixed 10k steps. Substantially improves over both the baseline and standard short convolution.",
+  "date": "2026-03-27T00:00:00Z",
+  "val_bpb": 1.2219,
+  "bytes_total": 15882081,
+}
