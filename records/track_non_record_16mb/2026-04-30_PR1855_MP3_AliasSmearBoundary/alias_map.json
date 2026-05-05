@@ -1,0 +1,25 @@
+{
+  "alias_map": {
+    "marker_pair_space_title": 8,
+    "marker_pair_space_allcaps": 9,
+    "marker_pair_space_capnext": 10
+  },
+  "marker_pairs": [
+    {
+      "donor": 8,
+      "marker_id": 4,
+      "marker_name": "TITLE"
+    },
+    {
+      "donor": 9,
+      "marker_id": 5,
+      "marker_name": "ALLCAPS"
+    },
+    {
+      "donor": 10,
+      "marker_id": 6,
+      "marker_name": "CAPNEXT"
+    }
+  ],
+  "note": "MP3: 3-marker fusion (TITLE + ALLCAPS + CAPNEXT). Word X preserved."
+}
