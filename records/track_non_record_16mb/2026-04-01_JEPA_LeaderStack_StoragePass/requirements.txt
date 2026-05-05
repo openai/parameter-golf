@@ -1,0 +1,2 @@
+# Uses the standard competition runtime from repo-root requirements.txt.
+# No additional Python packages beyond the base Parameter Golf environment.

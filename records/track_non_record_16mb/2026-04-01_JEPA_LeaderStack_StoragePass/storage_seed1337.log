@@ -1,0 +1,12 @@
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+storage_pass checkpoint=/workspace/parameter-golf/final_model.pt
+storage_pass quant_cats=['attn', 'embed', 'mlp', 'other'] drop_alias_export=True
+storage_pass quant_bytes=15826872
+storage_pass code_bytes=92888
+storage_pass estimated_total=15919760
+storage_pass_int6_roundtrip val_loss:1.93631299 val_bpb:1.14679362 eval_time:7863ms
+storage_pass_int6_sliding_window_exact val_loss:1.89564967 val_bpb:1.12271348 eval_time:76028ms
+storage_pass_final_exact val_loss:1.89564967 val_bpb:1.12271348
