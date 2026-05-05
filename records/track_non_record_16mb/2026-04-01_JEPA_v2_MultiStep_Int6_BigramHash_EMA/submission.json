@@ -1,0 +1,38 @@
+{
+    "name": "lucio",
+    "github_id": "luciobaiocchi",
+    "val_bpb": 1.4617,
+    "val_bpb_note": "Best ablation mode (bigram: LeakyReLU + BigramHash2048, no JEPA), 688 steps, 600s wallclock, RTX 5060 Ti. Pre-quantization. Roundtrip int6+lzma: 1.7594. Full ablation table in README.",
+    "track": "non_record_unlimited_compute",
+    "description": "JEPA v2: diagnoses why same-sequence next-k JEPA collapses in causal LMs (geometric root cause, not hyperparameter issue) and provides a full ablation suite. Also implements int6+LZMA compression, BigramHash(2048) embedding, artifact EMA, and LeakyReLU(0.5)^2.",
+    "hardware": "RTX 5060 Ti 16GB (local development)",
+    "date": "2026-04-04",
+    "status": "research_non_record",
+    "ablation_results": {
+        "baseline": {"steps": 690, "step_avg_ms": 870, "val_bpb_pre_quant": 1.4768, "val_bpb_roundtrip": 1.7406, "artifact_mb": 8.52},
+        "leaky":    {"steps": 689, "step_avg_ms": 871, "val_bpb_pre_quant": 1.4683, "val_bpb_roundtrip": 1.7207, "artifact_mb": 8.59},
+        "bigram":   {"steps": 688, "step_avg_ms": 872, "val_bpb_pre_quant": 1.4617, "val_bpb_roundtrip": 1.7594, "artifact_mb": 8.70},
+        "jepa":     {"steps": 406, "step_avg_ms": 1481, "val_bpb_pre_quant": 1.6224, "val_bpb_roundtrip": 2.7051, "artifact_mb": 5.53},
+        "full":     {"steps": 405, "step_avg_ms": 1482, "val_bpb_pre_quant": 1.6047, "val_bpb_roundtrip": 2.7971, "artifact_mb": 5.64}
+    },
+    "techniques": {
+        "jepa_multi_step_offsets": [1, 2, 4, 8],
+        "jepa_offset_weights": [1.0, 0.5, 0.25, 0.125],
+        "jepa_lambda": 0.12,
+        "jepa_ema_momentum": 0.9,
+        "bigram_vocab_size": 2048,
+        "artifact_ema_decay": 0.9999,
+        "quantization": "int6",
+        "compression": "lzma",
+        "activation": "leaky_relu_0.5_squared",
+        "mlp_leaky_slope_configurable": true
+    },
+    "bugs_diagnosed_in_v1_jepa": [
+        "EMA momentum 0.996 with <700 steps: target encoder barely diverges (1.72% weight update), JEPA task trivially easy",
+        "Single-step prediction (z[t]->z[t+1]) is redundant with CE objective for causal LMs",
+        "z_target computed from micro_batch[0] but paired with all 8 micro-steps (7/8 steps use mismatched batches)"
+    ],
+    "key_finding": "JEPA collapse persists even after fixing all three bugs. Root cause: consecutive positions in a causal LM share almost all context, making normalized representations inherently collinear. same-sequence next-k JEPA is near-zero MSE by construction, independent of momentum, prediction horizon, or training stage. Fix requires masking (I-JEPA style) or cross-sequence targets.",
+    "base_architecture": "11L 512-dim U-Net Transformer, mlp_mult=3, GQA 8q/4kv",
+    "jepa_overhead": "JEPA doubles step time (870ms -> 1481ms), halving steps in 600s budget (689 -> 406). Net effect: +0.154 BPB vs leaky baseline."
+}
