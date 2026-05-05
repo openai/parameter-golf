@@ -1,0 +1,73 @@
+{
+  "author": "Jundong Hu",
+  "github_id": "OnlyJundong",
+  "name": "PR #1855 + AWQ-lite (PR #1918) + AsymLogit (PR #2060) + GradCentral + LabelSmooth",
+  "blurb": "11L 512d 8H/4KV transformer integrating AWQ-lite from PR #1918 (activation-weighted saliency-protected int8 groups on tok_emb) and AsymLogit from PR #2060 (dual softcap_pos/softcap_neg) on top of the PR #1855 base. Additionally introduces gradient centralization support (GRAD_CENTRALIZE, default off) and label smoothing support (LABEL_SMOOTH, default 0.0) as optional code features. 3-seed mean: 1.05845 BPB, improving on PR #1855 base (1.06108 BPB) by 0.00263 BPB.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 2.31721592,
+  "val_bpb": 1.05845438,
+  "val_loss_std": 0.00018,
+  "val_bpb_std": 0.00058,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31742136,
+      "val_bpb": 1.05897113,
+      "artifact_bytes": 15978610,
+      "steps": 4919,
+      "step_avg_ms": 120.4,
+      "eval_time_s": 508.0
+    },
+    "0": {
+      "val_loss": 2.31709823,
+      "val_bpb": 1.05856489,
+      "artifact_bytes": 15976992,
+      "steps": 4920,
+      "step_avg_ms": 120.3,
+      "eval_time_s": 520.0
+    },
+    "1234": {
+      "val_loss": 2.31712816,
+      "val_bpb": 1.05782711,
+      "artifact_bytes": 15978588,
+      "steps": 4917,
+      "step_avg_ms": 120.4,
+      "eval_time_s": 510.2
+    }
+  },
+  "comparison_baseline_bpb": 1.06108,
+  "delta_vs_leaderboard_bpb": -0.00263,
+  "artifact_bytes_mean": 15978063,
+  "artifact_bytes_max": 15978610,
+  "train_steps_mean": 4918.67,
+  "step_avg_ms_mean": 120.4,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9+",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "technique_summary": "PR #1855 base + AWQ-lite from PR #1918 (saliency-protected int8 groups on tok_emb) + AsymLogit from PR #2060 (dual softcap_pos/softcap_neg). Code also adds gradient centralization (GRAD_CENTRALIZE, default off) and label smoothing (LABEL_SMOOTH=0.0, default off) as optional features. Inherited: 11L XSA, LQER asym int4 rank-4, GPTQ int6/int7, SparseAttnGate, BOS-fixed SmearGate, CaseOps SP8192, per-group lrzip, phased TTT 3-phase, No-QV TTT, TTT-local LR 0.75×, 9-hparam greedy stack.",
+  "compliance": {
+    "artifact_bytes_max": 15978610,
+    "train_time_max_s": 592.067,
+    "eval_time_max_s": 520.0,
+    "gptq_hessian_collection_s": 4.1,
+    "gptq_total_training_data_access_max_s": 596.167,
+    "gptq_within_budget_confirmed": true,
+    "note": "All seeds trained with GPTQ_RESERVE_SECONDS=8.0; training loop stopped at 592.067s, GPTQ hessians collected in 4.1s completing at ~596.2s, well within 600s budget."
+  },
+  "attribution": {
+    "this_pr": "@OnlyJundong (integration of AWQ-lite + AsymLogit; gradient centralization + label smoothing code features)",
+    "technique_prs": [
+      "#1918 @aquariouseworkman (AWQ-lite)",
+      "#2060 @S0urC10ud (AsymLogit)",
+      "#1855 @codemath3000 (base: 11L XSA + 9-hparam stack)",
+      "#1851 @aquariouseworkman (BOS fix)",
+      "#1797 @dexhunter (SmearGate + LQER asymmetric)",
+      "#1787 @nprime06 (base architecture)",
+      "#1729 @romeerp (CaseOps)",
+      "#1394 @clarkkev (GPTQ + SP8192)",
+      "#549 @abaybektursun (score-first TTT)"
+    ]
+  }
+}
