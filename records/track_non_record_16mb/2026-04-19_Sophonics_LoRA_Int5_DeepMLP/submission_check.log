@@ -1,0 +1,21 @@
+Device: cuda
+Loading model: artifacts/lora_int5_blocks78_mlp_r16_600_best.pt
+Loading validation tokens: /workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin
+Validation tokens: 62,021,632
+
+========================================================================
+FULL-VAL CHECK
+========================================================================
+    eval: 100% (60568/60568 seqs)
+Merged fp32 checkpoint               val_bpb=1.3522  val_loss=2.2831  (211s)
+    eval: 100% (60568/60568 seqs)
+Merged int8 roundtrip                val_bpb=1.3535  val_loss=2.2854  (211s)
+
+========================================================================
+ARTIFACT SIZE
+========================================================================
+bytes_model_int8_zlib: 10769165
+bytes_code: 73555
+bytes_total: 10842720
+fp32_val_bpb: 1.352204
+int8_val_bpb: 1.353521

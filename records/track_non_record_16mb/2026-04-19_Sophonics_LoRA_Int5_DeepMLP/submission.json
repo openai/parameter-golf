@@ -1,0 +1,15 @@
+{
+  "author": "F De Rivaz",
+  "github_id": "DesperateTomatoCultivator",
+  "name": "Sophonics LoRA Int5 DeepMLP",
+  "blurb": "Unlimited-compute non-record submission, freshly reproduced on 1xRTX5090: start from a compact trained base model, quantize it to int5, then train rank-16 LoRA repair modules only on the deepest two MLP blocks. The merged repaired checkpoint scores 1.3522 BPB on full validation and 1.3535 BPB after uniform int8+zlib roundtrip, with a total artifact size of 10,842,720 bytes.",
+  "date": "2026-04-29T21:05:32Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.2854,
+  "val_bpb": 1.353521,
+  "pre_quant_val_loss": 2.2831,
+  "pre_quant_val_bpb": 1.352204,
+  "bytes_total": 10842720,
+  "bytes_model_int8_zlib": 10769165,
+  "bytes_code": 73555
+}
