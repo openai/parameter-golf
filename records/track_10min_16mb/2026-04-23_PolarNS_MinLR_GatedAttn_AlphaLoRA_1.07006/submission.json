@@ -1,0 +1,61 @@
+{
+  "authors": [
+    {
+      "name": "Renqian Luo",
+      "github_id": "renqianluo"
+    }
+  ],
+  "description": "Polar Express Newton-Schulz coefficients (ported from @orangekame3 PR #1344) stacked with MIN_LR=0.10 warmdown floor, tight GPTQ_RESERVE_SECONDS=0.5, VAL_LOSS_EVERY=0, on top of our PR #1768 stack (GatedAttn + gate mirror in TTT path + per-row int8 gate quant + alpha=144 LoRA + warm-start A + WD=1.0). 3-seed mean 1.07006 BPB.",
+  "val_bpb": 1.07005686,
+  "seed_results": {
+    "1337": 1.07026727,
+    "42": 1.06964040,
+    "314": 1.07026291
+  },
+  "eval_time_seconds": {
+    "1337": 480.7,
+    "42": 474.4,
+    "314": 475.8
+  },
+  "train_time_seconds": {
+    "1337": 599.6,
+    "42": 599.6,
+    "314": 599.6
+  },
+  "artifact_size_bytes": {
+    "1337": 15977096,
+    "42": 15975978,
+    "314": 15975630
+  },
+  "methods": [
+    "Polar Express NS (ported from PR #1344): 5 per-iteration minimax-optimal (a,b,c) coefficients for Muon's Newton-Schulz iteration, replacing the single fixed (3.4445,-4.775,2.0315) tuple applied 5 times. Higher-quality polar factor per step at same backend_steps=5.",
+    "MIN_LR=0.10 warmdown floor (from PR #1787 @nprime06): floors LR warmdown at 10% of max instead of 0; final ~25% of training keeps delivering useful gradients.",
+    "GPTQ_RESERVE_SECONDS=0.5 (vs 4.0) + VAL_LOSS_EVERY=0 (from PR #1787 @nprime06): reclaim ~15s of 600s budget for depth-3 training steps.",
+    "PR #1768 stack (this author): per-head Gated Attention with gate mirrored in _block_with_lora and _parallel_block_with_lora (without mirror TTT silently skips the gate and collapses), per-row int8 quantization of attn_gate_w to stay under 16MB.",
+    "PR #1767 stack (this author): alpha/rank LoRA scaling, warm-start LoRA A across batches, TTT WD=1.0, alpha=144 on rank 128.",
+    "Base (phased TTT + VarLen + Fused MLP + multi-phase global SGD + SD-clip GPTQ): unchanged."
+  ],
+  "attribution": {
+    "polar_express_ns_coefficients": "Ported from PR #1344 (@orangekame3 et al)",
+    "min_lr_warmdown_floor__tight_gptq_reserve__disabled_val": "Ported from PR #1787 (@nprime06)",
+    "gate_mirror_ttt_path__per_row_int8_gate_quant": "Renqian Luo (PR #1768)",
+    "alpha_scaled_lora__warm_start_A__higher_wd__raised_alpha": "Renqian Luo (PR #1767)",
+    "gated_attention": "@dexhunter (PR #1736)",
+    "varlen_attention_fused_mlp_doc_ttt": "@samacqua (PR #1530)",
+    "phased_ttt_concept": "@romeerp (PR #1610)",
+    "multi_phase_global_sgd_trimmed_gptq": "@dexhunter",
+    "triple_recurrence_parallel_residuals": "@bigbag (PR #1493), @EthanYangTW (PR #1523)",
+    "legal_ttt_framework": "@abaybektursun (PR #549)"
+  },
+  "legal_ttt": true,
+  "compliance": {
+    "train_under_600s": true,
+    "eval_under_600s": true,
+    "artifact_under_16mb": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  }
+}
