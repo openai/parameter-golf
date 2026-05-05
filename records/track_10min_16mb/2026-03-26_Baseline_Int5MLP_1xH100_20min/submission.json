@@ -1,0 +1,9 @@
+{
+  "name": "Baseline 10L Int5-MLP + BigramHash + SWA on 1xH100 (20min)",
+  "val_loss": 1.26036672,
+  "bytes_total": 15815650,
+  "blurb": "Baseline reproduction of #1 submission on 1xH100 for 20min (vs 8xH100 10min). 10 layers, mixed int5/int6 quantization, BigramHash 10240, SWA frac=0.4, WD=0.04, zstd-22. Single seed run, val_bpb=1.2604.",
+  "author": "henrycashe26",
+  "github_id": "henrycashe26",
+  "date": "2026-03-26"
+}
