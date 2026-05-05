@@ -1,0 +1,31 @@
+2026-04-30 America/Los_Angeles
+
+Command:
+python3 -m py_compile records/track_non_record_16mb/2026-04-30_EchoHarp_RandomKitchenSink/train_gpt.py
+
+Result:
+passed
+
+Additional CPU shape/autograd smoke:
+Imported train_gpt.py with a dummy sentencepiece module, instantiated a tiny GPT with EchoHarp and random features, ran forward/backward on random token IDs.
+
+Observed:
+loss 2.7795159816741943
+echo_grads [True, True, True, True, True]
+adapter_grad True
+
+Additional synthetic repetition experiment:
+Trained only the five EchoHarp scalars on a toy repeated-phrase corpus with zero neural logits. Uniform-token cross entropy was 3.465736; learned EchoHarp reduced it to 2.262494 after 100 Adam steps. Learned scalars favored motif continuation, especially motif2_scale=4.60, while copy/unigram moved slightly negative.
+
+Toy ablation:
+uniform 3.465736
+copy_unigram 3.084475
+motif1_only 2.558011
+motif123 2.279458
+all_strings 2.270644
+
+Motif correctness spot check:
+For context [1,2,3,4,1,2,3,0] with only motif3_scale=1, position 6 boosted token 4 by 0.5, matching the earlier continuation after motif [1,2,3].
+
+Note:
+Re-run after replacing EchoCache with EchoHarp copy/recency/motif-1/motif-2/motif-3 continuation priors. Full training was not run in the local desktop environment because the local Python environment is missing sentencepiece and does not provide the challenge CUDA stack. Intended validation target: official RunPod Parameter Golf template.

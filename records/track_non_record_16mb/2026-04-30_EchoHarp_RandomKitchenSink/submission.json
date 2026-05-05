@@ -1,0 +1,20 @@
+{
+  "author": "Miles Nash",
+  "github_id": "milesnash",
+  "name": "EchoHarp + Random Kitchen Sink",
+  "blurb": "Late-minute non-record research draft: a tiny neural model playing a classic-compressor harp. EchoHarp adds causal copy, recency, and variable-order motif continuation echoes using only input context and five learned scalar strings. A deterministic random kitchen-sink adapter adds a procedural nonlinear lift regenerated from a seed, so only the down-projection, gate, vocabulary prior, and EchoHarp scalars are stored. A small 1xH100 RunPod probe ran end-to-end under the 16MB artifact cap, but slightly trailed the matched baseline.",
+  "date": "2026-04-30",
+  "track": "non-record-16mb",
+  "status": "runpod_probe_completed_not_leaderboard_comparable",
+  "val_loss": 4.28952378,
+  "val_bpb": 2.5404976,
+  "pre_quant_val_loss": 4.2881,
+  "pre_quant_val_bpb": 2.5397,
+  "step_stop": 50,
+  "wallclock_seconds": 36.87,
+  "bytes_total": 8865600,
+  "bytes_model_int8_zlib": 8810193,
+  "bytes_code": 55407,
+  "hardware": "RunPod 1x H100 SXM probe, one sp1024 train shard, 50 steps; not an official 8xH100 leaderboard run",
+  "technique_summary": "Official clean baseline plus EchoHarp causal compressor prior (copy/recency/motif-1/motif-2/motif-3 continuation echoes), RANDOM_FEATURES=192 deterministic ReLU^2 random kitchen-sink adapter, and learned vocabulary logit prior. Frozen random_up buffer is persistent=False and regenerated from RANDOM_FEATURE_SEED=20260430. Tiny matched probe: baseline 2.538749 roundtrip BPB, EchoHarp-only 2.539374, EchoHarp+RFA 2.540498."
+}
