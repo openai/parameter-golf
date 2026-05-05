@@ -1,0 +1,362 @@
+root@e24cbb578f3c:/workspace/parameter-golf# CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+SEQ_LEN=8192 \
+N_UNIQUE_BLOCKS=10 \
+ATTN_LAYER_IDXS=6 \
+FFN_MULT=3 \
+FFN_ACTIVE_POLICY=all \
+EMBED_DIM=512 \
+BIGRAM_ENABLED=1 \
+HEADDIM=64 \
+DT_MIN=0.0005 \
+DT_MAX=0.05 \
+SEQ_IDX_ENABLED=1 \
+DOC_BOUNDARY_TOKEN=1 \
+CARRYOVER_EVAL_ENABLED=0 \
+SCORE_FIRST_TTT_ENABLED=0 \
+TTT_ENABLED=0 \
+RUN_POSTQUANT=1 \
+QUANT_FORMAT=fullmuon_aggressive_lzma \
+QUANT_BITS_FFN_GATE=3 \
+QUANT_BITS_FFN_DOWN=4 \
+QUANT_BITS_MAMBA=4 \
+QUANT_BITS_ATTN=5 \
+QUANT_BITS_EMBED=6 \
+QUANT_BITS_MATRIX=5 \
+QUANT_PACK_ALL=1 \
+QUANT_PASSTHROUGH_NUMEL=65536 \
+QUANT_K_FFN_GATE=12.85 \
+QUANT_K_FFN_DOWN=12.85 \
+QUANT_K_MAMBA=12.85 \
+QUANT_K_ATTN=12.85 \
+QUANT_K_EMBED=20.0 \
+QUANT_SCALE_FLOOR_MULT=1.0 \
+QUANT_PROTECT_DYNAMICS=1 \
+QUANT_OPTCLIP_EMBED=1 \
+QUANT_OPTCLIP_STEPS=8 \
+QUANT_AUTO_PRUNE_TO_BYTES=1 \
+QUANT_TARGET_BYTES=15850000 \
+QUANT_AUTO_PRUNE_FRACS=0,0.25,0.40,0.55,0.70,0.85 \
+QUANT_LZMA_PRESET=9 \
+QUANT_LZMA_EXTREME=1 \
+MAX_WALLCLOCK_SECONDS=600 \
+torchrun --standalone --nproc_per_node=8 \
+ssm_recall_sota_sp8192_fullmuon_final_compress.py \
+| tee /workspace/fullmuon_final_compress.log
+W0430 23:48:48.496000 199510 torch/distributed/run.py:803] 
+W0430 23:48:48.496000 199510 torch/distributed/run.py:803] *****************************************
+W0430 23:48:48.496000 199510 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0430 23:48:48.496000 199510 torch/distributed/run.py:803] *****************************************
+Project root: /workspace/parameter-golf-repo
+GPU inventory:
+{'rank': 0, 'local_rank': 0, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 1, 'local_rank': 1, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 2, 'local_rank': 2, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 3, 'local_rank': 3, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 4, 'local_rank': 4, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 5, 'local_rank': 5, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 6, 'local_rank': 6, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 7, 'local_rank': 7, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+AMP dtype: torch.bfloat16
+Config: 10 unique x 1 unrolls = 10 effective layers
+d_model=512, d_state=64, ffn_mult=3, memory_dim=256
+mamba2: headdim=64, nheads=16, dt_min=0.0005, dt_max=0.05
+seq_idx: enabled=True, doc_boundary_token=1 (-1 to disable)
+carryover_eval: enabled=False, block_len=8192, overlap=1024, warmup_tokens=0, direct_kernel=True
+ffn_every=1, ffn_freq_mode=layer
+ffn_active_policy=all, ffn_active_idxs=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+train_batch_tok(global)=524288, local_batch_tok=65536, grad_accum=1
+effective_batch_tok/step=524288, micro_batch_tok/rank=65536
+warmup_steps=20, iterations=20000, max_wallclock_seconds=600.0
+lr_schedule=cosine_late, lr_min_scale=0.0, enable_s4d_init=True
+stream_chunks=1, bptt_chunks=1
+mixed_length_curriculum=0, curriculum_steps=1500
+use_async_loader=True
+use_memory=False, use_torch_compile=True
+vocab=8192, factored_embed_dim=512 (enabled)
+hybrid_attn: layer_idxs=[6], n_heads=8, qk_gain_init=5.25
+compression_defaults: Option-A full-Muon baseline + aggressive role-bit packed LZMA artifact
+activation: swiglu
+depth_recur: loop=[-1..-1] activate@0.35
+score_first_ttt: enabled=False, chunk=32768, lr=0.005, epochs=3
+bigram: enabled=True, buckets=10240, dim=128
+swa: enabled=False, start_frac=0.15, every=50
+eval_stride=64
+postquant: run_postquant=True
+compression_quant: format=fullmuon_aggressive_lzma, pack_all=True, bits(ffn_gate/down=3/4, mamba=4, attn=5, embed=6, other=5), passthrough_numel<=65536, k(ffn_gate/down=12.85/12.85, mamba=12.85, attn=12.85, embed=20.0, other=12.85), scale_floor_mult=1.0, protect_dynamics=True, optclip_embed=True, prune_ones_frac=0.0, auto_prune=True, target_bytes=15850000, lzma_preset=9, extreme=True
+ema: enabled=False, decay=0.9965
+optimizer: matrix_lr=0.022, scalar_lr=0.02, embed_lr=0.03, wd=0.095, grad_clip=0.3
+batch_warmup: steps=0, start_frac=0.25
+ttt: enabled=False, per_seq_steps=5, per_seq_lr=0.001, params=in_proj, max_seqs=256
+ttt_global: steps=10, lr=0.0002, batch_seqs=16, passes=1, grad_clip=1.0
+hybrid_optimizer: muon_momentum=0.99, muon_momentum_warmup=0.85->0.99 over 500 steps, muon_backend_steps=5, muon_nesterov=True
+Val tokens: 40,534,016 (full: 40,534,016)
+FFN instantiated on layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] / 10
+Model parameters: 45,651,000
+S4D init applied to 9 module(s), skipped 0
+Pre-cast 53 parameters to torch.bfloat16
+torch_compile: enabled
+Optimizer split: matrix=45 (Muon), scalar/control=106 (AdamW), embed=1 (AdamW)
+Muon config: muon_only_2d=1 eligible_2d=45 eligible_nd=9
+Training for up to 20000 steps (cap=600.0s)
+Replay: will reset data stream at 0% wall time
+step:1/20000 loss:9.0139 lr:0.000 tok/s_inst:22565 tok/s_avg:22565
+step:2/20000 loss:9.0143 lr:0.050 tok/s_inst:3656286 tok/s_avg:44853
+step:3/20000 loss:8.9337 lr:0.100 tok/s_inst:3811936 tok/s_avg:66886
+step:4/20000 loss:8.6914 lr:0.150 tok/s_inst:4181807 tok/s_avg:88708
+step:5/20000 loss:8.2148 lr:0.200 tok/s_inst:4197139 tok/s_avg:110302
+step:500/20000 loss:3.5009 lr:1.000 tok/s_inst:3833257 tok/s_avg:2865939
+step:1000/20000 loss:3.3001 lr:1.000 tok/s_inst:3669007 tok/s_avg:3218129
+step:1500/20000 loss:3.0895 lr:0.969 tok/s_inst:4039367 tok/s_avg:3452074
+step:2000/20000 loss:3.1251 lr:0.836 tok/s_inst:3934410 tok/s_avg:3561220
+step:2500/20000 loss:3.0474 lr:0.626 tok/s_inst:3760014 tok/s_avg:3599279
+step:3000/20000 loss:3.0310 lr:0.380 tok/s_inst:4050200 tok/s_avg:3667329
+step:3500/20000 loss:2.9403 lr:0.172 tok/s_inst:3847724 tok/s_avg:3692057
+step:4000/20000 loss:2.5302 lr:0.031 tok/s_inst:3718526 tok/s_avg:3695345
+Training complete: 4300 steps in 605.7s
+stopping_early: wallclock_cap at step 4300/20000
+All ranks synced. Starting evaluation...
+Final val_loss:2.8533 val_bpb:1.1046
+Best (standard): live val_loss:2.8533 val_bpb:1.1046
+Running sliding window eval (stride=64)...
+  sliding_eval: 10% (494/4947 batches, eta:216s)
+  sliding_eval: 20% (988/4947 batches, eta:192s)
+  sliding_eval: 30% (1482/4947 batches, eta:168s)
+  sliding_eval: 40% (1976/4947 batches, eta:144s)
+  sliding_eval: 50% (2470/4947 batches, eta:120s)
+  sliding_eval: 60% (2964/4947 batches, eta:96s)
+  sliding_eval: 70% (3458/4947 batches, eta:72s)
+  sliding_eval: 80% (3952/4947 batches, eta:48s)
+  sliding_eval: 90% (4446/4947 batches, eta:24s)
+  sliding_eval: 100% (4940/4947 batches, eta:0s)
+  sliding_eval: 79152 windows/rank, stride=64, 5065728 scored tokens, 240.3s
+Sliding val_loss:2.8410 val_bpb:1.0998
+Sliding vs standard: bpb=+0.0048
+Quantizing model with aggressive role-bit packing + LZMA...
+Quant candidate prune=0.000: compressed=10,910,872 bytes, raw=23,043,073, packed_bytes=22,417,408, byte_q=0, ones=0, pruned=0
+Selected quant prune=0.000: byte_q_tensors=0, packed_q_tensors=44, passthrough=108, alias=1, packed_bytes=22,417,408, byte_q_numel=0, approx_payload=21.91 MiB
+Role quantized numel: {'embedding': 6029312, 'mamba': 14819328, 'ffn_gate': 15728640, 'ffn_down': 7864320, 'attention': 1048576}
+Role packed/byte payload bytes: {'embedding': 4521984, 'mamba': 7409664, 'ffn_gate': 5898240, 'ffn_down': 3932160, 'attention': 655360}
+Serialized raw torch.save: 23,043,073 bytes (21.98 MiB)
+Compressed model (lzma9+extreme): 10,910,872 bytes (10.41 MiB)
+Artifact size check: UNDER 16,000,000-byte cap before code bytes
+Post-quant val_loss:5.4479 val_bpb:2.1090
+  sliding_eval: 10% (494/4947 batches, eta:211s)
+  sliding_eval: 20% (988/4947 batches, eta:188s)
+  sliding_eval: 30% (1482/4947 batches, eta:165s)
+  sliding_eval: 40% (1976/4947 batches, eta:141s)
+  sliding_eval: 50% (2470/4947 batches, eta:118s)
+  sliding_eval: 60% (2964/4947 batches, eta:94s)
+  sliding_eval: 70% (3458/4947 batches, eta:71s)
+  sliding_eval: 80% (3952/4947 batches, eta:47s)
+  sliding_eval: 90% (4446/4947 batches, eta:24s)
+  sliding_eval: 100% (4940/4947 batches, eta:0s)
+  sliding_eval: 79152 windows/rank, stride=64, 5065728 scored tokens, 235.2s
+Post-quant sliding val_loss:5.4887 val_bpb:2.1248
+Saved artifact: final_model.fullmuon_aggressive_lzma.lzma (10,910,872 bytes)
+[W501 00:07:48.717815758 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:07:48.737562968 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:07:48.933850414 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:07:48.041481717 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:07:48.089871022 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:07:48.164046829 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:07:48.207233744 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:07:48.211073294 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+root@e24cbb578f3c:/workspace/parameter-golf# CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+SEQ_LEN=8192 \
+N_UNIQUE_BLOCKS=10 \
+ATTN_LAYER_IDXS=6 \
+FFN_MULT=3 \
+FFN_ACTIVE_POLICY=all \
+EMBED_DIM=512 \
+BIGRAM_ENABLED=1 \
+HEADDIM=64 \
+DT_MIN=0.0005 \
+DT_MAX=0.05 \
+SEQ_IDX_ENABLED=1 \
+DOC_BOUNDARY_TOKEN=1 \
+CARRYOVER_EVAL_ENABLED=0 \
+SCORE_FIRST_TTT_ENABLED=0 \
+TTT_ENABLED=0 \
+RUN_POSTQUANT=1 \
+QUANT_FORMAT=fullmuon_aggressive_lzma \
+QUANT_BITS_FFN_GATE=4 \
+QUANT_BITS_FFN_DOWN=4 \
+QUANT_BITS_MAMBA=5 \
+QUANT_BITS_ATTN=5 \
+QUANT_BITS_EMBED=6 \
+QUANT_BITS_MATRIX=5 \
+QUANT_PACK_ALL=1 \
+QUANT_PASSTHROUGH_NUMEL=65536 \
+QUANT_K_FFN_GATE=12.85 \
+QUANT_K_FFN_DOWN=12.85 \
+QUANT_K_MAMBA=12.85 \
+QUANT_K_ATTN=12.85 \
+QUANT_K_EMBED=20.0 \
+QUANT_SCALE_FLOOR_MULT=1.0 \
+QUANT_PROTECT_DYNAMICS=1 \
+QUANT_OPTCLIP_EMBED=1 \
+QUANT_OPTCLIP_STEPS=8 \
+QUANT_AUTO_PRUNE_TO_BYTES=0 \
+QUANT_TARGET_BYTES=15850000 \
+QUANT_AUTO_PRUNE_FRACS=0.25 \
+QUANT_LZMA_PRESET=9 \
+QUANT_LZMA_EXTREME=1 \
+MAX_WALLCLOCK_SECONDS=600 \
+torchrun --standalone --nproc_per_node=8 \
+ssm_recall_sota_sp8192_fullmuon_final_compress.py \
+| tee /workspace/fullmuon_final_compress.log
+W0501 00:08:26.513000 201125 torch/distributed/run.py:803] 
+W0501 00:08:26.513000 201125 torch/distributed/run.py:803] *****************************************
+W0501 00:08:26.513000 201125 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0501 00:08:26.513000 201125 torch/distributed/run.py:803] *****************************************
+Project root: /workspace/parameter-golf-repo
+GPU inventory:
+{'rank': 0, 'local_rank': 0, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 1, 'local_rank': 1, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 2, 'local_rank': 2, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 3, 'local_rank': 3, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 4, 'local_rank': 4, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 5, 'local_rank': 5, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 6, 'local_rank': 6, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+{'rank': 7, 'local_rank': 7, 'name': 'NVIDIA H100 80GB HBM3', 'total_mem_gb': 79.19}
+AMP dtype: torch.bfloat16
+Config: 10 unique x 1 unrolls = 10 effective layers
+d_model=512, d_state=64, ffn_mult=3, memory_dim=256
+mamba2: headdim=64, nheads=16, dt_min=0.0005, dt_max=0.05
+seq_idx: enabled=True, doc_boundary_token=1 (-1 to disable)
+carryover_eval: enabled=False, block_len=8192, overlap=1024, warmup_tokens=0, direct_kernel=True
+ffn_every=1, ffn_freq_mode=layer
+ffn_active_policy=all, ffn_active_idxs=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+train_batch_tok(global)=524288, local_batch_tok=65536, grad_accum=1
+effective_batch_tok/step=524288, micro_batch_tok/rank=65536
+warmup_steps=20, iterations=20000, max_wallclock_seconds=600.0
+lr_schedule=cosine_late, lr_min_scale=0.0, enable_s4d_init=True
+stream_chunks=1, bptt_chunks=1
+mixed_length_curriculum=0, curriculum_steps=1500
+use_async_loader=True
+use_memory=False, use_torch_compile=True
+vocab=8192, factored_embed_dim=512 (enabled)
+hybrid_attn: layer_idxs=[6], n_heads=8, qk_gain_init=5.25
+compression_defaults: Option-A full-Muon baseline + aggressive role-bit packed LZMA artifact
+activation: swiglu
+depth_recur: loop=[-1..-1] activate@0.35
+score_first_ttt: enabled=False, chunk=32768, lr=0.005, epochs=3
+bigram: enabled=True, buckets=10240, dim=128
+swa: enabled=False, start_frac=0.15, every=50
+eval_stride=64
+postquant: run_postquant=True
+compression_quant: format=fullmuon_aggressive_lzma, pack_all=True, bits(ffn_gate/down=4/4, mamba=5, attn=5, embed=6, other=5), passthrough_numel<=65536, k(ffn_gate/down=12.85/12.85, mamba=12.85, attn=12.85, embed=20.0, other=12.85), scale_floor_mult=1.0, protect_dynamics=True, optclip_embed=True, prune_ones_frac=0.0, auto_prune=False, target_bytes=15850000, lzma_preset=9, extreme=True
+ema: enabled=False, decay=0.9965
+optimizer: matrix_lr=0.022, scalar_lr=0.02, embed_lr=0.03, wd=0.095, grad_clip=0.3
+batch_warmup: steps=0, start_frac=0.25
+ttt: enabled=False, per_seq_steps=5, per_seq_lr=0.001, params=in_proj, max_seqs=256
+ttt_global: steps=10, lr=0.0002, batch_seqs=16, passes=1, grad_clip=1.0
+hybrid_optimizer: muon_momentum=0.99, muon_momentum_warmup=0.85->0.99 over 500 steps, muon_backend_steps=5, muon_nesterov=True
+Val tokens: 40,534,016 (full: 40,534,016)
+FFN instantiated on layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] / 10
+Model parameters: 45,651,000
+S4D init applied to 9 module(s), skipped 0
+Pre-cast 53 parameters to torch.bfloat16
+torch_compile: enabled
+Optimizer split: matrix=45 (Muon), scalar/control=106 (AdamW), embed=1 (AdamW)
+Muon config: muon_only_2d=1 eligible_2d=45 eligible_nd=9
+Training for up to 20000 steps (cap=600.0s)
+Replay: will reset data stream at 0% wall time
+step:1/20000 loss:9.0139 lr:0.000 tok/s_inst:23203 tok/s_avg:23203
+step:2/20000 loss:9.0143 lr:0.050 tok/s_inst:3423961 tok/s_avg:46093
+step:3/20000 loss:8.9337 lr:0.100 tok/s_inst:4177439 tok/s_avg:68760
+step:4/20000 loss:8.6914 lr:0.150 tok/s_inst:4204589 tok/s_avg:91183
+step:5/20000 loss:8.2330 lr:0.200 tok/s_inst:4218543 tok/s_avg:113366
+step:500/20000 loss:3.3658 lr:1.000 tok/s_inst:3831194 tok/s_avg:2885047
+step:1000/20000 loss:3.2679 lr:1.000 tok/s_inst:3795676 tok/s_avg:3278299
+step:1500/20000 loss:3.1632 lr:0.972 tok/s_inst:3952296 tok/s_avg:3475883
+step:2000/20000 loss:3.1221 lr:0.838 tok/s_inst:3909348 tok/s_avg:3574981
+step:2500/20000 loss:3.0176 lr:0.633 tok/s_inst:3773212 tok/s_avg:3612943
+step:3000/20000 loss:2.8015 lr:0.382 tok/s_inst:3974155 tok/s_avg:3668515
+step:3500/20000 loss:3.0344 lr:0.164 tok/s_inst:3631369 tok/s_avg:3663162
+step:4000/20000 loss:2.8274 lr:0.025 tok/s_inst:3657947 tok/s_avg:3662509
+Training complete: 4300 steps in 611.0s
+stopping_early: wallclock_cap at step 4300/20000
+All ranks synced. Starting evaluation...
+Final val_loss:2.8551 val_bpb:1.1053
+Best (standard): live val_loss:2.8551 val_bpb:1.1053
+Running sliding window eval (stride=64)...
+  sliding_eval: 10% (494/4947 batches, eta:217s)
+  sliding_eval: 20% (988/4947 batches, eta:193s)
+  sliding_eval: 30% (1482/4947 batches, eta:169s)
+  sliding_eval: 40% (1976/4947 batches, eta:144s)
+  sliding_eval: 50% (2470/4947 batches, eta:120s)
+  sliding_eval: 60% (2964/4947 batches, eta:96s)
+  sliding_eval: 70% (3458/4947 batches, eta:72s)
+  sliding_eval: 80% (3952/4947 batches, eta:48s)
+  sliding_eval: 90% (4446/4947 batches, eta:24s)
+  sliding_eval: 100% (4940/4947 batches, eta:0s)
+  sliding_eval: 79152 windows/rank, stride=64, 5065728 scored tokens, 240.4s
+Sliding val_loss:2.8426 val_bpb:1.1005
+Sliding vs standard: bpb=+0.0048
+Quantizing model with aggressive role-bit packing + LZMA...
+Quant candidate prune=0.000: compressed=16,094,692 bytes, raw=26,861,569, packed_bytes=26,235,904, byte_q=0, ones=0, pruned=0
+Selected quant prune=0.000: byte_q_tensors=0, packed_q_tensors=44, passthrough=108, alias=1, packed_bytes=26,235,904, byte_q_numel=0, approx_payload=25.55 MiB
+Role quantized numel: {'embedding': 6029312, 'mamba': 14819328, 'ffn_gate': 15728640, 'ffn_down': 7864320, 'attention': 1048576}
+Role packed/byte payload bytes: {'embedding': 4521984, 'mamba': 9262080, 'ffn_gate': 7864320, 'ffn_down': 3932160, 'attention': 655360}
+Serialized raw torch.save: 26,861,569 bytes (25.62 MiB)
+Compressed model (lzma9+extreme): 16,094,692 bytes (15.35 MiB)
+Artifact size check: OVER 16,000,000-byte cap before code bytes
+Post-quant val_loss:3.3542 val_bpb:1.2985
+  sliding_eval: 10% (494/4947 batches, eta:213s)
+  sliding_eval: 20% (988/4947 batches, eta:190s)
+  sliding_eval: 30% (1482/4947 batches, eta:166s)
+  sliding_eval: 40% (1976/4947 batches, eta:142s)
+  sliding_eval: 50% (2470/4947 batches, eta:119s)
+  sliding_eval: 60% (2964/4947 batches, eta:95s)
+  sliding_eval: 70% (3458/4947 batches, eta:71s)
+  sliding_eval: 80% (3952/4947 batches, eta:48s)
+  sliding_eval: 90% (4446/4947 batches, eta:24s)
+  sliding_eval: 100% (4940/4947 batches, eta:0s)
+  sliding_eval: 79152 windows/rank, stride=64, 5065728 scored tokens, 237.2s
+Post-quant sliding val_loss:3.3421 val_bpb:1.2938
+Saved artifact: final_model.fullmuon_aggressive_lzma.lzma (16,094,692 bytes)
+[W501 00:27:31.032137418 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:27:31.079432880 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:27:31.271485906 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:27:31.282026257 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:27:31.287913253 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:27:31.354487033 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:27:31.355751523 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W501 00:27:31.545105876 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+root@e24cbb578f3c:/workspace/parameter-golf# CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+SEQ_LEN=8192 \
+N_UNIQUE_BLOCKS=10 \
+ATTN_LAYER_IDXS=6 \
+FFN_MULT=3 \
+FFN_ACTIVE_POLICY=all \
+EMBED_DIM=512 \
+BIGRAM_ENABLED=1 \
+HEADDIM=64 \
+DT_MIN=0.0005 \
+DT_MAX=0.05 \
+SEQ_IDX_ENABLED=1 \
+DOC_BOUNDARY_TOKEN=1 \
+CARRYOVER_EVAL_ENABLED=0 \
+SCORE_FIRST_TTT_ENABLED=0 \
+TTT_ENABLED=0 \
+RUN_POSTQUANT=1 \
+MUON_TRUST_CLIP_ENABLED=1 \
+MUON_TRUST_FFN=0.020 \
+MUON_TRUST_ATTN=0.015 \
+MUON_TRUST_MAMBA_IN=0.008 \
+MUON_TRUST_MAMBA_OUT=0.008 \
+MUON_TRUST_EMBED_PROJ=0.010 \
+MUON_TRUST_BIGRAM=0.010 \
+MUON_TRUST_GENERIC=0.010 \
+QUANT_FORMAT=fullmuon_aggressive_lzma \
+QUANT_TARGET_BYTES=15850000 \
+MAX_WALLCLOCK_SECONDS=600 \
+torchrun --standalone --nproc_per_node=8 \
+ssm_recall_sota_sp8192_fullmuon_final_compress_trustclip.py \
+| tee /workspace/fullmuon_final_compress_trustclip.log
+W0501 00:27:42.509000 202732 torch/distributed/run.py:803] 
+W0501 00:27:42.509000 202732 torch/distributed/run.py:803] *****************************************
+W0501 00:27:42.509000 202732 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0501 00:27:42.509000 202732 torch/distributed/run.py:803] *****************************************
+Project root: /workspace/parameter-golf-repo

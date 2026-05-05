@@ -1,0 +1,14 @@
+# Do NOT pin torch — use whatever is pre-installed on the pod.
+# mamba-ssm and causal-conv1d must be built against the existing torch/CUDA.
+# Install with (H100 only, fastest):
+#   TORCH_CUDA_ARCH_LIST="9.0" MAX_JOBS=16 pip install -r requirements.txt --no-build-isolation
+numpy
+sentencepiece
+huggingface-hub
+datasets
+tiktoken
+mamba-ssm
+causal-conv1d
+einops
+tqdm
+zstandard
