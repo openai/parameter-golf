@@ -1,0 +1,9 @@
+{
+  "author": "Andrew Mouldon",
+  "github_id": "andrewmouldon",
+  "name": "Hierarchical Shared Attention — Multi-Level Head Sharing",
+  "blurb": "HSA decomposes attention head features into shared, group-shared, and head-specific components, unifying MQA, GQA, and MHA-style sharing within one projection. Directly builds on the initial naive baseline and is trained for a fixed 10k steps. Improves fixed-step BPB through reinvesting savings into MLP, while staying within the same size budget.",
+  "date": "2026-04-02T00:00:00Z",
+  "val_bpb": 1.2287,
+  "bytes_total": 15887509,
+}
