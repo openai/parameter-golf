@@ -1,0 +1,120 @@
+﻿run_id:h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01
+device:NVIDIA H100 80GB HBM3 torch:2.11.0+cu130 cuda:13.0
+batch_tokens:1048576 seq_len:512 iterations:6000
+resume_from:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000_best.pt resume_reset_optim:0 lr_mult:0.1
+train_tokens:308557367 val_tokens:75941878
+resume_loaded step:4000 best_val_bpb:1.401375 optimizer_state:1
+grad_accum:8 micro_bsz:256
+step:4025/6000 train_loss:1.8417 train_time:19687ms step_avg:787.46ms train_tokens_per_sec:1331585.5
+step:4050/6000 train_loss:1.8708 train_time:36014ms step_avg:720.28ms train_tokens_per_sec:1455790.1
+step:4075/6000 train_loss:1.9152 train_time:52351ms step_avg:698.02ms train_tokens_per_sec:1502217.7
+step:4100/6000 train_loss:1.8172 train_time:68684ms step_avg:686.84ms train_tokens_per_sec:1526659.8
+step:4100/6000 val_loss:1.9331 val_bpb:1.401821 best_val_bpb:1.401375 no_improve:1
+step:4125/6000 train_loss:1.8395 train_time:99668ms step_avg:797.34ms train_tokens_per_sec:1315087.2
+step:4150/6000 train_loss:1.8380 train_time:116037ms step_avg:773.58ms train_tokens_per_sec:1355488.1
+step:4175/6000 train_loss:1.9003 train_time:132421ms step_avg:756.69ms train_tokens_per_sec:1385739.2
+step:4200/6000 train_loss:1.9171 train_time:148774ms step_avg:743.87ms train_tokens_per_sec:1409622.9
+checkpoint_saved step:4200 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:4200/6000 val_loss:1.9324 val_bpb:1.401351 best_val_bpb:1.401351 no_improve:0
+step:4225/6000 train_loss:1.8939 train_time:177612ms step_avg:789.39ms train_tokens_per_sec:1328339.0
+step:4250/6000 train_loss:1.8775 train_time:193970ms step_avg:775.88ms train_tokens_per_sec:1351467.5
+step:4275/6000 train_loss:1.7989 train_time:210338ms step_avg:764.87ms train_tokens_per_sec:1370928.1
+step:4300/6000 train_loss:1.8345 train_time:226724ms step_avg:755.75ms train_tokens_per_sec:1387469.8
+checkpoint_saved step:4300 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:4300/6000 val_loss:1.9314 val_bpb:1.400610 best_val_bpb:1.400610 no_improve:0
+step:4325/6000 train_loss:1.9045 train_time:255597ms step_avg:786.45ms train_tokens_per_sec:1333299.5
+step:4350/6000 train_loss:1.8452 train_time:271938ms step_avg:776.96ms train_tokens_per_sec:1349580.2
+step:4375/6000 train_loss:1.9092 train_time:288285ms step_avg:768.76ms train_tokens_per_sec:1363983.5
+step:4400/6000 train_loss:1.9540 train_time:304647ms step_avg:761.62ms train_tokens_per_sec:1376774.1
+step:4400/6000 val_loss:1.9324 val_bpb:1.401326 best_val_bpb:1.400610 no_improve:1
+step:4425/6000 train_loss:1.9496 train_time:333446ms step_avg:784.58ms train_tokens_per_sec:1336483.1
+step:4450/6000 train_loss:1.9019 train_time:349795ms step_avg:777.32ms train_tokens_per_sec:1348957.5
+step:4475/6000 train_loss:1.8760 train_time:366142ms step_avg:770.83ms train_tokens_per_sec:1360329.5
+step:4500/6000 train_loss:1.8901 train_time:382483ms step_avg:764.97ms train_tokens_per_sec:1370747.8
+step:4500/6000 val_loss:1.9314 val_bpb:1.400612 best_val_bpb:1.400610 no_improve:2
+step:4525/6000 train_loss:1.8829 train_time:411204ms step_avg:783.25ms train_tokens_per_sec:1338756.4
+step:4550/6000 train_loss:1.8159 train_time:427556ms step_avg:777.38ms train_tokens_per_sec:1348866.9
+step:4575/6000 train_loss:1.7955 train_time:443955ms step_avg:772.10ms train_tokens_per_sec:1358091.5
+step:4600/6000 train_loss:1.8802 train_time:460324ms step_avg:767.21ms train_tokens_per_sec:1366744.9
+checkpoint_saved step:4600 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:4600/6000 val_loss:1.9307 val_bpb:1.400114 best_val_bpb:1.400114 no_improve:0
+step:4625/6000 train_loss:1.8016 train_time:489198ms step_avg:782.72ms train_tokens_per_sec:1339661.5
+step:4650/6000 train_loss:1.8672 train_time:505556ms step_avg:777.78ms train_tokens_per_sec:1348167.2
+step:4675/6000 train_loss:1.8356 train_time:521925ms step_avg:773.22ms train_tokens_per_sec:1356111.7
+step:4700/6000 train_loss:1.8793 train_time:538280ms step_avg:768.97ms train_tokens_per_sec:1363607.5
+step:4700/6000 val_loss:1.9316 val_bpb:1.400775 best_val_bpb:1.400114 no_improve:1
+step:4725/6000 train_loss:1.8630 train_time:567027ms step_avg:782.11ms train_tokens_per_sec:1340708.9
+step:4750/6000 train_loss:1.8674 train_time:583365ms step_avg:777.82ms train_tokens_per_sec:1348095.1
+step:4775/6000 train_loss:1.8542 train_time:599751ms step_avg:773.87ms train_tokens_per_sec:1354973.6
+step:4800/6000 train_loss:1.8138 train_time:616170ms step_avg:770.21ms train_tokens_per_sec:1361410.2
+checkpoint_saved step:4800 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:4800/6000 val_loss:1.9305 val_bpb:1.399954 best_val_bpb:1.399954 no_improve:0
+step:4825/6000 train_loss:1.8836 train_time:645079ms step_avg:781.91ms train_tokens_per_sec:1341038.1
+step:4850/6000 train_loss:1.7560 train_time:661485ms step_avg:778.22ms train_tokens_per_sec:1347407.1
+step:4875/6000 train_loss:1.8717 train_time:677846ms step_avg:774.68ms train_tokens_per_sec:1353558.7
+step:4900/6000 train_loss:1.9147 train_time:694194ms step_avg:771.33ms train_tokens_per_sec:1359445.3
+step:4900/6000 val_loss:1.9310 val_bpb:1.400327 best_val_bpb:1.399954 no_improve:1
+step:4925/6000 train_loss:1.9092 train_time:722926ms step_avg:781.54ms train_tokens_per_sec:1341675.6
+step:4950/6000 train_loss:1.8334 train_time:739267ms step_avg:778.18ms train_tokens_per_sec:1347480.2
+step:4975/6000 train_loss:1.8827 train_time:755606ms step_avg:774.98ms train_tokens_per_sec:1353035.5
+step:5000/6000 train_loss:1.8770 train_time:771984ms step_avg:771.98ms train_tokens_per_sec:1358287.4
+checkpoint_saved step:5000 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:5000/6000 val_loss:1.9303 val_bpb:1.399820 best_val_bpb:1.399820 no_improve:0
+step:5025/6000 train_loss:1.8492 train_time:800869ms step_avg:781.34ms train_tokens_per_sec:1342030.1
+step:5050/6000 train_loss:1.8357 train_time:817265ms step_avg:778.35ms train_tokens_per_sec:1347182.9
+step:5075/6000 train_loss:1.8575 train_time:833678ms step_avg:775.51ms train_tokens_per_sec:1352103.1
+step:5100/6000 train_loss:1.9122 train_time:850038ms step_avg:772.76ms train_tokens_per_sec:1356920.1
+step:5100/6000 val_loss:1.9303 val_bpb:1.399828 best_val_bpb:1.399820 no_improve:1
+step:5125/6000 train_loss:1.8560 train_time:878767ms step_avg:781.13ms train_tokens_per_sec:1342389.6
+step:5150/6000 train_loss:1.8669 train_time:895143ms step_avg:778.39ms train_tokens_per_sec:1347117.4
+step:5175/6000 train_loss:1.8152 train_time:911491ms step_avg:775.74ms train_tokens_per_sec:1351715.8
+step:5200/6000 train_loss:1.8109 train_time:927871ms step_avg:773.23ms train_tokens_per_sec:1356105.6
+step:5200/6000 val_loss:1.9309 val_bpb:1.400233 best_val_bpb:1.399820 no_improve:2
+step:5225/6000 train_loss:1.8859 train_time:956610ms step_avg:780.91ms train_tokens_per_sec:1342768.3
+step:5250/6000 train_loss:1.8816 train_time:972971ms step_avg:778.38ms train_tokens_per_sec:1347132.1
+step:5275/6000 train_loss:1.8298 train_time:989315ms step_avg:775.93ms train_tokens_per_sec:1351374.5
+step:5300/6000 train_loss:1.8099 train_time:1005669ms step_avg:773.59ms train_tokens_per_sec:1355465.1
+step:5300/6000 val_loss:1.9314 val_bpb:1.400588 best_val_bpb:1.399820 no_improve:3
+step:5325/6000 train_loss:1.8104 train_time:1034454ms step_avg:780.72ms train_tokens_per_sec:1343088.0
+step:5350/6000 train_loss:1.7962 train_time:1050799ms step_avg:778.37ms train_tokens_per_sec:1347144.4
+step:5375/6000 train_loss:1.9178 train_time:1067157ms step_avg:776.11ms train_tokens_per_sec:1351059.1
+step:5400/6000 train_loss:1.8176 train_time:1083573ms step_avg:773.98ms train_tokens_per_sec:1354783.4
+checkpoint_saved step:5400 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:5400/6000 val_loss:1.9297 val_bpb:1.399401 best_val_bpb:1.399401 no_improve:0
+step:5425/6000 train_loss:1.8896 train_time:1112451ms step_avg:780.67ms train_tokens_per_sec:1343179.6
+step:5450/6000 train_loss:1.8580 train_time:1128802ms step_avg:778.48ms train_tokens_per_sec:1346945.5
+step:5475/6000 train_loss:1.8762 train_time:1145153ms step_avg:776.38ms train_tokens_per_sec:1350604.8
+step:5500/6000 train_loss:1.9637 train_time:1161507ms step_avg:774.34ms train_tokens_per_sec:1354157.5
+checkpoint_saved step:5500 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:5500/6000 val_loss:1.9295 val_bpb:1.399229 best_val_bpb:1.399229 no_improve:0
+step:5525/6000 train_loss:1.8442 train_time:1190402ms step_avg:780.59ms train_tokens_per_sec:1343309.5
+step:5550/6000 train_loss:1.8738 train_time:1206805ms step_avg:778.58ms train_tokens_per_sec:1346772.9
+step:5575/6000 train_loss:1.8693 train_time:1223190ms step_avg:776.63ms train_tokens_per_sec:1350163.9
+step:5600/6000 train_loss:1.8794 train_time:1239594ms step_avg:774.75ms train_tokens_per_sec:1353444.3
+step:5600/6000 val_loss:1.9296 val_bpb:1.399287 best_val_bpb:1.399229 no_improve:1
+step:5625/6000 train_loss:1.8743 train_time:1268345ms step_avg:780.52ms train_tokens_per_sec:1343432.9
+step:5650/6000 train_loss:1.9727 train_time:1284708ms step_avg:778.61ms train_tokens_per_sec:1346726.4
+step:5675/6000 train_loss:1.8473 train_time:1301048ms step_avg:776.74ms train_tokens_per_sec:1349962.0
+step:5700/6000 train_loss:1.7679 train_time:1317419ms step_avg:774.95ms train_tokens_per_sec:1353084.8
+checkpoint_saved step:5700 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:5700/6000 val_loss:1.9293 val_bpb:1.399090 best_val_bpb:1.399090 no_improve:0
+step:5725/6000 train_loss:1.8909 train_time:1346271ms step_avg:780.45ms train_tokens_per_sec:1343558.5
+step:5750/6000 train_loss:1.7288 train_time:1362640ms step_avg:778.65ms train_tokens_per_sec:1346656.2
+step:5775/6000 train_loss:1.8105 train_time:1379026ms step_avg:776.92ms train_tokens_per_sec:1349664.8
+step:5800/6000 train_loss:1.8364 train_time:1395389ms step_avg:775.22ms train_tokens_per_sec:1352624.6
+checkpoint_saved step:5800 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:5800/6000 val_loss:1.9274 val_bpb:1.397688 best_val_bpb:1.397688 no_improve:0
+step:5825/6000 train_loss:1.8931 train_time:1424251ms step_avg:780.41ms train_tokens_per_sec:1343619.1
+step:5850/6000 train_loss:1.8186 train_time:1440623ms step_avg:778.72ms train_tokens_per_sec:1346546.1
+step:5875/6000 train_loss:1.9054 train_time:1456983ms step_avg:777.06ms train_tokens_per_sec:1349418.6
+step:5900/6000 train_loss:1.9153 train_time:1473344ms step_avg:775.44ms train_tokens_per_sec:1352226.3
+checkpoint_saved step:5900 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:5900/6000 val_loss:1.9269 val_bpb:1.397380 best_val_bpb:1.397380 no_improve:0
+step:5925/6000 train_loss:1.8390 train_time:1502251ms step_avg:780.39ms train_tokens_per_sec:1343655.8
+step:5950/6000 train_loss:1.8562 train_time:1518576ms step_avg:778.76ms train_tokens_per_sec:1346474.5
+step:5975/6000 train_loss:1.8444 train_time:1534939ms step_avg:777.18ms train_tokens_per_sec:1349199.0
+step:6000/6000 train_loss:1.8786 train_time:1551327ms step_avg:775.66ms train_tokens_per_sec:1351843.7
+checkpoint_saved step:6000 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_best.pt
+step:6000/6000 val_loss:1.9260 val_bpb:1.396683 best_val_bpb:1.396683 no_improve:0
+checkpoint_saved step:6000 path:runs/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01/checkpoints/h100_customtok2050_416h4_l9_kv1_mlp3_1048k_4000to6000_lr01_final.pt
+done steps:6000 best_val_bpb:1.396683
