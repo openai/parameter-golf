@@ -1,0 +1,36 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "Casefold V4 + Multi-Phase Global SGD + Phased TTT",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_bpb": 1.05970,
+  "val_bpb_std": 0.00031,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {"val_bpb": 1.05938, "val_loss": 3.05310, "artifact_bytes": 15935851},
+    "0": {"val_bpb": 1.05961, "val_loss": 3.05375, "artifact_bytes": 15935513},
+    "1234": {"val_bpb": 1.06010, "val_loss": 3.05519, "artifact_bytes": 15933440}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Casefold tokenizer normalization (lowercase SP8192) + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L8+) + Multi-Phase Global SGD TTT + Full-Hessian GPTQ int6/int7 + Brotli-11",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "casefold_pending_review": "Issue #1604"
+  },
+  "attribution": {
+    "base_architecture": "@samacqua (PR #1530)",
+    "casefold_concept": "@mikeapedia (PR #1578)",
+    "phased_ttt_concept": "@romeerp (PR #1610)",
+    "score_first_ttt_framework": "@abaybektursun (PR #549)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437, #1413)"
+  }
+}
