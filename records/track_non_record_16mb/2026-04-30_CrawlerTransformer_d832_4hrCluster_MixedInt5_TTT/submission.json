@@ -1,0 +1,30 @@
+{
+  "author": "Khoa Phan",
+  "github_id": "Tonyy1977",
+  "name": "Crawler Transformer 3f+2cx2 d=832 — Mixed Int5 GPTQ + Post-Quant TTT (4-hour cluster equivalent)",
+  "blurb": "Crawler architecture (3 flat + 2 crawler x2 loops, d=832, 47.4M params) trained 120 hours local (4-hour 8xH100 equivalent), mixed int5 flat-attention + int6 rest GPTQ + Brotli (no pruning, 1.25MB budget headroom), post-quant sliding TTT on GPTQ artifact. Validation/scaling study of PR #1817 recipe.",
+  "date": "2026-04-30",
+  "track": "non_record_16mb",
+  "val_loss": 2.8176,
+  "val_bpb": 1.0910,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "pre_quant_val_bpb": 1.0526,
+      "pre_quant_swa_val_bpb": 1.0629,
+      "int8_roundtrip_val_bpb": 1.1465,
+      "gptq_roundtrip_val_bpb": 1.1238,
+      "ttt_val_bpb": 1.0910,
+      "ttt_val_loss": 2.8176,
+      "artifact_bytes": 14622509,
+      "code_bytes": 92135,
+      "total_bytes": 14714644,
+      "steps": 122832
+    }
+  },
+  "hardware": "1x RTX 6000 Ada 48GB, 120 hours wallclock (equivalent to 4-hour 8xH100 SXM cluster)",
+  "pytorch_version": "2.7.0+cu126",
+  "bytes_total": 14714644,
+  "bytes_code": 92135,
+  "non_record": true
+}
