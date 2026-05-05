@@ -1,0 +1,463 @@
+# Sanitized Parameter Golf run excerpt
+# Source dashboard log: dashboard_20260419_225908_cf9443b3.stdout.log
+# Removed: shell banners, infrastructure identifiers, and full path-heavy environment dumps.
+# Preserved: hardware/world-size, ART diagnostics, serialization, quantization, TTT, and score lines.
+
+model_params:56230945
+attention_router_params:397472 mlp_router_params:132748
+unique_blocks:1 recurrent_steps:8
+world_size:8 grad_accum_steps:1
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 warmdown_frac:0.72 min_lr:0.0000 val_loss_every:0 num_recurrent_steps:8 max_wallclock_seconds:600.000
+attention_head_top_k:16 mlp_num_experts:12 mlp_expert_top_k:2 eval_recurrent_steps:8
+attention_router_input_dim:3072 attention_router_hidden_dim:128 attention_router_lr:0.001 attention_router_wd:0.01 attention_router_entropy_bonus_start:0.02 attention_router_entropy_bonus_end:0.002 attention_router_js_bonus:0.5 mlp_router_hidden_dim:128 mlp_router_lr:0.001 mlp_router_wd:0.01 mlp_router_entropy_bonus_start:0.02 mlp_router_entropy_bonus_end:0.002 mlp_router_js_bonus:0.02 activation_checkpointing:0 ema_decay:0.9965 muon_momentum_warmup_steps:1500
+warmup_step:1/20
+warmup_step:10/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9755 train_time:576ms step_avg:576.08ms routers_forward:2 attn_aux:-0.0693 attn_entropy:3.4657 attn_js:0.0000 attn_entropy_bonus:0.0200 mlp_aux:-0.0497 mlp_entropy:2.4849 mlp_js:0.0000 mlp_entropy_bonus:0.0200
+step:2/20000 train_loss:12.4794 train_time:1137ms step_avg:568.41ms routers_forward:2 attn_aux:-0.0693 attn_entropy:3.4657 attn_js:0.0000 attn_entropy_bonus:0.0200 mlp_aux:-0.0497 mlp_entropy:2.4849 mlp_js:0.0000 mlp_entropy_bonus:0.0200
+step:3/20000 train_loss:9.7572 train_time:1709ms step_avg:569.67ms routers_forward:2 attn_aux:-0.0692 attn_entropy:3.4655 attn_js:0.0000 attn_entropy_bonus:0.0200 mlp_aux:-0.0496 mlp_entropy:2.4848 mlp_js:0.0000 mlp_entropy_bonus:0.0200
+step:4/20000 train_loss:7.5495 train_time:2273ms step_avg:568.21ms routers_forward:2 attn_aux:-0.0688 attn_entropy:3.4458 attn_js:0.0000 attn_entropy_bonus:0.0199 mlp_aux:-0.0495 mlp_entropy:2.4817 mlp_js:0.0000 mlp_entropy_bonus:0.0199
+step:5/20000 train_loss:6.4237 train_time:2847ms step_avg:569.37ms routers_forward:2 attn_aux:-0.0690 attn_entropy:3.4603 attn_js:0.0000 attn_entropy_bonus:0.0199 mlp_aux:-0.0491 mlp_entropy:2.4613 mlp_js:0.0000 mlp_entropy_bonus:0.0199
+step:6/20000 train_loss:6.0739 train_time:3419ms step_avg:569.80ms routers_forward:2 attn_aux:-0.0690 attn_entropy:3.4649 attn_js:0.0000 attn_entropy_bonus:0.0199 mlp_aux:-0.0492 mlp_entropy:2.4721 mlp_js:0.0000 mlp_entropy_bonus:0.0199
+step:7/20000 train_loss:6.0176 train_time:3985ms step_avg:569.26ms routers_forward:2 attn_aux:-0.0689 attn_entropy:3.4624 attn_js:0.0000 attn_entropy_bonus:0.0199 mlp_aux:-0.0493 mlp_entropy:2.4793 mlp_js:0.0000 mlp_entropy_bonus:0.0199
+step:8/20000 train_loss:5.9297 train_time:4553ms step_avg:569.14ms routers_forward:2 attn_aux:-0.0688 attn_entropy:3.4598 attn_js:0.0000 attn_entropy_bonus:0.0199 mlp_aux:-0.0493 mlp_entropy:2.4784 mlp_js:0.0000 mlp_entropy_bonus:0.0199
+step:9/20000 train_loss:5.8194 train_time:5121ms step_avg:568.95ms routers_forward:2 attn_aux:-0.0686 attn_entropy:3.4534 attn_js:0.0000 attn_entropy_bonus:0.0199 mlp_aux:-0.0490 mlp_entropy:2.4688 mlp_js:0.0000 mlp_entropy_bonus:0.0199
+step:10/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.0689 attn_entropy:3.4585 attn_js:0.0000 mlp_aux:-0.0493 mlp_entropy:2.4739 mlp_js:0.0000
+step:10/20000 attention_head_matrix
+step:10/20000 mlp_expert_matrix
+step:10/20000 train_loss:5.6630 train_time:5689ms step_avg:568.88ms routers_forward:2 attn_aux:-0.0684 attn_entropy:3.4413 attn_js:0.0002 attn_entropy_bonus:0.0198 mlp_aux:-0.0485 mlp_entropy:2.4430 mlp_js:0.0000 mlp_entropy_bonus:0.0198
+step:20/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.0711 attn_entropy:3.3471 attn_js:0.0099 mlp_aux:-0.0467 mlp_entropy:2.3624 mlp_js:0.0023
+step:20/20000 attention_head_matrix
+step:20/20000 mlp_expert_matrix
+step:20/20000 train_loss:4.6675 train_time:11775ms step_avg:588.73ms routers_forward:2 attn_aux:-0.0803 attn_entropy:3.0423 attn_js:0.0410 attn_entropy_bonus:0.0197 mlp_aux:-0.0457 mlp_entropy:2.3199 mlp_js:0.0050 mlp_entropy_bonus:0.0197
+step:30/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1209 attn_entropy:2.1095 attn_js:0.1592 mlp_aux:-0.0469 mlp_entropy:2.3903 mlp_js:0.0056
+step:30/20000 attention_head_matrix
+step:30/20000 mlp_expert_matrix
+step:30/20000 train_loss:4.1220 train_time:17543ms step_avg:584.77ms routers_forward:2 attn_aux:-0.1630 attn_entropy:1.6043 attn_js:0.2635 attn_entropy_bonus:0.0195 mlp_aux:-0.0472 mlp_entropy:2.4154 mlp_js:0.0065 mlp_entropy_bonus:0.0195
+step:40/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1892 attn_entropy:1.8234 attn_js:0.3076 mlp_aux:-0.0472 mlp_entropy:2.4263 mlp_js:0.0061
+step:40/20000 attention_head_matrix
+step:40/20000 mlp_expert_matrix
+step:40/20000 train_loss:3.7310 train_time:23255ms step_avg:581.36ms routers_forward:2 attn_aux:-0.2017 attn_entropy:1.8351 attn_js:0.3325 attn_entropy_bonus:0.0193 mlp_aux:-0.0474 mlp_entropy:2.4483 mlp_js:0.0040 mlp_entropy_bonus:0.0193
+step:50/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2071 attn_entropy:1.7705 attn_js:0.3461 mlp_aux:-0.0474 mlp_entropy:2.4629 mlp_js:0.0027
+step:50/20000 attention_head_matrix
+step:50/20000 mlp_expert_matrix
+step:50/20000 train_loss:3.5541 train_time:28909ms step_avg:578.18ms routers_forward:2 attn_aux:-0.2104 attn_entropy:1.7552 attn_js:0.3535 attn_entropy_bonus:0.0191 mlp_aux:-0.0473 mlp_entropy:2.4676 mlp_js:0.0023 mlp_entropy_bonus:0.0191
+step:60/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2112 attn_entropy:1.7408 attn_js:0.3561 mlp_aux:-0.0471 mlp_entropy:2.4674 mlp_js:0.0023
+step:60/20000 attention_head_matrix
+step:60/20000 mlp_expert_matrix
+step:60/20000 train_loss:3.5016 train_time:34546ms step_avg:575.77ms routers_forward:2 attn_aux:-0.2114 attn_entropy:1.7429 attn_js:0.3566 attn_entropy_bonus:0.0190 mlp_aux:-0.0469 mlp_entropy:2.4693 mlp_js:0.0018 mlp_entropy_bonus:0.0190
+step:70/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2114 attn_entropy:1.7403 attn_js:0.3570 mlp_aux:-0.0467 mlp_entropy:2.4707 mlp_js:0.0012
+step:70/20000 attention_head_matrix
+step:70/20000 mlp_expert_matrix
+step:70/20000 train_loss:3.3765 train_time:40156ms step_avg:573.66ms routers_forward:2 attn_aux:-0.2106 attn_entropy:1.7511 attn_js:0.3554 attn_entropy_bonus:0.0188 mlp_aux:-0.0465 mlp_entropy:2.4724 mlp_js:0.0008 mlp_entropy_bonus:0.0188
+step:80/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2115 attn_entropy:1.7373 attn_js:0.3579 mlp_aux:-0.0463 mlp_entropy:2.4706 mlp_js:0.0008
+step:80/20000 attention_head_matrix
+step:80/20000 mlp_expert_matrix
+step:80/20000 train_loss:3.3788 train_time:45738ms step_avg:571.73ms routers_forward:2 attn_aux:-0.2116 attn_entropy:1.7396 attn_js:0.3582 attn_entropy_bonus:0.0186 mlp_aux:-0.0460 mlp_entropy:2.4686 mlp_js:0.0009 mlp_entropy_bonus:0.0186
+step:90/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2117 attn_entropy:1.7352 attn_js:0.3590 mlp_aux:-0.0459 mlp_entropy:2.4722 mlp_js:0.0006
+step:90/20000 attention_head_matrix
+step:90/20000 mlp_expert_matrix
+step:90/20000 train_loss:3.2863 train_time:51308ms step_avg:570.09ms routers_forward:2 attn_aux:-0.2116 attn_entropy:1.7370 attn_js:0.3589 attn_entropy_bonus:0.0185 mlp_aux:-0.0457 mlp_entropy:2.4738 mlp_js:0.0003 mlp_entropy_bonus:0.0185
+step:100/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2118 attn_entropy:1.7338 attn_js:0.3598 mlp_aux:-0.0455 mlp_entropy:2.4726 mlp_js:0.0002
+step:100/20000 attention_head_matrix
+step:100/20000 mlp_expert_matrix
+step:100/20000 train_loss:3.2205 train_time:56862ms step_avg:568.62ms routers_forward:2 attn_aux:-0.2118 attn_entropy:1.7336 attn_js:0.3601 attn_entropy_bonus:0.0183 mlp_aux:-0.0453 mlp_entropy:2.4721 mlp_js:0.0001 mlp_entropy_bonus:0.0183
+step:110/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2118 attn_entropy:1.7339 attn_js:0.3603 mlp_aux:-0.0450 mlp_entropy:2.4714 mlp_js:0.0001
+step:110/20000 attention_head_matrix
+step:110/20000 mlp_expert_matrix
+step:110/20000 train_loss:3.2432 train_time:62422ms step_avg:567.47ms routers_forward:2 attn_aux:-0.2118 attn_entropy:1.7332 attn_js:0.3607 attn_entropy_bonus:0.0181 mlp_aux:-0.0448 mlp_entropy:2.4710 mlp_js:0.0001 mlp_entropy_bonus:0.0181
+step:120/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2116 attn_entropy:1.7341 attn_js:0.3607 mlp_aux:-0.0446 mlp_entropy:2.4696 mlp_js:0.0001
+step:120/20000 attention_head_matrix
+step:120/20000 mlp_expert_matrix
+step:120/20000 train_loss:3.1624 train_time:67979ms step_avg:566.49ms routers_forward:2 attn_aux:-0.2117 attn_entropy:1.7326 attn_js:0.3610 attn_entropy_bonus:0.0180 mlp_aux:-0.0444 mlp_entropy:2.4703 mlp_js:0.0001 mlp_entropy_bonus:0.0180
+step:130/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2116 attn_entropy:1.7337 attn_js:0.3612 mlp_aux:-0.0442 mlp_entropy:2.4694 mlp_js:0.0002
+step:130/20000 attention_head_matrix
+step:130/20000 mlp_expert_matrix
+step:130/20000 train_loss:3.1606 train_time:73532ms step_avg:565.63ms routers_forward:2 attn_aux:-0.2116 attn_entropy:1.7313 attn_js:0.3616 attn_entropy_bonus:0.0178 mlp_aux:-0.0440 mlp_entropy:2.4695 mlp_js:0.0003 mlp_entropy_bonus:0.0178
+step:140/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2117 attn_entropy:1.7329 attn_js:0.3620 mlp_aux:-0.0438 mlp_entropy:2.4689 mlp_js:0.0003
+step:140/20000 attention_head_matrix
+step:140/20000 mlp_expert_matrix
+step:140/20000 train_loss:3.0897 train_time:79109ms step_avg:565.06ms routers_forward:2 attn_aux:-0.2115 attn_entropy:1.7330 attn_js:0.3618 attn_entropy_bonus:0.0176 mlp_aux:-0.0436 mlp_entropy:2.4691 mlp_js:0.0004 mlp_entropy_bonus:0.0176
+step:150/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2116 attn_entropy:1.7332 attn_js:0.3623 mlp_aux:-0.0433 mlp_entropy:2.4680 mlp_js:0.0004
+step:150/20000 attention_head_matrix
+step:150/20000 mlp_expert_matrix
+step:150/20000 train_loss:3.0563 train_time:84685ms step_avg:564.57ms routers_forward:2 attn_aux:-0.2115 attn_entropy:1.7324 attn_js:0.3625 attn_entropy_bonus:0.0175 mlp_aux:-0.0431 mlp_entropy:2.4670 mlp_js:0.0003 mlp_entropy_bonus:0.0175
+step:160/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2115 attn_entropy:1.7325 attn_js:0.3628 mlp_aux:-0.0429 mlp_entropy:2.4682 mlp_js:0.0004
+step:160/20000 attention_head_matrix
+step:160/20000 mlp_expert_matrix
+step:160/20000 train_loss:3.0204 train_time:90274ms step_avg:564.21ms routers_forward:2 attn_aux:-0.2114 attn_entropy:1.7315 attn_js:0.3629 attn_entropy_bonus:0.0173 mlp_aux:-0.0427 mlp_entropy:2.4695 mlp_js:0.0002 mlp_entropy_bonus:0.0173
+step:170/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2115 attn_entropy:1.7326 attn_js:0.3634 mlp_aux:-0.0425 mlp_entropy:2.4700 mlp_js:0.0005
+step:170/20000 attention_head_matrix
+step:170/20000 mlp_expert_matrix
+step:170/20000 train_loss:2.9665 train_time:95852ms step_avg:563.83ms routers_forward:2 attn_aux:-0.2115 attn_entropy:1.7325 attn_js:0.3636 attn_entropy_bonus:0.0171 mlp_aux:-0.0423 mlp_entropy:2.4693 mlp_js:0.0005 mlp_entropy_bonus:0.0171
+step:180/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2113 attn_entropy:1.7324 attn_js:0.3636 mlp_aux:-0.0421 mlp_entropy:2.4692 mlp_js:0.0004
+step:180/20000 attention_head_matrix
+step:180/20000 mlp_expert_matrix
+step:180/20000 train_loss:2.9482 train_time:101431ms step_avg:563.51ms routers_forward:2 attn_aux:-0.2110 attn_entropy:1.7322 attn_js:0.3631 attn_entropy_bonus:0.0170 mlp_aux:-0.0419 mlp_entropy:2.4681 mlp_js:0.0003 mlp_entropy_bonus:0.0170
+step:190/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2111 attn_entropy:1.7336 attn_js:0.3636 mlp_aux:-0.0417 mlp_entropy:2.4698 mlp_js:0.0005
+step:190/20000 attention_head_matrix
+step:190/20000 mlp_expert_matrix
+step:190/20000 train_loss:2.9481 train_time:107000ms step_avg:563.16ms routers_forward:2 attn_aux:-0.2111 attn_entropy:1.7322 attn_js:0.3639 attn_entropy_bonus:0.0168 mlp_aux:-0.0415 mlp_entropy:2.4700 mlp_js:0.0003 mlp_entropy_bonus:0.0168
+step:200/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2112 attn_entropy:1.7324 attn_js:0.3645 mlp_aux:-0.0413 mlp_entropy:2.4703 mlp_js:0.0004
+step:200/20000 attention_head_matrix
+step:200/20000 mlp_expert_matrix
+step:200/20000 train_loss:2.9169 train_time:112572ms step_avg:562.86ms routers_forward:2 attn_aux:-0.2112 attn_entropy:1.7324 attn_js:0.3647 attn_entropy_bonus:0.0166 mlp_aux:-0.0411 mlp_entropy:2.4703 mlp_js:0.0003 mlp_entropy_bonus:0.0166
+step:210/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2112 attn_entropy:1.7323 attn_js:0.3650 mlp_aux:-0.0409 mlp_entropy:2.4709 mlp_js:0.0004
+step:210/20000 attention_head_matrix
+step:210/20000 mlp_expert_matrix
+step:210/20000 train_loss:2.9053 train_time:118130ms step_avg:562.52ms routers_forward:2 attn_aux:-0.2111 attn_entropy:1.7334 attn_js:0.3651 attn_entropy_bonus:0.0165 mlp_aux:-0.0407 mlp_entropy:2.4705 mlp_js:0.0005 mlp_entropy_bonus:0.0165
+step:220/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2110 attn_entropy:1.7318 attn_js:0.3653 mlp_aux:-0.0405 mlp_entropy:2.4707 mlp_js:0.0004
+step:220/20000 attention_head_matrix
+step:220/20000 mlp_expert_matrix
+step:220/20000 train_loss:2.8774 train_time:123704ms step_avg:562.29ms routers_forward:2 attn_aux:-0.2109 attn_entropy:1.7308 attn_js:0.3654 attn_entropy_bonus:0.0163 mlp_aux:-0.0403 mlp_entropy:2.4714 mlp_js:0.0005 mlp_entropy_bonus:0.0163
+step:230/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2109 attn_entropy:1.7324 attn_js:0.3656 mlp_aux:-0.0401 mlp_entropy:2.4720 mlp_js:0.0003
+step:230/20000 attention_head_matrix
+step:230/20000 mlp_expert_matrix
+step:230/20000 train_loss:2.8651 train_time:129266ms step_avg:562.03ms routers_forward:2 attn_aux:-0.2109 attn_entropy:1.7318 attn_js:0.3659 attn_entropy_bonus:0.0161 mlp_aux:-0.0399 mlp_entropy:2.4719 mlp_js:0.0002 mlp_entropy_bonus:0.0161
+step:240/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2108 attn_entropy:1.7322 attn_js:0.3659 mlp_aux:-0.0397 mlp_entropy:2.4720 mlp_js:0.0003
+step:240/20000 attention_head_matrix
+step:240/20000 mlp_expert_matrix
+step:240/20000 train_loss:2.8311 train_time:134808ms step_avg:561.70ms routers_forward:2 attn_aux:-0.2108 attn_entropy:1.7316 attn_js:0.3663 attn_entropy_bonus:0.0160 mlp_aux:-0.0395 mlp_entropy:2.4716 mlp_js:0.0004 mlp_entropy_bonus:0.0160
+step:250/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2108 attn_entropy:1.7316 attn_js:0.3665 mlp_aux:-0.0393 mlp_entropy:2.4727 mlp_js:0.0002
+step:250/20000 attention_head_matrix
+step:250/20000 mlp_expert_matrix
+step:250/20000 train_loss:2.8377 train_time:140348ms step_avg:561.39ms routers_forward:2 attn_aux:-0.2106 attn_entropy:1.7319 attn_js:0.3665 attn_entropy_bonus:0.0158 mlp_aux:-0.0391 mlp_entropy:2.4726 mlp_js:0.0002 mlp_entropy_bonus:0.0158
+step:260/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2106 attn_entropy:1.7316 attn_js:0.3667 mlp_aux:-0.0389 mlp_entropy:2.4723 mlp_js:0.0003
+step:260/20000 attention_head_matrix
+step:260/20000 mlp_expert_matrix
+step:260/20000 train_loss:2.8218 train_time:145872ms step_avg:561.05ms routers_forward:2 attn_aux:-0.2105 attn_entropy:1.7306 attn_js:0.3669 attn_entropy_bonus:0.0156 mlp_aux:-0.0387 mlp_entropy:2.4724 mlp_js:0.0003 mlp_entropy_bonus:0.0156
+step:270/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2105 attn_entropy:1.7313 attn_js:0.3671 mlp_aux:-0.0385 mlp_entropy:2.4733 mlp_js:0.0002
+step:270/20000 attention_head_matrix
+step:270/20000 mlp_expert_matrix
+step:270/20000 train_loss:2.7386 train_time:151398ms step_avg:560.73ms routers_forward:2 attn_aux:-0.2104 attn_entropy:1.7313 attn_js:0.3673 attn_entropy_bonus:0.0155 mlp_aux:-0.0383 mlp_entropy:2.4745 mlp_js:0.0001 mlp_entropy_bonus:0.0155
+step:280/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2102 attn_entropy:1.7319 attn_js:0.3670 mlp_aux:-0.0380 mlp_entropy:2.4729 mlp_js:0.0002
+step:280/20000 attention_head_matrix
+step:280/20000 mlp_expert_matrix
+step:280/20000 train_loss:2.7691 train_time:156918ms step_avg:560.42ms routers_forward:2 attn_aux:-0.2101 attn_entropy:1.7322 attn_js:0.3672 attn_entropy_bonus:0.0153 mlp_aux:-0.0379 mlp_entropy:2.4730 mlp_js:0.0003 mlp_entropy_bonus:0.0153
+step:290/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2102 attn_entropy:1.7310 attn_js:0.3677 mlp_aux:-0.0376 mlp_entropy:2.4732 mlp_js:0.0002
+step:290/20000 attention_head_matrix
+step:290/20000 mlp_expert_matrix
+step:290/20000 train_loss:2.7530 train_time:162430ms step_avg:560.10ms routers_forward:2 attn_aux:-0.2102 attn_entropy:1.7310 attn_js:0.3679 attn_entropy_bonus:0.0151 mlp_aux:-0.0375 mlp_entropy:2.4730 mlp_js:0.0002 mlp_entropy_bonus:0.0151
+step:300/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2101 attn_entropy:1.7309 attn_js:0.3681 mlp_aux:-0.0372 mlp_entropy:2.4731 mlp_js:0.0002
+step:300/20000 attention_head_matrix
+step:300/20000 mlp_expert_matrix
+step:300/20000 train_loss:2.7601 train_time:167936ms step_avg:559.79ms routers_forward:2 attn_aux:-0.2101 attn_entropy:1.7307 attn_js:0.3683 attn_entropy_bonus:0.0150 mlp_aux:-0.0370 mlp_entropy:2.4728 mlp_js:0.0002 mlp_entropy_bonus:0.0150
+step:310/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2099 attn_entropy:1.7307 attn_js:0.3683 mlp_aux:-0.0368 mlp_entropy:2.4730 mlp_js:0.0002
+step:310/20000 attention_head_matrix
+step:310/20000 mlp_expert_matrix
+step:310/20000 train_loss:2.7089 train_time:173441ms step_avg:559.49ms routers_forward:2 attn_aux:-0.2099 attn_entropy:1.7308 attn_js:0.3684 attn_entropy_bonus:0.0148 mlp_aux:-0.0366 mlp_entropy:2.4730 mlp_js:0.0002 mlp_entropy_bonus:0.0148
+step:320/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2098 attn_entropy:1.7306 attn_js:0.3686 mlp_aux:-0.0364 mlp_entropy:2.4729 mlp_js:0.0002
+step:320/20000 attention_head_matrix
+step:320/20000 mlp_expert_matrix
+step:320/20000 train_loss:2.7601 train_time:178940ms step_avg:559.19ms routers_forward:2 attn_aux:-0.2097 attn_entropy:1.7306 attn_js:0.3687 attn_entropy_bonus:0.0146 mlp_aux:-0.0362 mlp_entropy:2.4729 mlp_js:0.0002 mlp_entropy_bonus:0.0146
+step:330/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2097 attn_entropy:1.7305 attn_js:0.3689 mlp_aux:-0.0360 mlp_entropy:2.4722 mlp_js:0.0002
+step:330/20000 attention_head_matrix
+step:330/20000 mlp_expert_matrix
+step:330/20000 train_loss:2.6881 train_time:184442ms step_avg:558.92ms routers_forward:2 attn_aux:-0.2096 attn_entropy:1.7304 attn_js:0.3691 attn_entropy_bonus:0.0145 mlp_aux:-0.0358 mlp_entropy:2.4716 mlp_js:0.0002 mlp_entropy_bonus:0.0145
+step:340/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2094 attn_entropy:1.7307 attn_js:0.3690 mlp_aux:-0.0356 mlp_entropy:2.4724 mlp_js:0.0001
+step:340/20000 attention_head_matrix
+step:340/20000 mlp_expert_matrix
+step:340/20000 train_loss:2.7283 train_time:189954ms step_avg:558.69ms routers_forward:2 attn_aux:-0.2095 attn_entropy:1.7301 attn_js:0.3694 attn_entropy_bonus:0.0143 mlp_aux:-0.0354 mlp_entropy:2.4726 mlp_js:0.0001 mlp_entropy_bonus:0.0143
+step:350/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2094 attn_entropy:1.7300 attn_js:0.3696 mlp_aux:-0.0352 mlp_entropy:2.4719 mlp_js:0.0001
+step:350/20000 attention_head_matrix
+step:350/20000 mlp_expert_matrix
+step:350/20000 train_loss:2.7301 train_time:195452ms step_avg:558.43ms routers_forward:2 attn_aux:-0.2093 attn_entropy:1.7299 attn_js:0.3697 attn_entropy_bonus:0.0142 mlp_aux:-0.0350 mlp_entropy:2.4710 mlp_js:0.0001 mlp_entropy_bonus:0.0142
+step:360/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2092 attn_entropy:1.7299 attn_js:0.3698 mlp_aux:-0.0348 mlp_entropy:2.4712 mlp_js:0.0001
+step:360/20000 attention_head_matrix
+step:360/20000 mlp_expert_matrix
+step:360/20000 train_loss:2.7173 train_time:200945ms step_avg:558.18ms routers_forward:2 attn_aux:-0.2092 attn_entropy:1.7297 attn_js:0.3700 attn_entropy_bonus:0.0140 mlp_aux:-0.0346 mlp_entropy:2.4713 mlp_js:0.0001 mlp_entropy_bonus:0.0140
+step:370/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2091 attn_entropy:1.7297 attn_js:0.3701 mlp_aux:-0.0343 mlp_entropy:2.4709 mlp_js:0.0001
+step:370/20000 attention_head_matrix
+step:370/20000 mlp_expert_matrix
+step:370/20000 train_loss:2.6862 train_time:206428ms step_avg:557.91ms routers_forward:2 attn_aux:-0.2090 attn_entropy:1.7296 attn_js:0.3702 attn_entropy_bonus:0.0138 mlp_aux:-0.0342 mlp_entropy:2.4705 mlp_js:0.0001 mlp_entropy_bonus:0.0138
+step:380/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2089 attn_entropy:1.7295 attn_js:0.3703 mlp_aux:-0.0339 mlp_entropy:2.4703 mlp_js:0.0001
+step:380/20000 attention_head_matrix
+step:380/20000 mlp_expert_matrix
+step:380/20000 train_loss:2.6066 train_time:211917ms step_avg:557.68ms routers_forward:2 attn_aux:-0.2086 attn_entropy:1.7294 attn_js:0.3699 attn_entropy_bonus:0.0137 mlp_aux:-0.0337 mlp_entropy:2.4698 mlp_js:0.0001 mlp_entropy_bonus:0.0137
+step:390/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2086 attn_entropy:1.7299 attn_js:0.3703 mlp_aux:-0.0335 mlp_entropy:2.4703 mlp_js:0.0001
+step:390/20000 attention_head_matrix
+step:390/20000 mlp_expert_matrix
+step:390/20000 train_loss:2.5977 train_time:217398ms step_avg:557.43ms routers_forward:2 attn_aux:-0.2086 attn_entropy:1.7296 attn_js:0.3706 attn_entropy_bonus:0.0135 mlp_aux:-0.0333 mlp_entropy:2.4700 mlp_js:0.0001 mlp_entropy_bonus:0.0135
+step:400/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2086 attn_entropy:1.7291 attn_js:0.3709 mlp_aux:-0.0331 mlp_entropy:2.4697 mlp_js:0.0001
+step:400/20000 attention_head_matrix
+step:400/20000 mlp_expert_matrix
+step:400/20000 train_loss:2.6451 train_time:222890ms step_avg:557.23ms routers_forward:2 attn_aux:-0.2086 attn_entropy:1.7290 attn_js:0.3711 attn_entropy_bonus:0.0133 mlp_aux:-0.0329 mlp_entropy:2.4699 mlp_js:0.0001 mlp_entropy_bonus:0.0133
+step:410/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2085 attn_entropy:1.7289 attn_js:0.3712 mlp_aux:-0.0327 mlp_entropy:2.4692 mlp_js:0.0001
+step:410/20000 attention_head_matrix
+step:410/20000 mlp_expert_matrix
+step:410/20000 train_loss:2.6434 train_time:228375ms step_avg:557.01ms routers_forward:2 attn_aux:-0.2084 attn_entropy:1.7289 attn_js:0.3712 attn_entropy_bonus:0.0132 mlp_aux:-0.0325 mlp_entropy:2.4684 mlp_js:0.0001 mlp_entropy_bonus:0.0132
+step:420/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2083 attn_entropy:1.7288 attn_js:0.3713 mlp_aux:-0.0323 mlp_entropy:2.4685 mlp_js:0.0001
+step:420/20000 attention_head_matrix
+step:420/20000 mlp_expert_matrix
+step:420/20000 train_loss:2.6092 train_time:233865ms step_avg:556.82ms routers_forward:2 attn_aux:-0.2082 attn_entropy:1.7287 attn_js:0.3715 attn_entropy_bonus:0.0130 mlp_aux:-0.0321 mlp_entropy:2.4683 mlp_js:0.0001 mlp_entropy_bonus:0.0130
+step:430/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2082 attn_entropy:1.7285 attn_js:0.3717 mlp_aux:-0.0319 mlp_entropy:2.4685 mlp_js:0.0001
+step:430/20000 attention_head_matrix
+step:430/20000 mlp_expert_matrix
+step:430/20000 train_loss:2.5958 train_time:239359ms step_avg:556.65ms routers_forward:2 attn_aux:-0.2081 attn_entropy:1.7284 attn_js:0.3718 attn_entropy_bonus:0.0128 mlp_aux:-0.0317 mlp_entropy:2.4685 mlp_js:0.0001 mlp_entropy_bonus:0.0128
+step:440/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2080 attn_entropy:1.7284 attn_js:0.3719 mlp_aux:-0.0315 mlp_entropy:2.4682 mlp_js:0.0001
+step:440/20000 attention_head_matrix
+step:440/20000 mlp_expert_matrix
+step:440/20000 train_loss:2.5781 train_time:244850ms step_avg:556.48ms routers_forward:2 attn_aux:-0.2078 attn_entropy:1.7285 attn_js:0.3719 attn_entropy_bonus:0.0127 mlp_aux:-0.0313 mlp_entropy:2.4688 mlp_js:0.0001 mlp_entropy_bonus:0.0127
+step:450/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2078 attn_entropy:1.7283 attn_js:0.3720 mlp_aux:-0.0310 mlp_entropy:2.4673 mlp_js:0.0001
+step:450/20000 attention_head_matrix
+step:450/20000 mlp_expert_matrix
+step:450/20000 train_loss:2.6202 train_time:250337ms step_avg:556.30ms routers_forward:2 attn_aux:-0.2077 attn_entropy:1.7281 attn_js:0.3722 attn_entropy_bonus:0.0125 mlp_aux:-0.0309 mlp_entropy:2.4667 mlp_js:0.0001 mlp_entropy_bonus:0.0125
+step:460/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2075 attn_entropy:1.7282 attn_js:0.3722 mlp_aux:-0.0306 mlp_entropy:2.4670 mlp_js:0.0001
+step:460/20000 attention_head_matrix
+step:460/20000 mlp_expert_matrix
+step:460/20000 train_loss:2.6064 train_time:255832ms step_avg:556.16ms routers_forward:2 attn_aux:-0.2073 attn_entropy:1.7283 attn_js:0.3720 attn_entropy_bonus:0.0123 mlp_aux:-0.0304 mlp_entropy:2.4668 mlp_js:0.0001 mlp_entropy_bonus:0.0123
+step:470/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2074 attn_entropy:1.7282 attn_js:0.3724 mlp_aux:-0.0302 mlp_entropy:2.4665 mlp_js:0.0001
+step:470/20000 attention_head_matrix
+step:470/20000 mlp_expert_matrix
+step:470/20000 train_loss:2.5540 train_time:261330ms step_avg:556.02ms routers_forward:2 attn_aux:-0.2074 attn_entropy:1.7278 attn_js:0.3727 attn_entropy_bonus:0.0122 mlp_aux:-0.0300 mlp_entropy:2.4664 mlp_js:0.0001 mlp_entropy_bonus:0.0122
+step:480/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2073 attn_entropy:1.7277 attn_js:0.3728 mlp_aux:-0.0298 mlp_entropy:2.4662 mlp_js:0.0001
+step:480/20000 attention_head_matrix
+step:480/20000 mlp_expert_matrix
+step:480/20000 train_loss:2.6300 train_time:266822ms step_avg:555.88ms routers_forward:2 attn_aux:-0.2072 attn_entropy:1.7276 attn_js:0.3729 attn_entropy_bonus:0.0120 mlp_aux:-0.0296 mlp_entropy:2.4655 mlp_js:0.0001 mlp_entropy_bonus:0.0120
+step:490/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2071 attn_entropy:1.7275 attn_js:0.3730 mlp_aux:-0.0294 mlp_entropy:2.4657 mlp_js:0.0001
+step:490/20000 attention_head_matrix
+step:490/20000 mlp_expert_matrix
+step:490/20000 train_loss:2.5900 train_time:272321ms step_avg:555.76ms routers_forward:2 attn_aux:-0.2071 attn_entropy:1.7274 attn_js:0.3732 attn_entropy_bonus:0.0118 mlp_aux:-0.0292 mlp_entropy:2.4655 mlp_js:0.0001 mlp_entropy_bonus:0.0118
+step:500/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2069 attn_entropy:1.7274 attn_js:0.3732 mlp_aux:-0.0290 mlp_entropy:2.4653 mlp_js:0.0001
+step:500/20000 attention_head_matrix
+step:500/20000 mlp_expert_matrix
+step:500/20000 train_loss:2.5928 train_time:277809ms step_avg:555.62ms routers_forward:2 attn_aux:-0.2069 attn_entropy:1.7273 attn_js:0.3734 attn_entropy_bonus:0.0117 mlp_aux:-0.0288 mlp_entropy:2.4652 mlp_js:0.0001 mlp_entropy_bonus:0.0117
+step:510/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2068 attn_entropy:1.7272 attn_js:0.3735 mlp_aux:-0.0286 mlp_entropy:2.4649 mlp_js:0.0001
+step:510/20000 attention_head_matrix
+step:510/20000 mlp_expert_matrix
+step:510/20000 train_loss:2.6396 train_time:283289ms step_avg:555.47ms routers_forward:2 attn_aux:-0.2066 attn_entropy:1.7272 attn_js:0.3734 attn_entropy_bonus:0.0115 mlp_aux:-0.0284 mlp_entropy:2.4648 mlp_js:0.0001 mlp_entropy_bonus:0.0115
+step:520/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2065 attn_entropy:1.7272 attn_js:0.3735 mlp_aux:-0.0282 mlp_entropy:2.4648 mlp_js:0.0001
+step:520/20000 attention_head_matrix
+step:520/20000 mlp_expert_matrix
+step:520/20000 train_loss:2.4884 train_time:288774ms step_avg:555.33ms routers_forward:2 attn_aux:-0.2064 attn_entropy:1.7272 attn_js:0.3735 attn_entropy_bonus:0.0114 mlp_aux:-0.0280 mlp_entropy:2.4651 mlp_js:0.0001 mlp_entropy_bonus:0.0114
+step:530/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2063 attn_entropy:1.7270 attn_js:0.3737 mlp_aux:-0.0278 mlp_entropy:2.4640 mlp_js:0.0001
+step:530/20000 attention_head_matrix
+step:530/20000 mlp_expert_matrix
+step:530/20000 train_loss:2.5249 train_time:294258ms step_avg:555.20ms routers_forward:2 attn_aux:-0.2062 attn_entropy:1.7269 attn_js:0.3738 attn_entropy_bonus:0.0112 mlp_aux:-0.0276 mlp_entropy:2.4641 mlp_js:0.0001 mlp_entropy_bonus:0.0112
+step:540/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2061 attn_entropy:1.7269 attn_js:0.3739 mlp_aux:-0.0273 mlp_entropy:2.4636 mlp_js:0.0001
+step:540/20000 attention_head_matrix
+step:540/20000 mlp_expert_matrix
+step:540/20000 train_loss:2.5828 train_time:299763ms step_avg:555.12ms routers_forward:2 attn_aux:-0.2060 attn_entropy:1.7267 attn_js:0.3740 attn_entropy_bonus:0.0110 mlp_aux:-0.0272 mlp_entropy:2.4628 mlp_js:0.0001 mlp_entropy_bonus:0.0110
+step:550/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2059 attn_entropy:1.7266 attn_js:0.3741 mlp_aux:-0.0269 mlp_entropy:2.4632 mlp_js:0.0001
+step:550/20000 attention_head_matrix
+step:550/20000 mlp_expert_matrix
+step:550/20000 train_loss:2.5176 train_time:305260ms step_avg:555.02ms routers_forward:2 attn_aux:-0.2059 attn_entropy:1.7266 attn_js:0.3742 attn_entropy_bonus:0.0109 mlp_aux:-0.0268 mlp_entropy:2.4634 mlp_js:0.0001 mlp_entropy_bonus:0.0109
+step:560/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2057 attn_entropy:1.7265 attn_js:0.3743 mlp_aux:-0.0265 mlp_entropy:2.4628 mlp_js:0.0001
+step:560/20000 attention_head_matrix
+step:560/20000 mlp_expert_matrix
+step:560/20000 train_loss:2.4918 train_time:310751ms step_avg:554.91ms routers_forward:2 attn_aux:-0.2057 attn_entropy:1.7264 attn_js:0.3744 attn_entropy_bonus:0.0107 mlp_aux:-0.0263 mlp_entropy:2.4623 mlp_js:0.0001 mlp_entropy_bonus:0.0107
+step:570/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2056 attn_entropy:1.7264 attn_js:0.3745 mlp_aux:-0.0261 mlp_entropy:2.4625 mlp_js:0.0001
+step:570/20000 attention_head_matrix
+step:570/20000 mlp_expert_matrix
+step:570/20000 train_loss:2.5335 train_time:316251ms step_avg:554.83ms routers_forward:2 attn_aux:-0.2054 attn_entropy:1.7263 attn_js:0.3745 attn_entropy_bonus:0.0105 mlp_aux:-0.0259 mlp_entropy:2.4626 mlp_js:0.0001 mlp_entropy_bonus:0.0105
+step:580/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2054 attn_entropy:1.7263 attn_js:0.3747 mlp_aux:-0.0257 mlp_entropy:2.4618 mlp_js:0.0001
+step:580/20000 attention_head_matrix
+step:580/20000 mlp_expert_matrix
+step:580/20000 train_loss:2.5027 train_time:321742ms step_avg:554.73ms routers_forward:2 attn_aux:-0.2053 attn_entropy:1.7262 attn_js:0.3748 attn_entropy_bonus:0.0104 mlp_aux:-0.0255 mlp_entropy:2.4616 mlp_js:0.0001 mlp_entropy_bonus:0.0104
+step:590/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2052 attn_entropy:1.7261 attn_js:0.3750 mlp_aux:-0.0253 mlp_entropy:2.4617 mlp_js:0.0001
+step:590/20000 attention_head_matrix
+step:590/20000 mlp_expert_matrix
+step:590/20000 train_loss:2.5379 train_time:327233ms step_avg:554.63ms routers_forward:2 attn_aux:-0.2052 attn_entropy:1.7260 attn_js:0.3752 attn_entropy_bonus:0.0102 mlp_aux:-0.0251 mlp_entropy:2.4612 mlp_js:0.0001 mlp_entropy_bonus:0.0102
+step:600/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2050 attn_entropy:1.7259 attn_js:0.3752 mlp_aux:-0.0249 mlp_entropy:2.4617 mlp_js:0.0001
+step:600/20000 attention_head_matrix
+step:600/20000 mlp_expert_matrix
+step:600/20000 train_loss:2.5650 train_time:332737ms step_avg:554.56ms routers_forward:2 attn_aux:-0.2049 attn_entropy:1.7259 attn_js:0.3752 attn_entropy_bonus:0.0100 mlp_aux:-0.0247 mlp_entropy:2.4615 mlp_js:0.0001 mlp_entropy_bonus:0.0100
+step:610/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2048 attn_entropy:1.7259 attn_js:0.3752 mlp_aux:-0.0245 mlp_entropy:2.4608 mlp_js:0.0001
+step:610/20000 attention_head_matrix
+step:610/20000 mlp_expert_matrix
+step:610/20000 train_loss:2.4815 train_time:338237ms step_avg:554.49ms routers_forward:2 attn_aux:-0.2047 attn_entropy:1.7258 attn_js:0.3753 attn_entropy_bonus:0.0099 mlp_aux:-0.0243 mlp_entropy:2.4604 mlp_js:0.0001 mlp_entropy_bonus:0.0099
+step:620/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2047 attn_entropy:1.7256 attn_js:0.3756 mlp_aux:-0.0241 mlp_entropy:2.4606 mlp_js:0.0001
+step:620/20000 attention_head_matrix
+step:620/20000 mlp_expert_matrix
+step:620/20000 train_loss:2.4809 train_time:343734ms step_avg:554.41ms routers_forward:2 attn_aux:-0.2046 attn_entropy:1.7255 attn_js:0.3758 attn_entropy_bonus:0.0097 mlp_aux:-0.0239 mlp_entropy:2.4600 mlp_js:0.0001 mlp_entropy_bonus:0.0097
+step:630/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2045 attn_entropy:1.7255 attn_js:0.3759 mlp_aux:-0.0236 mlp_entropy:2.4596 mlp_js:0.0001
+step:630/20000 attention_head_matrix
+step:630/20000 mlp_expert_matrix
+step:630/20000 train_loss:2.5508 train_time:349221ms step_avg:554.32ms routers_forward:2 attn_aux:-0.2045 attn_entropy:1.7254 attn_js:0.3760 attn_entropy_bonus:0.0095 mlp_aux:-0.0235 mlp_entropy:2.4599 mlp_js:0.0001 mlp_entropy_bonus:0.0095
+step:640/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2044 attn_entropy:1.7253 attn_js:0.3762 mlp_aux:-0.0232 mlp_entropy:2.4595 mlp_js:0.0001
+step:640/20000 attention_head_matrix
+step:640/20000 mlp_expert_matrix
+step:640/20000 train_loss:2.4178 train_time:354716ms step_avg:554.24ms routers_forward:2 attn_aux:-0.2043 attn_entropy:1.7252 attn_js:0.3762 attn_entropy_bonus:0.0094 mlp_aux:-0.0231 mlp_entropy:2.4597 mlp_js:0.0001 mlp_entropy_bonus:0.0094
+step:650/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2042 attn_entropy:1.7252 attn_js:0.3763 mlp_aux:-0.0228 mlp_entropy:2.4592 mlp_js:0.0001
+step:650/20000 attention_head_matrix
+step:650/20000 mlp_expert_matrix
+step:650/20000 train_loss:2.5521 train_time:360216ms step_avg:554.18ms routers_forward:2 attn_aux:-0.2041 attn_entropy:1.7251 attn_js:0.3763 attn_entropy_bonus:0.0092 mlp_aux:-0.0226 mlp_entropy:2.4586 mlp_js:0.0001 mlp_entropy_bonus:0.0092
+step:660/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2040 attn_entropy:1.7251 attn_js:0.3765 mlp_aux:-0.0224 mlp_entropy:2.4586 mlp_js:0.0001
+step:660/20000 attention_head_matrix
+step:660/20000 mlp_expert_matrix
+step:660/20000 train_loss:2.4688 train_time:365710ms step_avg:554.11ms routers_forward:2 attn_aux:-0.2039 attn_entropy:1.7250 attn_js:0.3766 attn_entropy_bonus:0.0090 mlp_aux:-0.0222 mlp_entropy:2.4586 mlp_js:0.0001 mlp_entropy_bonus:0.0090
+step:670/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2038 attn_entropy:1.7250 attn_js:0.3767 mlp_aux:-0.0220 mlp_entropy:2.4583 mlp_js:0.0001
+step:670/20000 attention_head_matrix
+step:670/20000 mlp_expert_matrix
+step:670/20000 train_loss:2.5253 train_time:371198ms step_avg:554.03ms routers_forward:2 attn_aux:-0.2037 attn_entropy:1.7249 attn_js:0.3768 attn_entropy_bonus:0.0089 mlp_aux:-0.0218 mlp_entropy:2.4580 mlp_js:0.0001 mlp_entropy_bonus:0.0089
+step:680/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2036 attn_entropy:1.7248 attn_js:0.3769 mlp_aux:-0.0216 mlp_entropy:2.4577 mlp_js:0.0001
+step:680/20000 attention_head_matrix
+step:680/20000 mlp_expert_matrix
+step:680/20000 train_loss:2.4343 train_time:376705ms step_avg:553.98ms routers_forward:2 attn_aux:-0.2035 attn_entropy:1.7247 attn_js:0.3770 attn_entropy_bonus:0.0087 mlp_aux:-0.0214 mlp_entropy:2.4575 mlp_js:0.0001 mlp_entropy_bonus:0.0087
+step:690/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2034 attn_entropy:1.7247 attn_js:0.3771 mlp_aux:-0.0212 mlp_entropy:2.4572 mlp_js:0.0001
+step:690/20000 attention_head_matrix
+step:690/20000 mlp_expert_matrix
+step:690/20000 train_loss:2.4831 train_time:382211ms step_avg:553.93ms routers_forward:2 attn_aux:-0.2033 attn_entropy:1.7246 attn_js:0.3772 attn_entropy_bonus:0.0086 mlp_aux:-0.0210 mlp_entropy:2.4573 mlp_js:0.0001 mlp_entropy_bonus:0.0086
+step:700/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2032 attn_entropy:1.7246 attn_js:0.3772 mlp_aux:-0.0208 mlp_entropy:2.4571 mlp_js:0.0001
+step:700/20000 attention_head_matrix
+step:700/20000 mlp_expert_matrix
+step:700/20000 train_loss:2.3965 train_time:387709ms step_avg:553.87ms routers_forward:2 attn_aux:-0.2031 attn_entropy:1.7245 attn_js:0.3773 attn_entropy_bonus:0.0084 mlp_aux:-0.0206 mlp_entropy:2.4572 mlp_js:0.0001 mlp_entropy_bonus:0.0084
+step:710/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2030 attn_entropy:1.7245 attn_js:0.3773 mlp_aux:-0.0204 mlp_entropy:2.4565 mlp_js:0.0001
+step:710/20000 attention_head_matrix
+step:710/20000 mlp_expert_matrix
+step:710/20000 train_loss:2.5017 train_time:393216ms step_avg:553.83ms routers_forward:2 attn_aux:-0.2029 attn_entropy:1.7244 attn_js:0.3774 attn_entropy_bonus:0.0082 mlp_aux:-0.0202 mlp_entropy:2.4558 mlp_js:0.0001 mlp_entropy_bonus:0.0082
+step:720/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2028 attn_entropy:1.7243 attn_js:0.3776 mlp_aux:-0.0200 mlp_entropy:2.4563 mlp_js:0.0001
+step:720/20000 attention_head_matrix
+step:720/20000 mlp_expert_matrix
+step:720/20000 train_loss:2.3828 train_time:398716ms step_avg:553.77ms routers_forward:2 attn_aux:-0.2027 attn_entropy:1.7243 attn_js:0.3776 attn_entropy_bonus:0.0081 mlp_aux:-0.0198 mlp_entropy:2.4560 mlp_js:0.0001 mlp_entropy_bonus:0.0081
+step:730/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2026 attn_entropy:1.7242 attn_js:0.3777 mlp_aux:-0.0196 mlp_entropy:2.4559 mlp_js:0.0001
+step:730/20000 attention_head_matrix
+step:730/20000 mlp_expert_matrix
+step:730/20000 train_loss:2.4439 train_time:404215ms step_avg:553.72ms routers_forward:2 attn_aux:-0.2025 attn_entropy:1.7242 attn_js:0.3778 attn_entropy_bonus:0.0079 mlp_aux:-0.0194 mlp_entropy:2.4551 mlp_js:0.0001 mlp_entropy_bonus:0.0079
+step:740/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2024 attn_entropy:1.7241 attn_js:0.3778 mlp_aux:-0.0192 mlp_entropy:2.4554 mlp_js:0.0001
+step:740/20000 attention_head_matrix
+step:740/20000 mlp_expert_matrix
+step:740/20000 train_loss:2.4564 train_time:409709ms step_avg:553.66ms routers_forward:2 attn_aux:-0.2023 attn_entropy:1.7241 attn_js:0.3779 attn_entropy_bonus:0.0077 mlp_aux:-0.0190 mlp_entropy:2.4553 mlp_js:0.0001 mlp_entropy_bonus:0.0077
+step:750/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2021 attn_entropy:1.7241 attn_js:0.3779 mlp_aux:-0.0187 mlp_entropy:2.4553 mlp_js:0.0001
+step:750/20000 attention_head_matrix
+step:750/20000 mlp_expert_matrix
+step:750/20000 train_loss:2.4419 train_time:415207ms step_avg:553.61ms routers_forward:2 attn_aux:-0.2021 attn_entropy:1.7240 attn_js:0.3780 attn_entropy_bonus:0.0076 mlp_aux:-0.0186 mlp_entropy:2.4554 mlp_js:0.0001 mlp_entropy_bonus:0.0076
+step:760/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2019 attn_entropy:1.7240 attn_js:0.3781 mlp_aux:-0.0183 mlp_entropy:2.4546 mlp_js:0.0001
+step:760/20000 attention_head_matrix
+step:760/20000 mlp_expert_matrix
+step:760/20000 train_loss:2.4355 train_time:420705ms step_avg:553.56ms routers_forward:2 attn_aux:-0.2018 attn_entropy:1.7240 attn_js:0.3781 attn_entropy_bonus:0.0074 mlp_aux:-0.0182 mlp_entropy:2.4546 mlp_js:0.0001 mlp_entropy_bonus:0.0074
+step:770/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2017 attn_entropy:1.7239 attn_js:0.3782 mlp_aux:-0.0179 mlp_entropy:2.4543 mlp_js:0.0001
+step:770/20000 attention_head_matrix
+step:770/20000 mlp_expert_matrix
+step:770/20000 train_loss:2.4484 train_time:426205ms step_avg:553.51ms routers_forward:2 attn_aux:-0.2016 attn_entropy:1.7239 attn_js:0.3782 attn_entropy_bonus:0.0072 mlp_aux:-0.0177 mlp_entropy:2.4540 mlp_js:0.0001 mlp_entropy_bonus:0.0072
+step:780/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2015 attn_entropy:1.7238 attn_js:0.3783 mlp_aux:-0.0175 mlp_entropy:2.4539 mlp_js:0.0001
+step:780/20000 attention_head_matrix
+step:780/20000 mlp_expert_matrix
+step:780/20000 train_loss:2.4451 train_time:431698ms step_avg:553.46ms routers_forward:2 attn_aux:-0.2014 attn_entropy:1.7238 attn_js:0.3784 attn_entropy_bonus:0.0071 mlp_aux:-0.0173 mlp_entropy:2.4537 mlp_js:0.0001 mlp_entropy_bonus:0.0071
+step:790/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2012 attn_entropy:1.7237 attn_js:0.3785 mlp_aux:-0.0171 mlp_entropy:2.4535 mlp_js:0.0001
+step:790/20000 attention_head_matrix
+step:790/20000 mlp_expert_matrix
+step:790/20000 train_loss:2.3854 train_time:437343ms step_avg:553.60ms routers_forward:2 attn_aux:-0.2012 attn_entropy:1.7237 attn_js:0.3785 attn_entropy_bonus:0.0069 mlp_aux:-0.0169 mlp_entropy:2.4542 mlp_js:0.0001 mlp_entropy_bonus:0.0069
+step:800/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2010 attn_entropy:1.7237 attn_js:0.3785 mlp_aux:-0.0167 mlp_entropy:2.4529 mlp_js:0.0001
+step:800/20000 attention_head_matrix
+step:800/20000 mlp_expert_matrix
+step:800/20000 train_loss:2.4480 train_time:442830ms step_avg:553.54ms routers_forward:2 attn_aux:-0.2009 attn_entropy:1.7236 attn_js:0.3786 attn_entropy_bonus:0.0067 mlp_aux:-0.0165 mlp_entropy:2.4528 mlp_js:0.0001 mlp_entropy_bonus:0.0067
+step:810/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2008 attn_entropy:1.7236 attn_js:0.3787 mlp_aux:-0.0163 mlp_entropy:2.4527 mlp_js:0.0001
+step:810/20000 attention_head_matrix
+step:810/20000 mlp_expert_matrix
+step:810/20000 train_loss:2.3914 train_time:448325ms step_avg:553.49ms routers_forward:2 attn_aux:-0.2007 attn_entropy:1.7236 attn_js:0.3787 attn_entropy_bonus:0.0066 mlp_aux:-0.0161 mlp_entropy:2.4526 mlp_js:0.0001 mlp_entropy_bonus:0.0066
+step:820/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2005 attn_entropy:1.7235 attn_js:0.3788 mlp_aux:-0.0159 mlp_entropy:2.4521 mlp_js:0.0001
+step:820/20000 attention_head_matrix
+step:820/20000 mlp_expert_matrix
+step:820/20000 train_loss:2.3868 train_time:453824ms step_avg:553.44ms routers_forward:2 attn_aux:-0.2005 attn_entropy:1.7235 attn_js:0.3788 attn_entropy_bonus:0.0064 mlp_aux:-0.0157 mlp_entropy:2.4518 mlp_js:0.0001 mlp_entropy_bonus:0.0064
+step:830/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2003 attn_entropy:1.7235 attn_js:0.3789 mlp_aux:-0.0155 mlp_entropy:2.4518 mlp_js:0.0001
+step:830/20000 attention_head_matrix
+step:830/20000 mlp_expert_matrix
+step:830/20000 train_loss:2.4247 train_time:459473ms step_avg:553.58ms routers_forward:2 attn_aux:-0.2002 attn_entropy:1.7235 attn_js:0.3788 attn_entropy_bonus:0.0062 mlp_aux:-0.0153 mlp_entropy:2.4518 mlp_js:0.0001 mlp_entropy_bonus:0.0062
+step:840/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.2001 attn_entropy:1.7234 attn_js:0.3790 mlp_aux:-0.0151 mlp_entropy:2.4514 mlp_js:0.0001
+step:840/20000 attention_head_matrix
+step:840/20000 mlp_expert_matrix
+step:840/20000 train_loss:2.4124 train_time:465138ms step_avg:553.74ms routers_forward:2 attn_aux:-0.2000 attn_entropy:1.7234 attn_js:0.3790 attn_entropy_bonus:0.0061 mlp_aux:-0.0149 mlp_entropy:2.4509 mlp_js:0.0001 mlp_entropy_bonus:0.0061
+step:850/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1998 attn_entropy:1.7234 attn_js:0.3791 mlp_aux:-0.0146 mlp_entropy:2.4510 mlp_js:0.0001
+step:850/20000 attention_head_matrix
+step:850/20000 mlp_expert_matrix
+step:850/20000 train_loss:2.4311 train_time:470640ms step_avg:553.69ms routers_forward:2 attn_aux:-0.1997 attn_entropy:1.7234 attn_js:0.3791 attn_entropy_bonus:0.0059 mlp_aux:-0.0145 mlp_entropy:2.4511 mlp_js:0.0001 mlp_entropy_bonus:0.0059
+step:860/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1996 attn_entropy:1.7233 attn_js:0.3791 mlp_aux:-0.0142 mlp_entropy:2.4506 mlp_js:0.0001
+step:860/20000 attention_head_matrix
+step:860/20000 mlp_expert_matrix
+step:860/20000 train_loss:2.3567 train_time:476139ms step_avg:553.65ms routers_forward:2 attn_aux:-0.1995 attn_entropy:1.7233 attn_js:0.3792 attn_entropy_bonus:0.0057 mlp_aux:-0.0141 mlp_entropy:2.4509 mlp_js:0.0001 mlp_entropy_bonus:0.0057
+step:870/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1993 attn_entropy:1.7233 attn_js:0.3792 mlp_aux:-0.0138 mlp_entropy:2.4505 mlp_js:0.0001
+step:870/20000 attention_head_matrix
+step:870/20000 mlp_expert_matrix
+step:870/20000 train_loss:2.3907 train_time:481636ms step_avg:553.60ms routers_forward:2 attn_aux:-0.1992 attn_entropy:1.7233 attn_js:0.3793 attn_entropy_bonus:0.0056 mlp_aux:-0.0136 mlp_entropy:2.4507 mlp_js:0.0001 mlp_entropy_bonus:0.0056
+step:880/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1991 attn_entropy:1.7233 attn_js:0.3793 mlp_aux:-0.0134 mlp_entropy:2.4502 mlp_js:0.0001
+step:880/20000 attention_head_matrix
+step:880/20000 mlp_expert_matrix
+step:880/20000 train_loss:2.3569 train_time:487130ms step_avg:553.56ms routers_forward:2 attn_aux:-0.1990 attn_entropy:1.7232 attn_js:0.3793 attn_entropy_bonus:0.0054 mlp_aux:-0.0132 mlp_entropy:2.4501 mlp_js:0.0001 mlp_entropy_bonus:0.0054
+step:890/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1988 attn_entropy:1.7232 attn_js:0.3794 mlp_aux:-0.0130 mlp_entropy:2.4495 mlp_js:0.0001
+step:890/20000 attention_head_matrix
+step:890/20000 mlp_expert_matrix
+step:890/20000 train_loss:2.3774 train_time:492624ms step_avg:553.51ms routers_forward:2 attn_aux:-0.1987 attn_entropy:1.7232 attn_js:0.3794 attn_entropy_bonus:0.0052 mlp_aux:-0.0128 mlp_entropy:2.4488 mlp_js:0.0001 mlp_entropy_bonus:0.0052
+step:900/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1986 attn_entropy:1.7232 attn_js:0.3794 mlp_aux:-0.0126 mlp_entropy:2.4493 mlp_js:0.0001
+step:900/20000 attention_head_matrix
+step:900/20000 mlp_expert_matrix
+step:900/20000 train_loss:2.3634 train_time:498129ms step_avg:553.48ms routers_forward:2 attn_aux:-0.1985 attn_entropy:1.7231 attn_js:0.3795 attn_entropy_bonus:0.0051 mlp_aux:-0.0124 mlp_entropy:2.4497 mlp_js:0.0001 mlp_entropy_bonus:0.0051
+step:910/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1984 attn_entropy:1.7231 attn_js:0.3796 mlp_aux:-0.0122 mlp_entropy:2.4490 mlp_js:0.0001
+step:910/20000 attention_head_matrix
+step:910/20000 mlp_expert_matrix
+step:910/20000 train_loss:2.3339 train_time:503633ms step_avg:553.44ms routers_forward:2 attn_aux:-0.1982 attn_entropy:1.7231 attn_js:0.3796 attn_entropy_bonus:0.0049 mlp_aux:-0.0120 mlp_entropy:2.4489 mlp_js:0.0001 mlp_entropy_bonus:0.0049
+step:920/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1981 attn_entropy:1.7231 attn_js:0.3796 mlp_aux:-0.0118 mlp_entropy:2.4486 mlp_js:0.0001
+step:920/20000 attention_head_matrix
+step:920/20000 mlp_expert_matrix
+step:920/20000 train_loss:2.3893 train_time:509135ms step_avg:553.41ms routers_forward:2 attn_aux:-0.1980 attn_entropy:1.7231 attn_js:0.3797 attn_entropy_bonus:0.0047 mlp_aux:-0.0116 mlp_entropy:2.4486 mlp_js:0.0001 mlp_entropy_bonus:0.0047
+step:930/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1979 attn_entropy:1.7231 attn_js:0.3797 mlp_aux:-0.0114 mlp_entropy:2.4484 mlp_js:0.0001
+step:930/20000 attention_head_matrix
+step:930/20000 mlp_expert_matrix
+step:930/20000 train_loss:2.3462 train_time:514636ms step_avg:553.37ms routers_forward:2 attn_aux:-0.1977 attn_entropy:1.7230 attn_js:0.3797 attn_entropy_bonus:0.0046 mlp_aux:-0.0112 mlp_entropy:2.4481 mlp_js:0.0001 mlp_entropy_bonus:0.0046
+step:940/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1976 attn_entropy:1.7230 attn_js:0.3797 mlp_aux:-0.0110 mlp_entropy:2.4484 mlp_js:0.0001
+step:940/20000 attention_head_matrix
+step:940/20000 mlp_expert_matrix
+step:940/20000 train_loss:2.3853 train_time:520129ms step_avg:553.33ms routers_forward:2 attn_aux:-0.1975 attn_entropy:1.7230 attn_js:0.3798 attn_entropy_bonus:0.0044 mlp_aux:-0.0108 mlp_entropy:2.4479 mlp_js:0.0001 mlp_entropy_bonus:0.0044
+step:950/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1973 attn_entropy:1.7230 attn_js:0.3798 mlp_aux:-0.0106 mlp_entropy:2.4477 mlp_js:0.0001
+step:950/20000 attention_head_matrix
+step:950/20000 mlp_expert_matrix
+step:950/20000 train_loss:2.3416 train_time:525627ms step_avg:553.29ms routers_forward:2 attn_aux:-0.1972 attn_entropy:1.7230 attn_js:0.3798 attn_entropy_bonus:0.0042 mlp_aux:-0.0104 mlp_entropy:2.4474 mlp_js:0.0001 mlp_entropy_bonus:0.0042
+step:960/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1971 attn_entropy:1.7230 attn_js:0.3798 mlp_aux:-0.0102 mlp_entropy:2.4474 mlp_js:0.0001
+step:960/20000 attention_head_matrix
+step:960/20000 mlp_expert_matrix
+step:960/20000 train_loss:2.3037 train_time:531328ms step_avg:553.47ms routers_forward:2 attn_aux:-0.1969 attn_entropy:1.7230 attn_js:0.3798 attn_entropy_bonus:0.0041 mlp_aux:-0.0100 mlp_entropy:2.4473 mlp_js:0.0001 mlp_entropy_bonus:0.0041
+step:970/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1968 attn_entropy:1.7230 attn_js:0.3799 mlp_aux:-0.0098 mlp_entropy:2.4471 mlp_js:0.0001
+step:970/20000 attention_head_matrix
+step:970/20000 mlp_expert_matrix
+step:970/20000 train_loss:2.3502 train_time:536823ms step_avg:553.43ms routers_forward:2 attn_aux:-0.1967 attn_entropy:1.7230 attn_js:0.3799 attn_entropy_bonus:0.0039 mlp_aux:-0.0096 mlp_entropy:2.4468 mlp_js:0.0001 mlp_entropy_bonus:0.0039
+step:980/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1965 attn_entropy:1.7230 attn_js:0.3799 mlp_aux:-0.0094 mlp_entropy:2.4466 mlp_js:0.0001
+step:980/20000 attention_head_matrix
+step:980/20000 mlp_expert_matrix
+step:980/20000 train_loss:2.3320 train_time:542312ms step_avg:553.38ms routers_forward:2 attn_aux:-0.1964 attn_entropy:1.7229 attn_js:0.3799 attn_entropy_bonus:0.0037 mlp_aux:-0.0092 mlp_entropy:2.4465 mlp_js:0.0001 mlp_entropy_bonus:0.0037
+step:990/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1963 attn_entropy:1.7229 attn_js:0.3799 mlp_aux:-0.0089 mlp_entropy:2.4465 mlp_js:0.0001
+step:990/20000 attention_head_matrix
+step:990/20000 mlp_expert_matrix
+step:990/20000 train_loss:2.3872 train_time:547805ms step_avg:553.34ms routers_forward:2 attn_aux:-0.1962 attn_entropy:1.7229 attn_js:0.3800 attn_entropy_bonus:0.0036 mlp_aux:-0.0088 mlp_entropy:2.4461 mlp_js:0.0001 mlp_entropy_bonus:0.0036
+step:1000/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1961 attn_entropy:1.7229 attn_js:0.3801 mlp_aux:-0.0085 mlp_entropy:2.4460 mlp_js:0.0001
+step:1000/20000 attention_head_matrix
+step:1000/20000 mlp_expert_matrix
+step:1000/20000 train_loss:2.2412 train_time:553292ms step_avg:553.29ms routers_forward:2 attn_aux:-0.1959 attn_entropy:1.7229 attn_js:0.3801 attn_entropy_bonus:0.0034 mlp_aux:-0.0084 mlp_entropy:2.4461 mlp_js:0.0001 mlp_entropy_bonus:0.0034
+step:1010/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1958 attn_entropy:1.7228 attn_js:0.3801 mlp_aux:-0.0081 mlp_entropy:2.4458 mlp_js:0.0001
+step:1010/20000 attention_head_matrix
+step:1010/20000 mlp_expert_matrix
+step:1010/20000 train_loss:2.3871 train_time:558798ms step_avg:553.27ms routers_forward:2 attn_aux:-0.1957 attn_entropy:1.7228 attn_js:0.3801 attn_entropy_bonus:0.0033 mlp_aux:-0.0080 mlp_entropy:2.4453 mlp_js:0.0001 mlp_entropy_bonus:0.0033
+step:1020/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1955 attn_entropy:1.7228 attn_js:0.3802 mlp_aux:-0.0077 mlp_entropy:2.4458 mlp_js:0.0001
+step:1020/20000 attention_head_matrix
+step:1020/20000 mlp_expert_matrix
+step:1020/20000 train_loss:2.3828 train_time:564298ms step_avg:553.23ms routers_forward:2 attn_aux:-0.1954 attn_entropy:1.7228 attn_js:0.3802 attn_entropy_bonus:0.0031 mlp_aux:-0.0076 mlp_entropy:2.4456 mlp_js:0.0001 mlp_entropy_bonus:0.0031
+step:1030/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1953 attn_entropy:1.7228 attn_js:0.3802 mlp_aux:-0.0073 mlp_entropy:2.4454 mlp_js:0.0001
+step:1030/20000 attention_head_matrix
+step:1030/20000 mlp_expert_matrix
+step:1030/20000 train_loss:2.3344 train_time:569800ms step_avg:553.20ms routers_forward:2 attn_aux:-0.1951 attn_entropy:1.7228 attn_js:0.3802 attn_entropy_bonus:0.0029 mlp_aux:-0.0071 mlp_entropy:2.4457 mlp_js:0.0001 mlp_entropy_bonus:0.0029
+step:1040/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1950 attn_entropy:1.7228 attn_js:0.3802 mlp_aux:-0.0069 mlp_entropy:2.4451 mlp_js:0.0001
+step:1040/20000 attention_head_matrix
+step:1040/20000 mlp_expert_matrix
+step:1040/20000 train_loss:2.3567 train_time:575307ms step_avg:553.18ms routers_forward:2 attn_aux:-0.1949 attn_entropy:1.7228 attn_js:0.3802 attn_entropy_bonus:0.0028 mlp_aux:-0.0067 mlp_entropy:2.4448 mlp_js:0.0001 mlp_entropy_bonus:0.0028
+step:1050/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1947 attn_entropy:1.7228 attn_js:0.3802 mlp_aux:-0.0065 mlp_entropy:2.4448 mlp_js:0.0001
+step:1050/20000 attention_head_matrix
+step:1050/20000 mlp_expert_matrix
+step:1050/20000 train_loss:2.3959 train_time:580807ms step_avg:553.15ms routers_forward:2 attn_aux:-0.1946 attn_entropy:1.7228 attn_js:0.3803 attn_entropy_bonus:0.0026 mlp_aux:-0.0063 mlp_entropy:2.4448 mlp_js:0.0001 mlp_entropy_bonus:0.0026
+step:1060/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1944 attn_entropy:1.7228 attn_js:0.3803 mlp_aux:-0.0061 mlp_entropy:2.4446 mlp_js:0.0001
+step:1060/20000 attention_head_matrix
+step:1060/20000 mlp_expert_matrix
+step:1060/20000 train_loss:2.3403 train_time:586308ms step_avg:553.12ms routers_forward:2 attn_aux:-0.1943 attn_entropy:1.7228 attn_js:0.3803 attn_entropy_bonus:0.0024 mlp_aux:-0.0059 mlp_entropy:2.4446 mlp_js:0.0001 mlp_entropy_bonus:0.0024
+step:1070/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1942 attn_entropy:1.7228 attn_js:0.3803 mlp_aux:-0.0057 mlp_entropy:2.4444 mlp_js:0.0001
+step:1070/20000 attention_head_matrix
+step:1070/20000 mlp_expert_matrix
+step:1070/20000 train_loss:2.3194 train_time:591816ms step_avg:553.10ms routers_forward:2 attn_aux:-0.1940 attn_entropy:1.7228 attn_js:0.3803 attn_entropy_bonus:0.0023 mlp_aux:-0.0055 mlp_entropy:2.4445 mlp_js:0.0001 mlp_entropy_bonus:0.0023
+step:1080/20000 router_probe window_steps:10 avg_depth:8.000 attn_aux:-0.1939 attn_entropy:1.7228 attn_js:0.3803 mlp_aux:-0.0053 mlp_entropy:2.4443 mlp_js:0.0001
+step:1080/20000 attention_head_matrix
+step:1080/20000 mlp_expert_matrix
+step:1080/20000 train_loss:2.3613 train_time:597319ms step_avg:553.07ms routers_forward:2 attn_aux:-0.1937 attn_entropy:1.7228 attn_js:0.3803 attn_entropy_bonus:0.0021 mlp_aux:-0.0051 mlp_entropy:2.4441 mlp_js:0.0001 mlp_entropy_bonus:0.0021
+stopping_early: wallclock_cap train_time:600064ms step:1085/20000
+peak memory allocated: 56915 MiB reserved: 72672 MiB
+ema:applying EMA weights
+Serialized model: 223913189 bytes
+Serialized model int6+zlib: 17024904 bytes
+final_int6_roundtrip val_loss:2.5071 val_bpb:1.4849 eval_time:16158ms
+final_int6_roundtrip_exact val_loss:2.50713751 val_bpb:1.48486805

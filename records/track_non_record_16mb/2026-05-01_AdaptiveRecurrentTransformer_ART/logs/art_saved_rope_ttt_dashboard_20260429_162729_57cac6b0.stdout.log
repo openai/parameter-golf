@@ -1,0 +1,137 @@
+# Sanitized Parameter Golf run excerpt
+# Source dashboard log: dashboard_20260429_162729_57cac6b0.stdout.log
+# Removed: shell banners, infrastructure identifiers, and full path-heavy environment dumps.
+# Preserved: hardware/world-size, ART diagnostics, serialization, quantization, TTT, and score lines.
+
+  art_router_hidden_dim: 64
+  grad_accum_steps: 8
+  quantized_model_path: ckpt/final_model.int6.ptz
+  world_size: 1
+model_params:36143382
+router_params:197190
+triple_art_halt:training starts on trunk-only 0,1,2,6,7,8,9,10; fixed triple recurrence activates at ENABLE_LOOPING_AT; routed path uses packed-active token-level ART after ART_HALT_ENABLE_AT; route_group_size:1 cycle_penalty:0.001 shard_coherent_batches:0
+warmup_step: 1/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup_step: 1/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+1/50000 train_loss: 9.0085 train_time: 0.0m step_avg: 577.82ms tok/s: 1361023
+2/50000 train_loss: 12.2490 train_time: 0.0m step_avg: 583.33ms tok/s: 1348175
+3/50000 train_loss: 10.8011 train_time: 0.0m step_avg: 587.10ms tok/s: 1339512
+4/50000 train_loss: 9.2221 train_time: 0.0m step_avg: 588.99ms tok/s: 1335212
+5/50000 train_loss: 8.2198 train_time: 0.0m step_avg: 590.00ms tok/s: 1332932
+10/50000 train_loss: 6.8365 train_time: 0.1m step_avg: 593.24ms tok/s: 1325647
+20/50000 train_loss: 5.9263 train_time: 0.2m step_avg: 595.98ms tok/s: 1319552
+30/50000 train_loss: 5.4731 train_time: 0.3m step_avg: 597.35ms tok/s: 1316529
+40/50000 train_loss: 5.3018 train_time: 0.4m step_avg: 597.59ms tok/s: 1316016
+50/50000 train_loss: 5.1570 train_time: 0.5m step_avg: 597.92ms tok/s: 1315269
+60/50000 train_loss: 5.0203 train_time: 0.6m step_avg: 598.07ms tok/s: 1314956
+70/50000 train_loss: 4.8772 train_time: 0.7m step_avg: 598.32ms tok/s: 1314408
+80/50000 train_loss: 4.7327 train_time: 0.8m step_avg: 598.43ms tok/s: 1314166
+90/50000 train_loss: 4.6182 train_time: 0.9m step_avg: 598.67ms tok/s: 1313622
+100/50000 train_loss: 4.4200 train_time: 1.0m step_avg: 598.69ms tok/s: 1313586
+110/50000 train_loss: 4.2782 train_time: 1.1m step_avg: 598.84ms tok/s: 1313258
+120/50000 train_loss: 4.1695 train_time: 1.2m step_avg: 598.82ms tok/s: 1313295
+130/50000 train_loss: 4.0156 train_time: 1.3m step_avg: 598.90ms tok/s: 1313135
+140/50000 train_loss: 3.9746 train_time: 1.4m step_avg: 598.91ms tok/s: 1313101
+150/50000 train_loss: 3.9226 train_time: 1.5m step_avg: 598.86ms tok/s: 1313220
+160/50000 train_loss: 3.8609 train_time: 1.6m step_avg: 598.88ms tok/s: 1313175
+170/50000 train_loss: 3.7946 train_time: 1.7m step_avg: 598.94ms tok/s: 1313046
+180/50000 train_loss: 3.7565 train_time: 1.8m step_avg: 599.01ms tok/s: 1312888
+190/50000 train_loss: 3.7579 train_time: 1.9m step_avg: 599.09ms tok/s: 1312704
+200/50000 train_loss: 3.7375 train_time: 2.0m step_avg: 599.09ms tok/s: 1312714
+210/50000 train_loss: 3.6517 train_time: 2.1m step_avg: 599.06ms tok/s: 1312785
+220/50000 train_loss: 3.6777 train_time: 2.2m step_avg: 599.09ms tok/s: 1312701
+230/50000 train_loss: 3.6516 train_time: 2.3m step_avg: 599.09ms tok/s: 1312703
+240/50000 train_loss: 3.6286 train_time: 2.4m step_avg: 599.10ms tok/s: 1312700
+250/50000 train_loss: 3.6173 train_time: 2.5m step_avg: 599.15ms tok/s: 1312579
+260/50000 train_loss: 3.5687 train_time: 2.6m step_avg: 599.18ms tok/s: 1312512
+270/50000 train_loss: 3.5644 train_time: 2.7m step_avg: 599.19ms tok/s: 1312484
+280/50000 train_loss: 3.5336 train_time: 2.8m step_avg: 599.21ms tok/s: 1312447
+290/50000 train_loss: 3.5577 train_time: 2.9m step_avg: 599.23ms tok/s: 1312408
+300/50000 train_loss: 3.5312 train_time: 3.0m step_avg: 599.21ms tok/s: 1312438
+310/50000 train_loss: 3.5517 train_time: 3.1m step_avg: 599.23ms tok/s: 1312407
+320/50000 train_loss: 3.5074 train_time: 3.2m step_avg: 599.19ms tok/s: 1312491
+330/50000 train_loss: 3.4631 train_time: 3.3m step_avg: 599.16ms tok/s: 1312567
+340/50000 train_loss: 3.4746 train_time: 3.4m step_avg: 599.14ms tok/s: 1312594
+350/50000 train_loss: 3.4711 train_time: 3.5m step_avg: 599.11ms tok/s: 1312661
+360/50000 train_loss: 3.4275 train_time: 3.7m step_avg: 613.39ms tok/s: 1282106
+370/50000 train_loss: 3.4539 train_time: 3.9m step_avg: 628.57ms tok/s: 1251136
+380/50000 train_loss: 3.4353 train_time: 4.1m step_avg: 642.97ms tok/s: 1223131
+390/50000 train_loss: 3.3942 train_time: 4.3m step_avg: 656.61ms tok/s: 1197724
+400/50000 train_loss: 3.4107 train_time: 4.5m step_avg: 669.58ms tok/s: 1174514
+410/50000 train_loss: 3.3715 train_time: 4.7m step_avg: 681.90ms tok/s: 1153294
+420/50000 train_loss: 3.3935 train_time: 4.9m step_avg: 693.64ms tok/s: 1133769
+430/50000 train_loss: 3.3632 train_time: 5.1m step_avg: 704.83ms tok/s: 1115772
+440/50000 train_loss: 3.3313 train_time: 5.2m step_avg: 715.54ms tok/s: 1099082
+450/50000 train_loss: 3.3113 train_time: 5.4m step_avg: 725.73ms tok/s: 1083645
+460/50000 train_loss: 3.2780 train_time: 5.8m step_avg: 754.88ms tok/s: 1041798 art_cycles:0.914 extra_cycle_frac:0.305 art_continue:cycle1=0.547,cycle2=0.448,cycle3=0.496 art_entropy:1.2389 art_router_loss:-0.0202
+step:460/50000 art_probe window_steps:7 avg_cycles:0.899 extra_cycle_frac:0.300 avg_stop:0.700 router_entropy:1.2320
+470/50000 train_loss: 3.3072 train_time: 6.0m step_avg: 760.84ms tok/s: 1033642 art_cycles:0.758 extra_cycle_frac:0.253 art_continue:cycle1=0.440,cycle2=0.510,cycle3=0.434 art_entropy:1.1492 art_router_loss:-0.0620
+step:470/50000 art_probe window_steps:10 avg_cycles:0.872 extra_cycle_frac:0.291 avg_stop:0.709 router_entropy:1.2042
+480/50000 train_loss: 3.3068 train_time: 6.1m step_avg: 766.36ms tok/s: 1026185 art_cycles:0.880 extra_cycle_frac:0.293 art_continue:cycle1=0.461,cycle2=0.615,cycle3=0.496 art_entropy:1.1880 art_router_loss:-0.0713
+step:480/50000 art_probe window_steps:10 avg_cycles:0.852 extra_cycle_frac:0.284 avg_stop:0.716 router_entropy:1.1730
+490/50000 train_loss: 3.2983 train_time: 6.3m step_avg: 772.09ms tok/s: 1018577 art_cycles:0.992 extra_cycle_frac:0.331 art_continue:cycle1=0.508,cycle2=0.588,cycle3=0.628 art_entropy:1.2429 art_router_loss:-0.0135
+step:490/50000 art_probe window_steps:10 avg_cycles:0.945 extra_cycle_frac:0.315 avg_stop:0.685 router_entropy:1.2277
+500/50000 train_loss: 3.2981 train_time: 6.5m step_avg: 778.19ms tok/s: 1010594 art_cycles:0.927 extra_cycle_frac:0.309 art_continue:cycle1=0.484,cycle2=0.633,cycle3=0.450 art_entropy:1.2184 art_router_loss:-0.0361
+step:500/50000 art_probe window_steps:10 avg_cycles:0.884 extra_cycle_frac:0.295 avg_stop:0.705 router_entropy:1.1977
+510/50000 train_loss: 3.2552 train_time: 6.7m step_avg: 783.29ms tok/s: 1004012 art_cycles:0.872 extra_cycle_frac:0.291 art_continue:cycle1=0.445,cycle2=0.698,cycle3=0.405 art_entropy:1.1761 art_router_loss:-0.0435
+step:510/50000 art_probe window_steps:10 avg_cycles:0.905 extra_cycle_frac:0.302 avg_stop:0.698 router_entropy:1.1937
+520/50000 train_loss: 3.2711 train_time: 6.9m step_avg: 790.72ms tok/s: 994578 art_cycles:0.945 extra_cycle_frac:0.315 art_continue:cycle1=0.487,cycle2=0.642,cycle3=0.471 art_entropy:1.2235 art_router_loss:-0.0619
+step:520/50000 art_probe window_steps:10 avg_cycles:0.846 extra_cycle_frac:0.282 avg_stop:0.718 router_entropy:1.1712
+530/50000 train_loss: 3.2363 train_time: 7.0m step_avg: 794.94ms tok/s: 989296 art_cycles:0.727 extra_cycle_frac:0.242 art_continue:cycle1=0.432,cycle2=0.452,cycle3=0.511 art_entropy:1.1117 art_router_loss:-0.0109
+step:530/50000 art_probe window_steps:10 avg_cycles:0.779 extra_cycle_frac:0.260 avg_stop:0.740 router_entropy:1.1457
+540/50000 train_loss: 3.2704 train_time: 7.2m step_avg: 799.16ms tok/s: 984074 art_cycles:0.661 extra_cycle_frac:0.220 art_continue:cycle1=0.362,cycle2=0.570,cycle3=0.426 art_entropy:1.0581 art_router_loss:-0.0053
+step:540/50000 art_probe window_steps:10 avg_cycles:0.720 extra_cycle_frac:0.240 avg_stop:0.760 router_entropy:1.1080
+550/50000 train_loss: 3.2939 train_time: 7.4m step_avg: 802.84ms tok/s: 979563 art_cycles:0.542 extra_cycle_frac:0.181 art_continue:cycle1=0.346,cycle2=0.458,cycle3=0.254 art_entropy:0.9615 art_router_loss:0.0088
+step:550/50000 art_probe window_steps:10 avg_cycles:0.592 extra_cycle_frac:0.197 avg_stop:0.803 router_entropy:1.0047
+560/50000 train_loss: 3.2511 train_time: 7.5m step_avg: 806.42ms tok/s: 975217 art_cycles:0.680 extra_cycle_frac:0.227 art_continue:cycle1=0.409,cycle2=0.513,cycle3=0.288 art_entropy:1.0609 art_router_loss:0.0097
+step:560/50000 art_probe window_steps:10 avg_cycles:0.602 extra_cycle_frac:0.201 avg_stop:0.799 router_entropy:1.0084
+570/50000 train_loss: 3.2336 train_time: 7.7m step_avg: 810.00ms tok/s: 970902 art_cycles:0.638 extra_cycle_frac:0.213 art_continue:cycle1=0.391,cycle2=0.471,cycle3=0.334 art_entropy:1.0616 art_router_loss:-0.0530
+step:570/50000 art_probe window_steps:10 avg_cycles:0.626 extra_cycle_frac:0.209 avg_stop:0.791 router_entropy:1.0463
+580/50000 train_loss: 3.2058 train_time: 7.9m step_avg: 813.63ms tok/s: 966574 art_cycles:0.690 extra_cycle_frac:0.230 art_continue:cycle1=0.435,cycle2=0.429,cycle3=0.372 art_entropy:1.0913 art_router_loss:-0.0006
+step:580/50000 art_probe window_steps:10 avg_cycles:0.661 extra_cycle_frac:0.220 avg_stop:0.780 router_entropy:1.0654
+590/50000 train_loss: 3.2361 train_time: 8.0m step_avg: 817.92ms tok/s: 961508 art_cycles:0.711 extra_cycle_frac:0.237 art_continue:cycle1=0.404,cycle2=0.575,cycle3=0.330 art_entropy:1.1024 art_router_loss:-0.0335
+step:590/50000 art_probe window_steps:10 avg_cycles:0.664 extra_cycle_frac:0.221 avg_stop:0.779 router_entropy:1.0680
+600/50000 train_loss: 3.2263 train_time: 8.2m step_avg: 821.50ms tok/s: 957315 art_cycles:0.867 extra_cycle_frac:0.289 art_continue:cycle1=0.497,cycle2=0.555,cycle3=0.341 art_entropy:1.2092 art_router_loss:-0.0128
+step:600/50000 art_probe window_steps:10 avg_cycles:0.729 extra_cycle_frac:0.243 avg_stop:0.757 router_entropy:1.1227
+610/50000 train_loss: 3.2184 train_time: 8.4m step_avg: 825.15ms tok/s: 953074 art_cycles:0.732 extra_cycle_frac:0.244 art_continue:cycle1=0.430,cycle2=0.525,cycle3=0.319 art_entropy:1.1387 art_router_loss:0.0270
+step:610/50000 art_probe window_steps:10 avg_cycles:0.801 extra_cycle_frac:0.267 avg_stop:0.733 router_entropy:1.1788
+620/50000 train_loss: 3.2075 train_time: 8.6m step_avg: 828.83ms tok/s: 948844 art_cycles:0.875 extra_cycle_frac:0.292 art_continue:cycle1=0.505,cycle2=0.519,cycle3=0.425 art_entropy:1.2193 art_router_loss:0.0120
+step:620/50000 art_probe window_steps:10 avg_cycles:0.843 extra_cycle_frac:0.281 avg_stop:0.719 router_entropy:1.2019
+630/50000 train_loss: 3.2424 train_time: 8.7m step_avg: 832.35ms tok/s: 944836 art_cycles:0.750 extra_cycle_frac:0.250 art_continue:cycle1=0.430,cycle2=0.519,cycle3=0.436 art_entropy:1.1420 art_router_loss:0.0068
+step:630/50000 art_probe window_steps:10 avg_cycles:0.820 extra_cycle_frac:0.273 avg_stop:0.727 router_entropy:1.1888
+640/50000 train_loss: 3.2099 train_time: 8.9m step_avg: 835.64ms tok/s: 941119 art_cycles:0.836 extra_cycle_frac:0.279 art_continue:cycle1=0.492,cycle2=0.502,cycle3=0.398 art_entropy:1.2002 art_router_loss:-0.0112
+step:640/50000 art_probe window_steps:10 avg_cycles:0.781 extra_cycle_frac:0.260 avg_stop:0.740 router_entropy:1.1651
+650/50000 train_loss: 3.2425 train_time: 9.1m step_avg: 838.82ms tok/s: 937545 art_cycles:0.797 extra_cycle_frac:0.266 art_continue:cycle1=0.466,cycle2=0.521,cycle3=0.359 art_entropy:1.1779 art_router_loss:-0.0485
+step:650/50000 art_probe window_steps:10 avg_cycles:0.802 extra_cycle_frac:0.267 avg_stop:0.733 router_entropy:1.1715
+660/50000 train_loss: 3.1968 train_time: 9.3m step_avg: 841.91ms tok/s: 934105 art_cycles:0.833 extra_cycle_frac:0.278 art_continue:cycle1=0.453,cycle2=0.566,cycle3=0.481 art_entropy:1.1767 art_router_loss:-0.0158
+step:660/50000 art_probe window_steps:10 avg_cycles:0.776 extra_cycle_frac:0.259 avg_stop:0.741 router_entropy:1.1509
+670/50000 train_loss: 3.2005 train_time: 9.4m step_avg: 844.82ms tok/s: 930890 art_cycles:0.760 extra_cycle_frac:0.253 art_continue:cycle1=0.443,cycle2=0.536,cycle3=0.345 art_entropy:1.1512 art_router_loss:-0.0368
+step:670/50000 art_probe window_steps:10 avg_cycles:0.758 extra_cycle_frac:0.253 avg_stop:0.747 router_entropy:1.1445
+680/50000 train_loss: 3.1990 train_time: 9.6m step_avg: 847.46ms tok/s: 927985 art_cycles:0.729 extra_cycle_frac:0.243 art_continue:cycle1=0.417,cycle2=0.532,cycle3=0.465 art_entropy:1.1119 art_router_loss:-0.0355
+step:680/50000 art_probe window_steps:10 avg_cycles:0.719 extra_cycle_frac:0.240 avg_stop:0.760 router_entropy:1.1127
+690/50000 train_loss: 3.1914 train_time: 9.8m step_avg: 850.07ms tok/s: 925133 art_cycles:0.742 extra_cycle_frac:0.247 art_continue:cycle1=0.409,cycle2=0.567,cycle3=0.439 art_entropy:1.1160 art_router_loss:0.0009
+step:690/50000 art_probe window_steps:10 avg_cycles:0.707 extra_cycle_frac:0.236 avg_stop:0.764 router_entropy:1.1078
+700/50000 train_loss: 3.1801 train_time: 9.9m step_avg: 852.51ms tok/s: 922485 art_cycles:0.760 extra_cycle_frac:0.253 art_continue:cycle1=0.419,cycle2=0.601,cycle3=0.338 art_entropy:1.1351 art_router_loss:-0.0276
+step:700/50000 art_probe window_steps:10 avg_cycles:0.706 extra_cycle_frac:0.235 avg_stop:0.765 router_entropy:1.1042
+704/50000 val_loss: 3.1946 val_bpb: 1.2367
+stopping_early: wallclock_cap train_time: 600809ms step: 704/50000
+peak memory allocated: 39313 MiB reserved: 50120 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:3.23521523 val_bpb:1.25245263 eval_time:20833ms
+pre-quantization post-ema_art_routes avg_cycles:0.797 extra_cycle_frac:0.266 art_entropy:1.1638 art_continue:cycle1=0.455,cycle2=0.502,cycle3=0.484
+Serialized model: 136234857 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:calibration path fixed_full
+GPTQ:collected 67 Hessians in 13.5s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): art_router.fc.bias, art_router.fc.weight, art_router.proj.bias, art_router.proj.weight, art_router_early.fc.bias, art_router_early.fc.weight, art_router_early.proj.bias, art_router_early.proj.weight, art_router_first.fc.bias, art_router_first.fc.weight, art_router_first.proj.bias, art_router_first.proj.weight, blocks.attn.attn_out_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, embed_scale, skip_gates, skip_weights
+Serialized model quantized+brotli: 16333783 bytes
+quantized val_loss:3.25285338 val_bpb:1.25928091 eval_time:39435ms
+quantized_art_routes avg_cycles:0.791 extra_cycle_frac:0.264 art_entropy:1.1642 art_continue:cycle1=0.455,cycle2=0.505,cycle3=0.455
+ttt:start chunks=619 windows=633409 ttt_lr=0.005 ttt_epochs=4
+quantized_ttt val_loss:3.20652665 val_bpb:1.24134639 eval_time:1791370ms

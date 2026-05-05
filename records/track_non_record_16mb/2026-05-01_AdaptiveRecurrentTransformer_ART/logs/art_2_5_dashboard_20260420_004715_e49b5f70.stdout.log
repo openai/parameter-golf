@@ -1,0 +1,490 @@
+# Sanitized Parameter Golf run excerpt
+# Source dashboard log: dashboard_20260420_004715_e49b5f70.stdout.log
+# Removed: shell banners, infrastructure identifiers, and full path-heavy environment dumps.
+# Preserved: hardware/world-size, ART diagnostics, serialization, quantization, TTT, and score lines.
+
+model_params:19680769
+router_params:344837
+unique_blocks:4 recurrent_steps:12
+world_size:8 grad_accum_steps:1
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 warmdown_frac:0.72 min_lr:0.0000 val_loss_every:0 num_recurrent_steps:12 max_wallclock_seconds:600.000
+router_actions:5 eval_recurrent_steps:12
+router_input_dim:2688 router_hidden_dim:128 mlp_router_hidden_dim:128 mlp_num_experts:4 mlp_expert_top_k:2 mlp_expert_mult:1.25 router_lr:0.001 router_wd:0.01 router_entropy_bonus_start:0.2 router_entropy_bonus_end:0.02 router_step_penalty:0.02 compiled_routed_experts:0 activation_checkpointing:0 ema_decay:0.9965 muon_momentum_warmup_steps:1500
+warmup_step:1/20
+warmup_step:10/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9560 train_time:412ms step_avg:411.65ms router_forward:1 router_objective:-0.7005 router_entropy:1.5540 router_entropy_bonus:0.2000
+step:2/20000 train_loss:11.6036 train_time:799ms step_avg:399.63ms router_forward:1 router_objective:1.7215 router_entropy:1.5513 router_entropy_bonus:0.1999
+step:3/20000 train_loss:9.7005 train_time:1213ms step_avg:404.50ms router_forward:1 router_objective:2.5055 router_entropy:1.5566 router_entropy_bonus:0.1998
+step:4/20000 train_loss:7.5979 train_time:1856ms step_avg:463.94ms router_forward:1 router_objective:1.0217 router_entropy:1.5487 router_entropy_bonus:0.1996
+step:5/20000 train_loss:6.5493 train_time:2593ms step_avg:518.61ms router_forward:1 router_objective:-0.2817 router_entropy:1.4922 router_entropy_bonus:0.1994
+step:6/20000 train_loss:6.1693 train_time:3248ms step_avg:541.28ms router_forward:1 router_objective:-0.5019 router_entropy:1.4387 router_entropy_bonus:0.1992
+step:7/20000 train_loss:6.1438 train_time:3900ms step_avg:557.16ms router_forward:1 router_objective:-0.5284 router_entropy:1.4021 router_entropy_bonus:0.1990
+step:8/20000 train_loss:6.1264 train_time:4532ms step_avg:566.54ms router_forward:1 router_objective:-0.4863 router_entropy:1.4083 router_entropy_bonus:0.1988
+step:9/20000 train_loss:6.0125 train_time:5148ms step_avg:571.99ms router_forward:1 router_objective:-0.4488 router_entropy:1.4573 router_entropy_bonus:0.1986
+step:10/20000 router_probe window_steps:10 avg_depth:7.896 router_objective:0.1865 router_entropy:1.4908
+step:10/20000 router_matrix
+step:10/20000 train_loss:5.8740 train_time:5710ms step_avg:571.01ms router_forward:1 router_objective:-0.4359 router_entropy:1.4991 router_entropy_bonus:0.1985
+step:20/20000 router_probe window_steps:10 avg_depth:4.983 router_objective:-0.2228 router_entropy:1.5333
+step:20/20000 router_matrix
+step:20/20000 train_loss:5.2409 train_time:9679ms step_avg:483.96ms router_forward:1 router_objective:-0.1378 router_entropy:1.5267 router_entropy_bonus:0.1972
+step:30/20000 router_probe window_steps:10 avg_depth:3.473 router_objective:-0.1699 router_entropy:1.5051
+step:30/20000 router_matrix
+step:30/20000 train_loss:4.4544 train_time:12414ms step_avg:413.79ms router_forward:1 router_objective:-0.1989 router_entropy:1.4843 router_entropy_bonus:0.1964
+step:40/20000 router_probe window_steps:10 avg_depth:3.815 router_objective:-0.2695 router_entropy:1.4783
+step:40/20000 router_matrix
+step:40/20000 train_loss:3.9383 train_time:15240ms step_avg:381.01ms router_forward:1 router_objective:-0.3426 router_entropy:1.4709 router_entropy_bonus:0.1955
+step:50/20000 router_probe window_steps:10 avg_depth:3.886 router_objective:-0.3078 router_entropy:1.4320
+step:50/20000 router_matrix
+step:50/20000 train_loss:3.7056 train_time:18074ms step_avg:361.49ms router_forward:1 router_objective:-0.2907 router_entropy:1.4149 router_entropy_bonus:0.1947
+step:60/20000 router_probe window_steps:10 avg_depth:3.820 router_objective:-0.3210 router_entropy:1.3885
+step:60/20000 router_matrix
+step:60/20000 train_loss:3.5875 train_time:20840ms step_avg:347.34ms router_forward:1 router_objective:-0.3309 router_entropy:1.4066 router_entropy_bonus:0.1938
+step:70/20000 router_probe window_steps:10 avg_depth:3.778 router_objective:-0.3124 router_entropy:1.4027
+step:70/20000 router_matrix
+step:70/20000 train_loss:3.4779 train_time:23578ms step_avg:336.83ms router_forward:1 router_objective:-0.2960 router_entropy:1.4247 router_entropy_bonus:0.1930
+step:80/20000 router_probe window_steps:10 avg_depth:4.434 router_objective:-0.3587 router_entropy:1.4052
+step:80/20000 router_matrix
+step:80/20000 train_loss:3.4494 train_time:26760ms step_avg:334.49ms router_forward:1 router_objective:-0.3926 router_entropy:1.4458 router_entropy_bonus:0.1921
+step:90/20000 router_probe window_steps:10 avg_depth:4.252 router_objective:-0.3422 router_entropy:1.4141
+step:90/20000 router_matrix
+step:90/20000 train_loss:3.3508 train_time:29991ms step_avg:333.24ms router_forward:1 router_objective:-0.2812 router_entropy:1.3998 router_entropy_bonus:0.1911
+step:100/20000 router_probe window_steps:10 avg_depth:4.130 router_objective:-0.3078 router_entropy:1.4233
+step:100/20000 router_matrix
+step:100/20000 train_loss:3.3106 train_time:32955ms step_avg:329.55ms router_forward:1 router_objective:-0.2820 router_entropy:1.4089 router_entropy_bonus:0.1902
+step:110/20000 router_probe window_steps:10 avg_depth:4.307 router_objective:-0.3292 router_entropy:1.4322
+step:110/20000 router_matrix
+step:110/20000 train_loss:3.3338 train_time:36114ms step_avg:328.31ms router_forward:1 router_objective:-0.2953 router_entropy:1.3944 router_entropy_bonus:0.1892
+step:120/20000 router_probe window_steps:10 avg_depth:4.104 router_objective:-0.3273 router_entropy:1.4224
+step:120/20000 router_matrix
+step:120/20000 train_loss:3.2497 train_time:39125ms step_avg:326.04ms router_forward:1 router_objective:-0.2836 router_entropy:1.3989 router_entropy_bonus:0.1883
+step:130/20000 router_probe window_steps:10 avg_depth:4.139 router_objective:-0.3135 router_entropy:1.4473
+step:130/20000 router_matrix
+step:130/20000 train_loss:3.2432 train_time:42140ms step_avg:324.16ms router_forward:1 router_objective:-0.3110 router_entropy:1.4256 router_entropy_bonus:0.1874
+step:140/20000 router_probe window_steps:10 avg_depth:4.176 router_objective:-0.3178 router_entropy:1.4411
+step:140/20000 router_matrix
+step:140/20000 train_loss:3.1791 train_time:45233ms step_avg:323.09ms router_forward:1 router_objective:-0.4143 router_entropy:1.4866 router_entropy_bonus:0.1866
+step:150/20000 router_probe window_steps:10 avg_depth:4.297 router_objective:-0.3193 router_entropy:1.4632
+step:150/20000 router_matrix
+step:150/20000 train_loss:3.1459 train_time:48412ms step_avg:322.75ms router_forward:1 router_objective:-0.3399 router_entropy:1.4659 router_entropy_bonus:0.1856
+step:160/20000 router_probe window_steps:10 avg_depth:4.170 router_objective:-0.3290 router_entropy:1.4457
+step:160/20000 router_matrix
+step:160/20000 train_loss:3.1095 train_time:51717ms step_avg:323.23ms router_forward:1 router_objective:-0.2854 router_entropy:1.4237 router_entropy_bonus:0.1846
+step:170/20000 router_probe window_steps:10 avg_depth:4.369 router_objective:-0.3269 router_entropy:1.4434
+step:170/20000 router_matrix
+step:170/20000 train_loss:3.0618 train_time:54890ms step_avg:322.88ms router_forward:1 router_objective:-0.3167 router_entropy:1.4755 router_entropy_bonus:0.1836
+step:180/20000 router_probe window_steps:10 avg_depth:4.378 router_objective:-0.3560 router_entropy:1.4693
+step:180/20000 router_matrix
+step:180/20000 train_loss:3.0385 train_time:58177ms step_avg:323.21ms router_forward:1 router_objective:-0.2676 router_entropy:1.4533 router_entropy_bonus:0.1826
+step:190/20000 router_probe window_steps:10 avg_depth:4.311 router_objective:-0.3443 router_entropy:1.4615
+step:190/20000 router_matrix
+step:190/20000 train_loss:3.0264 train_time:61411ms step_avg:323.22ms router_forward:1 router_objective:-0.3581 router_entropy:1.4754 router_entropy_bonus:0.1817
+step:200/20000 router_probe window_steps:10 avg_depth:4.510 router_objective:-0.3158 router_entropy:1.4409
+step:200/20000 router_matrix
+step:200/20000 train_loss:2.9727 train_time:64679ms step_avg:323.39ms router_forward:1 router_objective:-0.3175 router_entropy:1.4220 router_entropy_bonus:0.1807
+step:210/20000 router_probe window_steps:10 avg_depth:4.773 router_objective:-0.2876 router_entropy:1.4111
+step:210/20000 router_matrix
+step:210/20000 train_loss:2.9837 train_time:68445ms step_avg:325.93ms router_forward:1 router_objective:-0.2555 router_entropy:1.4305 router_entropy_bonus:0.1796
+step:220/20000 router_probe window_steps:10 avg_depth:4.242 router_objective:-0.3064 router_entropy:1.4362
+step:220/20000 router_matrix
+step:220/20000 train_loss:2.9230 train_time:71556ms step_avg:325.26ms router_forward:1 router_objective:-0.3264 router_entropy:1.4312 router_entropy_bonus:0.1786
+step:230/20000 router_probe window_steps:10 avg_depth:4.416 router_objective:-0.3118 router_entropy:1.4297
+step:230/20000 router_matrix
+step:230/20000 train_loss:2.9080 train_time:74756ms step_avg:325.02ms router_forward:1 router_objective:-0.2949 router_entropy:1.4330 router_entropy_bonus:0.1777
+step:240/20000 router_probe window_steps:10 avg_depth:4.801 router_objective:-0.3023 router_entropy:1.4659
+step:240/20000 router_matrix
+step:240/20000 train_loss:2.8787 train_time:78530ms step_avg:327.21ms router_forward:1 router_objective:-0.2604 router_entropy:1.4583 router_entropy_bonus:0.1765
+step:250/20000 router_probe window_steps:10 avg_depth:4.658 router_objective:-0.2898 router_entropy:1.4177
+step:250/20000 router_matrix
+step:250/20000 train_loss:2.8637 train_time:81828ms step_avg:327.31ms router_forward:1 router_objective:-0.2983 router_entropy:1.4127 router_entropy_bonus:0.1756
+step:260/20000 router_probe window_steps:10 avg_depth:4.864 router_objective:-0.2933 router_entropy:1.4400
+step:260/20000 router_matrix
+step:260/20000 train_loss:2.8435 train_time:85304ms step_avg:328.09ms router_forward:1 router_objective:-0.3004 router_entropy:1.4641 router_entropy_bonus:0.1745
+step:270/20000 router_probe window_steps:10 avg_depth:4.790 router_objective:-0.2980 router_entropy:1.4415
+step:270/20000 router_matrix
+step:270/20000 train_loss:2.7581 train_time:88776ms step_avg:328.80ms router_forward:1 router_objective:-0.2853 router_entropy:1.4464 router_entropy_bonus:0.1735
+step:280/20000 router_probe window_steps:10 avg_depth:4.860 router_objective:-0.3069 router_entropy:1.4393
+step:280/20000 router_matrix
+step:280/20000 train_loss:2.7840 train_time:92252ms step_avg:329.47ms router_forward:1 router_objective:-0.2716 router_entropy:1.4493 router_entropy_bonus:0.1724
+step:290/20000 router_probe window_steps:10 avg_depth:4.813 router_objective:-0.2933 router_entropy:1.4400
+step:290/20000 router_matrix
+step:290/20000 train_loss:2.7807 train_time:95804ms step_avg:330.36ms router_forward:1 router_objective:-0.2051 router_entropy:1.4131 router_entropy_bonus:0.1714
+step:300/20000 router_probe window_steps:10 avg_depth:4.781 router_objective:-0.2943 router_entropy:1.4434
+step:300/20000 router_matrix
+step:300/20000 train_loss:2.7788 train_time:99265ms step_avg:330.88ms router_forward:1 router_objective:-0.2939 router_entropy:1.4281 router_entropy_bonus:0.1703
+step:310/20000 router_probe window_steps:10 avg_depth:4.586 router_objective:-0.2788 router_entropy:1.4391
+step:310/20000 router_matrix
+step:310/20000 train_loss:2.7311 train_time:102599ms step_avg:330.97ms router_forward:1 router_objective:-0.2533 router_entropy:1.4080 router_entropy_bonus:0.1693
+step:320/20000 router_probe window_steps:10 avg_depth:4.827 router_objective:-0.2751 router_entropy:1.4209
+step:320/20000 router_matrix
+step:320/20000 train_loss:2.7733 train_time:106202ms step_avg:331.88ms router_forward:1 router_objective:-0.2265 router_entropy:1.4170 router_entropy_bonus:0.1682
+step:330/20000 router_probe window_steps:10 avg_depth:4.728 router_objective:-0.2969 router_entropy:1.4456
+step:330/20000 router_matrix
+step:330/20000 train_loss:2.7148 train_time:109648ms step_avg:332.27ms router_forward:1 router_objective:-0.2709 router_entropy:1.4349 router_entropy_bonus:0.1672
+step:340/20000 router_probe window_steps:10 avg_depth:4.778 router_objective:-0.2610 router_entropy:1.4270
+step:340/20000 router_matrix
+step:340/20000 train_loss:2.7625 train_time:113134ms step_avg:332.75ms router_forward:1 router_objective:-0.2835 router_entropy:1.4388 router_entropy_bonus:0.1662
+step:350/20000 router_probe window_steps:10 avg_depth:4.914 router_objective:-0.2623 router_entropy:1.4529
+step:350/20000 router_matrix
+step:350/20000 train_loss:2.7663 train_time:116755ms step_avg:333.59ms router_forward:1 router_objective:-0.2441 router_entropy:1.4414 router_entropy_bonus:0.1651
+step:360/20000 router_probe window_steps:10 avg_depth:5.157 router_objective:-0.2550 router_entropy:1.4348
+step:360/20000 router_matrix
+step:360/20000 train_loss:2.7316 train_time:120519ms step_avg:334.77ms router_forward:1 router_objective:-0.2620 router_entropy:1.4319 router_entropy_bonus:0.1640
+step:370/20000 router_probe window_steps:10 avg_depth:5.253 router_objective:-0.2620 router_entropy:1.4178
+step:370/20000 router_matrix
+step:370/20000 train_loss:2.7364 train_time:124432ms step_avg:336.30ms router_forward:1 router_objective:-0.2679 router_entropy:1.4358 router_entropy_bonus:0.1628
+step:380/20000 router_probe window_steps:10 avg_depth:5.335 router_objective:-0.2729 router_entropy:1.4267
+step:380/20000 router_matrix
+step:380/20000 train_loss:2.6378 train_time:128154ms step_avg:337.25ms router_forward:1 router_objective:-0.3721 router_entropy:1.4428 router_entropy_bonus:0.1617
+step:390/20000 router_probe window_steps:10 avg_depth:5.370 router_objective:-0.2688 router_entropy:1.4160
+step:390/20000 router_matrix
+step:390/20000 train_loss:2.6505 train_time:131892ms step_avg:338.19ms router_forward:1 router_objective:-0.2468 router_entropy:1.3968 router_entropy_bonus:0.1605
+step:400/20000 router_probe window_steps:10 avg_depth:5.295 router_objective:-0.2327 router_entropy:1.4170
+step:400/20000 router_matrix
+step:400/20000 train_loss:2.6892 train_time:135619ms step_avg:339.05ms router_forward:1 router_objective:-0.2681 router_entropy:1.4072 router_entropy_bonus:0.1594
+step:410/20000 router_probe window_steps:10 avg_depth:5.397 router_objective:-0.2191 router_entropy:1.4097
+step:410/20000 router_matrix
+step:410/20000 train_loss:2.7217 train_time:139443ms step_avg:340.11ms router_forward:1 router_objective:-0.2332 router_entropy:1.4354 router_entropy_bonus:0.1583
+step:420/20000 router_probe window_steps:10 avg_depth:5.440 router_objective:-0.2160 router_entropy:1.4450
+step:420/20000 router_matrix
+step:420/20000 train_loss:2.6739 train_time:143291ms step_avg:341.17ms router_forward:1 router_objective:-0.3049 router_entropy:1.4413 router_entropy_bonus:0.1571
+step:430/20000 router_probe window_steps:10 avg_depth:5.630 router_objective:-0.2175 router_entropy:1.4283
+step:430/20000 router_matrix
+step:430/20000 train_loss:2.6718 train_time:147153ms step_avg:342.22ms router_forward:1 router_objective:-0.2280 router_entropy:1.4489 router_entropy_bonus:0.1560
+step:440/20000 router_probe window_steps:10 avg_depth:5.540 router_objective:-0.2149 router_entropy:1.4249
+step:440/20000 router_matrix
+step:440/20000 train_loss:2.6486 train_time:151106ms step_avg:343.42ms router_forward:1 router_objective:-0.1381 router_entropy:1.4078 router_entropy_bonus:0.1548
+step:450/20000 router_probe window_steps:10 avg_depth:5.146 router_objective:-0.2213 router_entropy:1.4396
+step:450/20000 router_matrix
+step:450/20000 train_loss:2.7058 train_time:154725ms step_avg:343.83ms router_forward:1 router_objective:-0.2137 router_entropy:1.4266 router_entropy_bonus:0.1537
+step:460/20000 router_probe window_steps:10 avg_depth:5.496 router_objective:-0.2256 router_entropy:1.4302
+step:460/20000 router_matrix
+step:460/20000 train_loss:2.6848 train_time:158550ms step_avg:344.67ms router_forward:1 router_objective:-0.2623 router_entropy:1.4543 router_entropy_bonus:0.1526
+step:470/20000 router_probe window_steps:10 avg_depth:5.746 router_objective:-0.2468 router_entropy:1.4437
+step:470/20000 router_matrix
+step:470/20000 train_loss:2.6221 train_time:162599ms step_avg:345.95ms router_forward:1 router_objective:-0.2394 router_entropy:1.4317 router_entropy_bonus:0.1513
+step:480/20000 router_probe window_steps:10 avg_depth:5.305 router_objective:-0.2052 router_entropy:1.3959
+step:480/20000 router_matrix
+step:480/20000 train_loss:2.7174 train_time:166304ms step_avg:346.47ms router_forward:1 router_objective:-0.2292 router_entropy:1.3850 router_entropy_bonus:0.1502
+step:490/20000 router_probe window_steps:10 avg_depth:5.516 router_objective:-0.1954 router_entropy:1.3959
+step:490/20000 router_matrix
+step:490/20000 train_loss:2.7020 train_time:170070ms step_avg:347.08ms router_forward:1 router_objective:-0.2132 router_entropy:1.4236 router_entropy_bonus:0.1491
+step:500/20000 router_probe window_steps:10 avg_depth:5.912 router_objective:-0.2142 router_entropy:1.4368
+step:500/20000 router_matrix
+step:500/20000 train_loss:2.6841 train_time:174159ms step_avg:348.32ms router_forward:1 router_objective:-0.2180 router_entropy:1.4317 router_entropy_bonus:0.1479
+step:510/20000 router_probe window_steps:10 avg_depth:5.597 router_objective:-0.2189 router_entropy:1.4302
+step:510/20000 router_matrix
+step:510/20000 train_loss:2.7381 train_time:178054ms step_avg:349.13ms router_forward:1 router_objective:-0.2076 router_entropy:1.4252 router_entropy_bonus:0.1467
+step:520/20000 router_probe window_steps:10 avg_depth:5.555 router_objective:-0.1894 router_entropy:1.4056
+step:520/20000 router_matrix
+step:520/20000 train_loss:2.5934 train_time:181916ms step_avg:349.84ms router_forward:1 router_objective:-0.1382 router_entropy:1.3834 router_entropy_bonus:0.1455
+step:530/20000 router_probe window_steps:10 avg_depth:6.150 router_objective:-0.2070 router_entropy:1.4157
+step:530/20000 router_matrix
+step:530/20000 train_loss:2.6097 train_time:186051ms step_avg:351.04ms router_forward:1 router_objective:-0.3022 router_entropy:1.4202 router_entropy_bonus:0.1443
+step:540/20000 router_probe window_steps:10 avg_depth:5.640 router_objective:-0.1941 router_entropy:1.3913
+step:540/20000 router_matrix
+step:540/20000 train_loss:2.6735 train_time:189826ms step_avg:351.53ms router_forward:1 router_objective:-0.2279 router_entropy:1.4143 router_entropy_bonus:0.1432
+step:550/20000 router_probe window_steps:10 avg_depth:5.823 router_objective:-0.2114 router_entropy:1.4032
+step:550/20000 router_matrix
+step:550/20000 train_loss:2.6235 train_time:193930ms step_avg:352.60ms router_forward:1 router_objective:-0.1774 router_entropy:1.4070 router_entropy_bonus:0.1419
+step:560/20000 router_probe window_steps:10 avg_depth:5.773 router_objective:-0.2238 router_entropy:1.4310
+step:560/20000 router_matrix
+step:560/20000 train_loss:2.5895 train_time:197910ms step_avg:353.41ms router_forward:1 router_objective:-0.1755 router_entropy:1.4167 router_entropy_bonus:0.1407
+step:570/20000 router_probe window_steps:10 avg_depth:6.303 router_objective:-0.2156 router_entropy:1.4201
+step:570/20000 router_matrix
+step:570/20000 train_loss:2.5994 train_time:202169ms step_avg:354.68ms router_forward:1 router_objective:-0.1864 router_entropy:1.4146 router_entropy_bonus:0.1395
+step:580/20000 router_probe window_steps:10 avg_depth:6.074 router_objective:-0.2153 router_entropy:1.4085
+step:580/20000 router_matrix
+step:580/20000 train_loss:2.5678 train_time:206301ms step_avg:355.69ms router_forward:1 router_objective:-0.2464 router_entropy:1.3879 router_entropy_bonus:0.1382
+step:590/20000 router_probe window_steps:10 avg_depth:6.664 router_objective:-0.2184 router_entropy:1.3921
+step:590/20000 router_matrix
+step:590/20000 train_loss:2.6410 train_time:210750ms step_avg:357.20ms router_forward:1 router_objective:-0.1916 router_entropy:1.4271 router_entropy_bonus:0.1369
+step:600/20000 router_probe window_steps:10 avg_depth:5.967 router_objective:-0.2363 router_entropy:1.4136
+step:600/20000 router_matrix
+step:600/20000 train_loss:2.6996 train_time:214835ms step_avg:358.06ms router_forward:1 router_objective:-0.2364 router_entropy:1.3893 router_entropy_bonus:0.1357
+step:610/20000 router_probe window_steps:10 avg_depth:6.009 router_objective:-0.1983 router_entropy:1.4003
+step:610/20000 router_matrix
+step:610/20000 train_loss:2.6004 train_time:218941ms step_avg:358.92ms router_forward:1 router_objective:-0.1543 router_entropy:1.4106 router_entropy_bonus:0.1344
+step:620/20000 router_probe window_steps:10 avg_depth:6.449 router_objective:-0.2184 router_entropy:1.4239
+step:620/20000 router_matrix
+step:620/20000 train_loss:2.6038 train_time:223371ms step_avg:360.28ms router_forward:1 router_objective:-0.1841 router_entropy:1.4284 router_entropy_bonus:0.1331
+step:630/20000 router_probe window_steps:10 avg_depth:6.372 router_objective:-0.2076 router_entropy:1.3887
+step:630/20000 router_matrix
+step:630/20000 train_loss:2.6643 train_time:227718ms step_avg:361.46ms router_forward:1 router_objective:-0.1964 router_entropy:1.3552 router_entropy_bonus:0.1318
+step:640/20000 router_probe window_steps:10 avg_depth:5.655 router_objective:-0.1735 router_entropy:1.3628
+step:640/20000 router_matrix
+step:640/20000 train_loss:2.5699 train_time:231665ms step_avg:361.98ms router_forward:1 router_objective:-0.1565 router_entropy:1.3944 router_entropy_bonus:0.1306
+step:650/20000 router_probe window_steps:10 avg_depth:6.253 router_objective:-0.2000 router_entropy:1.4360
+step:650/20000 router_matrix
+step:650/20000 train_loss:2.6870 train_time:235988ms step_avg:363.06ms router_forward:1 router_objective:-0.2485 router_entropy:1.4326 router_entropy_bonus:0.1293
+step:660/20000 router_probe window_steps:10 avg_depth:5.367 router_objective:-0.1714 router_entropy:1.3816
+step:660/20000 router_matrix
+step:660/20000 train_loss:2.6197 train_time:239712ms step_avg:363.20ms router_forward:1 router_objective:-0.1671 router_entropy:1.3838 router_entropy_bonus:0.1282
+step:670/20000 router_probe window_steps:10 avg_depth:6.409 router_objective:-0.2035 router_entropy:1.4162
+step:670/20000 router_matrix
+step:670/20000 train_loss:2.6610 train_time:244078ms step_avg:364.30ms router_forward:1 router_objective:-0.2005 router_entropy:1.4239 router_entropy_bonus:0.1269
+step:680/20000 router_probe window_steps:10 avg_depth:6.342 router_objective:-0.2305 router_entropy:1.4074
+step:680/20000 router_matrix
+step:680/20000 train_loss:2.5553 train_time:248340ms step_avg:365.21ms router_forward:1 router_objective:-0.2382 router_entropy:1.3810 router_entropy_bonus:0.1256
+step:690/20000 router_probe window_steps:10 avg_depth:6.859 router_objective:-0.2042 router_entropy:1.3806
+step:690/20000 router_matrix
+step:690/20000 train_loss:2.6095 train_time:252875ms step_avg:366.49ms router_forward:1 router_objective:-0.2600 router_entropy:1.3903 router_entropy_bonus:0.1243
+step:700/20000 router_probe window_steps:10 avg_depth:6.097 router_objective:-0.1769 router_entropy:1.3969
+step:700/20000 router_matrix
+step:700/20000 train_loss:2.5449 train_time:256991ms step_avg:367.13ms router_forward:1 router_objective:-0.1897 router_entropy:1.4291 router_entropy_bonus:0.1230
+step:710/20000 router_probe window_steps:10 avg_depth:6.152 router_objective:-0.1946 router_entropy:1.4315
+step:710/20000 router_matrix
+step:710/20000 train_loss:2.6295 train_time:261134ms step_avg:367.79ms router_forward:1 router_objective:-0.2263 router_entropy:1.4085 router_entropy_bonus:0.1218
+step:720/20000 router_probe window_steps:10 avg_depth:5.478 router_objective:-0.1828 router_entropy:1.3667
+step:720/20000 router_matrix
+step:720/20000 train_loss:2.5007 train_time:264746ms step_avg:367.70ms router_forward:1 router_objective:-0.1959 router_entropy:1.3690 router_entropy_bonus:0.1207
+step:730/20000 router_probe window_steps:10 avg_depth:7.072 router_objective:-0.1977 router_entropy:1.3526
+step:730/20000 router_matrix
+step:730/20000 train_loss:2.5676 train_time:269258ms step_avg:368.85ms router_forward:1 router_objective:-0.2031 router_entropy:1.3422 router_entropy_bonus:0.1194
+step:740/20000 router_probe window_steps:10 avg_depth:6.776 router_objective:-0.1958 router_entropy:1.3527
+step:740/20000 router_matrix
+step:740/20000 train_loss:2.5909 train_time:273667ms step_avg:369.82ms router_forward:1 router_objective:-0.1869 router_entropy:1.3821 router_entropy_bonus:0.1180
+step:750/20000 router_probe window_steps:10 avg_depth:6.267 router_objective:-0.1960 router_entropy:1.4316
+step:750/20000 router_matrix
+step:750/20000 train_loss:2.5990 train_time:277965ms step_avg:370.62ms router_forward:1 router_objective:-0.2422 router_entropy:1.4448 router_entropy_bonus:0.1167
+step:760/20000 router_probe window_steps:10 avg_depth:5.759 router_objective:-0.1847 router_entropy:1.3965
+step:760/20000 router_matrix
+step:760/20000 train_loss:2.5490 train_time:281848ms step_avg:370.85ms router_forward:1 router_objective:-0.2078 router_entropy:1.3756 router_entropy_bonus:0.1156
+step:770/20000 router_probe window_steps:10 avg_depth:6.747 router_objective:-0.2166 router_entropy:1.3882
+step:770/20000 router_matrix
+step:770/20000 train_loss:2.5796 train_time:286312ms step_avg:371.83ms router_forward:1 router_objective:-0.1817 router_entropy:1.3835 router_entropy_bonus:0.1142
+step:780/20000 router_probe window_steps:10 avg_depth:5.958 router_objective:-0.1953 router_entropy:1.3912
+step:780/20000 router_matrix
+step:780/20000 train_loss:2.5771 train_time:290496ms step_avg:372.43ms router_forward:1 router_objective:-0.2092 router_entropy:1.3928 router_entropy_bonus:0.1130
+step:790/20000 router_probe window_steps:10 avg_depth:6.610 router_objective:-0.2013 router_entropy:1.3641
+step:790/20000 router_matrix
+step:790/20000 train_loss:2.5016 train_time:294883ms step_avg:373.27ms router_forward:1 router_objective:-0.2057 router_entropy:1.3562 router_entropy_bonus:0.1117
+step:800/20000 router_probe window_steps:10 avg_depth:7.427 router_objective:-0.1633 router_entropy:1.3572
+step:800/20000 router_matrix
+step:800/20000 train_loss:2.5732 train_time:299675ms step_avg:374.59ms router_forward:1 router_objective:-0.1648 router_entropy:1.3548 router_entropy_bonus:0.1103
+step:810/20000 router_probe window_steps:10 avg_depth:8.263 router_objective:-0.1703 router_entropy:1.3729
+step:810/20000 router_matrix
+step:810/20000 train_loss:2.5679 train_time:305000ms step_avg:376.54ms router_forward:1 router_objective:-0.1115 router_entropy:1.3718 router_entropy_bonus:0.1086
+step:820/20000 router_probe window_steps:10 avg_depth:5.528 router_objective:-0.1412 router_entropy:1.3576
+step:820/20000 router_matrix
+step:820/20000 train_loss:2.5387 train_time:308652ms step_avg:376.40ms router_forward:1 router_objective:-0.1396 router_entropy:1.3512 router_entropy_bonus:0.1075
+step:830/20000 router_probe window_steps:10 avg_depth:6.582 router_objective:-0.1539 router_entropy:1.3745
+step:830/20000 router_matrix
+step:830/20000 train_loss:2.5770 train_time:312995ms step_avg:377.10ms router_forward:1 router_objective:-0.1516 router_entropy:1.3771 router_entropy_bonus:0.1062
+step:840/20000 router_probe window_steps:10 avg_depth:6.847 router_objective:-0.1244 router_entropy:1.3573
+step:840/20000 router_matrix
+step:840/20000 train_loss:2.5518 train_time:317456ms step_avg:377.92ms router_forward:1 router_objective:-0.1225 router_entropy:1.3685 router_entropy_bonus:0.1049
+step:850/20000 router_probe window_steps:10 avg_depth:7.006 router_objective:-0.1230 router_entropy:1.3840
+step:850/20000 router_matrix
+step:850/20000 train_loss:2.6068 train_time:322027ms step_avg:378.86ms router_forward:1 router_objective:-0.1080 router_entropy:1.3960 router_entropy_bonus:0.1035
+step:860/20000 router_probe window_steps:10 avg_depth:6.258 router_objective:-0.1328 router_entropy:1.4127
+step:860/20000 router_matrix
+step:860/20000 train_loss:2.5265 train_time:326219ms step_avg:379.32ms router_forward:1 router_objective:-0.1316 router_entropy:1.4158 router_entropy_bonus:0.1022
+step:870/20000 router_probe window_steps:10 avg_depth:5.835 router_objective:-0.1342 router_entropy:1.4044
+step:870/20000 router_matrix
+step:870/20000 train_loss:2.5481 train_time:330089ms step_avg:379.41ms router_forward:1 router_objective:-0.1787 router_entropy:1.4022 router_entropy_bonus:0.1011
+step:880/20000 router_probe window_steps:10 avg_depth:5.845 router_objective:-0.1381 router_entropy:1.3811
+step:880/20000 router_matrix
+step:880/20000 train_loss:2.4972 train_time:333955ms step_avg:379.49ms router_forward:1 router_objective:-0.1708 router_entropy:1.3801 router_entropy_bonus:0.0999
+step:890/20000 router_probe window_steps:10 avg_depth:5.435 router_objective:-0.1534 router_entropy:1.3898
+step:890/20000 router_matrix
+step:890/20000 train_loss:2.5210 train_time:337606ms step_avg:379.33ms router_forward:1 router_objective:-0.1398 router_entropy:1.3796 router_entropy_bonus:0.0988
+step:900/20000 router_probe window_steps:10 avg_depth:6.859 router_objective:-0.1822 router_entropy:1.3758
+step:900/20000 router_matrix
+step:900/20000 train_loss:2.4869 train_time:342041ms step_avg:380.05ms router_forward:1 router_objective:-0.2312 router_entropy:1.3767 router_entropy_bonus:0.0975
+step:910/20000 router_probe window_steps:10 avg_depth:6.613 router_objective:-0.1618 router_entropy:1.3675
+step:910/20000 router_matrix
+step:910/20000 train_loss:2.4868 train_time:346472ms step_avg:380.74ms router_forward:1 router_objective:-0.1818 router_entropy:1.3580 router_entropy_bonus:0.0962
+step:920/20000 router_probe window_steps:10 avg_depth:5.491 router_objective:-0.1350 router_entropy:1.3823
+step:920/20000 router_matrix
+step:920/20000 train_loss:2.5526 train_time:350107ms step_avg:380.55ms router_forward:1 router_objective:-0.1887 router_entropy:1.4255 router_entropy_bonus:0.0951
+step:930/20000 router_probe window_steps:10 avg_depth:6.142 router_objective:-0.1371 router_entropy:1.4269
+step:930/20000 router_matrix
+step:930/20000 train_loss:2.4709 train_time:354273ms step_avg:380.94ms router_forward:1 router_objective:-0.1073 router_entropy:1.4072 router_entropy_bonus:0.0938
+step:940/20000 router_probe window_steps:10 avg_depth:6.091 router_objective:-0.1350 router_entropy:1.3941
+step:940/20000 router_matrix
+step:940/20000 train_loss:2.5263 train_time:358629ms step_avg:381.52ms router_forward:1 router_objective:-0.0903 router_entropy:1.3733 router_entropy_bonus:0.0925
+step:950/20000 router_probe window_steps:10 avg_depth:5.809 router_objective:-0.1106 router_entropy:1.4093
+step:950/20000 router_matrix
+step:950/20000 train_loss:2.4818 train_time:362516ms step_avg:381.60ms router_forward:1 router_objective:-0.1552 router_entropy:1.4290 router_entropy_bonus:0.0914
+step:960/20000 router_probe window_steps:10 avg_depth:6.114 router_objective:-0.1165 router_entropy:1.4192
+step:960/20000 router_matrix
+step:960/20000 train_loss:2.4286 train_time:366648ms step_avg:381.92ms router_forward:1 router_objective:-0.1492 router_entropy:1.3969 router_entropy_bonus:0.0901
+step:970/20000 router_probe window_steps:10 avg_depth:6.152 router_objective:-0.1274 router_entropy:1.3516
+step:970/20000 router_matrix
+step:970/20000 train_loss:2.4720 train_time:370642ms step_avg:382.10ms router_forward:1 router_objective:-0.1175 router_entropy:1.3249 router_entropy_bonus:0.0889
+step:980/20000 router_probe window_steps:10 avg_depth:8.804 router_objective:-0.1402 router_entropy:1.3156
+step:980/20000 router_matrix
+step:980/20000 train_loss:2.4786 train_time:376116ms step_avg:383.79ms router_forward:1 router_objective:-0.1642 router_entropy:1.3079 router_entropy_bonus:0.0873
+step:990/20000 router_probe window_steps:10 avg_depth:8.614 router_objective:-0.1141 router_entropy:1.3048
+step:990/20000 router_matrix
+step:990/20000 train_loss:2.5620 train_time:381515ms step_avg:385.37ms router_forward:1 router_objective:-0.0904 router_entropy:1.3180 router_entropy_bonus:0.0857
+step:1000/20000 router_probe window_steps:10 avg_depth:7.197 router_objective:-0.1349 router_entropy:1.3773
+step:1000/20000 router_matrix
+step:1000/20000 train_loss:2.4169 train_time:386170ms step_avg:386.17ms router_forward:1 router_objective:-0.1578 router_entropy:1.4094 router_entropy_bonus:0.0843
+step:1010/20000 router_probe window_steps:10 avg_depth:6.708 router_objective:-0.1411 router_entropy:1.4014
+step:1010/20000 router_matrix
+step:1010/20000 train_loss:2.5597 train_time:390725ms step_avg:386.86ms router_forward:1 router_objective:-0.1076 router_entropy:1.3751 router_entropy_bonus:0.0829
+step:1020/20000 router_probe window_steps:10 avg_depth:6.535 router_objective:-0.1096 router_entropy:1.3584
+step:1020/20000 router_matrix
+step:1020/20000 train_loss:2.5291 train_time:395126ms step_avg:387.38ms router_forward:1 router_objective:-0.1157 router_entropy:1.3493 router_entropy_bonus:0.0816
+step:1030/20000 router_probe window_steps:10 avg_depth:5.880 router_objective:-0.0928 router_entropy:1.3536
+step:1030/20000 router_matrix
+step:1030/20000 train_loss:2.4908 train_time:398909ms step_avg:387.29ms router_forward:1 router_objective:-0.1153 router_entropy:1.3698 router_entropy_bonus:0.0804
+step:1040/20000 router_probe window_steps:10 avg_depth:6.647 router_objective:-0.0960 router_entropy:1.3915
+step:1040/20000 router_matrix
+step:1040/20000 train_loss:2.4878 train_time:403218ms step_avg:387.71ms router_forward:1 router_objective:-0.0685 router_entropy:1.4048 router_entropy_bonus:0.0792
+step:1050/20000 router_probe window_steps:10 avg_depth:6.705 router_objective:-0.1048 router_entropy:1.4181
+step:1050/20000 router_matrix
+step:1050/20000 train_loss:2.5508 train_time:407656ms step_avg:388.24ms router_forward:1 router_objective:-0.1090 router_entropy:1.4040 router_entropy_bonus:0.0778
+step:1060/20000 router_probe window_steps:10 avg_depth:6.098 router_objective:-0.1085 router_entropy:1.3946
+step:1060/20000 router_matrix
+step:1060/20000 train_loss:2.4829 train_time:411653ms step_avg:388.35ms router_forward:1 router_objective:-0.1072 router_entropy:1.3809 router_entropy_bonus:0.0766
+step:1070/20000 router_probe window_steps:10 avg_depth:6.811 router_objective:-0.1264 router_entropy:1.3657
+step:1070/20000 router_matrix
+step:1070/20000 train_loss:2.4591 train_time:416024ms step_avg:388.81ms router_forward:1 router_objective:-0.1157 router_entropy:1.3604 router_entropy_bonus:0.0753
+step:1080/20000 router_probe window_steps:10 avg_depth:7.245 router_objective:-0.1458 router_entropy:1.3701
+step:1080/20000 router_matrix
+step:1080/20000 train_loss:2.4942 train_time:420684ms step_avg:389.52ms router_forward:1 router_objective:-0.1841 router_entropy:1.3805 router_entropy_bonus:0.0740
+step:1090/20000 router_probe window_steps:10 avg_depth:7.663 router_objective:-0.1728 router_entropy:1.3823
+step:1090/20000 router_matrix
+step:1090/20000 train_loss:2.5301 train_time:425581ms step_avg:390.44ms router_forward:1 router_objective:-0.1454 router_entropy:1.3734 router_entropy_bonus:0.0725
+step:1100/20000 router_probe window_steps:10 avg_depth:5.950 router_objective:-0.1151 router_entropy:1.3770
+step:1100/20000 router_matrix
+step:1100/20000 train_loss:2.4519 train_time:429476ms step_avg:390.43ms router_forward:1 router_objective:-0.1088 router_entropy:1.3938 router_entropy_bonus:0.0713
+step:1110/20000 router_probe window_steps:10 avg_depth:6.460 router_objective:-0.1511 router_entropy:1.3846
+step:1110/20000 router_matrix
+step:1110/20000 train_loss:2.4522 train_time:433712ms step_avg:390.73ms router_forward:1 router_objective:-0.1404 router_entropy:1.3667 router_entropy_bonus:0.0700
+step:1120/20000 router_probe window_steps:10 avg_depth:6.640 router_objective:-0.1459 router_entropy:1.3495
+step:1120/20000 router_matrix
+step:1120/20000 train_loss:2.5118 train_time:437969ms step_avg:391.04ms router_forward:1 router_objective:-0.1127 router_entropy:1.3367 router_entropy_bonus:0.0687
+step:1130/20000 router_probe window_steps:10 avg_depth:6.708 router_objective:-0.1335 router_entropy:1.3392
+step:1130/20000 router_matrix
+step:1130/20000 train_loss:2.4563 train_time:442483ms step_avg:391.58ms router_forward:1 router_objective:-0.2010 router_entropy:1.3387 router_entropy_bonus:0.0674
+step:1140/20000 router_probe window_steps:10 avg_depth:8.039 router_objective:-0.1320 router_entropy:1.3182
+step:1140/20000 router_matrix
+step:1140/20000 train_loss:2.4356 train_time:447573ms step_avg:392.61ms router_forward:1 router_objective:-0.1548 router_entropy:1.3101 router_entropy_bonus:0.0659
+step:1150/20000 router_probe window_steps:10 avg_depth:6.028 router_objective:-0.1031 router_entropy:1.3281
+step:1150/20000 router_matrix
+step:1150/20000 train_loss:2.5011 train_time:451505ms step_avg:392.61ms router_forward:1 router_objective:-0.1313 router_entropy:1.3473 router_entropy_bonus:0.0647
+step:1160/20000 router_probe window_steps:10 avg_depth:5.552 router_objective:-0.0893 router_entropy:1.3710
+step:1160/20000 router_matrix
+step:1160/20000 train_loss:2.5043 train_time:455177ms step_avg:392.39ms router_forward:1 router_objective:-0.0971 router_entropy:1.3856 router_entropy_bonus:0.0636
+step:1170/20000 router_probe window_steps:10 avg_depth:6.544 router_objective:-0.1170 router_entropy:1.3866
+step:1170/20000 router_matrix
+step:1170/20000 train_loss:2.4435 train_time:459603ms step_avg:392.82ms router_forward:1 router_objective:-0.1569 router_entropy:1.3828 router_entropy_bonus:0.0623
+step:1180/20000 router_probe window_steps:10 avg_depth:6.574 router_objective:-0.1189 router_entropy:1.3681
+step:1180/20000 router_matrix
+step:1180/20000 train_loss:2.4597 train_time:463838ms step_avg:393.08ms router_forward:1 router_objective:-0.1040 router_entropy:1.3576 router_entropy_bonus:0.0610
+step:1190/20000 router_probe window_steps:10 avg_depth:5.515 router_objective:-0.0814 router_entropy:1.3640
+step:1190/20000 router_matrix
+step:1190/20000 train_loss:2.4788 train_time:467463ms step_avg:392.83ms router_forward:1 router_objective:-0.0376 router_entropy:1.3729 router_entropy_bonus:0.0599
+step:1200/20000 router_probe window_steps:10 avg_depth:6.056 router_objective:-0.0890 router_entropy:1.3907
+step:1200/20000 router_matrix
+step:1200/20000 train_loss:2.4659 train_time:471416ms step_avg:392.85ms router_forward:1 router_objective:-0.0843 router_entropy:1.3952 router_entropy_bonus:0.0587
+step:1210/20000 router_probe window_steps:10 avg_depth:6.495 router_objective:-0.1008 router_entropy:1.4019
+step:1210/20000 router_matrix
+step:1210/20000 train_loss:2.4410 train_time:475644ms step_avg:393.09ms router_forward:1 router_objective:-0.0818 router_entropy:1.3964 router_entropy_bonus:0.0574
+step:1220/20000 router_probe window_steps:10 avg_depth:5.549 router_objective:-0.0832 router_entropy:1.3734
+step:1220/20000 router_matrix
+step:1220/20000 train_loss:2.4520 train_time:479292ms step_avg:392.86ms router_forward:1 router_objective:-0.0395 router_entropy:1.3556 router_entropy_bonus:0.0563
+step:1230/20000 router_probe window_steps:10 avg_depth:5.166 router_objective:-0.0648 router_entropy:1.3661
+step:1230/20000 router_matrix
+step:1230/20000 train_loss:2.4705 train_time:482653ms step_avg:392.40ms router_forward:1 router_objective:-0.0791 router_entropy:1.3817 router_entropy_bonus:0.0553
+step:1240/20000 router_probe window_steps:10 avg_depth:5.532 router_objective:-0.0775 router_entropy:1.3921
+step:1240/20000 router_matrix
+step:1240/20000 train_loss:2.4490 train_time:486299ms step_avg:392.18ms router_forward:1 router_objective:-0.1086 router_entropy:1.3920 router_entropy_bonus:0.0542
+step:1250/20000 router_probe window_steps:10 avg_depth:5.320 router_objective:-0.0830 router_entropy:1.3682
+step:1250/20000 router_matrix
+step:1250/20000 train_loss:2.4396 train_time:489806ms step_avg:391.84ms router_forward:1 router_objective:-0.0677 router_entropy:1.3593 router_entropy_bonus:0.0532
+step:1260/20000 router_probe window_steps:10 avg_depth:5.307 router_objective:-0.0602 router_entropy:1.3561
+step:1260/20000 router_matrix
+step:1260/20000 train_loss:2.5344 train_time:493281ms step_avg:391.49ms router_forward:1 router_objective:-0.0449 router_entropy:1.3590 router_entropy_bonus:0.0521
+step:1270/20000 router_probe window_steps:10 avg_depth:5.813 router_objective:-0.0522 router_entropy:1.3562
+step:1270/20000 router_matrix
+step:1270/20000 train_loss:2.4591 train_time:497036ms step_avg:391.37ms router_forward:1 router_objective:-0.0419 router_entropy:1.3616 router_entropy_bonus:0.0510
+step:1280/20000 router_probe window_steps:10 avg_depth:6.393 router_objective:-0.0609 router_entropy:1.3732
+step:1280/20000 router_matrix
+step:1280/20000 train_loss:2.4147 train_time:501157ms step_avg:391.53ms router_forward:1 router_objective:-0.0906 router_entropy:1.3794 router_entropy_bonus:0.0498
+step:1290/20000 router_probe window_steps:10 avg_depth:6.603 router_objective:-0.0551 router_entropy:1.3638
+step:1290/20000 router_matrix
+step:1290/20000 train_loss:2.3846 train_time:505426ms step_avg:391.80ms router_forward:1 router_objective:-0.0506 router_entropy:1.3506 router_entropy_bonus:0.0485
+step:1300/20000 router_probe window_steps:10 avg_depth:6.401 router_objective:-0.0587 router_entropy:1.3389
+step:1300/20000 router_matrix
+step:1300/20000 train_loss:2.4232 train_time:509556ms step_avg:391.97ms router_forward:1 router_objective:-0.0794 router_entropy:1.3417 router_entropy_bonus:0.0473
+step:1310/20000 router_probe window_steps:10 avg_depth:6.247 router_objective:-0.0491 router_entropy:1.3519
+step:1310/20000 router_matrix
+step:1310/20000 train_loss:2.3663 train_time:513611ms step_avg:392.07ms router_forward:1 router_objective:-0.0405 router_entropy:1.3653 router_entropy_bonus:0.0460
+step:1320/20000 router_probe window_steps:10 avg_depth:5.893 router_objective:-0.0696 router_entropy:1.3703
+step:1320/20000 router_matrix
+step:1320/20000 train_loss:2.3649 train_time:517430ms step_avg:391.99ms router_forward:1 router_objective:-0.0471 router_entropy:1.3691 router_entropy_bonus:0.0449
+step:1330/20000 router_probe window_steps:10 avg_depth:5.512 router_objective:-0.0517 router_entropy:1.3647
+step:1330/20000 router_matrix
+step:1330/20000 train_loss:2.3615 train_time:521009ms step_avg:391.74ms router_forward:1 router_objective:-0.0546 router_entropy:1.3613 router_entropy_bonus:0.0438
+step:1340/20000 router_probe window_steps:10 avg_depth:5.683 router_objective:-0.0668 router_entropy:1.3554
+step:1340/20000 router_matrix
+step:1340/20000 train_loss:2.4149 train_time:524685ms step_avg:391.56ms router_forward:1 router_objective:-0.0694 router_entropy:1.3463 router_entropy_bonus:0.0427
+step:1350/20000 router_probe window_steps:10 avg_depth:5.887 router_objective:-0.0524 router_entropy:1.3407
+step:1350/20000 router_matrix
+step:1350/20000 train_loss:2.3798 train_time:528451ms step_avg:391.45ms router_forward:1 router_objective:-0.0996 router_entropy:1.3352 router_entropy_bonus:0.0416
+step:1360/20000 router_probe window_steps:10 avg_depth:6.036 router_objective:-0.0667 router_entropy:1.3336
+step:1360/20000 router_matrix
+step:1360/20000 train_loss:2.3929 train_time:532293ms step_avg:391.39ms router_forward:1 router_objective:-0.0672 router_entropy:1.3325 router_entropy_bonus:0.0404
+step:1370/20000 router_probe window_steps:10 avg_depth:5.826 router_objective:-0.0642 router_entropy:1.3253
+step:1370/20000 router_matrix
+step:1370/20000 train_loss:2.3949 train_time:536004ms step_avg:391.24ms router_forward:1 router_objective:-0.0769 router_entropy:1.3231 router_entropy_bonus:0.0393
+step:1380/20000 router_probe window_steps:10 avg_depth:5.803 router_objective:-0.0509 router_entropy:1.3205
+step:1380/20000 router_matrix
+step:1380/20000 train_loss:2.3635 train_time:539727ms step_avg:391.11ms router_forward:1 router_objective:-0.0364 router_entropy:1.3134 router_entropy_bonus:0.0382
+step:1390/20000 router_probe window_steps:10 avg_depth:6.082 router_objective:-0.0569 router_entropy:1.3210
+step:1390/20000 router_matrix
+step:1390/20000 train_loss:2.3944 train_time:543576ms step_avg:391.06ms router_forward:1 router_objective:-0.0289 router_entropy:1.3193 router_entropy_bonus:0.0370
+step:1400/20000 router_probe window_steps:10 avg_depth:6.287 router_objective:-0.0472 router_entropy:1.3144
+step:1400/20000 router_matrix
+step:1400/20000 train_loss:2.3931 train_time:547566ms step_avg:391.12ms router_forward:1 router_objective:-0.0182 router_entropy:1.3212 router_entropy_bonus:0.0358
+step:1410/20000 router_probe window_steps:10 avg_depth:6.243 router_objective:-0.0539 router_entropy:1.3058
+step:1410/20000 router_matrix
+step:1410/20000 train_loss:2.3653 train_time:551498ms step_avg:391.13ms router_forward:1 router_objective:-0.0630 router_entropy:1.2927 router_entropy_bonus:0.0347
+step:1420/20000 router_probe window_steps:10 avg_depth:6.096 router_objective:-0.0354 router_entropy:1.2972
+step:1420/20000 router_matrix
+step:1420/20000 train_loss:2.3593 train_time:555321ms step_avg:391.07ms router_forward:1 router_objective:-0.0541 router_entropy:1.2923 router_entropy_bonus:0.0335
+step:1430/20000 router_probe window_steps:10 avg_depth:6.397 router_objective:-0.0544 router_entropy:1.2938
+step:1430/20000 router_matrix
+step:1430/20000 train_loss:2.3811 train_time:559370ms step_avg:391.17ms router_forward:1 router_objective:-0.0407 router_entropy:1.2895 router_entropy_bonus:0.0323
+step:1440/20000 router_probe window_steps:10 avg_depth:6.371 router_objective:-0.0287 router_entropy:1.2880
+step:1440/20000 router_matrix
+step:1440/20000 train_loss:2.3309 train_time:563358ms step_avg:391.22ms router_forward:1 router_objective:-0.0405 router_entropy:1.2966 router_entropy_bonus:0.0311
+step:1450/20000 router_probe window_steps:10 avg_depth:6.471 router_objective:-0.0481 router_entropy:1.2904
+step:1450/20000 router_matrix
+step:1450/20000 train_loss:2.3349 train_time:567410ms step_avg:391.32ms router_forward:1 router_objective:-0.0327 router_entropy:1.2832 router_entropy_bonus:0.0299
+step:1460/20000 router_probe window_steps:10 avg_depth:6.338 router_objective:-0.0436 router_entropy:1.2813
+step:1460/20000 router_matrix
+step:1460/20000 train_loss:2.4077 train_time:571371ms step_avg:391.35ms router_forward:1 router_objective:-0.0769 router_entropy:1.2822 router_entropy_bonus:0.0287
+step:1470/20000 router_probe window_steps:10 avg_depth:6.328 router_objective:-0.0424 router_entropy:1.2805
+step:1470/20000 router_matrix
+step:1470/20000 train_loss:2.3287 train_time:575314ms step_avg:391.37ms router_forward:1 router_objective:-0.0406 router_entropy:1.2840 router_entropy_bonus:0.0275
+step:1480/20000 router_probe window_steps:10 avg_depth:6.361 router_objective:-0.0371 router_entropy:1.2817
+step:1480/20000 router_matrix
+step:1480/20000 train_loss:2.3572 train_time:579307ms step_avg:391.42ms router_forward:1 router_objective:-0.0564 router_entropy:1.2826 router_entropy_bonus:0.0263
+step:1490/20000 router_probe window_steps:10 avg_depth:6.341 router_objective:-0.0436 router_entropy:1.2793
+step:1490/20000 router_matrix
+step:1490/20000 train_loss:2.3626 train_time:583262ms step_avg:391.45ms router_forward:1 router_objective:-0.0382 router_entropy:1.2857 router_entropy_bonus:0.0251
+step:1500/20000 router_probe window_steps:10 avg_depth:6.280 router_objective:-0.0351 router_entropy:1.2819
+step:1500/20000 router_matrix
+step:1500/20000 train_loss:2.3821 train_time:587172ms step_avg:391.45ms router_forward:1 router_objective:-0.0446 router_entropy:1.2839 router_entropy_bonus:0.0240
+step:1510/20000 router_probe window_steps:10 avg_depth:6.203 router_objective:-0.0332 router_entropy:1.2864
+step:1510/20000 router_matrix
+step:1510/20000 train_loss:2.3881 train_time:591058ms step_avg:391.43ms router_forward:1 router_objective:-0.0392 router_entropy:1.2923 router_entropy_bonus:0.0228
+step:1520/20000 router_probe window_steps:10 avg_depth:6.086 router_objective:-0.0371 router_entropy:1.2942
+step:1520/20000 router_matrix
+step:1520/20000 train_loss:2.3477 train_time:595199ms step_avg:391.58ms router_forward:1 router_objective:-0.0451 router_entropy:1.2910 router_entropy_bonus:0.0216
+step:1530/20000 router_probe window_steps:10 avg_depth:6.055 router_objective:-0.0321 router_entropy:1.2945
+step:1530/20000 router_matrix
+step:1530/20000 train_loss:2.3385 train_time:599027ms step_avg:391.52ms router_forward:1 router_objective:-0.0486 router_entropy:1.2863 router_entropy_bonus:0.0204
+stopping_early: wallclock_cap train_time:600173ms step:1533/20000
+peak memory allocated: 69699 MiB reserved: 76004 MiB
+ema:applying EMA weights
+Serialized model: 76314608 bytes
+Serialized model int6+zlib: 7896324 bytes
+final_int6_roundtrip val_loss:2.5808 val_bpb:1.5285 eval_time:7571ms
+final_int6_roundtrip_exact val_loss:2.58081454 val_bpb:1.52850374

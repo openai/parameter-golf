@@ -1,0 +1,123 @@
+# Sanitized Parameter Golf run excerpt
+# Source dashboard log: dashboard_20260430_224429_ad4a36d5.stdout.log
+# Removed: shell banners, infrastructure identifiers, and full path-heavy environment dumps.
+# Preserved: hardware/world-size, ART diagnostics, serialization, quantization, TTT, and score lines.
+
+  art_router_hidden_dim: 64
+  grad_accum_steps: 8
+  quantized_model_path: final_model.int6.ptz
+  world_size: 1
+model_params:36010266
+simple_art:enabled:1 enable_at:0.45 router_hidden:64 router_lr:0.0005 cycle_penalty:0.002 entropy:0.02->0.002 eval_mode:sample
+warmup_step: 1/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup_step: 1/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+1/20000 train_loss: 9.0247 train_time: 0.0m tok/s: 1159242
+2/20000 train_loss: 12.8638 train_time: 0.0m tok/s: 1142880
+3/20000 train_loss: 10.2122 train_time: 0.0m tok/s: 1132087
+4/20000 train_loss: 8.6768 train_time: 0.0m tok/s: 1127246
+5/20000 train_loss: 7.8743 train_time: 0.1m tok/s: 1117891
+10/20000 train_loss: 6.2745 train_time: 0.1m tok/s: 1119936
+20/20000 train_loss: 4.8344 train_time: 0.2m tok/s: 1120456
+30/20000 train_loss: 4.5192 train_time: 0.4m tok/s: 1122261
+40/20000 train_loss: 4.3365 train_time: 0.5m tok/s: 1122380
+50/20000 train_loss: 4.1732 train_time: 0.6m tok/s: 1122607
+60/20000 train_loss: 4.0473 train_time: 0.7m tok/s: 1122830
+70/20000 train_loss: 3.9026 train_time: 0.8m tok/s: 1123472
+80/20000 train_loss: 3.7741 train_time: 0.9m tok/s: 1123464
+90/20000 train_loss: 3.5805 train_time: 1.1m tok/s: 1122986
+100/20000 train_loss: 3.4914 train_time: 1.2m tok/s: 1122978
+110/20000 train_loss: 3.4533 train_time: 1.3m tok/s: 1122885
+120/20000 train_loss: 3.4093 train_time: 1.4m tok/s: 1122958
+130/20000 train_loss: 3.2586 train_time: 1.5m tok/s: 1121848
+140/20000 train_loss: 3.2422 train_time: 1.6m tok/s: 1120986
+150/20000 train_loss: 3.2266 train_time: 1.8m tok/s: 1120728
+160/20000 train_loss: 3.1612 train_time: 1.9m tok/s: 1119153
+170/20000 train_loss: 3.1102 train_time: 2.0m tok/s: 1118004
+180/20000 train_loss: 3.0357 train_time: 2.1m tok/s: 1116397
+190/20000 train_loss: 3.0795 train_time: 2.2m tok/s: 1116007
+200/20000 train_loss: 3.1048 train_time: 2.3m tok/s: 1116201
+210/20000 train_loss: 3.0523 train_time: 2.5m tok/s: 1116559
+220/20000 train_loss: 2.9483 train_time: 2.6m tok/s: 1116759
+230/20000 train_loss: 3.0044 train_time: 2.7m tok/s: 1117156
+240/20000 train_loss: 2.9959 train_time: 2.8m tok/s: 1117391
+250/20000 train_loss: 2.8992 train_time: 2.9m tok/s: 1117596
+260/20000 train_loss: 2.9975 train_time: 3.1m tok/s: 1117310
+270/20000 train_loss: 3.0359 train_time: 3.2m tok/s: 1117096
+280/20000 train_loss: 2.9101 train_time: 3.3m tok/s: 1115891
+290/20000 train_loss: 2.9290 train_time: 3.4m tok/s: 1116081
+300/20000 train_loss: 2.9230 train_time: 3.5m tok/s: 1110235
+310/20000 train_loss: 2.9365 train_time: 3.7m tok/s: 1093024
+320/20000 train_loss: 2.8800 train_time: 3.9m tok/s: 1077676
+330/20000 train_loss: 2.8599 train_time: 4.1m tok/s: 1063329
+340/20000 train_loss: 2.9867 train_time: 4.2m tok/s: 1050350
+350/20000 train_loss: 2.8518 train_time: 4.4m tok/s: 1038390
+simple_art:enabled step:353 frac:0.450
+simple_art:sync_done
+360/20000 train_loss: 2.9224 train_time: 4.6m tok/s: 1030382
+370/20000 train_loss: 2.7812 train_time: 4.7m tok/s: 1025292
+380/20000 train_loss: 2.8470 train_time: 4.9m tok/s: 1019587
+390/20000 train_loss: 2.7683 train_time: 5.0m tok/s: 1015659
+400/20000 train_loss: 2.7192 train_time: 5.2m tok/s: 1012955
+simple_art_probe step:400 samples:376 continue_action:0.404 continue_prob:0.412 entropy:0.6713 policy_loss:0.014397 baseline:2.7714
+410/20000 train_loss: 2.7818 train_time: 5.3m tok/s: 1008750
+420/20000 train_loss: 2.7371 train_time: 5.5m tok/s: 1004310
+430/20000 train_loss: 2.7681 train_time: 5.6m tok/s: 1000059
+440/20000 train_loss: 2.6848 train_time: 5.8m tok/s: 996283
+450/20000 train_loss: 2.7360 train_time: 5.9m tok/s: 992096
+simple_art_probe step:450 samples:400 continue_action:0.485 continue_prob:0.494 entropy:0.6913 policy_loss:-0.005241 baseline:2.7636
+460/20000 train_loss: 2.7148 train_time: 6.1m tok/s: 988765
+470/20000 train_loss: 2.8252 train_time: 6.2m tok/s: 985827
+480/20000 train_loss: 2.6719 train_time: 6.4m tok/s: 982024
+490/20000 train_loss: 2.7284 train_time: 6.6m tok/s: 978968
+500/20000 train_loss: 2.6405 train_time: 6.7m tok/s: 976931
+simple_art_probe step:500 samples:400 continue_action:0.512 continue_prob:0.518 entropy:0.6924 policy_loss:-0.002367 baseline:2.7158
+510/20000 train_loss: 2.7358 train_time: 6.9m tok/s: 972916
+520/20000 train_loss: 2.7648 train_time: 7.0m tok/s: 970441
+530/20000 train_loss: 2.7539 train_time: 7.2m tok/s: 967301
+540/20000 train_loss: 2.7079 train_time: 7.3m tok/s: 964045
+550/20000 train_loss: 2.6369 train_time: 7.5m tok/s: 961083
+simple_art_probe step:550 samples:400 continue_action:0.585 continue_prob:0.580 entropy:0.6791 policy_loss:-0.003125 baseline:2.6862
+560/20000 train_loss: 2.9367 train_time: 7.7m tok/s: 958357
+570/20000 train_loss: 2.6722 train_time: 7.8m tok/s: 956317
+580/20000 train_loss: 2.6813 train_time: 8.0m tok/s: 954241
+590/20000 train_loss: 2.6113 train_time: 8.1m tok/s: 951975
+600/20000 train_loss: 2.6323 train_time: 8.3m tok/s: 949218
+simple_art_probe step:600 samples:400 continue_action:0.598 continue_prob:0.609 entropy:0.6687 policy_loss:-0.003524 baseline:2.6664
+610/20000 train_loss: 2.6718 train_time: 8.4m tok/s: 947134
+620/20000 train_loss: 2.6462 train_time: 8.6m tok/s: 944549
+630/20000 train_loss: 2.6449 train_time: 8.8m tok/s: 941899
+640/20000 train_loss: 2.6163 train_time: 8.9m tok/s: 939902
+650/20000 train_loss: 2.6746 train_time: 9.1m tok/s: 937701
+simple_art_probe step:650 samples:400 continue_action:0.635 continue_prob:0.656 entropy:0.6433 policy_loss:-0.002594 baseline:2.6516
+660/20000 train_loss: 2.5707 train_time: 9.2m tok/s: 935503
+670/20000 train_loss: 2.6207 train_time: 9.4m tok/s: 933227
+680/20000 train_loss: 2.6490 train_time: 9.6m tok/s: 931037
+690/20000 train_loss: 2.5628 train_time: 9.7m tok/s: 929095
+700/20000 train_loss: 2.6664 train_time: 9.9m tok/s: 927546
+simple_art_probe step:700 samples:400 continue_action:0.685 continue_prob:0.677 entropy:0.6288 policy_loss:-0.001232 baseline:2.6153
+703/20000 val_loss: 2.6071 val_bpb: 1.1913
+stopping_early: wallclock_cap train_time: 596418ms step: 703/20000
+peak memory allocated: 42204 MiB reserved: 47322 MiB
+ema:applying EMA weights
+Serialized model: 135672498 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 4.5s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int8)+lqer_asym: tok_emb.weight
+  passthrough (float16): art_router_fc.weight, art_router_proj.weight, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
+GPTQ:quantized in 52.4s
+GPTQ:compressed+saved in 50.9s
+Serialized model quantized+brotli: 17032456 bytes
+artifact_production_wallclock: 967.399s (must be < 600.0)
+diagnostic pre-quantization post-ema val_loss:2.65239130 val_bpb:1.21201812 eval_time:26354ms
+diagnostic quantized val_loss:2.66041854 val_bpb:1.21568619 eval_time:41849ms
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (175.6s)
+quantized_ttt_phased val_loss:2.62586001 val_bpb:1.19991555 eval_time:2834007ms
+total_eval_time:2834.0s

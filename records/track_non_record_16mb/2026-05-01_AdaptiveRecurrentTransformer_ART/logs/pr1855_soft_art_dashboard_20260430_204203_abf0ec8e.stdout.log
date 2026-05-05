@@ -1,0 +1,591 @@
+# Sanitized Parameter Golf run excerpt
+# Source dashboard log: dashboard_20260430_204203_abf0ec8e.stdout.log
+# Removed: shell banners, infrastructure identifiers, and full path-heavy environment dumps.
+# Preserved: hardware/world-size, ART diagnostics, serialization, quantization, TTT, and score lines.
+
+  art_delta_probe_every: 50
+  art_delta_probe_tokens: 2048
+  grad_accum_steps: 1
+  quantized_model_path: final_model.int6.ptz
+  world_size: 8
+model_params:35944680
+art_delta_gate:enabled:1 mode:tanh_sitegain window:12 scale:1 site_gates:1 tanh_range:1 init_alpha:1 repeated_only:1 probe_every:50 probe_tokens:2048
+warmup_step: 1/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup_step: 1/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+1/20000 train_loss: 9.0142 train_time: 0.0m tok/s: 6427004
+2/20000 train_loss: 12.8436 train_time: 0.0m tok/s: 7363207
+3/20000 train_loss: 10.1199 train_time: 0.0m tok/s: 7716534
+4/20000 train_loss: 8.5642 train_time: 0.0m tok/s: 7909997
+5/20000 train_loss: 7.8111 train_time: 0.0m tok/s: 8050589
+10/20000 train_loss: 6.3341 train_time: 0.0m tok/s: 8300168
+20/20000 train_loss: 4.8798 train_time: 0.0m tok/s: 8430476
+30/20000 train_loss: 4.6076 train_time: 0.0m tok/s: 8470778
+40/20000 train_loss: 4.3048 train_time: 0.1m tok/s: 8476418
+50/20000 train_loss: 4.0821 train_time: 0.1m tok/s: 8487201
+60/20000 train_loss: 4.0419 train_time: 0.1m tok/s: 8494470
+70/20000 train_loss: 3.9852 train_time: 0.1m tok/s: 8502205
+80/20000 train_loss: 3.8497 train_time: 0.1m tok/s: 8506515
+90/20000 train_loss: 3.5454 train_time: 0.1m tok/s: 8511455
+100/20000 train_loss: 3.5550 train_time: 0.2m tok/s: 8512299
+110/20000 train_loss: 3.4848 train_time: 0.2m tok/s: 8510749
+120/20000 train_loss: 3.4294 train_time: 0.2m tok/s: 8509568
+130/20000 train_loss: 3.2624 train_time: 0.2m tok/s: 8334370
+140/20000 train_loss: 3.1255 train_time: 0.2m tok/s: 8348872
+150/20000 train_loss: 3.1960 train_time: 0.2m tok/s: 8358676
+160/20000 train_loss: 3.1242 train_time: 0.3m tok/s: 8370886
+170/20000 train_loss: 3.0285 train_time: 0.3m tok/s: 8377484
+180/20000 train_loss: 2.9951 train_time: 0.3m tok/s: 8386592
+190/20000 train_loss: 3.1328 train_time: 0.3m tok/s: 8394446
+200/20000 train_loss: 3.1496 train_time: 0.3m tok/s: 8400707
+210/20000 train_loss: 3.0320 train_time: 0.3m tok/s: 8406623
+220/20000 train_loss: 2.9000 train_time: 0.3m tok/s: 8411669
+230/20000 train_loss: 3.0975 train_time: 0.4m tok/s: 8416609
+240/20000 train_loss: 2.9971 train_time: 0.4m tok/s: 8419235
+250/20000 train_loss: 2.9340 train_time: 0.4m tok/s: 8423568
+260/20000 train_loss: 3.0274 train_time: 0.4m tok/s: 8340809
+270/20000 train_loss: 3.2167 train_time: 0.4m tok/s: 8346367
+280/20000 train_loss: 2.9351 train_time: 0.4m tok/s: 8351419
+290/20000 train_loss: 3.0122 train_time: 0.5m tok/s: 8356840
+300/20000 train_loss: 2.9235 train_time: 0.5m tok/s: 8361052
+310/20000 train_loss: 2.9949 train_time: 0.5m tok/s: 8364939
+320/20000 train_loss: 2.8644 train_time: 0.5m tok/s: 8369047
+330/20000 train_loss: 2.9469 train_time: 0.5m tok/s: 8372935
+340/20000 train_loss: 2.9861 train_time: 0.5m tok/s: 8376456
+350/20000 train_loss: 2.9154 train_time: 0.5m tok/s: 8378878
+360/20000 train_loss: 2.9386 train_time: 0.6m tok/s: 8382372
+370/20000 train_loss: 2.7387 train_time: 0.6m tok/s: 8384584
+380/20000 train_loss: 2.9397 train_time: 0.6m tok/s: 8386009
+390/20000 train_loss: 2.8909 train_time: 0.6m tok/s: 8333091
+400/20000 train_loss: 2.5920 train_time: 0.6m tok/s: 8335640
+410/20000 train_loss: 2.8694 train_time: 0.6m tok/s: 8339565
+420/20000 train_loss: 2.8586 train_time: 0.7m tok/s: 8342728
+430/20000 train_loss: 2.8887 train_time: 0.7m tok/s: 8345965
+440/20000 train_loss: 2.7573 train_time: 0.7m tok/s: 8349065
+450/20000 train_loss: 2.8408 train_time: 0.7m tok/s: 8351590
+460/20000 train_loss: 2.7162 train_time: 0.7m tok/s: 8353796
+470/20000 train_loss: 2.8842 train_time: 0.7m tok/s: 8355527
+480/20000 train_loss: 2.6888 train_time: 0.8m tok/s: 8357644
+490/20000 train_loss: 2.7876 train_time: 0.8m tok/s: 8360354
+500/20000 train_loss: 2.5852 train_time: 0.8m tok/s: 8362387
+510/20000 train_loss: 2.7836 train_time: 0.8m tok/s: 8320119
+520/20000 train_loss: 2.7835 train_time: 0.8m tok/s: 8322837
+530/20000 train_loss: 2.7249 train_time: 0.8m tok/s: 8325266
+540/20000 train_loss: 2.7467 train_time: 0.8m tok/s: 8328187
+550/20000 train_loss: 2.7379 train_time: 0.9m tok/s: 8330848
+560/20000 train_loss: 3.3228 train_time: 0.9m tok/s: 8333986
+570/20000 train_loss: 2.6518 train_time: 0.9m tok/s: 8336346
+580/20000 train_loss: 2.7685 train_time: 0.9m tok/s: 8338349
+590/20000 train_loss: 2.6574 train_time: 0.9m tok/s: 8340046
+600/20000 train_loss: 2.6820 train_time: 0.9m tok/s: 8342676
+610/20000 train_loss: 3.0132 train_time: 1.0m tok/s: 8344761
+620/20000 train_loss: 2.7686 train_time: 1.0m tok/s: 8346927
+630/20000 train_loss: 2.7526 train_time: 1.0m tok/s: 8349117
+640/20000 train_loss: 2.6592 train_time: 1.0m tok/s: 8317367
+650/20000 train_loss: 2.7111 train_time: 1.0m tok/s: 8319171
+660/20000 train_loss: 2.7693 train_time: 1.0m tok/s: 8320756
+670/20000 train_loss: 2.8040 train_time: 1.1m tok/s: 8323187
+680/20000 train_loss: 2.7716 train_time: 1.1m tok/s: 8325309
+690/20000 train_loss: 2.6236 train_time: 1.1m tok/s: 8327081
+700/20000 train_loss: 2.8839 train_time: 1.1m tok/s: 8329059
+710/20000 train_loss: 2.8000 train_time: 1.1m tok/s: 8331086
+720/20000 train_loss: 2.8081 train_time: 1.1m tok/s: 8332441
+730/20000 train_loss: 2.7711 train_time: 1.1m tok/s: 8334710
+740/20000 train_loss: 2.9064 train_time: 1.2m tok/s: 8336606
+750/20000 train_loss: 2.7425 train_time: 1.2m tok/s: 8338256
+760/20000 train_loss: 2.6780 train_time: 1.2m tok/s: 8340018
+770/20000 train_loss: 2.8110 train_time: 1.2m tok/s: 8313539
+780/20000 train_loss: 2.8207 train_time: 1.2m tok/s: 8314987
+790/20000 train_loss: 2.7900 train_time: 1.2m tok/s: 8316901
+800/20000 train_loss: 2.7216 train_time: 1.3m tok/s: 8318387
+810/20000 train_loss: 2.7781 train_time: 1.3m tok/s: 8320196
+820/20000 train_loss: 2.6647 train_time: 1.3m tok/s: 8321680
+830/20000 train_loss: 2.7415 train_time: 1.3m tok/s: 8323141
+840/20000 train_loss: 2.9691 train_time: 1.3m tok/s: 8324952
+850/20000 train_loss: 2.8358 train_time: 1.3m tok/s: 8326895
+860/20000 train_loss: 2.7562 train_time: 1.4m tok/s: 8328739
+870/20000 train_loss: 2.3836 train_time: 1.4m tok/s: 8329623
+880/20000 train_loss: 2.9304 train_time: 1.4m tok/s: 8331376
+890/20000 train_loss: 2.8136 train_time: 1.4m tok/s: 8307362
+900/20000 train_loss: 2.5736 train_time: 1.4m tok/s: 8308898
+910/20000 train_loss: 2.7502 train_time: 1.4m tok/s: 8310062
+920/20000 train_loss: 2.7203 train_time: 1.5m tok/s: 8311505
+930/20000 train_loss: 2.9370 train_time: 1.5m tok/s: 8313324
+940/20000 train_loss: 2.7268 train_time: 1.5m tok/s: 8314876
+950/20000 train_loss: 2.7596 train_time: 1.5m tok/s: 8316067
+960/20000 train_loss: 2.7366 train_time: 1.5m tok/s: 8317346
+970/20000 train_loss: 2.7889 train_time: 1.5m tok/s: 8318878
+980/20000 train_loss: 2.8001 train_time: 1.5m tok/s: 8320143
+990/20000 train_loss: 2.7395 train_time: 1.6m tok/s: 8321680
+1000/20000 train_loss: 2.9804 train_time: 1.6m tok/s: 8322408
+1010/20000 train_loss: 2.7172 train_time: 1.6m tok/s: 8323796
+1020/20000 train_loss: 2.7120 train_time: 1.6m tok/s: 8304287
+1030/20000 train_loss: 2.6094 train_time: 1.6m tok/s: 8305762
+1040/20000 train_loss: 2.7493 train_time: 1.6m tok/s: 8307138
+1050/20000 train_loss: 2.7404 train_time: 1.7m tok/s: 8309045
+1060/20000 train_loss: 2.7035 train_time: 1.7m tok/s: 8310524
+1070/20000 train_loss: 2.7360 train_time: 1.7m tok/s: 8312007
+1080/20000 train_loss: 2.7561 train_time: 1.7m tok/s: 8313465
+1090/20000 train_loss: 2.6660 train_time: 1.7m tok/s: 8314771
+1100/20000 train_loss: 2.6837 train_time: 1.7m tok/s: 8316479
+1110/20000 train_loss: 2.7340 train_time: 1.7m tok/s: 8317545
+1120/20000 train_loss: 2.6415 train_time: 1.8m tok/s: 8318615
+1130/20000 train_loss: 2.7303 train_time: 1.8m tok/s: 8319912
+1140/20000 train_loss: 2.7296 train_time: 1.8m tok/s: 8321319
+1150/20000 train_loss: 2.6047 train_time: 1.8m tok/s: 8303713
+1160/20000 train_loss: 2.8121 train_time: 1.8m tok/s: 8305049
+1170/20000 train_loss: 2.6741 train_time: 1.8m tok/s: 8306341
+1180/20000 train_loss: 2.6513 train_time: 1.9m tok/s: 8307726
+1190/20000 train_loss: 2.7914 train_time: 1.9m tok/s: 8308956
+1200/20000 train_loss: 2.6612 train_time: 1.9m tok/s: 8310356
+1210/20000 train_loss: 2.6997 train_time: 1.9m tok/s: 8311451
+1220/20000 train_loss: 2.6783 train_time: 1.9m tok/s: 8312791
+1230/20000 train_loss: 2.7277 train_time: 1.9m tok/s: 8314145
+1240/20000 train_loss: 2.7517 train_time: 2.0m tok/s: 8315162
+1250/20000 train_loss: 2.7195 train_time: 2.0m tok/s: 8316360
+1260/20000 train_loss: 3.3058 train_time: 2.0m tok/s: 8317236
+1270/20000 train_loss: 2.8234 train_time: 2.0m tok/s: 8318136
+1280/20000 train_loss: 2.6414 train_time: 2.0m tok/s: 8302797
+1290/20000 train_loss: 2.5711 train_time: 2.0m tok/s: 8304211
+1300/20000 train_loss: 2.7097 train_time: 2.1m tok/s: 8305335
+1310/20000 train_loss: 2.7723 train_time: 2.1m tok/s: 8306803
+1320/20000 train_loss: 2.6629 train_time: 2.1m tok/s: 8307849
+1330/20000 train_loss: 2.8084 train_time: 2.1m tok/s: 8309189
+1340/20000 train_loss: 2.7149 train_time: 2.1m tok/s: 8310404
+1350/20000 train_loss: 2.7031 train_time: 2.1m tok/s: 8311167
+1360/20000 train_loss: 2.7647 train_time: 2.1m tok/s: 8312370
+1370/20000 train_loss: 2.7083 train_time: 2.2m tok/s: 8313582
+1380/20000 train_loss: 2.9098 train_time: 2.2m tok/s: 8314863
+1390/20000 train_loss: 2.7107 train_time: 2.2m tok/s: 8315904
+1400/20000 train_loss: 2.5335 train_time: 2.2m tok/s: 8301578
+1410/20000 train_loss: 2.7985 train_time: 2.2m tok/s: 8302634
+1420/20000 train_loss: 2.6982 train_time: 2.2m tok/s: 8303917
+1430/20000 train_loss: 2.6335 train_time: 2.3m tok/s: 8305071
+1440/20000 train_loss: 2.6778 train_time: 2.3m tok/s: 8306123
+1450/20000 train_loss: 2.5661 train_time: 2.3m tok/s: 8307059
+1460/20000 train_loss: 2.7026 train_time: 2.3m tok/s: 8308051
+1470/20000 train_loss: 2.5721 train_time: 2.3m tok/s: 8309091
+1480/20000 train_loss: 2.5578 train_time: 2.3m tok/s: 8310258
+1490/20000 train_loss: 2.6728 train_time: 2.3m tok/s: 8311224
+1500/20000 train_loss: 2.7073 train_time: 2.4m tok/s: 8312087
+1510/20000 train_loss: 2.6932 train_time: 2.4m tok/s: 8313201
+1520/20000 train_loss: 2.7073 train_time: 2.4m tok/s: 8314147
+1530/20000 train_loss: 2.6297 train_time: 2.4m tok/s: 8300860
+1540/20000 train_loss: 2.7724 train_time: 2.4m tok/s: 8301987
+1550/20000 train_loss: 2.6790 train_time: 2.4m tok/s: 8302968
+1560/20000 train_loss: 2.7146 train_time: 2.5m tok/s: 8304065
+1570/20000 train_loss: 2.6861 train_time: 2.5m tok/s: 8305136
+1580/20000 train_loss: 2.8693 train_time: 2.5m tok/s: 8306282
+1590/20000 train_loss: 2.7260 train_time: 2.5m tok/s: 8307409
+1600/20000 train_loss: 2.7257 train_time: 2.5m tok/s: 8308403
+1610/20000 train_loss: 2.9136 train_time: 2.5m tok/s: 8309355
+1620/20000 train_loss: 2.5772 train_time: 2.6m tok/s: 8310435
+1630/20000 train_loss: 2.6652 train_time: 2.6m tok/s: 8311375
+1640/20000 train_loss: 2.7244 train_time: 2.6m tok/s: 8312447
+1650/20000 train_loss: 2.6238 train_time: 2.6m tok/s: 8313073
+1660/20000 train_loss: 2.6554 train_time: 2.6m tok/s: 8301038
+1670/20000 train_loss: 2.7601 train_time: 2.6m tok/s: 8301827
+1680/20000 train_loss: 2.5241 train_time: 2.7m tok/s: 8302460
+1690/20000 train_loss: 3.0541 train_time: 2.7m tok/s: 8303581
+1700/20000 train_loss: 2.6769 train_time: 2.7m tok/s: 8304731
+1710/20000 train_loss: 2.7169 train_time: 2.7m tok/s: 8305874
+1720/20000 train_loss: 2.5458 train_time: 2.7m tok/s: 8306710
+1730/20000 train_loss: 2.7068 train_time: 2.7m tok/s: 8307729
+1740/20000 train_loss: 2.7879 train_time: 2.7m tok/s: 8308621
+1750/20000 train_loss: 2.6779 train_time: 2.8m tok/s: 8309696
+1760/20000 train_loss: 2.6013 train_time: 2.8m tok/s: 8310621
+1770/20000 train_loss: 2.5073 train_time: 2.8m tok/s: 8311446
+1780/20000 train_loss: 2.6441 train_time: 2.8m tok/s: 8300401
+1790/20000 train_loss: 2.7945 train_time: 2.8m tok/s: 8301322
+1800/20000 train_loss: 2.8017 train_time: 2.8m tok/s: 8302494
+1810/20000 train_loss: 2.7869 train_time: 2.9m tok/s: 8303608
+1820/20000 train_loss: 2.7206 train_time: 2.9m tok/s: 8304710
+1830/20000 train_loss: 2.6700 train_time: 2.9m tok/s: 8305575
+1840/20000 train_loss: 2.5896 train_time: 2.9m tok/s: 8306482
+1850/20000 train_loss: 2.7248 train_time: 2.9m tok/s: 8307495
+1860/20000 train_loss: 2.6496 train_time: 2.9m tok/s: 8308440
+1870/20000 train_loss: 2.6661 train_time: 2.9m tok/s: 8309552
+1880/20000 train_loss: 2.5856 train_time: 3.0m tok/s: 8310376
+1890/20000 train_loss: 2.6435 train_time: 3.0m tok/s: 8311349
+1900/20000 train_loss: 2.6693 train_time: 3.0m tok/s: 8312106
+1910/20000 train_loss: 2.4837 train_time: 3.0m tok/s: 8301605
+1920/20000 train_loss: 2.6543 train_time: 3.0m tok/s: 8302284
+1930/20000 train_loss: 2.7299 train_time: 3.0m tok/s: 8303162
+1940/20000 train_loss: 2.8124 train_time: 3.1m tok/s: 8303930
+1950/20000 train_loss: 2.6399 train_time: 3.1m tok/s: 8304836
+1960/20000 train_loss: 2.6508 train_time: 3.1m tok/s: 8305888
+1970/20000 train_loss: 2.6281 train_time: 3.1m tok/s: 8306789
+1980/20000 train_loss: 2.6800 train_time: 3.1m tok/s: 8307599
+1990/20000 train_loss: 2.6295 train_time: 3.1m tok/s: 8308390
+2000/20000 train_loss: 2.7023 train_time: 3.2m tok/s: 8309129
+2010/20000 train_loss: 2.5388 train_time: 3.2m tok/s: 8310072
+2020/20000 train_loss: 2.7092 train_time: 3.2m tok/s: 8310911
+2030/20000 train_loss: 2.4877 train_time: 3.2m tok/s: 8311607
+2040/20000 train_loss: 2.6190 train_time: 3.2m tok/s: 8302064
+2050/20000 train_loss: 2.7744 train_time: 3.2m tok/s: 8302742
+2060/20000 train_loss: 2.5937 train_time: 3.3m tok/s: 8303553
+2070/20000 train_loss: 2.4593 train_time: 3.3m tok/s: 8304287
+2080/20000 train_loss: 2.6371 train_time: 3.3m tok/s: 8304990
+2090/20000 train_loss: 2.5961 train_time: 3.3m tok/s: 8305860
+2100/20000 train_loss: 2.6939 train_time: 3.3m tok/s: 8306597
+2110/20000 train_loss: 2.7085 train_time: 3.3m tok/s: 8307302
+2120/20000 train_loss: 2.5575 train_time: 3.3m tok/s: 8308146
+2130/20000 train_loss: 2.5709 train_time: 3.4m tok/s: 8308832
+2140/20000 train_loss: 2.6773 train_time: 3.4m tok/s: 8309396
+2150/20000 train_loss: 2.6186 train_time: 3.4m tok/s: 8310196
+2160/20000 train_loss: 2.5904 train_time: 3.4m tok/s: 8300885
+2170/20000 train_loss: 2.5814 train_time: 3.4m tok/s: 8301730
+2180/20000 train_loss: 2.7684 train_time: 3.4m tok/s: 8302595
+2190/20000 train_loss: 2.7062 train_time: 3.5m tok/s: 8303540
+2200/20000 train_loss: 2.6928 train_time: 3.5m tok/s: 8304359
+2210/20000 train_loss: 2.5782 train_time: 3.5m tok/s: 8292208
+2220/20000 train_loss: 2.7304 train_time: 3.5m tok/s: 8275297
+2230/20000 train_loss: 2.6156 train_time: 3.5m tok/s: 8258640
+2240/20000 train_loss: 2.5594 train_time: 3.6m tok/s: 8241991
+2250/20000 train_loss: 2.5913 train_time: 3.6m tok/s: 8225651
+art_delta_probe step:2250 sites:6 alpha_mean:0.2194 alpha_std:0.0793 alpha_min:0.0000 alpha_max:1.3203 logit_mean:-1.9263 logit_std:0.7961 delta_rms:2.16830 gated_delta_rms:0.54063 gate_w_rms:0.146795 gate_w_max:0.220246 gate_b_mean:-0.171764 gate_b_min:-0.224890 gate_b_max:-0.101248 sites:s0:b3o2:a0.039/r0.116,s2:b4o2:a0.019/r0.047,s4:b5o2:a0.075/r0.139,s1:b3o3:a0.091/r0.120,s3:b4o3:a0.345/r0.360,s5:b5o3:a0.748/r0.754
+2260/20000 train_loss: 2.5261 train_time: 3.6m tok/s: 8203341
+2270/20000 train_loss: 2.6352 train_time: 3.6m tok/s: 8187328
+2280/20000 train_loss: 2.8505 train_time: 3.7m tok/s: 8171003
+2290/20000 train_loss: 2.5981 train_time: 3.7m tok/s: 8149681
+2300/20000 train_loss: 2.6477 train_time: 3.7m tok/s: 8134103
+art_delta_probe step:2300 sites:6 alpha_mean:0.6326 alpha_std:0.2160 alpha_min:0.0000 alpha_max:1.9062 logit_mean:-0.4382 logit_std:0.3247 delta_rms:1.95583 gated_delta_rms:1.31856 gate_w_rms:0.086948 gate_w_max:0.189043 gate_b_mean:-0.145615 gate_b_min:-0.302090 gate_b_max:-0.077108 sites:s0:b3o2:a0.428/r0.489,s2:b4o2:a0.730/r0.841,s4:b5o2:a0.779/r0.917,s1:b3o3:a0.453/r0.468,s3:b4o3:a0.569/r0.576,s5:b5o3:a0.837/r0.842
+2310/20000 train_loss: 2.6416 train_time: 3.7m tok/s: 8118296
+2320/20000 train_loss: 2.6833 train_time: 3.8m tok/s: 8103086
+2330/20000 train_loss: 2.4890 train_time: 3.8m tok/s: 8088169
+2340/20000 train_loss: 2.5532 train_time: 3.8m tok/s: 8073429
+2350/20000 train_loss: 2.6422 train_time: 3.8m tok/s: 8058938
+art_delta_probe step:2350 sites:6 alpha_mean:0.8872 alpha_std:0.1618 alpha_min:0.0000 alpha_max:1.8438 logit_mean:-0.1209 logit_std:0.1923 delta_rms:1.85252 gated_delta_rms:1.67440 gate_w_rms:0.047264 gate_w_max:0.145002 gate_b_mean:-0.123360 gate_b_min:-0.313544 gate_b_max:0.000790 sites:s0:b3o2:a0.799/r0.813,s2:b4o2:a1.217/r1.252,s4:b5o2:a1.238/r1.279,s1:b3o3:a0.562/r0.586,s3:b4o3:a0.654/r0.669,s5:b5o3:a0.854/r0.862
+2360/20000 train_loss: 2.6016 train_time: 3.8m tok/s: 8043945
+2370/20000 train_loss: 2.6331 train_time: 3.9m tok/s: 8029745
+2380/20000 train_loss: 2.4796 train_time: 3.9m tok/s: 8015764
+2390/20000 train_loss: 2.5946 train_time: 3.9m tok/s: 8001943
+2400/20000 train_loss: 2.6556 train_time: 3.9m tok/s: 7988013
+art_delta_probe step:2400 sites:6 alpha_mean:0.9453 alpha_std:0.1612 alpha_min:0.0078 alpha_max:1.8594 logit_mean:-0.0550 logit_std:0.1844 delta_rms:1.78592 gated_delta_rms:1.71661 gate_w_rms:0.037132 gate_w_max:0.134402 gate_b_mean:-0.093784 gate_b_min:-0.267610 gate_b_max:0.080415 sites:s0:b3o2:a0.893/r0.904,s2:b4o2:a1.228/r1.257,s4:b5o2:a1.313/r1.351,s1:b3o3:a0.633/r0.655,s3:b4o3:a0.735/r0.755,s5:b5o3:a0.870/r0.879
+2410/20000 train_loss: 2.5277 train_time: 4.0m tok/s: 7973679
+2420/20000 train_loss: 2.5932 train_time: 4.0m tok/s: 7955257
+2430/20000 train_loss: 2.5653 train_time: 4.0m tok/s: 7941974
+2440/20000 train_loss: 2.5887 train_time: 4.0m tok/s: 7929122
+2450/20000 train_loss: 2.5940 train_time: 4.1m tok/s: 7916225
+art_delta_probe step:2450 sites:6 alpha_mean:0.9976 alpha_std:0.1526 alpha_min:0.0273 alpha_max:1.8281 logit_mean:0.0019 logit_std:0.1708 delta_rms:1.72277 gated_delta_rms:1.74894 gate_w_rms:0.034894 gate_w_max:0.137354 gate_b_mean:-0.071317 gate_b_min:-0.218052 gate_b_max:0.127998 sites:s0:b3o2:a0.941/r0.955,s2:b4o2:a1.303/r1.325,s4:b5o2:a1.350/r1.372,s1:b3o3:a0.723/r0.745,s3:b4o3:a0.774/r0.799,s5:b5o3:a0.895/r0.911
+2460/20000 train_loss: 2.4701 train_time: 4.1m tok/s: 7903027
+2470/20000 train_loss: 2.5317 train_time: 4.1m tok/s: 7890604
+2480/20000 train_loss: 2.6042 train_time: 4.1m tok/s: 7878010
+2490/20000 train_loss: 2.5698 train_time: 4.1m tok/s: 7865738
+2500/20000 train_loss: 2.5958 train_time: 4.2m tok/s: 7853601
+art_delta_probe step:2500 sites:6 alpha_mean:1.0132 alpha_std:0.1512 alpha_min:0.0742 alpha_max:1.8438 logit_mean:0.0199 logit_std:0.1677 delta_rms:1.66986 gated_delta_rms:1.72227 gate_w_rms:0.032483 gate_w_max:0.137990 gate_b_mean:-0.054223 gate_b_min:-0.191481 gate_b_max:0.163510 sites:s0:b3o2:a0.984/r0.996,s2:b4o2:a1.282/r1.306,s4:b5o2:a1.388/r1.411,s1:b3o3:a0.758/r0.783,s3:b4o3:a0.802/r0.826,s5:b5o3:a0.865/r0.880
+2510/20000 train_loss: 2.7007 train_time: 4.2m tok/s: 7840943
+2520/20000 train_loss: 2.4839 train_time: 4.2m tok/s: 7829121
+2530/20000 train_loss: 2.5348 train_time: 4.2m tok/s: 7817418
+2540/20000 train_loss: 2.5349 train_time: 4.3m tok/s: 7805756
+2550/20000 train_loss: 2.4977 train_time: 4.3m tok/s: 7789488
+art_delta_probe step:2550 sites:6 alpha_mean:1.0381 alpha_std:0.1446 alpha_min:0.0391 alpha_max:1.8359 logit_mean:0.0456 logit_std:0.1595 delta_rms:1.64396 gated_delta_rms:1.73327 gate_w_rms:0.030360 gate_w_max:0.128675 gate_b_mean:-0.037283 gate_b_min:-0.172251 gate_b_max:0.190502 sites:s0:b3o2:a1.003/r1.011,s2:b4o2:a1.324/r1.336,s4:b5o2:a1.376/r1.392,s1:b3o3:a0.827/r0.849,s3:b4o3:a0.845/r0.871,s5:b5o3:a0.854/r0.867
+2560/20000 train_loss: 2.5543 train_time: 4.3m tok/s: 7777385
+2570/20000 train_loss: 2.5750 train_time: 4.3m tok/s: 7766236
+2580/20000 train_loss: 2.4804 train_time: 4.4m tok/s: 7755314
+2590/20000 train_loss: 2.6060 train_time: 4.4m tok/s: 7744418
+2600/20000 train_loss: 2.5737 train_time: 4.4m tok/s: 7733551
+art_delta_probe step:2600 sites:6 alpha_mean:1.0484 alpha_std:0.1394 alpha_min:0.0469 alpha_max:1.8438 logit_mean:0.0569 logit_std:0.1544 delta_rms:1.58536 gated_delta_rms:1.68815 gate_w_rms:0.030245 gate_w_max:0.138738 gate_b_mean:-0.027503 gate_b_min:-0.178017 gate_b_max:0.210681 sites:s0:b3o2:a1.059/r1.066,s2:b4o2:a1.287/r1.300,s4:b5o2:a1.410/r1.429,s1:b3o3:a0.830/r0.850,s3:b4o3:a0.849/r0.874,s5:b5o3:a0.855/r0.869
+2610/20000 train_loss: 2.6960 train_time: 4.4m tok/s: 7722092
+2620/20000 train_loss: 2.6451 train_time: 4.5m tok/s: 7711233
+2630/20000 train_loss: 2.6987 train_time: 4.5m tok/s: 7700473
+2640/20000 train_loss: 2.4504 train_time: 4.5m tok/s: 7689978
+2650/20000 train_loss: 2.5274 train_time: 4.5m tok/s: 7679689
+art_delta_probe step:2650 sites:6 alpha_mean:1.0614 alpha_std:0.1483 alpha_min:0.0391 alpha_max:1.7969 logit_mean:0.0698 logit_std:0.1632 delta_rms:1.54572 gated_delta_rms:1.67179 gate_w_rms:0.030959 gate_w_max:0.125153 gate_b_mean:-0.017565 gate_b_min:-0.157280 gate_b_max:0.228508 sites:s0:b3o2:a1.036/r1.047,s2:b4o2:a1.373/r1.389,s4:b5o2:a1.364/r1.382,s1:b3o3:a0.864/r0.887,s3:b4o3:a0.869/r0.898,s5:b5o3:a0.862/r0.880
+2660/20000 train_loss: 2.6285 train_time: 4.5m tok/s: 7668854
+2670/20000 train_loss: 2.6246 train_time: 4.6m tok/s: 7654367
+2680/20000 train_loss: 2.4549 train_time: 4.6m tok/s: 7644405
+2690/20000 train_loss: 2.4991 train_time: 4.6m tok/s: 7634432
+2700/20000 train_loss: 2.4411 train_time: 4.6m tok/s: 7624661
+art_delta_probe step:2700 sites:6 alpha_mean:1.0504 alpha_std:0.1506 alpha_min:0.0156 alpha_max:1.8203 logit_mean:0.0562 logit_std:0.1650 delta_rms:1.53191 gated_delta_rms:1.63941 gate_w_rms:0.030767 gate_w_max:0.129760 gate_b_mean:-0.013738 gate_b_min:-0.154926 gate_b_max:0.230109 sites:s0:b3o2:a1.050/r1.057,s2:b4o2:a1.311/r1.329,s4:b5o2:a1.339/r1.350,s1:b3o3:a0.881/r0.906,s3:b4o3:a0.878/r0.911,s5:b5o3:a0.843/r0.860
+2710/20000 train_loss: 2.4310 train_time: 4.7m tok/s: 7614467
+2720/20000 train_loss: 2.5514 train_time: 4.7m tok/s: 7604721
+2730/20000 train_loss: 2.6255 train_time: 4.7m tok/s: 7595300
+2740/20000 train_loss: 2.5626 train_time: 4.7m tok/s: 7585779
+2750/20000 train_loss: 2.5385 train_time: 4.8m tok/s: 7576469
+art_delta_probe step:2750 sites:6 alpha_mean:1.0704 alpha_std:0.1485 alpha_min:0.0469 alpha_max:1.7969 logit_mean:0.0783 logit_std:0.1622 delta_rms:1.49403 gated_delta_rms:1.62673 gate_w_rms:0.031232 gate_w_max:0.122327 gate_b_mean:-0.006704 gate_b_min:-0.133069 gate_b_max:0.234472 sites:s0:b3o2:a1.070/r1.076,s2:b4o2:a1.328/r1.343,s4:b5o2:a1.375/r1.378,s1:b3o3:a0.907/r0.935,s3:b4o3:a0.889/r0.918,s5:b5o3:a0.854/r0.875
+2760/20000 train_loss: 2.6222 train_time: 4.8m tok/s: 7566721
+2770/20000 train_loss: 2.5881 train_time: 4.8m tok/s: 7557545
+2780/20000 train_loss: 2.6261 train_time: 4.8m tok/s: 7548509
+2790/20000 train_loss: 2.4503 train_time: 4.9m tok/s: 7539406
+2800/20000 train_loss: 2.5813 train_time: 4.9m tok/s: 7526697
+art_delta_probe step:2800 sites:6 alpha_mean:1.0628 alpha_std:0.1514 alpha_min:0.0273 alpha_max:1.7812 logit_mean:0.0693 logit_std:0.1650 delta_rms:1.44093 gated_delta_rms:1.55599 gate_w_rms:0.030919 gate_w_max:0.114675 gate_b_mean:-0.004967 gate_b_min:-0.129152 gate_b_max:0.237934 sites:s0:b3o2:a1.056/r1.062,s2:b4o2:a1.297/r1.319,s4:b5o2:a1.357/r1.355,s1:b3o3:a0.936/r0.958,s3:b4o3:a0.885/r0.917,s5:b5o3:a0.845/r0.858
+2810/20000 train_loss: 2.5114 train_time: 4.9m tok/s: 7517434
+2820/20000 train_loss: 2.5352 train_time: 4.9m tok/s: 7508766
+2830/20000 train_loss: 2.6140 train_time: 4.9m tok/s: 7500172
+2840/20000 train_loss: 2.5769 train_time: 5.0m tok/s: 7491574
+2850/20000 train_loss: 2.5882 train_time: 5.0m tok/s: 7482992
+art_delta_probe step:2850 sites:6 alpha_mean:1.0689 alpha_std:0.1472 alpha_min:0.0234 alpha_max:1.8125 logit_mean:0.0758 logit_std:0.1610 delta_rms:1.39366 gated_delta_rms:1.51871 gate_w_rms:0.031072 gate_w_max:0.123104 gate_b_mean:-0.004319 gate_b_min:-0.133872 gate_b_max:0.233213 sites:s0:b3o2:a1.115/r1.123,s2:b4o2:a1.299/r1.321,s4:b5o2:a1.364/r1.373,s1:b3o3:a0.918/r0.939,s3:b4o3:a0.883/r0.914,s5:b5o3:a0.833/r0.854
+2860/20000 train_loss: 2.6193 train_time: 5.0m tok/s: 7474226
+2870/20000 train_loss: 2.4736 train_time: 5.0m tok/s: 7465983
+2880/20000 train_loss: 2.6052 train_time: 5.1m tok/s: 7457890
+2890/20000 train_loss: 2.4654 train_time: 5.1m tok/s: 7449795
+2900/20000 train_loss: 2.5557 train_time: 5.1m tok/s: 7441792
+art_delta_probe step:2900 sites:6 alpha_mean:1.0742 alpha_std:0.1440 alpha_min:0.0430 alpha_max:1.7891 logit_mean:0.0812 logit_std:0.1569 delta_rms:1.36323 gated_delta_rms:1.49297 gate_w_rms:0.031629 gate_w_max:0.119413 gate_b_mean:-0.002457 gate_b_min:-0.140109 gate_b_max:0.229292 sites:s0:b3o2:a1.088/r1.093,s2:b4o2:a1.347/r1.363,s4:b5o2:a1.337/r1.349,s1:b3o3:a0.947/r0.969,s3:b4o3:a0.893/r0.925,s5:b5o3:a0.833/r0.857
+2910/20000 train_loss: 2.6067 train_time: 5.1m tok/s: 7433341
+2920/20000 train_loss: 2.4156 train_time: 5.2m tok/s: 7425188
+2930/20000 train_loss: 2.5044 train_time: 5.2m tok/s: 7413748
+2940/20000 train_loss: 2.5823 train_time: 5.2m tok/s: 7406064
+2950/20000 train_loss: 2.6334 train_time: 5.2m tok/s: 7398263
+art_delta_probe step:2950 sites:6 alpha_mean:1.0662 alpha_std:0.1474 alpha_min:0.0469 alpha_max:1.7500 logit_mean:0.0716 logit_std:0.1595 delta_rms:1.32759 gated_delta_rms:1.44153 gate_w_rms:0.031825 gate_w_max:0.118788 gate_b_mean:-0.003205 gate_b_min:-0.150340 gate_b_max:0.233486 sites:s0:b3o2:a1.096/r1.100,s2:b4o2:a1.299/r1.316,s4:b5o2:a1.327/r1.337,s1:b3o3:a0.932/r0.952,s3:b4o3:a0.914/r0.947,s5:b5o3:a0.829/r0.852
+2960/20000 train_loss: 2.4629 train_time: 5.2m tok/s: 7390258
+2970/20000 train_loss: 2.5776 train_time: 5.3m tok/s: 7382539
+2980/20000 train_loss: 2.4619 train_time: 5.3m tok/s: 7375147
+2990/20000 train_loss: 2.5156 train_time: 5.3m tok/s: 7367686
+3000/20000 train_loss: 2.3740 train_time: 5.3m tok/s: 7360419
+art_delta_probe step:3000 sites:6 alpha_mean:1.0732 alpha_std:0.1454 alpha_min:0.0312 alpha_max:1.7812 logit_mean:0.0793 logit_std:0.1581 delta_rms:1.30412 gated_delta_rms:1.42682 gate_w_rms:0.031346 gate_w_max:0.121850 gate_b_mean:-0.001620 gate_b_min:-0.155907 gate_b_max:0.238955 sites:s0:b3o2:a1.104/r1.109,s2:b4o2:a1.325/r1.342,s4:b5o2:a1.329/r1.342,s1:b3o3:a0.958/r0.980,s3:b4o3:a0.894/r0.925,s5:b5o3:a0.829/r0.850
+3010/20000 train_loss: 2.5374 train_time: 5.4m tok/s: 7352632
+3020/20000 train_loss: 2.5080 train_time: 5.4m tok/s: 7345421
+3030/20000 train_loss: 2.6331 train_time: 5.4m tok/s: 7338236
+3040/20000 train_loss: 2.4534 train_time: 5.4m tok/s: 7331167
+3050/20000 train_loss: 2.5799 train_time: 5.5m tok/s: 7320700
+art_delta_probe step:3050 sites:6 alpha_mean:1.0743 alpha_std:0.1440 alpha_min:0.0156 alpha_max:1.7656 logit_mean:0.0811 logit_std:0.1578 delta_rms:1.26608 gated_delta_rms:1.38248 gate_w_rms:0.031380 gate_w_max:0.125871 gate_b_mean:-0.000925 gate_b_min:-0.164190 gate_b_max:0.237039 sites:s0:b3o2:a1.103/r1.106,s2:b4o2:a1.322/r1.335,s4:b5o2:a1.346/r1.349,s1:b3o3:a0.960/r0.977,s3:b4o3:a0.887/r0.918,s5:b5o3:a0.828/r0.849
+3060/20000 train_loss: 2.5970 train_time: 5.5m tok/s: 7314495
+3070/20000 train_loss: 2.3899 train_time: 5.5m tok/s: 7307444
+3080/20000 train_loss: 2.5204 train_time: 5.5m tok/s: 7300476
+3090/20000 train_loss: 2.4558 train_time: 5.6m tok/s: 7293522
+3100/20000 train_loss: 2.6046 train_time: 5.6m tok/s: 7286381
+art_delta_probe step:3100 sites:6 alpha_mean:1.0717 alpha_std:0.1458 alpha_min:0.0195 alpha_max:1.7578 logit_mean:0.0772 logit_std:0.1590 delta_rms:1.22281 gated_delta_rms:1.33219 gate_w_rms:0.031886 gate_w_max:0.117173 gate_b_mean:-0.001578 gate_b_min:-0.173609 gate_b_max:0.228330 sites:s0:b3o2:a1.115/r1.117,s2:b4o2:a1.295/r1.306,s4:b5o2:a1.324/r1.332,s1:b3o3:a0.972/r0.989,s3:b4o3:a0.898/r0.926,s5:b5o3:a0.827/r0.853
+3110/20000 train_loss: 2.5131 train_time: 5.6m tok/s: 7278296
+3120/20000 train_loss: 2.5840 train_time: 5.6m tok/s: 7271458
+3130/20000 train_loss: 2.5446 train_time: 5.6m tok/s: 7264860
+3140/20000 train_loss: 2.5753 train_time: 5.7m tok/s: 7258321
+3150/20000 train_loss: 2.5470 train_time: 5.7m tok/s: 7251880
+art_delta_probe step:3150 sites:6 alpha_mean:1.0748 alpha_std:0.1484 alpha_min:0.0195 alpha_max:1.7500 logit_mean:0.0801 logit_std:0.1610 delta_rms:1.19160 gated_delta_rms:1.30077 gate_w_rms:0.033123 gate_w_max:0.120978 gate_b_mean:-0.003233 gate_b_min:-0.176879 gate_b_max:0.224159 sites:s0:b3o2:a1.131/r1.134,s2:b4o2:a1.297/r1.309,s4:b5o2:a1.317/r1.322,s1:b3o3:a0.987/r1.003,s3:b4o3:a0.890/r0.919,s5:b5o3:a0.828/r0.848
+3160/20000 train_loss: 2.6006 train_time: 5.7m tok/s: 7245138
+3170/20000 train_loss: 2.6112 train_time: 5.7m tok/s: 7238742
+3180/20000 train_loss: 2.6634 train_time: 5.8m tok/s: 7229357
+3190/20000 train_loss: 2.5505 train_time: 5.8m tok/s: 7222929
+3200/20000 train_loss: 2.4418 train_time: 5.8m tok/s: 7216484
+art_delta_probe step:3200 sites:6 alpha_mean:1.0826 alpha_std:0.1468 alpha_min:0.0469 alpha_max:1.7734 logit_mean:0.0892 logit_std:0.1597 delta_rms:1.15336 gated_delta_rms:1.26781 gate_w_rms:0.033636 gate_w_max:0.123950 gate_b_mean:-0.001615 gate_b_min:-0.183363 gate_b_max:0.223163 sites:s0:b3o2:a1.119/r1.120,s2:b4o2:a1.307/r1.322,s4:b5o2:a1.335/r1.341,s1:b3o3:a1.007/r1.022,s3:b4o3:a0.904/r0.933,s5:b5o3:a0.824/r0.842
+3210/20000 train_loss: 2.4662 train_time: 5.8m tok/s: 7210010
+3220/20000 train_loss: 2.4514 train_time: 5.9m tok/s: 7203758
+3230/20000 train_loss: 2.5836 train_time: 5.9m tok/s: 7197505
+3240/20000 train_loss: 2.3589 train_time: 5.9m tok/s: 7191341
+3250/20000 train_loss: 2.1510 train_time: 5.9m tok/s: 7185132
+art_delta_probe step:3250 sites:6 alpha_mean:1.0751 alpha_std:0.1466 alpha_min:0.0273 alpha_max:1.7500 logit_mean:0.0802 logit_std:0.1587 delta_rms:1.13178 gated_delta_rms:1.23682 gate_w_rms:0.034151 gate_w_max:0.117749 gate_b_mean:-0.003616 gate_b_min:-0.191478 gate_b_max:0.214567 sites:s0:b3o2:a1.125/r1.126,s2:b4o2:a1.281/r1.294,s4:b5o2:a1.310/r1.319,s1:b3o3:a1.000/r1.017,s3:b4o3:a0.913/r0.941,s5:b5o3:a0.822/r0.846
+3260/20000 train_loss: 2.4953 train_time: 6.0m tok/s: 7178840
+3270/20000 train_loss: 2.7609 train_time: 6.0m tok/s: 7172775
+3280/20000 train_loss: 2.4845 train_time: 6.0m tok/s: 7166919
+3290/20000 train_loss: 2.5475 train_time: 6.0m tok/s: 7161158
+3300/20000 train_loss: 2.4778 train_time: 6.0m tok/s: 7155359
+art_delta_probe step:3300 sites:6 alpha_mean:1.0710 alpha_std:0.1498 alpha_min:0.0391 alpha_max:1.7578 logit_mean:0.0757 logit_std:0.1612 delta_rms:1.10601 gated_delta_rms:1.20727 gate_w_rms:0.034459 gate_w_max:0.120134 gate_b_mean:-0.002676 gate_b_min:-0.190041 gate_b_max:0.216514 sites:s0:b3o2:a1.108/r1.112,s2:b4o2:a1.272/r1.288,s4:b5o2:a1.300/r1.311,s1:b3o3:a1.010/r1.028,s3:b4o3:a0.910/r0.939,s5:b5o3:a0.827/r0.856
+3310/20000 train_loss: 2.4039 train_time: 6.1m tok/s: 7146270
+3320/20000 train_loss: 2.5350 train_time: 6.1m tok/s: 7140609
+3330/20000 train_loss: 2.5466 train_time: 6.1m tok/s: 7134915
+3340/20000 train_loss: 2.5278 train_time: 6.1m tok/s: 7129301
+3350/20000 train_loss: 2.5017 train_time: 6.2m tok/s: 7123798
+art_delta_probe step:3350 sites:6 alpha_mean:1.0785 alpha_std:0.1482 alpha_min:0.0469 alpha_max:1.7500 logit_mean:0.0833 logit_std:0.1604 delta_rms:1.06355 gated_delta_rms:1.16929 gate_w_rms:0.035173 gate_w_max:0.118567 gate_b_mean:-0.005528 gate_b_min:-0.200367 gate_b_max:0.214628 sites:s0:b3o2:a1.132/r1.134,s2:b4o2:a1.281/r1.296,s4:b5o2:a1.309/r1.323,s1:b3o3:a1.020/r1.037,s3:b4o3:a0.913/r0.943,s5:b5o3:a0.815/r0.843
+3360/20000 train_loss: 2.5915 train_time: 6.2m tok/s: 7118102
+3370/20000 train_loss: 2.4377 train_time: 6.2m tok/s: 7112600
+3380/20000 train_loss: 2.5479 train_time: 6.2m tok/s: 7107216
+3390/20000 train_loss: 2.4868 train_time: 6.3m tok/s: 7101727
+3400/20000 train_loss: 2.4220 train_time: 6.3m tok/s: 7096555
+art_delta_probe step:3400 sites:6 alpha_mean:1.0875 alpha_std:0.1397 alpha_min:0.0898 alpha_max:1.7500 logit_mean:0.0923 logit_std:0.1500 delta_rms:1.03405 gated_delta_rms:1.14468 gate_w_rms:0.035508 gate_w_max:0.121675 gate_b_mean:-0.007677 gate_b_min:-0.207519 gate_b_max:0.201760 sites:s0:b3o2:a1.138/r1.141,s2:b4o2:a1.298/r1.311,s4:b5o2:a1.307/r1.308,s1:b3o3:a1.043/r1.059,s3:b4o3:a0.912/r0.943,s5:b5o3:a0.828/r0.857
+3410/20000 train_loss: 2.5373 train_time: 6.3m tok/s: 7090952
+3420/20000 train_loss: 2.4559 train_time: 6.3m tok/s: 7085663
+3430/20000 train_loss: 2.5031 train_time: 6.4m tok/s: 7077606
+3440/20000 train_loss: 2.6087 train_time: 6.4m tok/s: 7072513
+3450/20000 train_loss: 2.3786 train_time: 6.4m tok/s: 7067368
+art_delta_probe step:3450 sites:6 alpha_mean:1.0816 alpha_std:0.1462 alpha_min:0.0430 alpha_max:1.7500 logit_mean:0.0865 logit_std:0.1581 delta_rms:1.01226 gated_delta_rms:1.11514 gate_w_rms:0.035982 gate_w_max:0.123135 gate_b_mean:-0.007757 gate_b_min:-0.208823 gate_b_max:0.205683 sites:s0:b3o2:a1.134/r1.137,s2:b4o2:a1.297/r1.310,s4:b5o2:a1.307/r1.317,s1:b3o3:a1.030/r1.043,s3:b4o3:a0.909/r0.942,s5:b5o3:a0.812/r0.841
+3460/20000 train_loss: 2.5551 train_time: 6.4m tok/s: 7061866
+3470/20000 train_loss: 2.6514 train_time: 6.5m tok/s: 7036622
+3480/20000 train_loss: 2.4527 train_time: 6.5m tok/s: 6991405
+3490/20000 train_loss: 2.5511 train_time: 6.5m tok/s: 6986709
+3500/20000 train_loss: 2.5626 train_time: 6.6m tok/s: 6982155
+art_delta_probe step:3500 sites:6 alpha_mean:1.0786 alpha_std:0.1413 alpha_min:0.0547 alpha_max:1.7656 logit_mean:0.0829 logit_std:0.1516 delta_rms:0.97057 gated_delta_rms:1.06531 gate_w_rms:0.036408 gate_w_max:0.125151 gate_b_mean:-0.007034 gate_b_min:-0.212636 gate_b_max:0.201854 sites:s0:b3o2:a1.129/r1.130,s2:b4o2:a1.277/r1.289,s4:b5o2:a1.285/r1.294,s1:b3o3:a1.044/r1.060,s3:b4o3:a0.921/r0.950,s5:b5o3:a0.815/r0.843
+3510/20000 train_loss: 2.5062 train_time: 6.6m tok/s: 6977216
+3520/20000 train_loss: 2.4665 train_time: 6.6m tok/s: 6972703
+3530/20000 train_loss: 2.5367 train_time: 6.6m tok/s: 6968128
+3540/20000 train_loss: 2.3545 train_time: 6.7m tok/s: 6963635
+3550/20000 train_loss: 2.4882 train_time: 6.7m tok/s: 6959100
+art_delta_probe step:3550 sites:6 alpha_mean:1.0865 alpha_std:0.1422 alpha_min:0.0938 alpha_max:1.7969 logit_mean:0.0914 logit_std:0.1528 delta_rms:0.93423 gated_delta_rms:1.03315 gate_w_rms:0.037841 gate_w_max:0.129741 gate_b_mean:-0.008200 gate_b_min:-0.215591 gate_b_max:0.201316 sites:s0:b3o2:a1.142/r1.142,s2:b4o2:a1.284/r1.296,s4:b5o2:a1.306/r1.312,s1:b3o3:a1.046/r1.059,s3:b4o3:a0.920/r0.953,s5:b5o3:a0.821/r0.850
+3560/20000 train_loss: 2.5967 train_time: 6.7m tok/s: 6951824
+3570/20000 train_loss: 2.6537 train_time: 6.7m tok/s: 6947206
+3580/20000 train_loss: 2.4186 train_time: 6.8m tok/s: 6942722
+3590/20000 train_loss: 2.5277 train_time: 6.8m tok/s: 6938398
+3600/20000 train_loss: 2.4243 train_time: 6.8m tok/s: 6934062
+art_delta_probe step:3600 sites:6 alpha_mean:1.0778 alpha_std:0.1428 alpha_min:0.0664 alpha_max:1.7500 logit_mean:0.0819 logit_std:0.1535 delta_rms:0.91590 gated_delta_rms:1.00590 gate_w_rms:0.038186 gate_w_max:0.128683 gate_b_mean:-0.009961 gate_b_min:-0.215680 gate_b_max:0.198469 sites:s0:b3o2:a1.137/r1.139,s2:b4o2:a1.283/r1.296,s4:b5o2:a1.287/r1.294,s1:b3o3:a1.035/r1.051,s3:b4o3:a0.913/r0.945,s5:b5o3:a0.811/r0.843
+3610/20000 train_loss: 2.3861 train_time: 6.8m tok/s: 6929408
+3620/20000 train_loss: 2.5933 train_time: 6.9m tok/s: 6925030
+3630/20000 train_loss: 2.5471 train_time: 6.9m tok/s: 6920692
+3640/20000 train_loss: 2.3541 train_time: 6.9m tok/s: 6916475
+3650/20000 train_loss: 2.5665 train_time: 6.9m tok/s: 6912293
+art_delta_probe step:3650 sites:6 alpha_mean:1.0840 alpha_std:0.1398 alpha_min:0.0898 alpha_max:1.7656 logit_mean:0.0880 logit_std:0.1497 delta_rms:0.88422 gated_delta_rms:0.97666 gate_w_rms:0.038912 gate_w_max:0.131246 gate_b_mean:-0.010401 gate_b_min:-0.220713 gate_b_max:0.196791 sites:s0:b3o2:a1.151/r1.151,s2:b4o2:a1.282/r1.293,s4:b5o2:a1.277/r1.283,s1:b3o3:a1.043/r1.057,s3:b4o3:a0.922/r0.956,s5:b5o3:a0.829/r0.869
+3660/20000 train_loss: 2.6137 train_time: 6.9m tok/s: 6907632
+3670/20000 train_loss: 2.6441 train_time: 7.0m tok/s: 6903478
+3680/20000 train_loss: 2.4013 train_time: 7.0m tok/s: 6899376
+3690/20000 train_loss: 2.4425 train_time: 7.0m tok/s: 6892982
+3700/20000 train_loss: 2.4064 train_time: 7.0m tok/s: 6888909
+art_delta_probe step:3700 sites:6 alpha_mean:1.0813 alpha_std:0.1407 alpha_min:0.0703 alpha_max:1.7578 logit_mean:0.0855 logit_std:0.1510 delta_rms:0.84771 gated_delta_rms:0.93444 gate_w_rms:0.039528 gate_w_max:0.137856 gate_b_mean:-0.010824 gate_b_min:-0.225955 gate_b_max:0.196975 sites:s0:b3o2:a1.148/r1.150,s2:b4o2:a1.286/r1.300,s4:b5o2:a1.284/r1.289,s1:b3o3:a1.047/r1.061,s3:b4o3:a0.916/r0.947,s5:b5o3:a0.806/r0.845
+3710/20000 train_loss: 2.4575 train_time: 7.1m tok/s: 6884672
+3720/20000 train_loss: 2.5372 train_time: 7.1m tok/s: 6880613
+3730/20000 train_loss: 2.3742 train_time: 7.1m tok/s: 6876703
+3740/20000 train_loss: 2.5079 train_time: 7.1m tok/s: 6872697
+3750/20000 train_loss: 2.4374 train_time: 7.2m tok/s: 6868778
+art_delta_probe step:3750 sites:6 alpha_mean:1.0876 alpha_std:0.1418 alpha_min:0.0586 alpha_max:1.7344 logit_mean:0.0922 logit_std:0.1527 delta_rms:0.83600 gated_delta_rms:0.92489 gate_w_rms:0.041102 gate_w_max:0.135167 gate_b_mean:-0.009212 gate_b_min:-0.226985 gate_b_max:0.192995 sites:s0:b3o2:a1.139/r1.139,s2:b4o2:a1.287/r1.299,s4:b5o2:a1.299/r1.298,s1:b3o3:a1.063/r1.079,s3:b4o3:a0.927/r0.955,s5:b5o3:a0.810/r0.848
+3760/20000 train_loss: 2.3100 train_time: 7.2m tok/s: 6864492
+3770/20000 train_loss: 2.5820 train_time: 7.2m tok/s: 6860618
+3780/20000 train_loss: 2.4704 train_time: 7.2m tok/s: 6856794
+3790/20000 train_loss: 2.5813 train_time: 7.2m tok/s: 6852754
+3800/20000 train_loss: 2.4415 train_time: 7.3m tok/s: 6848928
+art_delta_probe step:3800 sites:6 alpha_mean:1.0849 alpha_std:0.1390 alpha_min:0.0898 alpha_max:1.7812 logit_mean:0.0893 logit_std:0.1489 delta_rms:0.80513 gated_delta_rms:0.88732 gate_w_rms:0.041624 gate_w_max:0.133641 gate_b_mean:-0.012483 gate_b_min:-0.233291 gate_b_max:0.188884 sites:s0:b3o2:a1.152/r1.149,s2:b4o2:a1.280/r1.292,s4:b5o2:a1.292/r1.294,s1:b3o3:a1.049/r1.062,s3:b4o3:a0.932/r0.962,s5:b5o3:a0.806/r0.831
+3810/20000 train_loss: 2.4062 train_time: 7.3m tok/s: 6844893
+3820/20000 train_loss: 2.5663 train_time: 7.3m tok/s: 6838734
+3830/20000 train_loss: 2.3262 train_time: 7.3m tok/s: 6835006
+3840/20000 train_loss: 2.4557 train_time: 7.4m tok/s: 6831267
+3850/20000 train_loss: 2.4559 train_time: 7.4m tok/s: 6827603
+art_delta_probe step:3850 sites:6 alpha_mean:1.0818 alpha_std:0.1375 alpha_min:0.1172 alpha_max:1.7344 logit_mean:0.0857 logit_std:0.1465 delta_rms:0.77834 gated_delta_rms:0.85702 gate_w_rms:0.042083 gate_w_max:0.134577 gate_b_mean:-0.015657 gate_b_min:-0.235516 gate_b_max:0.182726 sites:s0:b3o2:a1.146/r1.146,s2:b4o2:a1.267/r1.281,s4:b5o2:a1.279/r1.279,s1:b3o3:a1.056/r1.071,s3:b4o3:a0.930/r0.960,s5:b5o3:a0.813/r0.850
+3860/20000 train_loss: 2.4259 train_time: 7.4m tok/s: 6823758
+3870/20000 train_loss: 2.5549 train_time: 7.4m tok/s: 6820213
+3880/20000 train_loss: 3.0786 train_time: 7.5m tok/s: 6816520
+3890/20000 train_loss: 2.5089 train_time: 7.5m tok/s: 6813029
+3900/20000 train_loss: 2.4726 train_time: 7.5m tok/s: 6809407
+art_delta_probe step:3900 sites:6 alpha_mean:1.0873 alpha_std:0.1384 alpha_min:0.0664 alpha_max:1.7344 logit_mean:0.0921 logit_std:0.1488 delta_rms:0.75243 gated_delta_rms:0.83105 gate_w_rms:0.043765 gate_w_max:0.141669 gate_b_mean:-0.014673 gate_b_min:-0.234476 gate_b_max:0.181767 sites:s0:b3o2:a1.145/r1.143,s2:b4o2:a1.276/r1.288,s4:b5o2:a1.303/r1.305,s1:b3o3:a1.056/r1.069,s3:b4o3:a0.926/r0.953,s5:b5o3:a0.818/r0.849
+3910/20000 train_loss: 2.4601 train_time: 7.5m tok/s: 6805555
+3920/20000 train_loss: 2.4881 train_time: 7.6m tok/s: 6802073
+3930/20000 train_loss: 2.6699 train_time: 7.6m tok/s: 6798555
+3940/20000 train_loss: 2.4994 train_time: 7.6m tok/s: 6792848
+3950/20000 train_loss: 2.6196 train_time: 7.6m tok/s: 6789393
+art_delta_probe step:3950 sites:6 alpha_mean:1.0824 alpha_std:0.1360 alpha_min:0.0781 alpha_max:1.6875 logit_mean:0.0860 logit_std:0.1451 delta_rms:0.73278 gated_delta_rms:0.80663 gate_w_rms:0.044129 gate_w_max:0.139788 gate_b_mean:-0.016694 gate_b_min:-0.240216 gate_b_max:0.176583 sites:s0:b3o2:a1.149/r1.146,s2:b4o2:a1.257/r1.268,s4:b5o2:a1.283/r1.282,s1:b3o3:a1.055/r1.068,s3:b4o3:a0.934/r0.964,s5:b5o3:a0.816/r0.857
+3960/20000 train_loss: 2.3711 train_time: 7.6m tok/s: 6785621
+3970/20000 train_loss: 2.4172 train_time: 7.7m tok/s: 6782212
+3980/20000 train_loss: 2.5226 train_time: 7.7m tok/s: 6778837
+3990/20000 train_loss: 2.4939 train_time: 7.7m tok/s: 6775481
+4000/20000 train_loss: 2.3532 train_time: 7.7m tok/s: 6772099
+art_delta_probe step:4000 sites:6 alpha_mean:1.0871 alpha_std:0.1389 alpha_min:0.1445 alpha_max:1.6875 logit_mean:0.0912 logit_std:0.1481 delta_rms:0.70732 gated_delta_rms:0.78351 gate_w_rms:0.046235 gate_w_max:0.149619 gate_b_mean:-0.017293 gate_b_min:-0.241172 gate_b_max:0.178960 sites:s0:b3o2:a1.155/r1.154,s2:b4o2:a1.275/r1.288,s4:b5o2:a1.278/r1.280,s1:b3o3:a1.064/r1.078,s3:b4o3:a0.938/r0.967,s5:b5o3:a0.812/r0.861
+4010/20000 train_loss: 2.5226 train_time: 7.8m tok/s: 6768535
+4020/20000 train_loss: 2.4948 train_time: 7.8m tok/s: 6765367
+4030/20000 train_loss: 2.4348 train_time: 7.8m tok/s: 6762124
+4040/20000 train_loss: 2.7314 train_time: 7.8m tok/s: 6758768
+4050/20000 train_loss: 2.4509 train_time: 7.9m tok/s: 6755625
+art_delta_probe step:4050 sites:6 alpha_mean:1.0843 alpha_std:0.1371 alpha_min:0.1016 alpha_max:1.7031 logit_mean:0.0880 logit_std:0.1461 delta_rms:0.68995 gated_delta_rms:0.76211 gate_w_rms:0.046445 gate_w_max:0.148995 gate_b_mean:-0.018545 gate_b_min:-0.244225 gate_b_max:0.173306 sites:s0:b3o2:a1.162/r1.161,s2:b4o2:a1.263/r1.275,s4:b5o2:a1.276/r1.275,s1:b3o3:a1.056/r1.069,s3:b4o3:a0.930/r0.960,s5:b5o3:a0.818/r0.867
+4060/20000 train_loss: 2.4654 train_time: 7.9m tok/s: 6752096
+4070/20000 train_loss: 2.5067 train_time: 7.9m tok/s: 6746849
+4080/20000 train_loss: 2.6056 train_time: 7.9m tok/s: 6743546
+4090/20000 train_loss: 2.5842 train_time: 8.0m tok/s: 6740342
+4100/20000 train_loss: 2.4904 train_time: 8.0m tok/s: 6737237
+art_delta_probe step:4100 sites:6 alpha_mean:1.0845 alpha_std:0.1359 alpha_min:0.0859 alpha_max:1.7031 logit_mean:0.0882 logit_std:0.1451 delta_rms:0.66830 gated_delta_rms:0.73740 gate_w_rms:0.047001 gate_w_max:0.147627 gate_b_mean:-0.019148 gate_b_min:-0.246908 gate_b_max:0.170304 sites:s0:b3o2:a1.160/r1.159,s2:b4o2:a1.266/r1.279,s4:b5o2:a1.277/r1.276,s1:b3o3:a1.075/r1.087,s3:b4o3:a0.922/r0.950,s5:b5o3:a0.806/r0.849
+4110/20000 train_loss: 2.4445 train_time: 8.0m tok/s: 6733799
+4120/20000 train_loss: 2.4117 train_time: 8.0m tok/s: 6730792
+4130/20000 train_loss: 2.4557 train_time: 8.0m tok/s: 6727681
+4140/20000 train_loss: 2.4977 train_time: 8.1m tok/s: 6724643
+4150/20000 train_loss: 2.3950 train_time: 8.1m tok/s: 6721594
+art_delta_probe step:4150 sites:6 alpha_mean:1.0818 alpha_std:0.1364 alpha_min:0.1211 alpha_max:1.6953 logit_mean:0.0854 logit_std:0.1453 delta_rms:0.64408 gated_delta_rms:0.71016 gate_w_rms:0.048657 gate_w_max:0.157997 gate_b_mean:-0.019307 gate_b_min:-0.243899 gate_b_max:0.169450 sites:s0:b3o2:a1.150/r1.149,s2:b4o2:a1.252/r1.264,s4:b5o2:a1.277/r1.278,s1:b3o3:a1.070/r1.081,s3:b4o3:a0.928/r0.956,s5:b5o3:a0.814/r0.864
+4160/20000 train_loss: 2.4393 train_time: 8.1m tok/s: 6718296
+4170/20000 train_loss: 2.4293 train_time: 8.1m tok/s: 6715358
+4180/20000 train_loss: 2.5293 train_time: 8.2m tok/s: 6712204
+4190/20000 train_loss: 2.4047 train_time: 8.2m tok/s: 6709232
+4200/20000 train_loss: 2.3969 train_time: 8.2m tok/s: 6704124
+art_delta_probe step:4200 sites:6 alpha_mean:1.0864 alpha_std:0.1341 alpha_min:0.1367 alpha_max:1.7031 logit_mean:0.0899 logit_std:0.1424 delta_rms:0.62363 gated_delta_rms:0.69115 gate_w_rms:0.050337 gate_w_max:0.153459 gate_b_mean:-0.020168 gate_b_min:-0.241041 gate_b_max:0.171001 sites:s0:b3o2:a1.160/r1.158,s2:b4o2:a1.259/r1.270,s4:b5o2:a1.268/r1.273,s1:b3o3:a1.074/r1.083,s3:b4o3:a0.935/r0.963,s5:b5o3:a0.822/r0.881
+4210/20000 train_loss: 2.3970 train_time: 8.2m tok/s: 6700972
+4220/20000 train_loss: 2.4277 train_time: 8.3m tok/s: 6698038
+4230/20000 train_loss: 2.5206 train_time: 8.3m tok/s: 6695105
+4240/20000 train_loss: 2.3750 train_time: 8.3m tok/s: 6692199
+4250/20000 train_loss: 2.4062 train_time: 8.3m tok/s: 6689355
+art_delta_probe step:4250 sites:6 alpha_mean:1.0915 alpha_std:0.1345 alpha_min:0.2812 alpha_max:1.6875 logit_mean:0.0957 logit_std:0.1428 delta_rms:0.60828 gated_delta_rms:0.67842 gate_w_rms:0.051244 gate_w_max:0.160590 gate_b_mean:-0.021858 gate_b_min:-0.248505 gate_b_max:0.166791 sites:s0:b3o2:a1.147/r1.147,s2:b4o2:a1.264/r1.278,s4:b5o2:a1.289/r1.300,s1:b3o3:a1.086/r1.096,s3:b4o3:a0.941/r0.970,s5:b5o3:a0.822/r0.875
+4260/20000 train_loss: 2.4996 train_time: 8.4m tok/s: 6686239
+4270/20000 train_loss: 2.3666 train_time: 8.4m tok/s: 6683416
+4280/20000 train_loss: 2.5128 train_time: 8.4m tok/s: 6680559
+4290/20000 train_loss: 2.3294 train_time: 8.4m tok/s: 6677736
+4300/20000 train_loss: 2.2751 train_time: 8.4m tok/s: 6674884
+art_delta_probe step:4300 sites:6 alpha_mean:1.0832 alpha_std:0.1344 alpha_min:0.2266 alpha_max:1.7188 logit_mean:0.0864 logit_std:0.1426 delta_rms:0.58608 gated_delta_rms:0.64839 gate_w_rms:0.051461 gate_w_max:0.160045 gate_b_mean:-0.022348 gate_b_min:-0.253616 gate_b_max:0.162294 sites:s0:b3o2:a1.157/r1.156,s2:b4o2:a1.246/r1.258,s4:b5o2:a1.268/r1.274,s1:b3o3:a1.079/r1.088,s3:b4o3:a0.939/r0.968,s5:b5o3:a0.811/r0.870
+4310/20000 train_loss: 2.4606 train_time: 8.5m tok/s: 6671921
+4320/20000 train_loss: 2.4331 train_time: 8.5m tok/s: 6667148
+4330/20000 train_loss: 2.9305 train_time: 8.5m tok/s: 6664508
+4340/20000 train_loss: 2.3851 train_time: 8.5m tok/s: 6661792
+4350/20000 train_loss: 2.4596 train_time: 8.6m tok/s: 6659107
+art_delta_probe step:4350 sites:6 alpha_mean:1.0887 alpha_std:0.1334 alpha_min:0.1875 alpha_max:1.7344 logit_mean:0.0923 logit_std:0.1418 delta_rms:0.56866 gated_delta_rms:0.63071 gate_w_rms:0.052792 gate_w_max:0.169846 gate_b_mean:-0.019699 gate_b_min:-0.250693 gate_b_max:0.165583 sites:s0:b3o2:a1.158/r1.156,s2:b4o2:a1.253/r1.263,s4:b5o2:a1.272/r1.272,s1:b3o3:a1.096/r1.107,s3:b4o3:a0.940/r0.967,s5:b5o3:a0.813/r0.867
+4360/20000 train_loss: 2.3592 train_time: 8.6m tok/s: 6656113
+4370/20000 train_loss: 2.3065 train_time: 8.6m tok/s: 6653454
+4380/20000 train_loss: 2.2479 train_time: 8.6m tok/s: 6650696
+4390/20000 train_loss: 2.3301 train_time: 8.7m tok/s: 6648157
+4400/20000 train_loss: 2.4022 train_time: 8.7m tok/s: 6645589
+art_delta_probe step:4400 sites:6 alpha_mean:1.0844 alpha_std:0.1324 alpha_min:0.2109 alpha_max:1.6719 logit_mean:0.0879 logit_std:0.1405 delta_rms:0.55623 gated_delta_rms:0.61490 gate_w_rms:0.054396 gate_w_max:0.171778 gate_b_mean:-0.020907 gate_b_min:-0.249584 gate_b_max:0.165887 sites:s0:b3o2:a1.147/r1.147,s2:b4o2:a1.264/r1.276,s4:b5o2:a1.266/r1.271,s1:b3o3:a1.078/r1.087,s3:b4o3:a0.940/r0.967,s5:b5o3:a0.811/r0.862
+4410/20000 train_loss: 2.4529 train_time: 8.7m tok/s: 6642634
+4420/20000 train_loss: 2.4691 train_time: 8.7m tok/s: 6639978
+4430/20000 train_loss: 2.4098 train_time: 8.7m tok/s: 6637414
+4440/20000 train_loss: 2.3945 train_time: 8.8m tok/s: 6634759
+4450/20000 train_loss: 2.3964 train_time: 8.8m tok/s: 6630270
+art_delta_probe step:4450 sites:6 alpha_mean:1.0789 alpha_std:0.1271 alpha_min:0.1719 alpha_max:1.6562 logit_mean:0.0817 logit_std:0.1347 delta_rms:0.53717 gated_delta_rms:0.59155 gate_w_rms:0.054285 gate_w_max:0.166914 gate_b_mean:-0.022313 gate_b_min:-0.252837 gate_b_max:0.165038 sites:s0:b3o2:a1.152/r1.151,s2:b4o2:a1.253/r1.264,s4:b5o2:a1.258/r1.264,s1:b3o3:a1.073/r1.080,s3:b4o3:a0.930/r0.956,s5:b5o3:a0.807/r0.867
+4460/20000 train_loss: 2.3733 train_time: 8.8m tok/s: 6627560
+4470/20000 train_loss: 2.3972 train_time: 8.8m tok/s: 6625044
+4480/20000 train_loss: 2.4379 train_time: 8.9m tok/s: 6622507
+4490/20000 train_loss: 2.4692 train_time: 8.9m tok/s: 6620069
+4500/20000 train_loss: 2.3143 train_time: 8.9m tok/s: 6617490
+art_delta_probe step:4500 sites:6 alpha_mean:1.0858 alpha_std:0.1291 alpha_min:0.2070 alpha_max:1.6875 logit_mean:0.0892 logit_std:0.1369 delta_rms:0.52474 gated_delta_rms:0.58089 gate_w_rms:0.055533 gate_w_max:0.173715 gate_b_mean:-0.021302 gate_b_min:-0.252320 gate_b_max:0.160833 sites:s0:b3o2:a1.158/r1.155,s2:b4o2:a1.254/r1.264,s4:b5o2:a1.269/r1.273,s1:b3o3:a1.080/r1.088,s3:b4o3:a0.943/r0.970,s5:b5o3:a0.811/r0.868
+4510/20000 train_loss: 2.4475 train_time: 8.9m tok/s: 6614796
+4520/20000 train_loss: 2.3122 train_time: 9.0m tok/s: 6612323
+4530/20000 train_loss: 2.5644 train_time: 9.0m tok/s: 6609751
+4540/20000 train_loss: 2.2901 train_time: 9.0m tok/s: 6607301
+4550/20000 train_loss: 2.3288 train_time: 9.0m tok/s: 6604829
+art_delta_probe step:4550 sites:6 alpha_mean:1.0853 alpha_std:0.1314 alpha_min:0.1602 alpha_max:1.6719 logit_mean:0.0885 logit_std:0.1395 delta_rms:0.51376 gated_delta_rms:0.56851 gate_w_rms:0.057392 gate_w_max:0.177462 gate_b_mean:-0.021043 gate_b_min:-0.250596 gate_b_max:0.162054 sites:s0:b3o2:a1.164/r1.162,s2:b4o2:a1.249/r1.259,s4:b5o2:a1.265/r1.269,s1:b3o3:a1.081/r1.088,s3:b4o3:a0.938/r0.965,s5:b5o3:a0.815/r0.875
+4560/20000 train_loss: 2.4493 train_time: 9.1m tok/s: 6602152
+4570/20000 train_loss: 2.4848 train_time: 9.1m tok/s: 6599796
+4580/20000 train_loss: 2.2667 train_time: 9.1m tok/s: 6595561
+4590/20000 train_loss: 2.4007 train_time: 9.1m tok/s: 6593262
+4600/20000 train_loss: 2.4518 train_time: 9.1m tok/s: 6590920
+art_delta_probe step:4600 sites:6 alpha_mean:1.0829 alpha_std:0.1280 alpha_min:0.2969 alpha_max:1.6719 logit_mean:0.0860 logit_std:0.1353 delta_rms:0.50078 gated_delta_rms:0.55303 gate_w_rms:0.057659 gate_w_max:0.175619 gate_b_mean:-0.023052 gate_b_min:-0.252434 gate_b_max:0.157659 sites:s0:b3o2:a1.159/r1.156,s2:b4o2:a1.249/r1.260,s4:b5o2:a1.257/r1.260,s1:b3o3:a1.081/r1.086,s3:b4o3:a0.937/r0.962,s5:b5o3:a0.816/r0.878
+4610/20000 train_loss: 2.3490 train_time: 9.2m tok/s: 6588265
+4620/20000 train_loss: 2.3059 train_time: 9.2m tok/s: 6585992
+4630/20000 train_loss: 2.4244 train_time: 9.2m tok/s: 6583590
+4640/20000 train_loss: 2.5589 train_time: 9.2m tok/s: 6581259
+4650/20000 train_loss: 2.3477 train_time: 9.3m tok/s: 6579014
+art_delta_probe step:4650 sites:6 alpha_mean:1.0806 alpha_std:0.1272 alpha_min:0.2891 alpha_max:1.6641 logit_mean:0.0836 logit_std:0.1344 delta_rms:0.49139 gated_delta_rms:0.54160 gate_w_rms:0.058719 gate_w_max:0.176701 gate_b_mean:-0.022765 gate_b_min:-0.251413 gate_b_max:0.158939 sites:s0:b3o2:a1.148/r1.146,s2:b4o2:a1.256/r1.268,s4:b5o2:a1.252/r1.257,s1:b3o3:a1.081/r1.086,s3:b4o3:a0.936/r0.962,s5:b5o3:a0.810/r0.872
+4660/20000 train_loss: 2.3842 train_time: 9.3m tok/s: 6576520
+4670/20000 train_loss: 2.4267 train_time: 9.3m tok/s: 6574179
+4680/20000 train_loss: 2.4206 train_time: 9.3m tok/s: 6571844
+4690/20000 train_loss: 2.3525 train_time: 9.4m tok/s: 6569621
+4700/20000 train_loss: 2.3800 train_time: 9.4m tok/s: 6565485
+art_delta_probe step:4700 sites:6 alpha_mean:1.0857 alpha_std:0.1279 alpha_min:0.3008 alpha_max:1.6719 logit_mean:0.0889 logit_std:0.1353 delta_rms:0.47988 gated_delta_rms:0.53193 gate_w_rms:0.059887 gate_w_max:0.182491 gate_b_mean:-0.021379 gate_b_min:-0.250956 gate_b_max:0.157816 sites:s0:b3o2:a1.157/r1.155,s2:b4o2:a1.249/r1.260,s4:b5o2:a1.263/r1.272,s1:b3o3:a1.085/r1.090,s3:b4o3:a0.944/r0.970,s5:b5o3:a0.815/r0.880
+4710/20000 train_loss: 2.4036 train_time: 9.4m tok/s: 6562993
+4720/20000 train_loss: 2.2610 train_time: 9.4m tok/s: 6560782
+4730/20000 train_loss: 2.3784 train_time: 9.5m tok/s: 6558595
+4740/20000 train_loss: 2.4936 train_time: 9.5m tok/s: 6556373
+4750/20000 train_loss: 2.2448 train_time: 9.5m tok/s: 6554231
+art_delta_probe step:4750 sites:6 alpha_mean:1.0863 alpha_std:0.1268 alpha_min:0.2500 alpha_max:1.6562 logit_mean:0.0895 logit_std:0.1339 delta_rms:0.47170 gated_delta_rms:0.52161 gate_w_rms:0.060190 gate_w_max:0.184252 gate_b_mean:-0.021493 gate_b_min:-0.249452 gate_b_max:0.157388 sites:s0:b3o2:a1.156/r1.153,s2:b4o2:a1.255/r1.266,s4:b5o2:a1.252/r1.253,s1:b3o3:a1.090/r1.095,s3:b4o3:a0.948/r0.974,s5:b5o3:a0.816/r0.873
+4760/20000 train_loss: 2.4473 train_time: 9.5m tok/s: 6551886
+4770/20000 train_loss: 2.4033 train_time: 9.5m tok/s: 6549678
+4780/20000 train_loss: 2.3158 train_time: 9.6m tok/s: 6547435
+4790/20000 train_loss: 2.3242 train_time: 9.6m tok/s: 6545290
+4800/20000 train_loss: 2.4967 train_time: 9.6m tok/s: 6543173
+art_delta_probe step:4800 sites:6 alpha_mean:1.0862 alpha_std:0.1268 alpha_min:0.2969 alpha_max:1.6484 logit_mean:0.0893 logit_std:0.1339 delta_rms:0.46502 gated_delta_rms:0.51501 gate_w_rms:0.061032 gate_w_max:0.186878 gate_b_mean:-0.020606 gate_b_min:-0.248959 gate_b_max:0.157189 sites:s0:b3o2:a1.157/r1.155,s2:b4o2:a1.251/r1.262,s4:b5o2:a1.256/r1.260,s1:b3o3:a1.091/r1.095,s3:b4o3:a0.946/r0.972,s5:b5o3:a0.816/r0.878
+4810/20000 train_loss: 2.7127 train_time: 9.6m tok/s: 6540832
+4820/20000 train_loss: 2.2469 train_time: 9.7m tok/s: 6538679
+4830/20000 train_loss: 1.9396 train_time: 9.7m tok/s: 6534812
+4840/20000 train_loss: 2.3677 train_time: 9.7m tok/s: 6532850
+4850/20000 train_loss: 2.3142 train_time: 9.7m tok/s: 6530805
+art_delta_probe step:4850 sites:6 alpha_mean:1.0859 alpha_std:0.1248 alpha_min:0.2852 alpha_max:1.6406 logit_mean:0.0889 logit_std:0.1317 delta_rms:0.46004 gated_delta_rms:0.50938 gate_w_rms:0.061002 gate_w_max:0.184810 gate_b_mean:-0.020272 gate_b_min:-0.247302 gate_b_max:0.159042 sites:s0:b3o2:a1.160/r1.157,s2:b4o2:a1.257/r1.267,s4:b5o2:a1.251/r1.256,s1:b3o3:a1.088/r1.091,s3:b4o3:a0.945/r0.970,s5:b5o3:a0.816/r0.878
+4860/20000 train_loss: 2.3037 train_time: 9.8m tok/s: 6528521
+4870/20000 train_loss: 2.2295 train_time: 9.8m tok/s: 6526532
+4880/20000 train_loss: 2.4260 train_time: 9.8m tok/s: 6524459
+4890/20000 train_loss: 2.4715 train_time: 9.8m tok/s: 6522407
+4900/20000 train_loss: 2.2873 train_time: 9.8m tok/s: 6520374
+art_delta_probe step:4900 sites:6 alpha_mean:1.0868 alpha_std:0.1253 alpha_min:0.2773 alpha_max:1.6562 logit_mean:0.0899 logit_std:0.1323 delta_rms:0.45708 gated_delta_rms:0.50662 gate_w_rms:0.061473 gate_w_max:0.188177 gate_b_mean:-0.020067 gate_b_min:-0.247541 gate_b_max:0.158661 sites:s0:b3o2:a1.158/r1.155,s2:b4o2:a1.254/r1.264,s4:b5o2:a1.256/r1.261,s1:b3o3:a1.089/r1.093,s3:b4o3:a0.948/r0.973,s5:b5o3:a0.817/r0.881
+4910/20000 train_loss: 2.3996 train_time: 9.9m tok/s: 6518134
+4920/20000 train_loss: 2.3305 train_time: 9.9m tok/s: 6516180
+4930/20000 train_loss: 2.5598 train_time: 9.9m tok/s: 6514091
+4936/20000 val_loss: 2.3426 val_bpb: 1.0704
+stopping_early: wallclock_cap train_time: 596085ms step: 4936/20000
+peak memory allocated: 42138 MiB reserved: 47468 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.34145765 val_bpb:1.06988530 eval_time:7958ms
+art_delta_probe step:prequant sites:6 alpha_mean:1.0873 alpha_std:0.1282 alpha_min:0.2266 alpha_max:1.6719 logit_mean:0.0907 logit_std:0.1357 delta_rms:0.50319 gated_delta_rms:0.55770 gate_w_rms:0.057944 gate_w_max:0.178265 gate_b_mean:-0.020664 gate_b_min:-0.248070 gate_b_max:0.161051 sites:s0:b3o2:a1.159/r1.156,s2:b4o2:a1.256/r1.267,s4:b5o2:a1.265/r1.267,s1:b3o3:a1.082/r1.088,s3:b4o3:a0.944/r0.970,s5:b5o3:a0.818/r0.880
+Serialized model: 135410098 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 3.4s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int8)+lqer_asym: tok_emb.weight
+  passthrough (float16): art_delta_gate.weight, art_delta_site_bias, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
+Serialized model quantized+brotli: 16905820 bytes
+diagnostic quantized val_loss:2.35849711 val_bpb:1.07767116 eval_time:65251ms
+art_delta_probe step:quantized sites:6 alpha_mean:1.0880 alpha_std:0.1283 alpha_min:0.2539 alpha_max:1.6719 logit_mean:0.0914 logit_std:0.1357 delta_rms:0.50203 gated_delta_rms:0.55711 gate_w_rms:0.057941 gate_w_max:0.178223 gate_b_mean:-0.020665 gate_b_min:-0.248047 gate_b_max:0.161011 sites:s0:b3o2:a1.159/r1.157,s2:b4o2:a1.256/r1.268,s4:b5o2:a1.263/r1.269,s1:b3o3:a1.086/r1.092,s3:b4o3:a0.946/r0.972,s5:b5o3:a0.818/r0.877
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (154.9s)
+quantized_ttt_phased val_loss:2.32898835 val_bpb:1.06425679 eval_time:461493ms
+total_eval_time:461.5s
