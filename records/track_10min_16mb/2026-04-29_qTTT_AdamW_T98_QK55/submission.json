@@ -1,0 +1,53 @@
+{
+  "author": "phfarath",
+  "github_id": "phfarath",
+  "name": "qTTT (Q-only TTT) + AdamW TTT + T=0.98 + QK-Gain 5.5 on PR #1493 base",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_bpb": 1.08902,
+  "val_bpb_std": 0.00041,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {"val_bpb": 1.08855, "artifact_bytes": 15992266, "sliding_bpb": 1.08276, "pre_quant_bpb": 1.08756},
+    "314": {"val_bpb": 1.08921, "artifact_bytes": 15991439, "sliding_bpb": 1.08353, "pre_quant_bpb": 1.08830},
+    "999": {"val_bpb": 1.08931, "artifact_bytes": 15992907, "sliding_bpb": 1.08357, "pre_quant_bpb": 1.08845}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1493 base + AdamW TTT (lr=0.001) + qTTT (only c_q.weight, 11 tensors, 2.88M of 35.9M params) + post-TTT temperature 0.98 (in sliding + TTT scoring) + QK-Gain init 5.5 (was 5.25)",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "result_status": "did_not_beat_sota",
+  "sota_at_submission": {
+    "merged_pr": 1493,
+    "merged_val_bpb": 1.0810,
+    "delta_vs_sota": 0.0080,
+    "note": "Submission is +0.0080 BPB worse than merged SOTA (PR #1493). Submitted as a documented negative result; see README for ablation showing why."
+  },
+  "ablation_results": {
+    "TTT_QUERY_ONLY=0_full_TTT_AdamW_seed42": {
+      "val_bpb": 1.18850,
+      "delta_vs_qTTT_seed42": 0.10,
+      "note": "Full TTT (35.9M params) with AdamW lr=0.001 on this depth-recurrent base catastrophically degrades the quantized model. qTTT acts as strong mitigation but does not recover positive TTT gain."
+    }
+  },
+  "attribution": {
+    "base_pr_1493": "@bigbag",
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "score_first_ttt": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445)",
+    "post_ttt_temperature": "@cmcdnd (PR #576)",
+    "qttt_concept": "arXiv:2512.13898 (Q-only TTT theoretical motivation)"
+  }
+}
