@@ -1,0 +1,76 @@
+====================================================================================================
+PARAMETER GOLF SCALING LAW ANALYSIS
+====================================================================================================
+
+====================================================================================================
+ANALYSIS 1: DEPTH vs WIDTH TRADEOFF
+====================================================================================================
+
+At ~17M params, we have the fundamental tradeoff: more layers (depth) vs wider layers (width).
+All recurrence configs trade unique-block count for width.
+
+Step 500 val_bpb (earliest comparable checkpoint):
+
+Config                    Unique  Loops  Eff.D  Dim   Params   BPB@500    Δ Baseline   Fits 16MB
+----------------------------------------------------------------------------------------------------
+7×2@672                   7       2      14     672   22.9     1.4499     -0.0306      ❌
+6×2@688                   6       2      12     688   17.9     1.4581     -0.0224      ❌
+9×1@512+sc15+eps          9       1      9      512   17.1     1.4753     -0.0052      ✅
+6×2@576                   6       2      12     576   14.6     1.4796     -0.0009      ✅
+9×1@512                   9       1      9      512   17.1     1.4805     +0.0000      ✅
+10L@512+MLA64             10      1      10     512   16.0     1.5074     +0.0269      ✅
+3×3@720                   3       3      9      720   11.7     1.5096     +0.0291      ✅
+9L@512+MLA64              9       1      9      512   16.5     1.5187     +0.0382      ✅
+9×1@512+MTP+sc15+eps      9       1      9      512   17.1     1.6963     +0.2158      ✅
+
+KEY FINDING: At step 500, among recurrence configs:
+  7×2@672 (1.4499) > 6×2@688 (1.4581) > 9×1@512 baseline (1.4805) > 6×2@576 (1.4796) > 3×3@720 (1.5097)
+  
+  But the ONLY configs that beat baseline at step 500 (7×2@672, 6×2@688) DON'T FIT 16MB!
+  Budget-fitting configs are at best tied with baseline (6×2@576 = 1.4796 ≈ baseline).
+
+====================================================================================================
+ANALYSIS 2: UNIQUE BLOCKS vs LOOPS
+====================================================================================================
+
+Hypothesis: More unique blocks is monotonically better. Let's verify.
+
+Controlling for ~2 loops, varying unique blocks:
+
+Config          Unique  Dim   Params   Best BPB metric           ms/step    Fits?
+-------------------------------------------------------------------------------------
+5×2@704         5       704   19.0     2K pq=1.3094              1750       ✅
+6×2@688         6       688   17.9     2K pq=1.2912              1109       ❌
+6×2@576         6       576   14.6     s500=1.4796               691        ✅
+7×2@672         7       672   22.9     2K pq=1.2797              1196       ❌
+7×2@544         7       544   15.1     s1000=1.3814              992        ✅
+
+IMPORTANT CONFOUND: Unique blocks and dim are correlated! More unique blocks → more params 
+in block weights → less room for wider dim to stay under 16MB.
+
+Iso-parameter comparison (all ~15-17M params, fits 16MB):
+  - 9×1@512  (baseline): 1.2978 post-quant at 2K → BEST
+  - 7×2@544  (exp019):   1.3814 at step 1000 (baseline@1000 = 1.3760) → 0.005 WORSE per step
+  - 6×2@576  (exp020):   1.4796 at step 500  (baseline@500  = 1.4805) → 0.001 BETTER (tied)
+  - 5×2@704  (exp011):   1.3094 post-quant at 2K → 0.012 WORSE
+
+CONCLUSION: At iso-parameters that fit 16MB, 9 unique blocks × 1 loop (baseline) WINS.
+Weight sharing does NOT improve quality enough to offset the loss of unique parameters.
+The sweet spot for unique blocks IS 9 (or possibly more — untested).
+
+====================================================================================================
+ANALYSIS 3: COMPUTE vs QUALITY TRADEOFF
+====================================================================================================
+
+For each config, we compute:
+  quality_efficiency = (baseline_bpb - config_bpb) / (config_ms / baseline_ms)
+
+Positive = better than baseline. Higher = more quality gained per unit of compute.
+
+Config                    Post-Q BPB   ΔBPB       ms/step    Speed ratio  Quality/Compute  Verdict
+--------------------------------------------------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/scaling_analysis.py", line 272, in <module>
+    for k, v in sorted(experiments.items(), key=lambda x: x[1].get("bpb_2k_postquant", 99)):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: '<' not supported between instances of 'NoneType' and 'float'

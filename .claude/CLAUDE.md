@@ -1,0 +1,1 @@
+**IMPORTANT:** Do not edit files in the `/checkpoints` directory unless otherwise specified.
