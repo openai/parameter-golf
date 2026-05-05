@@ -1,0 +1,100 @@
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_4096_bpe.model
+warmup_step:1/10
+warmup_step:2/10
+warmup_step:3/10
+warmup_step:4/10
+warmup_step:5/10
+warmup_step:6/10
+warmup_step:7/10
+warmup_step:8/10
+warmup_step:9/10
+warmup_step:10/10
+step:10/5000 train_loss:6.9618 train_time:8442ms step_avg:844.21ms tok_s:9470
+step:200/5000 train_loss:4.7006 train_time:167210ms step_avg:836.05ms tok_s:9846
+step:400/5000 train_loss:4.5413 train_time:334295ms step_avg:835.74ms tok_s:9960
+step:600/5000 train_loss:4.5037 train_time:501564ms step_avg:835.94ms tok_s:9409
+step:800/5000 train_loss:4.1423 train_time:670228ms step_avg:837.79ms tok_s:9138
+step:1000/5000 train_loss:4.1259 train_time:841046ms step_avg:841.05ms tok_s:9672
+step:1200/5000 train_loss:4.0284 train_time:1008541ms step_avg:840.45ms tok_s:9573
+step:1400/5000 train_loss:3.9586 train_time:1175981ms step_avg:839.99ms tok_s:10052
+step:1600/5000 train_loss:4.0497 train_time:1336270ms step_avg:835.17ms tok_s:10720
+step:1800/5000 train_loss:3.7127 train_time:1489182ms step_avg:827.32ms tok_s:10721
+step:2000/5000 train_loss:3.5694 train_time:1641897ms step_avg:820.95ms tok_s:10735
+step:2200/5000 train_loss:3.7285 train_time:1794625ms step_avg:815.74ms tok_s:10737
+step:2400/5000 train_loss:3.4214 train_time:1947544ms step_avg:811.48ms tok_s:10720
+step:2600/5000 train_loss:3.6573 train_time:2100417ms step_avg:807.85ms tok_s:10719
+step:2800/5000 train_loss:3.4875 train_time:2253109ms step_avg:804.68ms tok_s:10746
+step:3000/5000 train_loss:3.2726 train_time:2405150ms step_avg:801.72ms tok_s:10698
+step:3200/5000 train_loss:3.4832 train_time:2557052ms step_avg:799.08ms tok_s:10825
+step:3400/5000 train_loss:3.5935 train_time:2708819ms step_avg:796.71ms tok_s:10819
+step:3600/5000 train_loss:3.1340 train_time:2860581ms step_avg:794.61ms tok_s:10815
+step:3800/5000 train_loss:3.4380 train_time:3012279ms step_avg:792.71ms tok_s:10819
+step:4000/5000 train_loss:3.3349 train_time:3163927ms step_avg:790.98ms tok_s:10822
+step:4200/5000 train_loss:3.3645 train_time:3315670ms step_avg:789.45ms tok_s:10802
+step:4400/5000 train_loss:2.8631 train_time:3467366ms step_avg:788.04ms tok_s:10830
+step:4600/5000 train_loss:3.1664 train_time:3618973ms step_avg:786.73ms tok_s:10803
+step:4800/5000 train_loss:3.2211 train_time:3770557ms step_avg:785.53ms tok_s:10796
+step:5000/5000 train_loss:3.2052 train_time:3922232ms step_avg:784.45ms tok_s:10807
+step:5000/5000 val_loss:3.1687 val_bpb:1.5596 train_time:3922233ms step_avg:784.45ms
+    val_loss, val_bpb = eval_val(
+    muon_momentum_warmup_steps: int = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+        if self.args.muon_momentum_warmup_steps:
+            t = min(step / self.args.muon_momentum_warmup_steps, 1.0)
+    # The shard directory and tokenizer are coupled: val_bpb is only meaningful if we
+    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    val_bpb = bits_per_token * (total_tokens / total_bytes)
+    return val_loss, val_bpb
+        f"model_params:{n_params} vocab_size:{args.vocab_size} layers:{args.num_layers} "
+        f"iterations:{args.iterations} train_batch_tokens:{args.train_batch_tokens} grad_accum_steps:{args.grad_accum_steps} "
+        f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    log(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    if args.warmup_steps > 0:
+        for warmup_step in range(args.warmup_steps):
+            if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
+                log(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+            val_loss, val_bpb = eval_val(
+                    f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+            if stop_after_step is not None and step < args.iterations:
+    q_val_loss, q_val_bpb = eval_val(
+    log(f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} eval_time:{q_eval_ms:.0f}ms")
+    log(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+model_params:33842864 vocab_size:4096 layers:11 dim:512 heads:8 kv_heads:4 seq_len:1024 tie_embeddings:True
+iterations:5000 train_batch_tokens:8192 grad_accum_steps:2 microbatch_tokens:4096 microbatch_batch_size:4 val_batch_size:524288 warmup_steps:10 max_wallclock_seconds:0.000
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_4096_bpe.model
+warmup_step:1/10
+warmup_step:2/10
+warmup_step:3/10
+warmup_step:4/10
+warmup_step:5/10
+warmup_step:6/10
+warmup_step:7/10
+warmup_step:8/10
+warmup_step:9/10
+warmup_step:10/10
+step:10/5000 train_loss:6.9618 train_time:8442ms step_avg:844.21ms tok_s:9470
+step:200/5000 train_loss:4.7006 train_time:167210ms step_avg:836.05ms tok_s:9846
+step:400/5000 train_loss:4.5413 train_time:334295ms step_avg:835.74ms tok_s:9960
+step:600/5000 train_loss:4.5037 train_time:501564ms step_avg:835.94ms tok_s:9409
+step:800/5000 train_loss:4.1423 train_time:670228ms step_avg:837.79ms tok_s:9138
+step:1000/5000 train_loss:4.1259 train_time:841046ms step_avg:841.05ms tok_s:9672
+step:1200/5000 train_loss:4.0284 train_time:1008541ms step_avg:840.45ms tok_s:9573
+step:1400/5000 train_loss:3.9586 train_time:1175981ms step_avg:839.99ms tok_s:10052
+step:1600/5000 train_loss:4.0497 train_time:1336270ms step_avg:835.17ms tok_s:10720
+step:1800/5000 train_loss:3.7127 train_time:1489182ms step_avg:827.32ms tok_s:10721
+step:2000/5000 train_loss:3.5694 train_time:1641897ms step_avg:820.95ms tok_s:10735
+step:2200/5000 train_loss:3.7285 train_time:1794625ms step_avg:815.74ms tok_s:10737
+step:2400/5000 train_loss:3.4214 train_time:1947544ms step_avg:811.48ms tok_s:10720
+step:2600/5000 train_loss:3.6573 train_time:2100417ms step_avg:807.85ms tok_s:10719
+step:2800/5000 train_loss:3.4875 train_time:2253109ms step_avg:804.68ms tok_s:10746
+step:3000/5000 train_loss:3.2726 train_time:2405150ms step_avg:801.72ms tok_s:10698
+step:3200/5000 train_loss:3.4832 train_time:2557052ms step_avg:799.08ms tok_s:10825
+step:3400/5000 train_loss:3.5935 train_time:2708819ms step_avg:796.71ms tok_s:10819
+step:3600/5000 train_loss:3.1340 train_time:2860581ms step_avg:794.61ms tok_s:10815
+step:3800/5000 train_loss:3.4380 train_time:3012279ms step_avg:792.71ms tok_s:10819
+step:4000/5000 train_loss:3.3349 train_time:3163927ms step_avg:790.98ms tok_s:10822
+step:4200/5000 train_loss:3.3645 train_time:3315670ms step_avg:789.45ms tok_s:10802
+step:4400/5000 train_loss:2.8631 train_time:3467366ms step_avg:788.04ms tok_s:10830
+step:4600/5000 train_loss:3.1664 train_time:3618973ms step_avg:786.73ms tok_s:10803
+step:4800/5000 train_loss:3.2211 train_time:3770557ms step_avg:785.53ms tok_s:10796
+step:5000/5000 train_loss:3.2052 train_time:3922232ms step_avg:784.45ms tok_s:10807
+step:5000/5000 val_loss:3.1687 val_bpb:1.5596 train_time:3922233ms step_avg:784.45ms
