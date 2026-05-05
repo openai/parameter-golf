@@ -1,0 +1,661 @@
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  block_growth_log_updates: False
+  block_growth_scale_schedule: 
+  block_growth_start_layer: -1
+  checkpoint_dir: ./runs/castor_l7grow_v4_12h_seed1337/checkpoints
+  compile_dynamic: True
+  compile_fullgraph: True
+  compile_model: True
+  compressor: brotli
+  data_dir: ./data
+  dataset_name: fineweb10B_sp8192
+  datasets_dir: ./data/datasets/castor_pretrain_sp8192_v0
+  distributed: False
+  dynamo_cache_size_limit: 64
+  ema_decay: 0.9965
+  ema_enabled: False
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_only: False
+  eval_seq_len: 8192
+  eval_stride: 4096
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  init_model_path: ./checkpoints/bootstrap/l7grow_v4_seed1337_init.pt
+  int8_force_patterns: ()
+  is_main_process: True
+  iterations: 100000
+  keep_step_checkpoints: False
+  late_qat_mode: structural
+  late_qat_threshold: 0.0
+  ln_scale: True
+  local_rank: 0
+  logfile: ./logs/castor_l7grow_v4_12h_seed1337.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  loss_tail_power: 1.0
+  loss_tail_scale_schedule: 
+  loss_tail_start_frac: 1.0
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 43200.0
+  midrun_cap_log_updates: False
+  midrun_cap_schedule: 1.000@0.000,1.000@0.400,0.500@0.400,0.300@0.500,0.180@0.600,0.110@0.700,0.090@0.800,0.070@1.000
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: ./runs/castor_l7grow_v4_12h_seed1337/final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  optimizer_state_exp_avg_scale: 1.0
+  optimizer_state_exp_avg_sq_scale: 1.0
+  optimizer_state_muon_buffer_scale: 1.0
+  optimizer_state_rewarm_on_cap_start: False
+  optimizer_state_rewarm_on_seq_change: False
+  package_only: False
+  parallel_residual_start: 7
+  qat_enabled: False
+  qk_gain_init: 5.0
+  quantized_model_path: ./runs/castor_l7grow_v4_12h_seed1337/final_model.int6.ptz
+  rank: 0
+  resume_checkpoint: ./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 8192
+  roundtrip_eval_enabled: True
+  run_dir: ./runs/castor_l7grow_v4_12h_seed1337
+  run_id: castor_l7grow_v4_12h_seed1337
+  save_checkpoint_every: 1000
+  save_pre_quant_snapshot: True
+  save_quantized_snapshot: False
+  scalar_lr: 0.02
+  seed: 1337
+  seq_change_warmup_steps: 32
+  skip_final_packaging: True
+  skip_gates_enabled: True
+  sliding_batch_seqs: 32
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 262144
+  train_files: ./data/datasets/castor_pretrain_sp8192_v0/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 8192
+  train_seq_schedule: 1024@0.200,2048@0.750,4096@0.850,8192@1.000
+  train_seq_schedule_mode: wallclock
+  ttt_batch_seqs: 32
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 8
+  ttt_log_every_chunks: 0
+  ttt_lr: 0.005
+  ttt_lr_schedule: 
+  ttt_momentum: 0.9
+  val_batch_tokens: 131072
+  val_files: ./data/datasets/castor_pretrain_sp8192_v0/fineweb_val_*.bin
+  val_loss_every: 8000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmdown_iters: 12800
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.11.2 (main, Apr 28 2025, 14:11:48) [GCC 12.2.0]
+Running PyTorch 2.10.0+cu128
+Tue Apr 14 23:14:27 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 590.48.01              Driver Version: 590.48.01      CUDA Version: 13.1     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 4090        On  |   00000000:01:00.0  On |                  Off |
+|  0%   48C    P2             18W /  450W |     404MiB /  24564MiB |      3%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A         1772500      C   ./.venv/bin/python                      386MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+train_shards: 124
+val_tokens: 62455808
+init_model:missing_keys:block_growth_scales
+init_model:loaded path:checkpoints/bootstrap/l7grow_v4_seed1337_init.pt
+model_params:35944536
+train_seq_schedule:1024@0.200,2048@0.750,4096@0.850,8192@1.000
+local_microbatch_tokens:32768
+midrun_cap_schedule:1.000@0.000,1.000@0.400,0.500@0.400,0.300@0.500,0.180@0.600,0.110@0.700,0.090@0.800,0.070@1.000
+late_qat_threshold:0.000 mode:structural
+growth_stage:seq_len:1024 progress:0.000
+gptq:reserving 12s, effective=43188000ms
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  block_growth_log_updates: False
+  block_growth_scale_schedule: 
+  block_growth_start_layer: -1
+  checkpoint_dir: ./runs/castor_l7grow_v4_12h_seed1337/checkpoints
+  compile_dynamic: True
+  compile_fullgraph: True
+  compile_model: True
+  compressor: brotli
+  data_dir: ./data
+  dataset_name: fineweb10B_sp8192
+  datasets_dir: ./data/datasets/castor_pretrain_sp8192_v0
+  distributed: False
+  dynamo_cache_size_limit: 64
+  ema_decay: 0.9965
+  ema_enabled: False
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_only: False
+  eval_seq_len: 8192
+  eval_stride: 4096
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  init_model_path: ./checkpoints/bootstrap/l7grow_v4_seed1337_init.pt
+  int8_force_patterns: ()
+  is_main_process: True
+  iterations: 100000
+  keep_step_checkpoints: False
+  late_qat_mode: structural
+  late_qat_threshold: 0.0
+  ln_scale: True
+  local_rank: 0
+  logfile: ./logs/castor_l7grow_v4_12h_seed1337.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  loss_tail_power: 1.0
+  loss_tail_scale_schedule: 
+  loss_tail_start_frac: 1.0
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 43200.0
+  midrun_cap_log_updates: False
+  midrun_cap_schedule: 1.000@0.000,1.000@0.400,0.500@0.400,0.300@0.500,0.180@0.600,0.110@0.700,0.090@0.800,0.070@1.000
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: ./runs/castor_l7grow_v4_12h_seed1337/final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  optimizer_state_exp_avg_scale: 1.0
+  optimizer_state_exp_avg_sq_scale: 1.0
+  optimizer_state_muon_buffer_scale: 1.0
+  optimizer_state_rewarm_on_cap_start: False
+  optimizer_state_rewarm_on_seq_change: False
+  package_only: False
+  parallel_residual_start: 7
+  qat_enabled: False
+  qk_gain_init: 5.0
+  quantized_model_path: ./runs/castor_l7grow_v4_12h_seed1337/final_model.int6.ptz
+  rank: 0
+  resume_checkpoint: ./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 8192
+  roundtrip_eval_enabled: True
+  run_dir: ./runs/castor_l7grow_v4_12h_seed1337
+  run_id: castor_l7grow_v4_12h_seed1337
+  save_checkpoint_every: 1000
+  save_pre_quant_snapshot: True
+  save_quantized_snapshot: False
+  scalar_lr: 0.02
+  seed: 1337
+  seq_change_warmup_steps: 32
+  skip_final_packaging: True
+  skip_gates_enabled: True
+  sliding_batch_seqs: 32
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 262144
+  train_files: ./data/datasets/castor_pretrain_sp8192_v0/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 8192
+  train_seq_schedule: 1024@0.200,2048@0.750,4096@0.850,8192@1.000
+  train_seq_schedule_mode: wallclock
+  ttt_batch_seqs: 32
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 8
+  ttt_log_every_chunks: 0
+  ttt_lr: 0.005
+  ttt_lr_schedule: 
+  ttt_momentum: 0.9
+  val_batch_tokens: 131072
+  val_files: ./data/datasets/castor_pretrain_sp8192_v0/fineweb_val_*.bin
+  val_loss_every: 8000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmdown_iters: 12800
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.11.2 (main, Apr 28 2025, 14:11:48) [GCC 12.2.0]
+Running PyTorch 2.10.0+cu128
+Tue Apr 14 23:15:39 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 590.48.01              Driver Version: 590.48.01      CUDA Version: 13.1     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 4090        On  |   00000000:01:00.0  On |                  Off |
+|  0%   48C    P2             15W /  450W |     404MiB /  24564MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A         1773804      C   ./.venv/bin/python                      386MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+train_shards: 124
+val_tokens: 62455808
+init_model:missing_keys:block_growth_scales
+init_model:loaded path:checkpoints/bootstrap/l7grow_v4_seed1337_init.pt
+model_params:35944536
+train_seq_schedule:1024@0.200,2048@0.750,4096@0.850,8192@1.000
+local_microbatch_tokens:32768
+midrun_cap_schedule:1.000@0.000,1.000@0.400,0.500@0.400,0.300@0.500,0.180@0.600,0.110@0.700,0.090@0.800,0.070@1.000
+late_qat_threshold:0.000 mode:structural
+growth_stage:seq_len:1024 progress:0.000
+gptq:reserving 12s, effective=43188000ms
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  block_growth_log_updates: False
+  block_growth_scale_schedule: 
+  block_growth_start_layer: -1
+  checkpoint_dir: ./runs/castor_l7grow_v4_12h_seed1337/checkpoints
+  compile_dynamic: True
+  compile_fullgraph: True
+  compile_model: True
+  compressor: brotli
+  data_dir: ./data
+  dataset_name: fineweb10B_sp8192
+  datasets_dir: ./data/datasets/castor_pretrain_sp8192_v0
+  distributed: False
+  dynamo_cache_size_limit: 64
+  ema_decay: 0.9965
+  ema_enabled: False
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_only: False
+  eval_seq_len: 8192
+  eval_stride: 4096
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  init_model_path: ./checkpoints/bootstrap/l7grow_v4_seed1337_init.pt
+  int8_force_patterns: ()
+  is_main_process: True
+  iterations: 100000
+  keep_step_checkpoints: False
+  late_qat_mode: structural
+  late_qat_threshold: 0.0
+  ln_scale: True
+  local_rank: 0
+  logfile: ./logs/castor_l7grow_v4_12h_seed1337.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  loss_tail_power: 1.0
+  loss_tail_scale_schedule: 
+  loss_tail_start_frac: 1.0
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 43200.0
+  midrun_cap_log_updates: False
+  midrun_cap_schedule: 1.000@0.000,1.000@0.400,0.500@0.400,0.300@0.500,0.180@0.600,0.110@0.700,0.090@0.800,0.070@1.000
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: ./runs/castor_l7grow_v4_12h_seed1337/final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  optimizer_state_exp_avg_scale: 1.0
+  optimizer_state_exp_avg_sq_scale: 1.0
+  optimizer_state_muon_buffer_scale: 1.0
+  optimizer_state_rewarm_on_cap_start: False
+  optimizer_state_rewarm_on_seq_change: False
+  package_only: False
+  parallel_residual_start: 7
+  qat_enabled: False
+  qk_gain_init: 5.0
+  quantized_model_path: ./runs/castor_l7grow_v4_12h_seed1337/final_model.int6.ptz
+  rank: 0
+  resume_checkpoint: ./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 8192
+  roundtrip_eval_enabled: True
+  run_dir: ./runs/castor_l7grow_v4_12h_seed1337
+  run_id: castor_l7grow_v4_12h_seed1337
+  save_checkpoint_every: 1000
+  save_pre_quant_snapshot: True
+  save_quantized_snapshot: False
+  scalar_lr: 0.02
+  seed: 1337
+  seq_change_warmup_steps: 32
+  skip_final_packaging: True
+  skip_gates_enabled: True
+  sliding_batch_seqs: 32
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 262144
+  train_files: ./data/datasets/castor_pretrain_sp8192_v0/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 8192
+  train_seq_schedule: 1024@0.200,2048@0.750,4096@0.850,8192@1.000
+  train_seq_schedule_mode: wallclock
+  ttt_batch_seqs: 32
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 8
+  ttt_log_every_chunks: 0
+  ttt_lr: 0.005
+  ttt_lr_schedule: 
+  ttt_momentum: 0.9
+  val_batch_tokens: 131072
+  val_files: ./data/datasets/castor_pretrain_sp8192_v0/fineweb_val_*.bin
+  val_loss_every: 8000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmdown_iters: 12800
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.11.2 (main, Apr 28 2025, 14:11:48) [GCC 12.2.0]
+Running PyTorch 2.10.0+cu128
+Tue Apr 14 23:18:25 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 590.48.01              Driver Version: 590.48.01      CUDA Version: 13.1     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 4090        On  |   00000000:01:00.0  On |                  Off |
+|  0%   50C    P2             15W /  450W |     404MiB /  24564MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A         1777197      C   ./.venv/bin/python                      386MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+train_shards: 124
+val_tokens: 62455808
+init_model:missing_keys:block_growth_scales
+init_model:loaded path:checkpoints/bootstrap/l7grow_v4_seed1337_init.pt
+model_params:35944536
+train_seq_schedule:1024@0.200,2048@0.750,4096@0.850,8192@1.000
+local_microbatch_tokens:32768
+midrun_cap_schedule:1.000@0.000,1.000@0.400,0.500@0.400,0.300@0.500,0.180@0.600,0.110@0.700,0.090@0.800,0.070@1.000
+late_qat_threshold:0.000 mode:structural
+growth_stage:seq_len:1024 progress:0.000
+gptq:reserving 12s, effective=43188000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/100000 val_loss: 3.5271 val_bpb: 1.8623
+1/100000 train_loss: 3.5544 train_time: 0.0m tok/s: 261600
+2/100000 train_loss: 4.2881 train_time: 0.0m tok/s: 298147
+3/100000 train_loss: 3.5173 train_time: 0.0m tok/s: 312715
+4/100000 train_loss: 3.1893 train_time: 0.1m tok/s: 320475
+5/100000 train_loss: 3.0813 train_time: 0.1m tok/s: 325397
+500/100000 train_loss: 2.3645 train_time: 6.4m tok/s: 342727
+1000/100000 train_loss: 2.3752 train_time: 12.8m tok/s: 342044
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:1000 reason:periodic
+1500/100000 train_loss: 2.3835 train_time: 19.2m tok/s: 340948
+2000/100000 train_loss: 2.3357 train_time: 25.6m tok/s: 340936
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:2000 reason:periodic
+2500/100000 train_loss: 2.1984 train_time: 32.1m tok/s: 340426
+3000/100000 train_loss: 2.2371 train_time: 38.5m tok/s: 340733
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:3000 reason:periodic
+3500/100000 train_loss: 2.2899 train_time: 44.9m tok/s: 340623
+4000/100000 train_loss: 2.3268 train_time: 51.3m tok/s: 340738
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:4000 reason:periodic
+4500/100000 train_loss: 2.2759 train_time: 57.7m tok/s: 340548
+5000/100000 train_loss: 2.2155 train_time: 64.1m tok/s: 340614
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:5000 reason:periodic
+5500/100000 train_loss: 2.2281 train_time: 70.6m tok/s: 340471
+6000/100000 train_loss: 2.3641 train_time: 77.0m tok/s: 340531
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:6000 reason:periodic
+6500/100000 train_loss: 2.2408 train_time: 83.4m tok/s: 340418
+7000/100000 train_loss: 2.2496 train_time: 89.8m tok/s: 340463
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:7000 reason:periodic
+7500/100000 train_loss: 2.3420 train_time: 96.3m tok/s: 340407
+8000/100000 train_loss: 2.1177 train_time: 102.7m tok/s: 340454
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:8000 reason:periodic
+8000/100000 val_loss: 4.1096 val_bpb: 2.1698
+8500/100000 train_loss: 2.2727 train_time: 109.1m tok/s: 340381
+9000/100000 train_loss: 2.2516 train_time: 115.5m tok/s: 340435
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:9000 reason:periodic
+9500/100000 train_loss: 2.3105 train_time: 121.9m tok/s: 340382
+10000/100000 train_loss: 2.2673 train_time: 128.3m tok/s: 340431
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:10000 reason:periodic
+10500/100000 train_loss: 2.2107 train_time: 134.8m tok/s: 340378
+11000/100000 train_loss: 2.2885 train_time: 141.2m tok/s: 340425
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:11000 reason:periodic
+growth_stage:seq_len:2048 progress:0.200 step:11215
+growth_stage_rewarmup:start step:11215 steps:32 seq_len:2048
+11500/100000 train_loss: 2.0407 train_time: 148.7m tok/s: 337895
+12000/100000 train_loss: 2.2978 train_time: 155.7m tok/s: 336695
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:12000 reason:periodic
+12500/100000 train_loss: 2.2590 train_time: 162.8m tok/s: 335538
+13000/100000 train_loss: 2.3061 train_time: 169.8m tok/s: 334525
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:13000 reason:periodic
+13500/100000 train_loss: 2.0231 train_time: 176.8m tok/s: 333549
+14000/100000 train_loss: 2.2129 train_time: 183.9m tok/s: 332692
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:14000 reason:periodic
+14500/100000 train_loss: 2.1767 train_time: 190.9m tok/s: 331854
+15000/100000 train_loss: 2.2853 train_time: 197.9m tok/s: 331119
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:15000 reason:periodic
+15500/100000 train_loss: 2.2614 train_time: 205.0m tok/s: 330400
+16000/100000 train_loss: 2.0538 train_time: 212.0m tok/s: 329761
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:16000 reason:periodic
+16000/100000 val_loss: 2.7275 val_bpb: 1.4401
+16500/100000 train_loss: 2.3409 train_time: 219.0m tok/s: 329142
+17000/100000 train_loss: 2.2090 train_time: 226.0m tok/s: 328587
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:17000 reason:periodic
+17500/100000 train_loss: 2.2314 train_time: 233.1m tok/s: 328032
+18000/100000 train_loss: 2.0679 train_time: 240.1m tok/s: 327537
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:18000 reason:periodic
+18500/100000 train_loss: 2.1505 train_time: 247.1m tok/s: 327043
+layer_loop:enabled step:18841 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+19000/100000 train_loss: 2.3113 train_time: 255.6m tok/s: 324830
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:19000 reason:periodic
+19500/100000 train_loss: 2.0718 train_time: 266.1m tok/s: 320175
+20000/100000 train_loss: 2.0865 train_time: 276.6m tok/s: 315892
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:20000 reason:periodic
+20500/100000 train_loss: 2.0996 train_time: 287.2m tok/s: 311901
+midrun_cap:start step:20537 progress:0.400 scale:0.500
+21000/100000 train_loss: 2.1669 train_time: 297.7m tok/s: 308213
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:21000 reason:periodic
+21500/100000 train_loss: 2.1398 train_time: 308.2m tok/s: 304771
+22000/100000 train_loss: 2.1048 train_time: 318.7m tok/s: 301576
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:22000 reason:periodic
+22500/100000 train_loss: 1.9428 train_time: 329.3m tok/s: 298568
+23000/100000 train_loss: 2.0132 train_time: 339.8m tok/s: 295762
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:23000 reason:periodic
+23500/100000 train_loss: 1.9622 train_time: 350.3m tok/s: 293101
+24000/100000 train_loss: 1.9580 train_time: 360.8m tok/s: 290622
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:24000 reason:periodic
+24000/100000 val_loss: 2.7711 val_bpb: 1.4631
+24500/100000 train_loss: 2.0836 train_time: 372.1m tok/s: 287657
+25000/100000 train_loss: 1.9884 train_time: 382.6m tok/s: 285467
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:25000 reason:periodic
+25500/100000 train_loss: 2.0584 train_time: 393.1m tok/s: 283392
+26000/100000 train_loss: 1.9215 train_time: 403.6m tok/s: 281428
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:26000 reason:periodic
+26500/100000 train_loss: 1.9450 train_time: 414.1m tok/s: 279564
+27000/100000 train_loss: 1.9923 train_time: 424.7m tok/s: 277792
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:27000 reason:periodic
+27500/100000 train_loss: 2.0097 train_time: 435.2m tok/s: 276102
+28000/100000 train_loss: 2.0138 train_time: 445.7m tok/s: 274494
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:28000 reason:periodic
+28500/100000 train_loss: 1.9747 train_time: 456.2m tok/s: 272957
+29000/100000 train_loss: 1.8914 train_time: 466.7m tok/s: 271492
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:29000 reason:periodic
+29500/100000 train_loss: 1.9899 train_time: 477.2m tok/s: 270096
+30000/100000 train_loss: 2.0001 train_time: 487.7m tok/s: 268767
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:30000 reason:periodic
+30500/100000 train_loss: 2.0187 train_time: 498.1m tok/s: 267545
+31000/100000 train_loss: 1.9424 train_time: 508.5m tok/s: 266338
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:31000 reason:periodic
+31500/100000 train_loss: 1.8951 train_time: 519.0m tok/s: 265172
+32000/100000 train_loss: 1.8498 train_time: 529.5m tok/s: 264049
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:32000 reason:periodic
+32000/100000 val_loss: 2.9354 val_bpb: 1.5499
+growth_stage:seq_len:4096 progress:0.750 step:32495
+growth_stage_rewarmup:start step:32495 steps:32 seq_len:4096
+32500/100000 train_loss: 1.9027 train_time: 540.3m tok/s: 262795
+33000/100000 train_loss: 1.6879 train_time: 552.7m tok/s: 260861
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:33000 reason:periodic
+33500/100000 train_loss: 1.9223 train_time: 565.1m tok/s: 259001
+34000/100000 train_loss: 1.9113 train_time: 577.5m tok/s: 257221
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:34000 reason:periodic
+34500/100000 train_loss: 1.9046 train_time: 589.9m tok/s: 255526
+35000/100000 train_loss: 1.8938 train_time: 602.3m tok/s: 253903
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:35000 reason:periodic
+growth_stage:seq_len:8192 progress:0.850 step:35386
+growth_stage_rewarmup:start step:35386 steps:32 seq_len:8192
+35500/100000 train_loss: 1.8220 train_time: 615.9m tok/s: 251837
+36000/100000 train_loss: 1.5533 train_time: 632.0m tok/s: 248856
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:36000 reason:periodic
+36500/100000 train_loss: 1.6501 train_time: 648.2m tok/s: 246013
+37000/100000 train_loss: 1.6548 train_time: 664.5m tok/s: 243291
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:37000 reason:periodic
+37500/100000 train_loss: 1.5899 train_time: 680.7m tok/s: 240706
+38000/100000 train_loss: 1.8453 train_time: 696.9m tok/s: 238247
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:38000 reason:periodic
+38500/100000 train_loss: 1.6005 train_time: 713.1m tok/s: 235883
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:38707 reason:wallclock_cap
+38707/100000 val_loss: 1.8367 val_bpb: 0.9698
+checkpoint:saved path:./runs/castor_l7grow_v4_12h_seed1337/checkpoints/latest.pt step:38707 reason:wallclock_cap
+stopping_early: wallclock_cap train_time: 43189612ms step: 38707/100000
+peak memory allocated: 13491 MiB reserved: 13564 MiB
+averaging:none keeping current weights
+pre-quantization post-ema val_loss:1.83671792 val_bpb:0.96976490 eval_time:184477ms
+snapshot:saved logs/castor_l7grow_v4_12h_seed1337.final_model_snapshot.pt
+skip_final_packaging:enabled
+final_int6_roundtrip_exact val_loss:1.83671792 val_bpb:0.96976490 skipped_packaging:1
