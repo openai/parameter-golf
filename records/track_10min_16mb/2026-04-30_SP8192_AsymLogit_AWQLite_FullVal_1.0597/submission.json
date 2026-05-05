@@ -1,0 +1,25 @@
+{
+  "author": "Jorge Asenjo",
+  "github_id": "jorge-asenjo",
+  "name": "SP8192 PR #1855 Base + Asymmetric Logit Rescale + AWQ-lite (full val)",
+  "blurb": "PR #1855 stack (LQER asym int4 + Sparse Attn Gate + BOS-Fixed SmearGate + 9-hparam greedy + per-group lrzip) with two orthogonal additions on top: (1) Asymmetric Logit Rescale on the eval/TTT path (two learnable softcap_pos/softcap_neg scalars trained inside Phased TTT, modded-nanogpt #181 by classiclarryd), and (2) AWQ-lite mixed-precision GPTQ keeping the top-1 64-col activation-saliency group at int8 (PR #1908 by romeerp). Measured on the full validation partition (47,851,520 tokens) after correcting the truncated-val partition reported in the original v1 of this PR. 3-seed mean val_bpb 1.05971 (population std 0.000478).",
+  "date": "2026-04-30T09:54:00Z",
+  "val_loss": 2.31904,
+  "val_bpb": 1.05971,
+  "bytes_total": 15979486,
+  "bytes_code": 32500,
+  "revisions": [
+    {
+      "v": 1,
+      "date": "2026-04-29T10:17:00Z",
+      "val_bpb": 1.06577,
+      "note": "Original submission. Val measurement was on a truncated validation partition (9,662,464 tokens) due to a corrupted shard in the local network volume. @codemath3000 caught this on review by comparing val_tokens lines."
+    },
+    {
+      "v": 2,
+      "date": "2026-04-30T09:54:00Z",
+      "val_bpb": 1.05971,
+      "note": "Re-measured on full validation partition (47,851,520 tokens, identical to #1855's reference). AWQ-lite added as concurrent independent finding alongside @romeerp's PR #1908 — orthogonal stack with AsymLogit. 3-seed strict-compliant: train ≤599.6s, eval ≤532s, max artifact 15,985,176 bytes."
+    }
+  ]
+}
