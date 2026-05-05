@@ -1,0 +1,70 @@
+{
+  "author": "JungyupLee",
+  "github_id": "izlley",
+  "name": "PR #2135 stack + MP3 marker-pair fusion (non-record)",
+  "blurb": "Post-deadline note documenting that the MP3 marker-pair fusion from our prior PR #2109 composes with PR #2135's stack. Single addition: three 2-grams [SPACE,TITLE]/[SPACE,ALLCAPS]/[SPACE,CAPNEXT] fused into alias donor tokens (8/9/10) on already-tokenized CaseOps shards (tokenizer unchanged), with a norm-matched embedding warm-init at training start. SmearGate dampening branch present in the patched train_gpt.py is hard-disabled (alias_dampening_active=False), so PR #2135's forward path is otherwise identical. 3-seed phased TTT val_bpb 1.05559 (std 0.00018) on canonical CaseOps SP8192. Filed under track_non_record_16mb for method-contribution reference only — not eligible for chronological standing.",
+  "date": "2026-05-05",
+  "track": "non_record_16mb",
+  "val_loss": 2.52563,
+  "val_bpb": 1.05558,
+  "val_loss_std": 0.00043,
+  "val_bpb_std": 0.00018,
+  "seeds": [42, 0, 314],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.52607756,
+      "val_bpb": 1.05577240,
+      "pre_quant_val_bpb": 1.05887005,
+      "quantized_val_bpb": 1.06740659,
+      "artifact_bytes": 15946755,
+      "steps": 4930,
+      "train_wallclock_ms": 599615,
+      "step_avg_ms": 121.63,
+      "eval_time_s": 473.6
+    },
+    "0": {
+      "val_loss": 2.52504647,
+      "val_bpb": 1.05534146,
+      "pre_quant_val_bpb": 1.05858033,
+      "quantized_val_bpb": 1.06705718,
+      "artifact_bytes": 15936375,
+      "steps": 5053,
+      "train_wallclock_ms": 599583,
+      "step_avg_ms": 118.66,
+      "eval_time_s": 501.9
+    },
+    "314": {
+      "val_loss": 2.52576464,
+      "val_bpb": 1.05564162,
+      "pre_quant_val_bpb": 1.05861712,
+      "quantized_val_bpb": 1.06725713,
+      "artifact_bytes": 15939487,
+      "steps": 5049,
+      "train_wallclock_ms": 599541,
+      "step_avg_ms": 118.74,
+      "eval_time_s": 460.1
+    }
+  },
+  "comparison_baseline_pr": 2135,
+  "implementation_lineage_pr": 2135,
+  "artifact_bytes_max": 15946755,
+  "compressor": "per-group lrzip(ZPAQ) + brotli",
+  "calibration": "GPTQ int6 (32 calibration batches, 0.5s reserve)",
+  "eval": "phased TTT (NUM_PHASES=1, LoRA rank=80, EVAL_SEQ_LEN/TTT_EVAL_SEQ_LEN=2560)",
+  "technique_summary": "PR #2135 stack with MP3 marker-pair fusion added (3 alias donor tokens + norm-matched embedding warm-init). SmearGate dampening branch hard-disabled.",
+  "env": {
+    "hardware": "8xH100 80GB SXM (DGX)",
+    "driver_version": "535.247.01",
+    "python": "3.12.3",
+    "pytorch": "2.9.1+cu128",
+    "cuda": "12.8",
+    "cudnn": "91002",
+    "flash_attn_3": "3.0.0+20260303.cu128torch291cxx11abitrue.ceb109",
+    "flash_attn": "2.8.3",
+    "lrzip": "0.660",
+    "numpy": "2.4.3",
+    "brotli": "1.2.0",
+    "python_minifier": "3.2.0"
+  },
+  "note": "Post-deadline submission (May 5 vs May 1 cutoff). Validation uses canonical CaseOps SP8192 split rebuilt from the marker_pair_v3 stream-edit (val_tokens 43,767,808; val_bytes sum 151,546,741 vs canonical caseops_v1_reserved 151,568,749 — 0.015% delta from edge cases at chunk/doc boundaries). md5 train_gpt.py = c90dba41e5ce9586871a05e94e6e7445."
+}
