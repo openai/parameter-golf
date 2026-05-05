@@ -1,0 +1,53 @@
+{
+  "author": "NewyorkDev, Claude, and Codex",
+  "github_id": "NewyorkDev",
+  "name": "BIJEPAX-lite JEPA + SP8192 CaseOps PPM",
+  "blurb": "A Claude-designed, JEPA-inspired training-only hidden-state regularizer layered onto the SP8192 CaseOps + per-group compression + PPM sliding evaluator. Predictor heads are separate from the base model, optimized only during training, and absent from the serialized artifact. Three full seeds complete under the 600s train/eval budgets and strict 16,000,000 byte artifact cap. Final 3-seed mean ppm_sliding val_bpb is 0.97271454.",
+  "date": "2026-05-01T03:39:42Z",
+  "val_bpb": 0.97271454,
+  "val_bpb_std": 0.00089703,
+  "val_bpb_by_seed": {
+    "42": 0.97234287,
+    "314": 0.97206308,
+    "999": 0.97373767
+  },
+  "bytes_total_max": 15999539,
+  "bytes_total_by_seed": {
+    "42": 15997180,
+    "314": 15999539,
+    "999": 15997593
+  },
+  "eval_time_ms_max": 502131,
+  "eval_time_ms_by_seed": {
+    "42": 502131,
+    "314": 499038,
+    "999": 496384
+  },
+  "train_time_ms_by_seed": {
+    "42": 599843,
+    "314": 599586,
+    "999": 599821
+  },
+  "config": {
+    "DISABLE_COMPILE": "1",
+    "CASEOPS_ENABLED": "1",
+    "VOCAB_SIZE": "8192",
+    "TTT_ENABLED": "0",
+    "PPM_MIXER_ENABLED": "1",
+    "PPM_ORDER": "5",
+    "PPM_H": "0.999",
+    "PPM_L": "0.18",
+    "PPM_T": "0.80",
+    "LQER_TOP_K": "1",
+    "BIJEPAX_ENABLED": "1",
+    "BIJEPAX_WEIGHT": "0.01",
+    "BIJEPAX_START_FRAC": "0.35",
+    "BIJEPAX_END_FRAC": "0.80",
+    "BIJEPAX_FWD_HOPS": "4",
+    "BIJEPAX_BWD_HOPS": "4",
+    "BIJEPAX_CYCLE": "0",
+    "BIJEPAX_HEAD_DIM": "32",
+    "BIJEPAX_STRIDE": "64",
+    "BIJEPAX_LR": "0.001"
+  }
+}
