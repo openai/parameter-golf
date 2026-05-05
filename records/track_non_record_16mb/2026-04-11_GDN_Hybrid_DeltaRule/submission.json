@@ -1,0 +1,11 @@
+{
+  "name": "GDN-Hybrid: Gated DeltaNet + Sliding Window Attention",
+  "val_bpb": 1.209735,
+  "bytes_total": 15417768,
+  "blurb": "Non-record introduction of GDN-Hybrid: replaces transformer backbone with Gated DeltaNet (delta-rule linear recurrence) + Sliding Window Attention. Layout: [GDN×5] → [SWA] → [GDN×5] → [SWA_shared]. 33.86M params, 512-dim, SP1024, int6 GPTQ + zstd-22. No TTT. Corrected val_bpb 1.2097 (3-artifact mean, stride=512). Fixes BPB double-count from closed PR #1545.",
+  "author": "Abhishek8108",
+  "github_id": "Abhishek8108",
+  "date": "2026-04-11",
+  "track": "non-record-16mb",
+  "gpu": "8xH100 SXM"
+}
