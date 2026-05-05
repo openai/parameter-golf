@@ -1,0 +1,86 @@
+{
+  "name": "EBT — Energy-Based Transformer with Closed-Form Quadratic Refinement (Notable Non-Record, negative result)",
+  "track": "10min/16MB Notable Non-Record",
+  "author": "alexdwu13",
+  "github_id": "alexdwu13",
+  "date": "2026-04-30",
+
+  "val_bpb": 1.221124,
+  "val_bpb_per_seed": {
+    "1337": 1.221071,
+    "42":   1.221837,
+    "2026": 1.220464
+  },
+  "val_bpb_3seed_std": 0.000688,
+  "bytes_total": 13501915,
+  "config": "8xH100 SXM5, 600s wallclock, sp4096, 9L/448D, K_train=K_eval=8, energy_rank=32, eta_init=0.05, aux=0.3, h0_noise=0.05",
+
+  "baseline_for_comparison": {
+    "name": "baseline_v3 (matched 9L/448D, EBT off, fixed DDP path)",
+    "val_bpb_3seed_mean": 1.216688,
+    "val_bpb_per_seed": {
+      "1337": 1.216834,
+      "42":   1.216491,
+      "2026": 1.216739
+    },
+    "val_bpb_3seed_std": 0.000178,
+    "bytes_total_seed1337": 13575755,
+    "delta_vs_ebt": -0.004436,
+    "paired_t_stat": 9.5,
+    "paired_t_pvalue_two_sided": 0.011
+  },
+
+  "diagnostics": {
+    "iso_step_seed1337": {
+      "iterations": 8400,
+      "warmdown_iters": 1200,
+      "baseline_v3_val_bpb": 1.219053,
+      "ebt_v4_val_bpb": 1.221234,
+      "delta_per_step": 0.002181,
+      "interpretation": "EBT loses 0.0022 BPB even when both run the same number of optimizer steps with identical warmdown. Architecture per-step quality is worse, not just wallclock-cost."
+    },
+    "compute_trade_seed1337": {
+      "shape": "8L/384D + EBT-K=8",
+      "wallclock_s": 600,
+      "val_bpb": 1.256825,
+      "delta_vs_baseline_v3_9L448D": 0.040137,
+      "interpretation": "Smaller-backbone-plus-refinement compute-trade fails: the lost backbone capacity dominates. Would need a much larger refinement effect to recover."
+    },
+    "k_eval_ablation_3seed_mean": {
+      "K_train": 8,
+      "K_eval_curve": {
+        "0":  1.222000,
+        "1":  1.221941,
+        "2":  1.221901,
+        "4":  1.221826,
+        "8":  1.221641,
+        "16": 1.223391
+      },
+      "delta_K0_to_K8": -0.000359,
+      "interpretation": "Monotonic K_0 to K_train across all seeds and configurations (also reproduced at iso-step and on 8L/384D); refinement is doing real test-time compute. K=16 over-refines and diverges."
+    }
+  },
+
+  "headline_finding": "Negative result. EBT v4 trails the matched 9L/448D no-EBT baseline by 0.0044 BPB on wallclock and by 0.0022 BPB at iso-step on 8xH100 SXM5 / 600s / 16MB. K_eval ablation is monotonic in every config (K=0->K=8 improves val_bpb by 0.0003-0.0009), so refinement is doing real test-time compute -- it just doesn't pay back its 11% per-step cost or substitute for backbone capacity at this scale.",
+
+  "engineering_notes": [
+    "First EBT submission to openai/parameter-golf (0/1867 PRs match keyword scan).",
+    "Closed-form quadratic energy g(h) = 0.5||A h||^2 + b.h with analytic gradient AᵀA h + b. Compatible with torch.compile(fullgraph=True) and mx.compile -- no autograd nesting required.",
+    "PyTorch and MLX backends are byte-for-byte the same math; MLX used for local smoke testing only.",
+    "DDP find_unused_parameters trap: an earlier baseline kept the EBT params present but unused, with find_unused_parameters=True. That added ~15% per-step overhead and gave a clean false-positive 'EBT wins by 0.0014 BPB' result. Fix is to skip constructing the EBT params entirely when REFINE_STEPS_TRAIN=REFINE_STEPS_EVAL=0 and AUX_LOSS_WEIGHT=0; baseline goes from 82 ms/step to 64 ms/step on 8xH100 SXM5."
+  ],
+
+  "smoke_mlx": {
+    "backend": "MLX (Mac M-series)",
+    "config": "NUM_LAYERS=2 MODEL_DIM=128 ENERGY_RANK=32 K_train/K_eval variable ITERATIONS=1000 TRAIN_SEQ_LEN=512 TRAIN_BATCH_TOKENS=4096",
+    "model_params": 365834,
+    "ablation": [
+      {"variant": "EBT (full)",                          "K_train": 2, "K_eval": 2, "val_bpb": 2.2360},
+      {"variant": "Baseline (no refinement)",            "K_train": 0, "K_eval": 0, "val_bpb": 2.2336},
+      {"variant": "Trained EBT, refinement OFF at eval", "K_train": 2, "K_eval": 0, "val_bpb": 2.2672}
+    ],
+    "note": "Disabling refinement at eval after training with it (+0.034 bpb worse than the never-refined baseline) was the original signal that the refinement loop is doing real test-time work. Confirmed at scale by the 8xH100 K_eval ablation."
+  },
+
+  "notes": "Non-record submission. 16MB artifact-size and SOTA statistical-significance criteria do not apply; targets the 'unique and interesting approaches' bar including interesting negative results. Headline 3-seed wallclock train logs are train_seed{1337,42,2026}.log (ebt_v4); the matched 3-seed baseline numbers are summarized in results.csv. Diagnostic runs are diag_iso_step_baseline.log, diag_iso_step_ebt.log, and diag_compute_trade.log."
+}
