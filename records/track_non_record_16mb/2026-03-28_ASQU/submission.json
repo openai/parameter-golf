@@ -1,0 +1,9 @@
+{
+  "author": "Andrew Mouldon",
+  "github_id": "andrewmouldon",
+  "name": "ASQU — Learned Per-Channel Squared Activation",
+  "blurb": "ASQU combines ReLU² with a PReLU-style learned per-channel negative branch. Directly builds on the initial naive baseline and is trained for a fixed 10k steps. Improves over both ReLU² and SOTA utilized fixed-slope LeakyReLU² .5, while adding only one learned scalar per channel.",
+  "date": "2026-03-28T00:00:00Z",
+  "val_bpb": 1.2300,
+  "bytes_total": 15893971,
+}
