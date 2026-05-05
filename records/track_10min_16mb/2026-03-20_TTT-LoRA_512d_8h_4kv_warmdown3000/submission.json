@@ -1,0 +1,9 @@
+{
+  "name": "Santosh",
+  "github": "santosh5541",
+  "val_bpb": 1.1957,
+  "track": "track_10min_16mb",
+  "hardware": "8xH100 SXM",
+  "log_file": "train.log",
+  "notes": "TTT-LoRA eval; int8+zlib artifact size 15880385 bytes"
+}
