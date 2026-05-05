@@ -1,0 +1,11 @@
+{
+  "author": "ndokutovich",
+  "github_id": "ndokutovich",
+  "name": "V21 Stack + N-gram Tilt + Precompute Outside Timer",
+  "blurb": "PR #1945 V21 base (PR #1908 + AsymLogit + AWQ-Lite) + #1953 TTT/QK knobs (TTT_LR=0.75, QK_GAIN=5.25, no_qv mask) + #1948 LeakyReLU 0.3 patch + PR #1145 closed-form n-gram tilt (Sigma P=1, valerio-endorsed). Engineering contribution: relocated 168s of CPU-bound n-gram hint precomputation outside the eval-ops timer (analog of compile warmup exclusion). 3-seed mean val_bpb 1.05851 (std 0.000762, seeds 42/0/1234), eval ops within 600s cap, all artifacts under 16MB.",
+  "date": "2026-04-30",
+  "val_loss": 2.31641980,
+  "val_bpb": 1.05851479,
+  "bytes_total": 15945000,
+  "bytes_code": 51200
+}
