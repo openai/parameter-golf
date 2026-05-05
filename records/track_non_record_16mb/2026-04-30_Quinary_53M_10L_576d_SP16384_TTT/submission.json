@@ -1,0 +1,34 @@
+{
+  "author": "Denis Kurlov",
+  "github_id": "deniskurlov",
+  "name": "52.8M Quinary U-Net + Per-Stream-v2 Layout-Aware Compression + Score-First TTT",
+  "blurb": "Direct quinary fork of the 2026-03-24 ternary record submission by Ciprian-Florin Ifrim (PR #640, 1.1570 sliding BPB). Hypothesis: quinary {-2,-1,0,+1,+2} (5 levels per parameter; raw 8/3 ≈ 2.667 bits/param via base-5 packing 3 quins per byte, log₂5 ≈ 2.322 bits/param entropy floor) buys per-parameter expressivity that outweighs the ~1 bit/param cost vs ternary's 3 levels. Architecture inherited unchanged: 10L (5 enc + 5 dec) U-Net, 4x relu² MLP, factored tied embedding, polynomial-5 softcap, YaRN 2048, Muon, fused QKV, FP8 QAT for non-quantized linears, FlashAttention-3. Adapted: 768d->576d, GQA 8:4->6:3, embed bottleneck 254->380, group_size 128->192, tokenizer SP8192->SP16384, single-blob LZMA->layout-aware per-stream v2 archive (header 0x03; per-quinary-tensor LZMA-screened layout selection over {base5, base5_T, bitmask, bitmask_T} then LZMA-vs-lrzip on the winner — bounded heuristic, not exhaustive 4×2; c_qkv split into Q/K/V sub-payloads; structurally based on parameter-golf PR #1855), and stride-16 sliding eval -> score-first TTT (3 epochs, lr=0.005, adapting only the 42,364 fp16 calibration parameters — per-layer scales, residual mix, Q-gain, skip weights, vocab bias). 52.8M params in 15.72MB max-seed total. Trained 7,800 steps in ~599s on 8xH100 SXM. 3-seed validation (42, 1337, 7): TTT BPB 1.1384 ± 0.0009 std (-22 mBPB from quinary architectural change vs ternary RT 1.1842, -24 mBPB additional from TTT), all FITS with margin ~275 KB under the 16 MB cap. BPB denominator audited end-to-end: verify_bpb.py exact-eval-slice lut_bytes=151,078,879 matches the runtime eval_bytes:151,078,879 printed by train_gpt.py for every seed (delta=+0). Per-stream v2 also solves the seed-dependent lrzip cliff that forced earlier full-blob lrzip artifacts to OVER on ~33% of seeds (with the v2 archive seed=7 is now actually the best-fitting seed at 1.1378 TTT BPB).",
+  "date": "2026-05-01T22:00:00Z",
+  "val_loss": 3.2093,
+  "val_bpb": 1.1384,
+  "bytes_total": 15724839,
+  "bytes_total_note": "Max across the 3 verified seeds (seed=7); per-seed values in seed_results. Range across seeds: 15,714,938 - 15,724,839. Margin under 16 MB cap = 275,161 bytes.",
+  "bytes_code": 79272,
+  "seed_results": {
+    "42":   { "val_loss": 3.2083, "val_bpb": 1.1381, "val_bpb_roundtrip": 1.1626, "bytes_total": 15714938, "steps_reached": 7800, "eval_tokens": 37146624, "eval_bytes": 151078879, "verified": true },
+    "1337": { "val_loss": 3.2120, "val_bpb": 1.1394, "val_bpb_roundtrip": 1.1633, "bytes_total": 15721124, "steps_reached": 7800, "eval_tokens": 37146624, "eval_bytes": 151078879, "verified": true },
+    "7":    { "val_loss": 3.2076, "val_bpb": 1.1378, "val_bpb_roundtrip": 1.1622, "bytes_total": 15724839, "steps_reached": 7800, "eval_tokens": 37146624, "eval_bytes": 151078879, "verified": true }
+  },
+  "seed_mean_val_bpb": 1.1384,
+  "seed_std_val_bpb": 0.00085,
+  "seed_stderr_val_bpb": 0.00049,
+  "seed_mean_val_bpb_roundtrip": 1.1627,
+  "seed_std_val_bpb_roundtrip": 0.00056,
+  "seed_stderr_val_bpb_roundtrip": 0.00032,
+  "n_params": 52828668,
+  "n_quinary_params": 36495360,
+  "n_fp_params": 6896124,
+  "training_seconds": 599,
+  "eval_seconds": 300,
+  "eval_seconds_breakdown": {
+    "load_artifact_and_decompress": 5,
+    "roundtrip_eval": 80,
+    "ttt_eval": 215
+  },
+  "track": "track_non_record_16mb"
+}
