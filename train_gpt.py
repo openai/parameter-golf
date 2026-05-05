@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import sentencepiece as spm
 import torch
+from hierarchical_embed import HierarchicalQuantizedEmbedding
 import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -666,7 +667,12 @@ class GPT(nn.Module):
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
-        self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        # HQE: Hierarchical Quantized Embedding (Strategy B)
+        _use_hqe = bool(int(os.environ.get('USE_HQE', '1')))
+        if _use_hqe:
+            self.tok_emb = HierarchicalQuantizedEmbedding(vocab_size, model_dim)
+        else:
+            self.tok_emb = nn.Embedding(vocab_size, model_dim)
         self.num_encoder_layers = num_layers // 2
         self.num_decoder_layers = num_layers - self.num_encoder_layers
         self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
