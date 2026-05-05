@@ -1,0 +1,172 @@
+=== requant_mixed_precision: starting ===
+imported train_gpt from: /workspace/parameter-golf/records/track_10min_16mb/exp106_metasgd-crosschunk-delta_from_exp101/train_gpt.py
+MODEL_PT_PATH:  /workspace/parameter-golf/final_model.pt
+OUTPUT_PTZ_PATH: /workspace/parameter-golf/final_model.mixed.ptz
+INT7_PATTERNS:  ['blocks.0.', 'blocks.10.', 'mlp.proj']
+TARGET_MB:      15.9
+SKIP_TTT:       False
+TTT_QAT:        True
+val_tokens:62021632
+loading float checkpoint from /workspace/parameter-golf/final_model.pt
+unbanked_sd: 124 keys
+building hessian_model (_HessianGPT) and loading unbanked weights...
+generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+generated 64 sequences in 175.6s
+collecting hessians from AR tokens...
+collected hessians for 68 layers in 12.3s
+quantizing with mixed int6/int7 precision...
+quantize done in 169.2s
+precision breakdown: int7=21 int6=45 int8=3 passthrough=55
+int7 promoted tensors:
+  blocks.0.attn.c_k.weight                      shape=(256, 512)  numel=131072
+  blocks.0.attn.c_q.weight                      shape=(512, 512)  numel=262144
+  blocks.0.attn.c_v.weight                      shape=(256, 512)  numel=131072
+  blocks.0.attn.proj.weight                     shape=(512, 512)  numel=262144
+  blocks.0.mlp.fc.weight                        shape=(1536, 512)  numel=786432
+  blocks.0.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.1.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.10.attn.c_k.weight                     shape=(256, 512)  numel=131072
+  blocks.10.attn.c_q.weight                     shape=(512, 512)  numel=262144
+  blocks.10.attn.c_v.weight                     shape=(256, 512)  numel=131072
+  blocks.10.attn.proj.weight                    shape=(512, 512)  numel=262144
+  blocks.10.mlp.fc.weight                       shape=(1536, 512)  numel=786432
+  blocks.10.mlp.proj.weight                     shape=(512, 1536)  numel=786432
+  blocks.2.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.3.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.4.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.5.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.6.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.7.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.8.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+  blocks.9.mlp.proj.weight                      shape=(512, 1536)  numel=786432
+code_bytes_est: 123310
+selective_prune: 1882333 +/-1 candidates, unpruned=16.54MB target=15.9MB
+selective_prune: full +/-1 prune=16.02MB
+selective_prune: even full prune not enough, applying all
+Serialized mixed int6/int7+lzma: 16672060 bytes (15.900 MB)
+Total submission size (ptz + code): 16795370 bytes (16.017 MB)
+Headroom to 16 MB: -18154 bytes (-17.7 KB)
+WARN: exceeds 16 MB budget!
+round-tripping: reloading ptz from disk and dequantizing...
+CastedLinear._qat_enabled for eval/TTT: True
+running baseline eval_val on dequantized mixed-precision model...
+final_mixed_roundtrip val_loss:1.9331 val_bpb:1.1449 eval_time:21882ms
+final_mixed_roundtrip_exact val_loss:1.93310352 val_bpb:1.14489279
+============================================================
+STARTING TTT (Test-Time Training) on mixed-precision model
+============================================================
+ttt_sliding:start chunks=947 chunk_tokens=65536 total_windows=969088 stride=64 ttt_lr=0.004 ttt_epochs=4 freeze_blocks=2
+ttt_sliding:params unfrozen=26956945 frozen=4112
+  ttt [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0.1% chunk 1/947 bpb=1.165836 ETA=2252s
+  ttt [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   1.2% chunk 11/947 bpb=1.121671 ETA=2230s
+  ttt [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   2.2% chunk 21/947 bpb=1.126669 ETA=2204s
+  ttt [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   3.3% chunk 31/947 bpb=1.131481 ETA=2177s
+  ttt [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   4.3% chunk 41/947 bpb=1.126697 ETA=2149s
+  ttt [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   5.4% chunk 51/947 bpb=1.126658 ETA=2123s
+  ttt [█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   6.4% chunk 61/947 bpb=1.122779 ETA=2096s
+  ttt [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   7.5% chunk 71/947 bpb=1.120638 ETA=2070s
+  ttt [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   8.6% chunk 81/947 bpb=1.121820 ETA=2046s
+  ttt [██░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   9.6% chunk 91/947 bpb=1.123676 ETA=2021s
+  ttt [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  10.7% chunk 101/947 bpb=1.125689 ETA=1997s
+  ttt [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  11.7% chunk 111/947 bpb=1.125780 ETA=1972s
+  ttt [███░░░░░░░░░░░░░░░░░░░░░░░░░░░]  12.8% chunk 121/947 bpb=1.125407 ETA=1947s
+  ttt [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  13.8% chunk 131/947 bpb=1.124490 ETA=1923s
+  ttt [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  14.9% chunk 141/947 bpb=1.125315 ETA=1900s
+  ttt [████░░░░░░░░░░░░░░░░░░░░░░░░░░]  16.0% chunk 151/947 bpb=1.125354 ETA=1876s
+  ttt [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  17.0% chunk 161/947 bpb=1.126317 ETA=1853s
+  ttt [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  18.1% chunk 171/947 bpb=1.125619 ETA=1830s
+  ttt [█████░░░░░░░░░░░░░░░░░░░░░░░░░]  19.1% chunk 181/947 bpb=1.126737 ETA=1807s
+  ttt [██████░░░░░░░░░░░░░░░░░░░░░░░░]  20.2% chunk 191/947 bpb=1.126794 ETA=1785s
+  ttt [██████░░░░░░░░░░░░░░░░░░░░░░░░]  21.2% chunk 201/947 bpb=1.126751 ETA=1761s
+  ttt [██████░░░░░░░░░░░░░░░░░░░░░░░░]  22.3% chunk 211/947 bpb=1.126222 ETA=1739s
+  ttt [███████░░░░░░░░░░░░░░░░░░░░░░░]  23.3% chunk 221/947 bpb=1.125864 ETA=1715s
+  ttt [███████░░░░░░░░░░░░░░░░░░░░░░░]  24.4% chunk 231/947 bpb=1.126012 ETA=1692s
+  ttt [███████░░░░░░░░░░░░░░░░░░░░░░░]  25.5% chunk 241/947 bpb=1.125317 ETA=1670s
+  ttt [███████░░░░░░░░░░░░░░░░░░░░░░░]  26.5% chunk 251/947 bpb=1.125234 ETA=1646s
+  ttt [████████░░░░░░░░░░░░░░░░░░░░░░]  27.6% chunk 261/947 bpb=1.124194 ETA=1623s
+  ttt [████████░░░░░░░░░░░░░░░░░░░░░░]  28.6% chunk 271/947 bpb=1.125136 ETA=1600s
+  ttt [████████░░░░░░░░░░░░░░░░░░░░░░]  29.7% chunk 281/947 bpb=1.124571 ETA=1576s
+  ttt [█████████░░░░░░░░░░░░░░░░░░░░░]  30.7% chunk 291/947 bpb=1.123983 ETA=1553s
+  ttt [█████████░░░░░░░░░░░░░░░░░░░░░]  31.8% chunk 301/947 bpb=1.123282 ETA=1530s
+  ttt [█████████░░░░░░░░░░░░░░░░░░░░░]  32.9% chunk 311/947 bpb=1.122831 ETA=1506s
+  ttt [██████████░░░░░░░░░░░░░░░░░░░░]  33.9% chunk 321/947 bpb=1.122340 ETA=1483s
+  ttt [██████████░░░░░░░░░░░░░░░░░░░░]  35.0% chunk 331/947 bpb=1.121650 ETA=1459s
+  ttt [██████████░░░░░░░░░░░░░░░░░░░░]  36.0% chunk 341/947 bpb=1.120531 ETA=1436s
+  ttt [███████████░░░░░░░░░░░░░░░░░░░]  37.1% chunk 351/947 bpb=1.119929 ETA=1412s
+  ttt [███████████░░░░░░░░░░░░░░░░░░░]  38.1% chunk 361/947 bpb=1.119708 ETA=1389s
+  ttt [███████████░░░░░░░░░░░░░░░░░░░]  39.2% chunk 371/947 bpb=1.119934 ETA=1365s
+  ttt [████████████░░░░░░░░░░░░░░░░░░]  40.3% chunk 381/947 bpb=1.119755 ETA=1341s
+  ttt [████████████░░░░░░░░░░░░░░░░░░]  41.3% chunk 391/947 bpb=1.119836 ETA=1317s
+  ttt [████████████░░░░░░░░░░░░░░░░░░]  42.4% chunk 401/947 bpb=1.119488 ETA=1293s
+  ttt [█████████████░░░░░░░░░░░░░░░░░]  43.4% chunk 411/947 bpb=1.119476 ETA=1269s
+  ttt [█████████████░░░░░░░░░░░░░░░░░]  44.5% chunk 421/947 bpb=1.118977 ETA=1245s
+  ttt [█████████████░░░░░░░░░░░░░░░░░]  45.5% chunk 431/947 bpb=1.119066 ETA=1221s
+  ttt [█████████████░░░░░░░░░░░░░░░░░]  46.6% chunk 441/947 bpb=1.119242 ETA=1198s
+  ttt [██████████████░░░░░░░░░░░░░░░░]  47.7% chunk 451/947 bpb=1.118691 ETA=1174s
+  ttt [██████████████░░░░░░░░░░░░░░░░]  48.7% chunk 461/947 bpb=1.118729 ETA=1150s
+  ttt [██████████████░░░░░░░░░░░░░░░░]  49.8% chunk 471/947 bpb=1.118852 ETA=1126s
+  ttt [███████████████░░░░░░░░░░░░░░░]  50.8% chunk 481/947 bpb=1.119445 ETA=1102s
+  ttt [███████████████░░░░░░░░░░░░░░░]  51.9% chunk 491/947 bpb=1.120042 ETA=1079s
+  ttt [███████████████░░░░░░░░░░░░░░░]  52.9% chunk 501/947 bpb=1.120156 ETA=1055s
+  ttt [████████████████░░░░░░░░░░░░░░]  54.0% chunk 511/947 bpb=1.120704 ETA=1031s
+  ttt [████████████████░░░░░░░░░░░░░░]  55.0% chunk 521/947 bpb=1.121519 ETA=1008s
+  ttt [████████████████░░░░░░░░░░░░░░]  56.1% chunk 531/947 bpb=1.121483 ETA=984s
+  ttt [█████████████████░░░░░░░░░░░░░]  57.2% chunk 541/947 bpb=1.121674 ETA=960s
+  ttt [█████████████████░░░░░░░░░░░░░]  58.2% chunk 551/947 bpb=1.122152 ETA=936s
+  ttt [█████████████████░░░░░░░░░░░░░]  59.3% chunk 561/947 bpb=1.121543 ETA=913s
+  ttt [██████████████████░░░░░░░░░░░░]  60.3% chunk 571/947 bpb=1.121330 ETA=889s
+  ttt [██████████████████░░░░░░░░░░░░]  61.4% chunk 581/947 bpb=1.121118 ETA=865s
+  ttt [██████████████████░░░░░░░░░░░░]  62.4% chunk 591/947 bpb=1.120714 ETA=842s
+  ttt [███████████████████░░░░░░░░░░░]  63.5% chunk 601/947 bpb=1.121082 ETA=818s
+  ttt [███████████████████░░░░░░░░░░░]  64.6% chunk 611/947 bpb=1.121006 ETA=794s
+  ttt [███████████████████░░░░░░░░░░░]  65.6% chunk 621/947 bpb=1.120690 ETA=770s
+  ttt [████████████████████░░░░░░░░░░]  66.7% chunk 631/947 bpb=1.119874 ETA=747s
+  ttt [████████████████████░░░░░░░░░░]  67.7% chunk 641/947 bpb=1.119302 ETA=723s
+  ttt [████████████████████░░░░░░░░░░]  68.8% chunk 651/947 bpb=1.118986 ETA=699s
+  ttt [████████████████████░░░░░░░░░░]  69.8% chunk 661/947 bpb=1.118445 ETA=676s
+  ttt [█████████████████████░░░░░░░░░]  70.9% chunk 671/947 bpb=1.118143 ETA=652s
+  ttt [█████████████████████░░░░░░░░░]  72.0% chunk 681/947 bpb=1.118133 ETA=628s
+  ttt [█████████████████████░░░░░░░░░]  73.0% chunk 691/947 bpb=1.118571 ETA=605s
+  ttt [██████████████████████░░░░░░░░]  74.1% chunk 701/947 bpb=1.118362 ETA=581s
+  ttt [██████████████████████░░░░░░░░]  75.1% chunk 711/947 bpb=1.118564 ETA=557s
+  ttt [██████████████████████░░░░░░░░]  76.2% chunk 721/947 bpb=1.118934 ETA=533s
+  ttt [███████████████████████░░░░░░░]  77.2% chunk 731/947 bpb=1.118718 ETA=510s
+  ttt [███████████████████████░░░░░░░]  78.3% chunk 741/947 bpb=1.119211 ETA=486s
+  ttt [███████████████████████░░░░░░░]  79.4% chunk 751/947 bpb=1.119508 ETA=462s
+  ttt [████████████████████████░░░░░░]  80.4% chunk 761/947 bpb=1.119607 ETA=439s
+  ttt [████████████████████████░░░░░░]  81.5% chunk 771/947 bpb=1.119924 ETA=415s
+  ttt [████████████████████████░░░░░░]  82.5% chunk 781/947 bpb=1.120210 ETA=391s
+  ttt [█████████████████████████░░░░░]  83.6% chunk 791/947 bpb=1.120507 ETA=368s
+  ttt [█████████████████████████░░░░░]  84.6% chunk 801/947 bpb=1.120725 ETA=344s
+  ttt [█████████████████████████░░░░░]  85.7% chunk 811/947 bpb=1.120786 ETA=320s
+  ttt [██████████████████████████░░░░]  86.7% chunk 821/947 bpb=1.120893 ETA=297s
+  ttt [██████████████████████████░░░░]  87.8% chunk 831/947 bpb=1.121076 ETA=273s
+  ttt [██████████████████████████░░░░]  88.9% chunk 841/947 bpb=1.121368 ETA=249s
+  ttt [██████████████████████████░░░░]  89.9% chunk 851/947 bpb=1.121577 ETA=226s
+  ttt [███████████████████████████░░░]  91.0% chunk 861/947 bpb=1.121408 ETA=202s
+  ttt [███████████████████████████░░░]  92.0% chunk 871/947 bpb=1.121170 ETA=178s
+  ttt [███████████████████████████░░░]  93.1% chunk 881/947 bpb=1.121118 ETA=155s
+  ttt [████████████████████████████░░]  94.1% chunk 891/947 bpb=1.120980 ETA=131s
+  ttt [████████████████████████████░░]  95.2% chunk 901/947 bpb=1.120630 ETA=107s
+  ttt [████████████████████████████░░]  96.3% chunk 911/947 bpb=1.120520 ETA=84s
+  ttt [█████████████████████████████░]  97.3% chunk 921/947 bpb=1.120367 ETA=60s
+  ttt [█████████████████████████████░]  98.4% chunk 931/947 bpb=1.120122 ETA=36s
+  ttt [█████████████████████████████░]  99.4% chunk 941/947 bpb=1.119815 ETA=13s
+  ttt [██████████████████████████████] 100.0% chunk 947/947 bpb=1.119849 ETA=0s
+
+ttt_sliding:done val_loss=1.890813 val_bpb=1.119849 elapsed=2237.8s
+mixed_legal_ttt val_loss:1.8908 val_bpb:1.1198 eval_time:2238213ms
+mixed_legal_ttt_exact val_loss:1.89081326 val_bpb:1.11984908
+
+============================================================
+MIXED-PRECISION REQUANT + TTT SUMMARY
+============================================================
+float_pt_path:      /workspace/parameter-golf/final_model.pt
+mixed_ptz_path:     /workspace/parameter-golf/final_model.mixed.ptz
+artifact_bytes:     16672060
+int7_promoted:      21 tensors
+baseline_bpb:       1.144893
+ttt_bpb:            1.119849
+delta_bpb:          +0.025044  (positive = TTT helped)
+baseline_time_ms:   21882
+ttt_time_ms:        2238213
