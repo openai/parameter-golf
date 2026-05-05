@@ -1,0 +1,386 @@
+Running stage: train
+Input 'fineweb': schema is null; contract validation skipped (recommended to define schema).
+[2026-03-23 03:59:45] INFO: Data loaded at: /mnt/inputs/fineweb
+[2026-03-23 03:59:45] INFO: Prefetching data from GCS FUSE to local SSD...
+Meerkat SDK call failed: rkat-rpc process closed
+Traceback (most recent call last):
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 1027, in run
+    asyncio.get_running_loop()
+RuntimeError: no running event loop
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 1033, in run
+    raw_output, session_id = asyncio.run(_run_session())
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 999, in _run_session
+    async with meerkat.MeerkatClient() as client:
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 152, in __aenter__
+    await self.connect()
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 209, in connect
+    result = await self._request("initialize", {})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 921, in _request
+    return await response_future
+           ^^^^^^^^^^^^^^^^^^^^^
+meerkat.errors.MeerkatError: rkat-rpc process closed
+During-run AI review returned empty response (provider=meerkat, decision=approved, findings=1, duration=1ms)
+[2026-03-23 04:01:02] INFO: Prefetch complete in 77.6s
+[2026-03-23 04:01:02] INFO: Data path: /tmp/fineweb_local/datasets/fineweb10B_sp1024
+[2026-03-23 04:01:02] INFO: Tokenizer: /tmp/fineweb_local/tokenizers/fineweb_1024_bpe.model
+[2026-03-23 04:01:02] INFO: Found 80 train shards, 1 val shards
+[2026-03-23 04:01:10] INFO: Launching torchrun with 8 GPUs...
+[2026-03-23 04:01:11] INFO: *****************************************
+[2026-03-23 04:01:11] INFO: Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+[2026-03-23 04:01:11] INFO: *****************************************
+[2026-03-23 04:01:42] INFO: logs/463e9fe2-a140-45a1-837f-d2379d45db64.txt
+[2026-03-23 04:01:43] INFO: val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/tmp/fineweb_local/tokenizers/fineweb_1024_bpe.model
+[2026-03-23 04:01:43] INFO: train_loader:dataset:fineweb10B_sp1024 train_shards:80
+[2026-03-23 04:01:43] INFO: val_loader:shards pattern=/tmp/fineweb_local/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+[2026-03-23 04:01:43] INFO: model_params:26829913
+[2026-03-23 04:01:43] INFO: mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+[2026-03-23 04:01:43] INFO: world_size:8 grad_accum_steps:1
+[2026-03-23 04:01:43] INFO: sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+[2026-03-23 04:01:43] INFO: attention_mode:gqa num_heads:8 num_kv_heads:4
+[2026-03-23 04:01:43] INFO: tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+[2026-03-23 04:01:43] INFO: train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+[2026-03-23 04:01:43] INFO: seed:1337
+Meerkat SDK call failed: rkat-rpc process closed
+Traceback (most recent call last):
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 1027, in run
+    asyncio.get_running_loop()
+RuntimeError: no running event loop
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 1033, in run
+    raw_output, session_id = asyncio.run(_run_session())
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 999, in _run_session
+    async with meerkat.MeerkatClient() as client:
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 152, in __aenter__
+    await self.connect()
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 209, in connect
+    result = await self._request("initialize", {})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 921, in _request
+    return await response_future
+           ^^^^^^^^^^^^^^^^^^^^^
+meerkat.errors.MeerkatError: rkat-rpc process closed
+[2026-03-23 04:02:21] INFO: warmup_step:1/20
+Meerkat SDK call failed: Connection lost
+Traceback (most recent call last):
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 1027, in run
+    asyncio.get_running_loop()
+RuntimeError: no running event loop
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 1033, in run
+    raw_output, session_id = asyncio.run(_run_session())
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 999, in _run_session
+    async with meerkat.MeerkatClient() as client:
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 152, in __aenter__
+    await self.connect()
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 209, in connect
+    result = await self._request("initialize", {})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 920, in _request
+    await self._process.stdin.drain()
+  File "/usr/lib/python3.12/asyncio/streams.py", line 392, in drain
+    await self._protocol._drain_helper()
+  File "/usr/lib/python3.12/asyncio/streams.py", line 166, in _drain_helper
+    raise ConnectionResetError('Connection lost')
+ConnectionResetError: Connection lost
+During-run AI review disabled after 3 consecutive failures. Check Claude CLI configuration or API availability.
+[2026-03-23 04:02:49] INFO: warmup_step:2/20
+[2026-03-23 04:02:50] INFO: warmup_step:3/20
+[2026-03-23 04:02:50] INFO: warmup_step:4/20
+[2026-03-23 04:02:50] INFO: warmup_step:5/20
+[2026-03-23 04:02:50] INFO: warmup_step:6/20
+[2026-03-23 04:02:50] INFO: warmup_step:7/20
+[2026-03-23 04:02:50] INFO: warmup_step:8/20
+[2026-03-23 04:02:50] INFO: warmup_step:9/20
+[2026-03-23 04:02:50] INFO: warmup_step:10/20
+[2026-03-23 04:02:50] INFO: warmup_step:11/20
+[2026-03-23 04:02:50] INFO: warmup_step:12/20
+[2026-03-23 04:02:50] INFO: warmup_step:13/20
+[2026-03-23 04:02:51] INFO: warmup_step:14/20
+[2026-03-23 04:02:51] INFO: warmup_step:15/20
+[2026-03-23 04:02:51] INFO: warmup_step:16/20
+[2026-03-23 04:02:51] INFO: warmup_step:17/20
+[2026-03-23 04:02:51] INFO: warmup_step:18/20
+[2026-03-23 04:02:51] INFO: warmup_step:19/20
+[2026-03-23 04:02:51] INFO: warmup_step:20/20
+[2026-03-23 04:03:20] INFO: step:0/20000 val_loss:6.9303 val_bpb:4.1045 train_time:0ms step_avg:0.01ms
+[2026-03-23 04:03:20] INFO: step:1/20000 train_loss:6.9326 train_time:126ms step_avg:126.48ms
+[2026-03-23 04:03:20] INFO: step:2/20000 train_loss:8.7147 train_time:195ms step_avg:97.33ms
+[2026-03-23 04:03:20] INFO: step:3/20000 train_loss:7.9407 train_time:277ms step_avg:92.17ms
+[2026-03-23 04:03:20] INFO: step:4/20000 train_loss:7.2260 train_time:358ms step_avg:89.45ms
+[2026-03-23 04:03:20] INFO: step:5/20000 train_loss:6.9750 train_time:440ms step_avg:87.95ms
+[2026-03-23 04:03:20] INFO: step:6/20000 train_loss:6.8266 train_time:521ms step_avg:86.82ms
+[2026-03-23 04:03:20] INFO: step:7/20000 train_loss:6.7745 train_time:603ms step_avg:86.11ms
+[2026-03-23 04:03:20] INFO: step:8/20000 train_loss:6.7326 train_time:685ms step_avg:85.57ms
+[2026-03-23 04:03:20] INFO: step:9/20000 train_loss:6.4014 train_time:766ms step_avg:85.07ms
+[2026-03-23 04:03:21] INFO: step:10/20000 train_loss:6.0802 train_time:847ms step_avg:84.68ms
+[2026-03-23 04:03:36] INFO: step:200/20000 train_loss:2.4437 train_time:16697ms step_avg:83.48ms
+[2026-03-23 04:03:38] INFO: step:200/20000 val_loss:2.7344 val_bpb:1.6195 train_time:16715ms step_avg:83.57ms
+[2026-03-23 04:03:55] INFO: step:400/20000 train_loss:2.4560 train_time:33472ms step_avg:83.68ms
+[2026-03-23 04:03:57] INFO: step:400/20000 val_loss:2.4613 val_bpb:1.4577 train_time:33490ms step_avg:83.72ms
+[2026-03-23 04:04:14] INFO: step:600/20000 train_loss:2.3581 train_time:50138ms step_avg:83.56ms
+[2026-03-23 04:04:16] INFO: step:600/20000 val_loss:2.3471 val_bpb:1.3901 train_time:50157ms step_avg:83.59ms
+[2026-03-23 04:04:32] INFO: step:800/20000 train_loss:2.2543 train_time:66922ms step_avg:83.65ms
+[2026-03-23 04:04:34] INFO: step:800/20000 val_loss:2.2817 val_bpb:1.3514 train_time:66940ms step_avg:83.68ms
+[2026-03-23 04:04:51] INFO: step:1000/20000 train_loss:2.2899 train_time:83568ms step_avg:83.57ms
+[2026-03-23 04:04:53] INFO: step:1000/20000 val_loss:2.2402 val_bpb:1.3268 train_time:83585ms step_avg:83.58ms
+[2026-03-23 04:05:10] INFO: step:1200/20000 train_loss:2.3641 train_time:100330ms step_avg:83.61ms
+[2026-03-23 04:05:12] INFO: step:1200/20000 val_loss:2.2165 val_bpb:1.3127 train_time:100348ms step_avg:83.62ms
+[2026-03-23 04:05:28] INFO: step:1400/20000 train_loss:2.1977 train_time:117093ms step_avg:83.64ms
+[2026-03-23 04:05:30] INFO: step:1400/20000 val_loss:2.1989 val_bpb:1.3023 train_time:117111ms step_avg:83.65ms
+[2026-03-23 04:05:47] INFO: step:1600/20000 train_loss:2.0827 train_time:133737ms step_avg:83.59ms
+[2026-03-23 04:05:49] INFO: step:1600/20000 val_loss:2.1782 val_bpb:1.2900 train_time:133754ms step_avg:83.60ms
+[2026-03-23 04:06:06] INFO: step:1800/20000 train_loss:2.1590 train_time:150473ms step_avg:83.60ms
+[2026-03-23 04:06:07] INFO: step:1800/20000 val_loss:2.1564 val_bpb:1.2772 train_time:150491ms step_avg:83.61ms
+[2026-03-23 04:06:24] INFO: step:2000/20000 train_loss:2.0684 train_time:167128ms step_avg:83.56ms
+[2026-03-23 04:06:26] INFO: step:2000/20000 val_loss:2.1350 val_bpb:1.2645 train_time:167146ms step_avg:83.57ms
+[2026-03-23 04:06:43] INFO: step:2200/20000 train_loss:2.1354 train_time:183864ms step_avg:83.57ms
+[2026-03-23 04:06:45] INFO: step:2200/20000 val_loss:2.1236 val_bpb:1.2577 train_time:183882ms step_avg:83.58ms
+[2026-03-23 04:07:01] INFO: step:2400/20000 train_loss:2.0660 train_time:200516ms step_avg:83.55ms
+[2026-03-23 04:07:03] INFO: step:2400/20000 val_loss:2.1099 val_bpb:1.2496 train_time:200534ms step_avg:83.56ms
+[2026-03-23 04:07:20] INFO: step:2600/20000 train_loss:2.1089 train_time:217269ms step_avg:83.56ms
+[2026-03-23 04:07:22] INFO: step:2600/20000 val_loss:2.1061 val_bpb:1.2474 train_time:217287ms step_avg:83.57ms
+[2026-03-23 04:07:39] INFO: step:2800/20000 train_loss:2.1549 train_time:234008ms step_avg:83.57ms
+[2026-03-23 04:07:41] INFO: step:2800/20000 val_loss:2.0956 val_bpb:1.2411 train_time:234025ms step_avg:83.58ms
+[2026-03-23 04:07:57] INFO: step:3000/20000 train_loss:2.1599 train_time:250640ms step_avg:83.55ms
+[2026-03-23 04:07:59] INFO: step:3000/20000 val_loss:2.0916 val_bpb:1.2388 train_time:250659ms step_avg:83.55ms
+[2026-03-23 04:08:16] INFO: step:3200/20000 train_loss:2.1722 train_time:267352ms step_avg:83.55ms
+[2026-03-23 04:08:18] INFO: step:3200/20000 val_loss:2.0886 val_bpb:1.2370 train_time:267370ms step_avg:83.55ms
+[2026-03-23 04:08:34] INFO: step:3400/20000 train_loss:2.0230 train_time:284010ms step_avg:83.53ms
+[2026-03-23 04:08:36] INFO: step:3400/20000 val_loss:2.0826 val_bpb:1.2335 train_time:284028ms step_avg:83.54ms
+[2026-03-23 04:08:53] INFO: step:3600/20000 train_loss:2.1012 train_time:300752ms step_avg:83.54ms
+[2026-03-23 04:08:55] INFO: step:3600/20000 val_loss:2.0805 val_bpb:1.2322 train_time:300770ms step_avg:83.55ms
+[2026-03-23 04:09:12] INFO: step:3800/20000 train_loss:2.0774 train_time:317406ms step_avg:83.53ms
+[2026-03-23 04:09:14] INFO: step:3800/20000 val_loss:2.0773 val_bpb:1.2303 train_time:317424ms step_avg:83.53ms
+[2026-03-23 04:09:30] INFO: step:4000/20000 train_loss:1.9835 train_time:334125ms step_avg:83.53ms
+[2026-03-23 04:09:32] INFO: step:4000/20000 val_loss:2.0771 val_bpb:1.2302 train_time:334143ms step_avg:83.54ms
+[2026-03-23 04:09:49] INFO: step:4200/20000 train_loss:2.1664 train_time:350825ms step_avg:83.53ms
+[2026-03-23 04:09:51] INFO: step:4200/20000 val_loss:2.0753 val_bpb:1.2291 train_time:350843ms step_avg:83.53ms
+[2026-03-23 04:10:08] INFO: step:4400/20000 train_loss:2.0515 train_time:367458ms step_avg:83.51ms
+[2026-03-23 04:10:09] INFO: step:4400/20000 val_loss:2.0647 val_bpb:1.2228 train_time:367476ms step_avg:83.52ms
+[2026-03-23 04:10:26] INFO: step:4600/20000 train_loss:1.8551 train_time:384166ms step_avg:83.51ms
+[2026-03-23 04:10:28] INFO: step:4600/20000 val_loss:2.0556 val_bpb:1.2174 train_time:384187ms step_avg:83.52ms
+[2026-03-23 04:10:45] INFO: step:4800/20000 train_loss:2.4367 train_time:400826ms step_avg:83.51ms
+[2026-03-23 04:10:47] INFO: step:4800/20000 val_loss:2.0503 val_bpb:1.2143 train_time:400845ms step_avg:83.51ms
+[2026-03-23 04:11:03] INFO: step:5000/20000 train_loss:2.1187 train_time:417562ms step_avg:83.51ms
+[2026-03-23 04:11:05] INFO: step:5000/20000 val_loss:2.0370 val_bpb:1.2064 train_time:417580ms step_avg:83.52ms
+[2026-03-23 04:11:22] INFO: step:5200/20000 train_loss:2.0527 train_time:434219ms step_avg:83.50ms
+[2026-03-23 04:11:24] INFO: step:5200/20000 val_loss:2.0284 val_bpb:1.2013 train_time:434238ms step_avg:83.51ms
+[2026-03-23 04:11:41] INFO: step:5400/20000 train_loss:2.0622 train_time:450932ms step_avg:83.51ms
+[2026-03-23 04:11:43] INFO: step:5400/20000 val_loss:2.0200 val_bpb:1.1964 train_time:450949ms step_avg:83.51ms
+[2026-03-23 04:11:59] INFO: step:5600/20000 train_loss:1.9672 train_time:467648ms step_avg:83.51ms
+[2026-03-23 04:12:01] INFO: step:5600/20000 val_loss:2.0113 val_bpb:1.1912 train_time:467666ms step_avg:83.51ms
+[2026-03-23 04:12:18] INFO: step:5800/20000 train_loss:2.0146 train_time:484307ms step_avg:83.50ms
+[2026-03-23 04:12:20] INFO: step:5800/20000 val_loss:2.0028 val_bpb:1.1862 train_time:484325ms step_avg:83.50ms
+[2026-03-23 04:12:36] INFO: step:6000/20000 train_loss:1.9544 train_time:501004ms step_avg:83.50ms
+[2026-03-23 04:12:38] INFO: step:6000/20000 val_loss:1.9938 val_bpb:1.1808 train_time:501024ms step_avg:83.50ms
+[2026-03-23 04:12:55] INFO: step:6200/20000 train_loss:1.9644 train_time:517647ms step_avg:83.49ms
+[2026-03-23 04:12:57] INFO: step:6200/20000 val_loss:1.9842 val_bpb:1.1752 train_time:517666ms step_avg:83.49ms
+[2026-03-23 04:13:14] INFO: step:6400/20000 train_loss:2.0111 train_time:534402ms step_avg:83.50ms
+[2026-03-23 04:13:16] INFO: step:6400/20000 val_loss:1.9714 val_bpb:1.1675 train_time:534419ms step_avg:83.50ms
+[2026-03-23 04:13:32] INFO: step:6600/20000 train_loss:1.8543 train_time:551041ms step_avg:83.49ms
+[2026-03-23 04:13:34] INFO: step:6600/20000 val_loss:1.9602 val_bpb:1.1609 train_time:551059ms step_avg:83.49ms
+[2026-03-23 04:13:51] INFO: step:6800/20000 train_loss:2.0337 train_time:567770ms step_avg:83.50ms
+[2026-03-23 04:13:53] INFO: step:6800/20000 val_loss:1.9477 val_bpb:1.1536 train_time:567789ms step_avg:83.50ms
+[2026-03-23 04:14:10] INFO: step:7000/20000 train_loss:1.7962 train_time:584512ms step_avg:83.50ms
+[2026-03-23 04:14:11] INFO: step:7000/20000 val_loss:1.9370 val_bpb:1.1472 train_time:584531ms step_avg:83.50ms
+[2026-03-23 04:14:29] INFO: step:7186/20000 val_loss:1.9293 val_bpb:1.1426 train_time:600021ms step_avg:83.50ms
+[2026-03-23 04:14:29] INFO: stopping_early: wallclock_cap train_time:600021ms step:7186/20000
+[2026-03-23 04:14:29] INFO: peak memory allocated: 19812 MiB reserved: 19964 MiB
+[2026-03-23 04:14:29] INFO: ema:applying EMA weights
+[2026-03-23 04:14:29] INFO: Serialized model: 105783807 bytes
+[2026-03-23 04:14:29] INFO: Code size: 72097 bytes
+[2026-03-23 04:14:46] INFO: Serialized model int6+zstd: 15437904 bytes
+[2026-03-23 04:14:46] INFO: Total submission size int6+zstd: 15510001 bytes
+[2026-03-23 04:14:48] INFO: ttt:start lr=0.001 momentum=0.9 epochs=100 freeze_blocks=0
+[2026-03-23 04:15:03] INFO: ttt_epoch:1/100 loss:1.9575 lr:0.001000 time:14.8s
+[2026-03-23 04:15:18] INFO: ttt_epoch:2/100 loss:1.9256 lr:0.000999 time:29.4s
+[2026-03-23 04:15:32] INFO: ttt_epoch:3/100 loss:1.9105 lr:0.000998 time:44.0s
+[2026-03-23 04:15:47] INFO: ttt_epoch:4/100 loss:1.8982 lr:0.000996 time:58.6s
+[2026-03-23 04:16:02] INFO: ttt_epoch:5/100 loss:1.8875 lr:0.000994 time:73.3s
+[2026-03-23 04:16:16] INFO: ttt_epoch:6/100 loss:1.8778 lr:0.000991 time:87.9s
+[2026-03-23 04:16:31] INFO: ttt_epoch:7/100 loss:1.8690 lr:0.000988 time:102.5s
+[2026-03-23 04:16:46] INFO: ttt_epoch:8/100 loss:1.8596 lr:0.000984 time:117.2s
+[2026-03-23 04:17:00] INFO: ttt_epoch:9/100 loss:1.8513 lr:0.000980 time:131.8s
+[2026-03-23 04:17:15] INFO: ttt_epoch:10/100 loss:1.8456 lr:0.000976 time:146.4s
+[2026-03-23 04:17:29] INFO: ttt_epoch:11/100 loss:1.8371 lr:0.000971 time:161.0s
+[2026-03-23 04:17:44] INFO: ttt_epoch:12/100 loss:1.8289 lr:0.000965 time:175.7s
+[2026-03-23 04:17:59] INFO: ttt_epoch:13/100 loss:1.8234 lr:0.000959 time:190.3s
+[2026-03-23 04:18:13] INFO: ttt_epoch:14/100 loss:1.8191 lr:0.000953 time:204.9s
+[2026-03-23 04:18:28] INFO: ttt_epoch:15/100 loss:1.8142 lr:0.000946 time:219.5s
+[2026-03-23 04:18:43] INFO: ttt_epoch:16/100 loss:1.8077 lr:0.000939 time:234.2s
+[2026-03-23 04:18:57] INFO: ttt_epoch:17/100 loss:1.8020 lr:0.000931 time:248.8s
+[2026-03-23 04:19:12] INFO: ttt_epoch:18/100 loss:1.7960 lr:0.000923 time:263.4s
+[2026-03-23 04:19:26] INFO: ttt_epoch:19/100 loss:1.7894 lr:0.000914 time:278.0s
+[2026-03-23 04:19:41] INFO: ttt_epoch:20/100 loss:1.7836 lr:0.000905 time:292.7s
+[2026-03-23 04:19:56] INFO: ttt_epoch:21/100 loss:1.7785 lr:0.000896 time:307.3s
+[2026-03-23 04:20:10] INFO: ttt_epoch:22/100 loss:1.7737 lr:0.000886 time:321.9s
+[2026-03-23 04:20:25] INFO: ttt_epoch:23/100 loss:1.7686 lr:0.000876 time:336.5s
+[2026-03-23 04:20:40] INFO: ttt_epoch:24/100 loss:1.7635 lr:0.000866 time:351.2s
+[2026-03-23 04:20:54] INFO: ttt_epoch:25/100 loss:1.7598 lr:0.000855 time:365.8s
+[2026-03-23 04:21:09] INFO: ttt_epoch:26/100 loss:1.7555 lr:0.000844 time:380.4s
+[2026-03-23 04:21:23] INFO: ttt_epoch:27/100 loss:1.7504 lr:0.000832 time:395.0s
+[2026-03-23 04:21:38] INFO: ttt_epoch:28/100 loss:1.7466 lr:0.000821 time:409.7s
+[2026-03-23 04:21:53] INFO: ttt_epoch:29/100 loss:1.7429 lr:0.000808 time:424.3s
+[2026-03-23 04:22:07] INFO: ttt_epoch:30/100 loss:1.7379 lr:0.000796 time:438.9s
+[2026-03-23 04:22:22] INFO: ttt_epoch:31/100 loss:1.7324 lr:0.000783 time:453.5s
+[2026-03-23 04:22:37] INFO: ttt_epoch:32/100 loss:1.7283 lr:0.000770 time:468.2s
+[2026-03-23 04:22:51] INFO: ttt_epoch:33/100 loss:1.7255 lr:0.000757 time:482.8s
+[2026-03-23 04:23:06] INFO: ttt_epoch:34/100 loss:1.7214 lr:0.000743 time:497.4s
+[2026-03-23 04:23:20] INFO: ttt_epoch:35/100 loss:1.7172 lr:0.000730 time:512.0s
+[2026-03-23 04:23:35] INFO: ttt_epoch:36/100 loss:1.7138 lr:0.000716 time:526.7s
+[2026-03-23 04:23:50] INFO: ttt_epoch:37/100 loss:1.7104 lr:0.000702 time:541.3s
+[2026-03-23 04:24:04] INFO: ttt_epoch:38/100 loss:1.7069 lr:0.000687 time:555.9s
+[2026-03-23 04:24:19] INFO: ttt_epoch:39/100 loss:1.7036 lr:0.000673 time:570.6s
+[2026-03-23 04:24:34] INFO: ttt_epoch:40/100 loss:1.6998 lr:0.000658 time:585.2s
+[2026-03-23 04:24:48] INFO: ttt_epoch:41/100 loss:1.6963 lr:0.000643 time:599.8s
+[2026-03-23 04:25:03] INFO: ttt_epoch:42/100 loss:1.6930 lr:0.000628 time:614.4s
+[2026-03-23 04:25:17] INFO: ttt_epoch:43/100 loss:1.6894 lr:0.000613 time:629.1s
+[2026-03-23 04:25:32] INFO: ttt_epoch:44/100 loss:1.6857 lr:0.000598 time:643.7s
+[2026-03-23 04:25:47] INFO: ttt_epoch:45/100 loss:1.6829 lr:0.000582 time:658.3s
+[2026-03-23 04:26:01] INFO: ttt_epoch:46/100 loss:1.6805 lr:0.000567 time:672.9s
+[2026-03-23 04:26:16] INFO: ttt_epoch:47/100 loss:1.6773 lr:0.000552 time:687.6s
+[2026-03-23 04:26:31] INFO: ttt_epoch:48/100 loss:1.6734 lr:0.000536 time:702.2s
+[2026-03-23 04:26:45] INFO: ttt_epoch:49/100 loss:1.6684 lr:0.000521 time:716.8s
+[2026-03-23 04:27:00] INFO: ttt_epoch:50/100 loss:1.6637 lr:0.000505 time:731.4s
+[2026-03-23 04:27:15] INFO: ttt_epoch:51/100 loss:1.6602 lr:0.000489 time:746.1s
+[2026-03-23 04:27:29] INFO: ttt_epoch:52/100 loss:1.6564 lr:0.000474 time:760.7s
+[2026-03-23 04:27:44] INFO: ttt_epoch:53/100 loss:1.6505 lr:0.000458 time:775.3s
+[2026-03-23 04:27:58] INFO: ttt_epoch:54/100 loss:1.6447 lr:0.000443 time:789.9s
+[2026-03-23 04:28:13] INFO: ttt_epoch:55/100 loss:1.6404 lr:0.000428 time:804.6s
+[2026-03-23 04:28:28] INFO: ttt_epoch:56/100 loss:1.6370 lr:0.000412 time:819.2s
+[2026-03-23 04:28:42] INFO: ttt_epoch:57/100 loss:1.6339 lr:0.000397 time:833.8s
+[2026-03-23 04:28:57] INFO: ttt_epoch:58/100 loss:1.6325 lr:0.000382 time:848.4s
+[2026-03-23 04:29:12] INFO: ttt_epoch:59/100 loss:1.6315 lr:0.000367 time:863.1s
+[2026-03-23 04:29:26] INFO: ttt_epoch:60/100 loss:1.6294 lr:0.000352 time:877.7s
+[2026-03-23 04:29:41] INFO: ttt_epoch:61/100 loss:1.6269 lr:0.000337 time:892.3s
+[2026-03-23 04:29:55] INFO: ttt_epoch:62/100 loss:1.6233 lr:0.000323 time:906.9s
+[2026-03-23 04:30:10] INFO: ttt_epoch:63/100 loss:1.6193 lr:0.000308 time:921.6s
+[2026-03-23 04:30:25] INFO: ttt_epoch:64/100 loss:1.6142 lr:0.000294 time:936.2s
+[2026-03-23 04:30:39] INFO: ttt_epoch:65/100 loss:1.6091 lr:0.000280 time:950.8s
+[2026-03-23 04:30:54] INFO: ttt_epoch:66/100 loss:1.6055 lr:0.000267 time:965.4s
+[2026-03-23 04:31:09] INFO: ttt_epoch:67/100 loss:1.6037 lr:0.000253 time:980.1s
+[2026-03-23 04:31:23] INFO: ttt_epoch:68/100 loss:1.6019 lr:0.000240 time:994.7s
+[2026-03-23 04:31:38] INFO: ttt_epoch:69/100 loss:1.5985 lr:0.000227 time:1009.3s
+[2026-03-23 04:31:52] INFO: ttt_epoch:70/100 loss:1.5939 lr:0.000214 time:1023.9s
+[2026-03-23 04:32:07] INFO: ttt_epoch:71/100 loss:1.5902 lr:0.000202 time:1038.6s
+[2026-03-23 04:32:22] INFO: ttt_epoch:72/100 loss:1.5873 lr:0.000189 time:1053.2s
+[2026-03-23 04:32:36] INFO: ttt_epoch:73/100 loss:1.5847 lr:0.000178 time:1067.8s
+[2026-03-23 04:32:51] INFO: ttt_epoch:74/100 loss:1.5817 lr:0.000166 time:1082.4s
+[2026-03-23 04:33:06] INFO: ttt_epoch:75/100 loss:1.5782 lr:0.000155 time:1097.1s
+[2026-03-23 04:33:20] INFO: ttt_epoch:76/100 loss:1.5749 lr:0.000144 time:1111.7s
+[2026-03-23 04:33:35] INFO: ttt_epoch:77/100 loss:1.5721 lr:0.000134 time:1126.3s
+[2026-03-23 04:33:49] INFO: ttt_epoch:78/100 loss:1.5697 lr:0.000124 time:1140.9s
+[2026-03-23 04:34:04] INFO: ttt_epoch:79/100 loss:1.5669 lr:0.000114 time:1155.6s
+[2026-03-23 04:34:19] INFO: ttt_epoch:80/100 loss:1.5638 lr:0.000105 time:1170.2s
+[2026-03-23 04:34:33] INFO: ttt_epoch:81/100 loss:1.5606 lr:0.000096 time:1184.8s
+[2026-03-23 04:34:48] INFO: ttt_epoch:82/100 loss:1.5579 lr:0.000087 time:1199.4s
+[2026-03-23 04:35:03] INFO: ttt_epoch:83/100 loss:1.5555 lr:0.000079 time:1214.1s
+[2026-03-23 04:35:17] INFO: ttt_epoch:84/100 loss:1.5533 lr:0.000071 time:1228.7s
+[2026-03-23 04:35:32] INFO: ttt_epoch:85/100 loss:1.5511 lr:0.000064 time:1243.3s
+[2026-03-23 04:35:46] INFO: ttt_epoch:86/100 loss:1.5490 lr:0.000057 time:1257.9s
+[2026-03-23 04:36:01] INFO: ttt_epoch:87/100 loss:1.5470 lr:0.000051 time:1272.6s
+[2026-03-23 04:36:16] INFO: ttt_epoch:88/100 loss:1.5450 lr:0.000045 time:1287.2s
+[2026-03-23 04:36:30] INFO: ttt_epoch:89/100 loss:1.5430 lr:0.000039 time:1301.8s
+[2026-03-23 04:36:45] INFO: ttt_epoch:90/100 loss:1.5411 lr:0.000034 time:1316.4s
+[2026-03-23 04:37:00] INFO: ttt_epoch:91/100 loss:1.5392 lr:0.000030 time:1331.1s
+[2026-03-23 04:37:14] INFO: ttt_epoch:92/100 loss:1.5373 lr:0.000026 time:1345.7s
+[2026-03-23 04:37:29] INFO: ttt_epoch:93/100 loss:1.5355 lr:0.000022 time:1360.3s
+[2026-03-23 04:37:43] INFO: ttt_epoch:94/100 loss:1.5337 lr:0.000019 time:1374.9s
+[2026-03-23 04:37:58] INFO: ttt_epoch:95/100 loss:1.5320 lr:0.000016 time:1389.6s
+[2026-03-23 04:38:13] INFO: ttt_epoch:96/100 loss:1.5304 lr:0.000014 time:1404.2s
+[2026-03-23 04:38:27] INFO: ttt_epoch:97/100 loss:1.5290 lr:0.000012 time:1418.8s
+[2026-03-23 04:38:42] INFO: ttt_epoch:98/100 loss:1.5278 lr:0.000011 time:1433.5s
+[2026-03-23 04:38:57] INFO: ttt_epoch:99/100 loss:1.5267 lr:0.000010 time:1448.1s
+[2026-03-23 04:39:11] INFO: ttt_epoch:100/100 loss:1.5259 lr:0.000010 time:1462.7s
+[2026-03-23 04:39:11] INFO: ttt:done elapsed=1462.7s
+[2026-03-23 04:39:11] INFO: ttt:elapsed=1462.7s
+[2026-03-23 04:39:13] INFO: final_int6_roundtrip val_loss:1.5209 val_bpb:0.9008 eval_time:1925ms
+[2026-03-23 04:39:13] INFO: final_int6_roundtrip_exact val_loss:1.52088067 val_bpb:0.90075120
+[2026-03-23 04:40:41] INFO: final_int6_sliding_window val_loss:1.6515 val_bpb:0.9781 stride:64 eval_time:88063ms
+[2026-03-23 04:40:41] INFO: final_int6_sliding_window_exact val_loss:1.65146607 val_bpb:0.97809382
+[2026-03-23 04:40:49] INFO: Model files: ['final_model.pt', 'final_model.int6.ptz']
+[2026-03-23 04:40:49] INFO:   Copied final_model.pt to output
+[2026-03-23 04:40:49] INFO:   Copied final_model.int6.ptz to output
+[2026-03-23 04:40:49] INFO: Training complete. Final BPB (int8+zlib): 0.97809382
+[2026-03-23 04:40:49] INFO: Submission size: 15510001 bytes (14.8 MB)
+Meerkat SDK call failed: rkat-rpc process closed
+Traceback (most recent call last):
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 1027, in run
+    asyncio.get_running_loop()
+RuntimeError: no running event loop
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 1033, in run
+    raw_output, session_id = asyncio.run(_run_session())
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/goldfish_io/goldfish/svs/agent.py", line 999, in _run_session
+    async with meerkat.MeerkatClient() as client:
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 152, in __aenter__
+    await self.connect()
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 209, in connect
+    result = await self._request("initialize", {})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/meerkat/client.py", line 921, in _request
+    return await response_future
+           ^^^^^^^^^^^^^^^^^^^^^
+meerkat.errors.MeerkatError: rkat-rpc process closed
+Future exception was never retrieved
+future: <Future finished exception=MeerkatError('rkat-rpc process closed')>
+meerkat.errors.MeerkatError: rkat-rpc process closed
+Stage completed successfully
