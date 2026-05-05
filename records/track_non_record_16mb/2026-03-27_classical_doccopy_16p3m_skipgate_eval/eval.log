@@ -1,0 +1,24 @@
+step=5000000 bpb=1.861593 tok_per_s=141,914 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=10000000 bpb=1.858496 tok_per_s=143,820 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=15000000 bpb=1.846596 tok_per_s=144,376 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=20000000 bpb=1.834947 tok_per_s=145,172 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=25000000 bpb=1.824181 tok_per_s=145,638 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=30000000 bpb=1.820573 tok_per_s=145,570 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=35000000 bpb=1.818623 tok_per_s=145,385 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=40000000 bpb=1.812723 tok_per_s=144,465 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=45000000 bpb=1.805575 tok_per_s=144,585 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=50000000 bpb=1.804179 tok_per_s=144,397 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=55000000 bpb=1.801776 tok_per_s=144,152 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+step=60000000 bpb=1.797289 tok_per_s=136,920 weights=[doc_copy_ctx2=0.780, doc_skip_copy_1-3=0.140, doc_skip_copy_1-4=0.080, ngram_4=0.000]
+loaded_state_bytes=15645820
+loaded_warmup_predictions=16299999
+tokens_loaded=62021846
+predictions=62021845
+total_bytes=151080891
+val_bpb=1.79538936
+elapsed_seconds=471.76
+expert_weights:
+  doc_copy_ctx2: weight=0.780000 avg_logloss_bits=4.411816
+  doc_skip_copy_1-3: weight=0.140000 avg_logloss_bits=4.509383
+  doc_skip_copy_1-4: weight=0.080000 avg_logloss_bits=4.533882
+  ngram_4: weight=0.000000 avg_logloss_bits=0.000000
