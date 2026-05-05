@@ -1,0 +1,237 @@
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  batch_schedule_enabled: False
+  beta1: 0.9
+  beta2: 0.95
+  byte_weighted_ce: False
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.45
+  eval_seq_len: 2048
+  eval_stride: 64
+  eval_temperature: 1.0
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 0.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 0.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  hessian_clip_lambda: 0.175
+  is_main_process: True
+  iterations: 20000
+  kd_alpha: 0.5
+  kd_enabled: False
+  kd_logits_dir: 
+  kd_temperature: 2.0
+  kd_top_k: 32
+  kd_warmup_frac: 0.0
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/c387af6a-37e9-46ce-96ab-7d962e511d1a.txt
+  logit_softcap: 30.0
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.028
+  max_eval_seconds: 600.0
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  mos_k: 1
+  muon_backend_steps: 5
+  muon_momentum: 0.95
+  muon_momentum_warmup_start: 0.85
+  muon_momentum_warmup_steps: 500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  parallel_residual_start: 7
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: c387af6a-37e9-46ce-96ab-7d962e511d1a
+  scalar_lr: 0.02
+  scale_tuning_batches: 8
+  scale_tuning_enabled: False
+  scale_tuning_lr: 0.001
+  scale_tuning_steps: 20
+  seed: 42
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  sparsity_start_frac: 0.0
+  swa_enabled: True
+  swa_every: 1
+  swa_start_frac: 0.12
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 393216
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 3
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_alpha: 144.0
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_lr: 0.02
+  ttt_mlp_lora: True
+  ttt_momentum: 0.9
+  ttt_ns_steps: 0
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_reset_per_chunk: False
+  ttt_swa: False
+  ttt_warm_start_a: True
+  ttt_weight_decay: 1.0
+  val_batch_tokens: 524288
+  val_doc_fraction: 1.0
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+val_tokens: 40540160
+train_shards: 128
+model_params:35943512
+gptq:reserving 0s, effective=600000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:on
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0090 val_bpb: 3.4877
+1/20000 train_loss: 9.0126 train_time: 0.0m tok/s: 6623905
+2/20000 train_loss: 12.3729 train_time: 0.0m tok/s: 6561103
+3/20000 train_loss: 11.4835 train_time: 0.0m tok/s: 6488964
+4/20000 train_loss: 9.7734 train_time: 0.0m tok/s: 6449721
+5/20000 train_loss: 8.5891 train_time: 0.0m tok/s: 6425375
+500/20000 train_loss: 3.4259 train_time: 0.5m tok/s: 6300857
+1000/20000 train_loss: 3.3242 train_time: 1.0m tok/s: 6302031
+1500/20000 train_loss: 3.2298 train_time: 1.6m tok/s: 6298994
+2000/20000 train_loss: 3.2786 train_time: 2.1m tok/s: 6298743
+2500/20000 train_loss: 3.2658 train_time: 2.6m tok/s: 6300972
+3000/20000 train_loss: 3.1592 train_time: 3.1m tok/s: 6303294
+3500/20000 train_loss: 3.1920 train_time: 3.6m tok/s: 6305846
+4000/20000 train_loss: 3.1895 train_time: 4.2m tok/s: 6305765
+4000/20000 val_loss: 3.1842 val_bpb: 1.2327
+layer_loop:enabled step:4331 frac:0.450 encoder:[0, 1, 2, 3, 4, 5, 3] decoder:[4, 5, 6, 7, 8, 9, 10]
+4500/20000 train_loss: 3.1278 train_time: 4.7m tok/s: 6254266
+5000/20000 train_loss: 3.1582 train_time: 5.4m tok/s: 6113468
+5500/20000 train_loss: 3.0527 train_time: 6.0m tok/s: 5976418
+6000/20000 train_loss: 3.0583 train_time: 6.7m tok/s: 5889893
+6500/20000 train_loss: 3.0650 train_time: 7.3m tok/s: 5818860
+7000/20000 train_loss: 3.0981 train_time: 8.0m tok/s: 5765645
+7500/20000 train_loss: 3.1112 train_time: 8.6m tok/s: 5714411
+8000/20000 train_loss: 2.9164 train_time: 9.2m tok/s: 5675497
+8000/20000 val_loss: 2.8948 val_bpb: 1.1207
+8500/20000 train_loss: 2.8299 train_time: 9.9m tok/s: 5640097
+8597/20000 val_loss: 2.8796 val_bpb: 1.1148
+stopping_early: wallclock_cap train_time: 600047ms step: 8597/20000
+peak memory allocated: 18417 MiB reserved: 19440 MiB
+swa:applying SWA weights (676 checkpoints)
+pre-quantization post-ema val_loss:2.83333412 val_bpb:1.09687193 eval_time:5336ms
+Serialized model: 135426937 bytes
+Code size: 32872 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 6.1s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 15966812 bytes
+Total submission size quantized+brotli: 15999684 bytes
+eval:budget 600s
+quantized val_loss:2.85680436 val_bpb:1.10595800 eval_time:22126ms
+quantized_sliding_window val_loss:2.81389729 val_bpb:1.08934733 eval_time:118209ms
+ttt_lora:warming up compile
+W0501 06:03:55.301000 2413 torch/distributed/elastic/agent/server/api.py:739] Received 15 death signal, shutting down workers
+W0501 06:03:55.303000 2413 torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 2481 closing signal SIGTERM
+W0501 06:03:55.304000 2413 torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 2482 closing signal SIGTERM
+W0501 06:03:55.305000 2413 torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 2483 closing signal SIGTERM
+W0501 06:03:55.306000 2413 torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 2484 closing signal SIGTERM
+W0501 06:03:55.307000 2413 torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 2485 closing signal SIGTERM
+W0501 06:03:55.310000 2413 torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 2486 closing signal SIGTERM
+W0501 06:03:55.312000 2413 torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 2487 closing signal SIGTERM
+W0501 06:03:55.320000 2413 torch/distributed/elastic/multiprocessing/api.py:1010] Sending process 2488 closing signal SIGTERM
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/run.py", line 995, in <module>
+    main()
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 362, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/run.py", line 991, in main
+    run(args)
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/run.py", line 982, in run
+    elastic_launch(
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 308, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/elastic/metrics/api.py", line 134, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 731, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 908, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/workspace/uv-envs/parameter-golf/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 86, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 2413 got signal: 15

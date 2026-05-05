@@ -1,0 +1,33 @@
+{
+  "author": "Piyush Datta",
+  "github_id": "PiyushDatta",
+  "name": "SP8192 Depth Recurrence + Polar Express NS + Phased LoRA TTT",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.09085,
+  "val_bpb_std": 0.001441,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {"val_bpb": 1.08935, "artifact_bytes": 15999684},
+    "314": {"val_bpb": 1.09035, "artifact_bytes": 15997730},
+    "999": {"val_bpb": 1.09286, "artifact_bytes": 15998747}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.7",
+  "technique_summary": "SP8192 + 11L MLP4x + Depth Recurrence (L3-5, NUM_LOOPS=1) + Parallel Residuals + Polar Express NS + MuonEq-R + SDClip GPTQ (int6+int8 embed) + Brotli + SWA (SWA_EVERY=1, warmdown=0.72) + Half-Batch (393K) + Phased LoRA TTT (rank 96, warm-start A)",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": null,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt_framework": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "polar_express_ns": "custom implementation (arxiv 2505.16932)",
+    "phased_lora_ttt": "@dexhunter (PR #1626), @romeerp (PR #1610)"
+  }
+}
