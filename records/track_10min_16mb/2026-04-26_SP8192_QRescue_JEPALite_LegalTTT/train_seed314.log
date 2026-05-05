@@ -1,0 +1,374 @@
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  attn_wd: 0.095
+  awq_rescale_enabled: False
+  beta1: 0.9
+  beta2: 0.95
+  bos_id: 1
+  clip_attn_mult: 1.0
+  clip_early_mult: 1.02
+  clip_late_mult: 0.98
+  clip_loop_mult: 1.02
+  clip_mid_mult: 1.0
+  clip_mlp_mult: 1.03
+  compressor: pergroup
+  data_dir: /workspace/parameter-golf-qrescue-20260426/data/
+  datasets_dir: /workspace/parameter-golf-qrescue-20260426/data/datasets/fineweb10B_sp8192
+  distributed: True
+  early_wd_mult: 1.0
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_fraction: 1.0
+  eval_seq_len: 2048
+  eval_stride: 64
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  hadamard_precond_enabled: False
+  head_lr: 0.008
+  hessian_layerwise_clip: True
+  is_main_process: True
+  iterations: 20000
+  jepa_lite_enabled: True
+  jepa_lite_end_frac: 0.85
+  jepa_lite_frequency: 8
+  jepa_lite_hidden: 128
+  jepa_lite_horizon: 4
+  jepa_lite_lr: 0.01
+  jepa_lite_start_frac: 0.35
+  jepa_lite_stride: 16
+  jepa_lite_weight: 0.03
+  late_wd_mult: 1.0
+  layerwise_precision_enabled: False
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/544e172f-dbc4-4742-9648-f0c38515cee6.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  loop_wd_mult: 1.0
+  lqer_budget_bytes: 140000
+  lqer_enabled: True
+  lqer_max_rank: 4
+  lqer_power_iters: 6
+  lqer_targets: loop_mlp_proj,late_mlp_proj,attn_proj
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  mid_wd_mult: 1.0
+  min_lr: 0.0
+  mlp_fc_wd: 0.095
+  mlp_mult: 4.0
+  mlp_proj_wd: 0.095
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  phased_ttt_num_phases: 3
+  phased_ttt_prefix_docs: 2500
+  precision_attn: 6
+  precision_early_mlp: 6
+  precision_embed: 8
+  precision_late_mlp: 6
+  precision_loop_mlp: 6
+  precision_mid_mlp: 6
+  qk_gain_init: 5.25
+  qrescue_enabled: True
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: 544e172f-dbc4-4742-9648-f0c38515cee6
+  scalar_lr: 0.02
+  seed: 314
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  smoke_test: False
+  split_wd_enabled: False
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/parameter-golf-qrescue-20260426/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: /workspace/parameter-golf-qrescue-20260426/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.9
+  ttt_beta2: 0.99
+  ttt_chunk_size: 48
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 4
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_alpha: 144.0
+  ttt_lora_enabled: False
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 56
+  ttt_lr: 0.005
+  ttt_mlp_lora: True
+  ttt_momentum: 0.9
+  ttt_o_lora: True
+  ttt_phase1_max_seconds: 220.0
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_files: /workspace/parameter-golf-qrescue-20260426/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Thu Apr 30 20:53:32 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:19:00.0 Off |                    0 |
+| N/A   40C    P0            123W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:3B:00.0 Off |                    0 |
+| N/A   34C    P0            126W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   32C    P0            116W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   39C    P0            125W /  700W |    1521MiB /  81559MiB |      5%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9B:00.0 Off |                    0 |
+| N/A   40C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:BB:00.0 Off |                    0 |
+| N/A   35C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   40C    P0            122W /  700W |    1521MiB /  81559MiB |      1%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   34C    P0            121W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+feature_flags: QRESCUE_ENABLED=1 HESSIAN_LAYERWISE_CLIP=1 SPLIT_WD_ENABLED=0 LQER_ENABLED=1 LAYERWISE_PRECISION_ENABLED=0 AWQ_RESCale_ENABLED=0 HADAMARD_PRECOND_ENABLED=0 JEPA_LITE_ENABLED=1
+jepa_lite_effective_loss_weight: 0.03
+jepa_lite_schedule: hidden=128 horizon=4 stride=16 frequency=8 start_frac=0.35 end_frac=0.85 lr=0.01
+lqer_config: budget=140000 max_rank=4 targets=loop_mlp_proj,late_mlp_proj,attn_proj
+train_shards: 80
+val_tokens: 40540160
+model_params:36075608
+jepa_lite_config: weight=0.03 hidden=128 horizon=4 stride=16 frequency=8 start_frac=0.35 end_frac=0.85 lr=0.01
+gptq:reserving 12s, effective=588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.0090 val_bpb: 3.4877
+1/20000 train_loss: 9.0113 train_time: 0.0m tok/s: 8283661
+2/20000 train_loss: 12.3064 train_time: 0.0m tok/s: 8114664
+3/20000 train_loss: 10.9237 train_time: 0.0m tok/s: 8010724
+4/20000 train_loss: 9.4115 train_time: 0.0m tok/s: 7963963
+5/20000 train_loss: 8.2706 train_time: 0.0m tok/s: 7940481
+500/20000 train_loss: 3.3815 train_time: 0.9m tok/s: 7700191
+1000/20000 train_loss: 3.2824 train_time: 1.7m tok/s: 7692907
+1500/20000 train_loss: 3.1881 train_time: 2.6m tok/s: 7695848
+2000/20000 train_loss: 3.0729 train_time: 3.4m tok/s: 7697085
+layer_loop:enabled step:2015 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 3.1244 train_time: 4.6m tok/s: 7053667
+3000/20000 train_loss: 2.9016 train_time: 5.9m tok/s: 6661456
+3500/20000 train_loss: 2.9405 train_time: 7.2m tok/s: 6401195
+4000/20000 train_loss: 2.8229 train_time: 8.4m tok/s: 6229183
+4000/20000 val_loss: 2.8746 val_bpb: 1.1129
+4500/20000 train_loss: 2.8424 train_time: 9.7m tok/s: 6098767
+4552/20000 val_loss: 2.8138 val_bpb: 1.0893
+stopping_early: wallclock_cap train_time: 588067ms step: 4552/20000
+jepa_lite_predictor_removed_before_serialize: true
+train_seconds: 588.067
+peak memory allocated: 39150 MiB reserved: 39188 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.81051216 val_bpb:1.08803684 eval_time:6917ms
+Serialized model: 135431033 bytes
+Code size: 26621 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 12.8s
+GPTQ matrix_config: tok_emb.weight group=global cat=embed bits=8 clip=20 norm_rmse=0.053071
+GPTQ matrix_config: blocks.0.attn.c_q.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.136426
+GPTQ matrix_config: blocks.0.attn.c_k.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.136095
+GPTQ matrix_config: blocks.0.attn.c_v.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.136004
+GPTQ matrix_config: blocks.0.attn.proj.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.145817
+GPTQ matrix_config: blocks.0.mlp.fc.weight group=early cat=mlp bits=6 clip=13.5 norm_rmse=0.139148
+GPTQ matrix_config: blocks.0.mlp.proj.weight group=early cat=mlp bits=6 clip=13.5 norm_rmse=0.143292
+GPTQ matrix_config: blocks.1.attn.c_q.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.142288
+GPTQ matrix_config: blocks.1.attn.c_k.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.142189
+GPTQ matrix_config: blocks.1.attn.c_v.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.141257
+GPTQ matrix_config: blocks.1.attn.proj.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.145150
+GPTQ matrix_config: blocks.1.mlp.fc.weight group=early cat=mlp bits=6 clip=13.5 norm_rmse=0.141144
+GPTQ matrix_config: blocks.1.mlp.proj.weight group=early cat=mlp bits=6 clip=13.5 norm_rmse=0.136393
+GPTQ matrix_config: blocks.2.attn.c_q.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.140277
+GPTQ matrix_config: blocks.2.attn.c_k.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.140280
+GPTQ matrix_config: blocks.2.attn.c_v.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.140749
+GPTQ matrix_config: blocks.2.attn.proj.weight group=early cat=attn bits=6 clip=13.107 norm_rmse=0.154992
+GPTQ matrix_config: blocks.2.mlp.fc.weight group=early cat=mlp bits=6 clip=13.5 norm_rmse=0.142564
+GPTQ matrix_config: blocks.2.mlp.proj.weight group=early cat=mlp bits=6 clip=13.5 norm_rmse=0.138369
+GPTQ matrix_config: blocks.3.attn.c_q.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.135876
+GPTQ matrix_config: blocks.3.attn.c_k.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.136030
+GPTQ matrix_config: blocks.3.attn.c_v.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.136067
+GPTQ matrix_config: blocks.3.attn.proj.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.153408
+GPTQ matrix_config: blocks.3.mlp.fc.weight group=loop cat=mlp bits=6 clip=13.5 norm_rmse=0.140727
+LQER matrix_config: blocks.3.mlp.proj.weight rank=4 bytes=20480 norm_rmse_after=0.136951
+GPTQ matrix_config: blocks.3.mlp.proj.weight group=loop cat=mlp bits=6 clip=13.5 norm_rmse=0.138428
+GPTQ matrix_config: blocks.4.attn.c_q.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.137093
+GPTQ matrix_config: blocks.4.attn.c_k.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.136840
+GPTQ matrix_config: blocks.4.attn.c_v.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.136739
+GPTQ matrix_config: blocks.4.attn.proj.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.147502
+GPTQ matrix_config: blocks.4.mlp.fc.weight group=loop cat=mlp bits=6 clip=13.5 norm_rmse=0.141204
+LQER matrix_config: blocks.4.mlp.proj.weight rank=4 bytes=20480 norm_rmse_after=0.136433
+GPTQ matrix_config: blocks.4.mlp.proj.weight group=loop cat=mlp bits=6 clip=13.5 norm_rmse=0.137612
+GPTQ matrix_config: blocks.5.attn.c_q.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.136321
+GPTQ matrix_config: blocks.5.attn.c_k.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.136499
+GPTQ matrix_config: blocks.5.attn.c_v.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.136568
+GPTQ matrix_config: blocks.5.attn.proj.weight group=loop cat=attn bits=6 clip=13.107 norm_rmse=0.146428
+GPTQ matrix_config: blocks.5.mlp.fc.weight group=loop cat=mlp bits=6 clip=13.5 norm_rmse=0.140746
+LQER matrix_config: blocks.5.mlp.proj.weight rank=4 bytes=20480 norm_rmse_after=0.138102
+GPTQ matrix_config: blocks.5.mlp.proj.weight group=loop cat=mlp bits=6 clip=13.5 norm_rmse=0.139317
+GPTQ matrix_config: blocks.6.attn.c_q.weight group=mid cat=attn bits=6 clip=12.85 norm_rmse=0.138210
+GPTQ matrix_config: blocks.6.attn.c_k.weight group=mid cat=attn bits=6 clip=12.85 norm_rmse=0.137971
+GPTQ matrix_config: blocks.6.attn.c_v.weight group=mid cat=attn bits=6 clip=12.85 norm_rmse=0.138058
+GPTQ matrix_config: blocks.6.attn.proj.weight group=mid cat=attn bits=6 clip=12.85 norm_rmse=0.147799
+GPTQ matrix_config: blocks.6.mlp.fc.weight group=mid cat=mlp bits=6 clip=13.236 norm_rmse=0.143759
+GPTQ matrix_config: blocks.6.mlp.proj.weight group=mid cat=mlp bits=6 clip=13.236 norm_rmse=0.138294
+GPTQ matrix_config: blocks.7.attn.c_q.weight group=mid cat=attn bits=6 clip=12.85 norm_rmse=0.134134
+GPTQ matrix_config: blocks.7.attn.c_k.weight group=mid cat=attn bits=6 clip=12.85 norm_rmse=0.134321
+GPTQ matrix_config: blocks.7.attn.c_v.weight group=mid cat=attn bits=6 clip=12.85 norm_rmse=0.134344
+LQER matrix_config: blocks.7.attn.proj.weight rank=4 bytes=8192 norm_rmse_after=0.135895
+GPTQ matrix_config: blocks.7.attn.proj.weight group=mid cat=attn bits=6 clip=12.85 norm_rmse=0.138389
+GPTQ matrix_config: blocks.7.mlp.fc.weight group=mid cat=mlp bits=6 clip=13.236 norm_rmse=0.138285
+GPTQ matrix_config: blocks.7.mlp.proj.weight group=mid cat=mlp bits=6 clip=13.236 norm_rmse=0.138911
+GPTQ matrix_config: blocks.8.attn.c_q.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.131989
+GPTQ matrix_config: blocks.8.attn.c_k.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.132311
+GPTQ matrix_config: blocks.8.attn.c_v.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.131416
+LQER matrix_config: blocks.8.attn.proj.weight rank=4 bytes=8192 norm_rmse_after=0.132354
+GPTQ matrix_config: blocks.8.attn.proj.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.134812
+GPTQ matrix_config: blocks.8.mlp.fc.weight group=late cat=mlp bits=6 clip=12.971 norm_rmse=0.136250
+LQER matrix_config: blocks.8.mlp.proj.weight rank=4 bytes=20480 norm_rmse_after=0.131648
+GPTQ matrix_config: blocks.8.mlp.proj.weight group=late cat=mlp bits=6 clip=12.971 norm_rmse=0.132790
+GPTQ matrix_config: blocks.9.attn.c_q.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.131792
+GPTQ matrix_config: blocks.9.attn.c_k.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.131980
+GPTQ matrix_config: blocks.9.attn.c_v.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.131967
+LQER matrix_config: blocks.9.attn.proj.weight rank=4 bytes=8192 norm_rmse_after=0.131363
+GPTQ matrix_config: blocks.9.attn.proj.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.133685
+GPTQ matrix_config: blocks.9.mlp.fc.weight group=late cat=mlp bits=6 clip=12.971 norm_rmse=0.135795
+LQER matrix_config: blocks.9.mlp.proj.weight rank=4 bytes=20480 norm_rmse_after=0.130576
+GPTQ matrix_config: blocks.9.mlp.proj.weight group=late cat=mlp bits=6 clip=12.971 norm_rmse=0.132627
+GPTQ matrix_config: blocks.10.attn.c_q.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.130981
+GPTQ matrix_config: blocks.10.attn.c_k.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.131266
+GPTQ matrix_config: blocks.10.attn.c_v.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.130743
+LQER matrix_config: blocks.10.attn.proj.weight rank=4 bytes=8192 norm_rmse_after=0.131950
+GPTQ matrix_config: blocks.10.attn.proj.weight group=late cat=attn bits=6 clip=12.593 norm_rmse=0.134380
+GPTQ matrix_config: blocks.10.mlp.fc.weight group=late cat=mlp bits=6 clip=12.971 norm_rmse=0.134942
+GPTQ matrix_config: blocks.10.mlp.proj.weight group=late cat=mlp bits=6 clip=12.971 norm_rmse=0.132503
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6) + lqer4: blocks.attn.proj.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+mixed_precision_config: {6: 66, 8: 1}
+num_int5_matrices: 0
+num_int6_matrices: 66
+num_int7_matrices: 0
+num_int8_matrices: 1
+lqer_enabled: 1
+lqer_matrices: 9
+lqer_raw_bytes: 135168
+quant_gap_norm_rmse_early: 0.141246
+quant_gap_norm_rmse_global: 0.053071
+quant_gap_norm_rmse_late: 0.132902
+quant_gap_norm_rmse_loop: 0.139634
+quant_gap_norm_rmse_mid: 0.138540
+Serialize: per-group compression...
+Serialize: per-group compression done in 123.2s
+Serialized model quantized+pergroup: 15670229 bytes
+Total submission size quantized+pergroup: 15696850 bytes
+model_bytes: 15670229
+pergroup_model_bytes: 15670229
+code_bytes: 26621
+artifact_bytes: 15696850
+compressor_used: pergroup-lrzip
+roundtrip_ok: True
+Deserialize: per-group decompression...
+Deserialize: decompression done in 65.8s
+quantized val_loss:2.84073887 val_bpb:1.09973854 eval_time:8659ms
+quantized_sliding_window val_loss:2.79782675 val_bpb:1.08312592 eval_time:92669ms
+TTT protocol: chunkwise_score_first_full_sgd
+TTT reset_policy: cumulative_full_model
+TTT phase_boundaries: none
+TTT score_before_update: true
+TTT no_rescore: true
+quantized_ttt val_loss:2.79397839 val_bpb:1.08163610 eval_time:411243ms

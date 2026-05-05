@@ -1,0 +1,65 @@
+{
+  "author": "Michael Spina",
+  "github_id": "H1cSuNtDr4C0n3S",
+  "name": "SP8192 QRescue + JEPA-Lite + LQER + Pergroup/lrzip + Legal TTT",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.0806438566666667,
+  "val_bpb_std": 0.0009625629849695159,
+  "seeds": [
+    42,
+    314,
+    999
+  ],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.07971401,
+      "artifact_bytes": 15693775,
+      "train_seconds": 588.075,
+      "eval_seconds": 503.0,
+      "quantized_bpb": 1.09831799,
+      "sliding_bpb": 1.08152899,
+      "ttt_bpb": 1.07971401
+    },
+    "314": {
+      "val_bpb": 1.0816361,
+      "artifact_bytes": 15696850,
+      "train_seconds": 588.067,
+      "eval_seconds": 512.571,
+      "quantized_bpb": 1.09973854,
+      "sliding_bpb": 1.08312592,
+      "ttt_bpb": 1.0816361
+    },
+    "999": {
+      "val_bpb": 1.08058146,
+      "artifact_bytes": 15695674,
+      "train_seconds": 588.03,
+      "eval_seconds": 495.416,
+      "quantized_bpb": 1.09876592,
+      "sliding_bpb": 1.08208204,
+      "ttt_bpb": 1.08058146
+    }
+  },
+  "hardware": "8xNVIDIA H100 80GB HBM3",
+  "pytorch_version": "2.9.1+cu128",
+  "base_record": "2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT",
+  "technique_summary": "SP8192 QRescue/Hessian SDClip stack with training-side JEPA-Lite, LQER rank-4 residuals, pergroup lrzip compression, and legal chunkwise score-first full-SGD TTT. No tokenizer or dataset changes.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_tokenizer_change": true,
+    "no_dataset_change": true,
+    "no_retokenization": true,
+    "no_slot": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "roundtrip_lossless": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_sp8192_legal_ttt": "2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT and cited lineage",
+    "pergroup_lqer_lineage": "Public Parameter Golf PR lineage including pergroup compression and LQER"
+  }
+}
