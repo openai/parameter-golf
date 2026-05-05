@@ -54,7 +54,11 @@ import sentencepiece as spm
 
 # Local import — lossless_caps.py ships next to this script.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from lossless_caps import encode_lossless_caps_v2  # noqa: E402
+from lossless_caps import (  # noqa: E402
+    LOSSLESS_CAPS_CASEOPS_V1,
+    encode_lossless_caps_v2,
+    surface_piece_original_byte_counts,
+)
 
 
 SHARD_MAGIC = 20240520
@@ -92,44 +96,19 @@ def _token_original_byte_counts(
     original_text: str,
     transformed_text: str,
 ) -> np.ndarray:
-    """Compute per-token canonical (pre-transform) UTF-8 byte counts.
+    """Per-token canonical (pre-transform) UTF-8 byte counts.
 
-    The tokenizer runs on the TRANSFORMED text (so operator tokens exist in
-    the vocabulary), but BPB must be scored on the ORIGINAL byte stream.
-    We tokenize the transformed text, then walk each token's surface form
-    through the decoder to recover the pre-transform substring, and count
-    the UTF-8 bytes of that.
-
-    This is an APPROXIMATION — it assumes every token maps cleanly back to
-    a contiguous original substring. For caseops_v1 (which is character-
-    level and bijective) this holds exactly, because operator tokens
-    correspond to positions in the original string where the case was
-    derived from surrounding letters rather than materialised bytes.
+    Delegates to ``surface_piece_original_byte_counts`` in ``lossless_caps.py``
+    — the canonical exporter used by the PR #1729 / HF-hosted CaseOps dataset.
+    Operator pieces (U+E001..U+E004) contribute 0 original bytes; letter pieces
+    contribute their pre-transform UTF-8 byte count.
     """
-    # Re-encode via the SP model and get pieces (surface strings with the
-    # leading ▁ preserved, as in the BPE vocabulary).
-    piece_ids = sp.encode(transformed_text, out_type=int)
-    pieces = [sp.id_to_piece(int(pid)) for pid in piece_ids]
-    # Walk pieces and match against the transformed text to find byte spans.
-    counts = np.empty(len(piece_ids), dtype=np.uint16)
-    cursor_t = 0
-    cursor_o = 0
-    from lossless_caps import decode_lossless_caps_v2 as _decode
-    for i, piece in enumerate(pieces):
-        # SentencePiece uses ▁ as the whitespace marker.
-        surface = piece.replace("\u2581", " ")
-        span = transformed_text[cursor_t:cursor_t + len(surface)]
-        cursor_t += len(span)
-        # Decode just this span to find the original bytes it came from.
-        try:
-            decoded_prefix = _decode(transformed_text[:cursor_t])
-            original_bytes = len(decoded_prefix.encode("utf-8")) - cursor_o
-            cursor_o += original_bytes
-        except Exception:
-            # Fall back to counting the transformed surface.
-            original_bytes = len(span.encode("utf-8"))
-        counts[i] = max(0, min(65535, original_bytes))
-    return counts
+    proto = sp.encode_as_immutable_proto(transformed_text)
+    byte_counts = surface_piece_original_byte_counts(
+        (piece.surface for piece in proto.pieces),
+        text_transform_name=LOSSLESS_CAPS_CASEOPS_V1,
+    )
+    return np.asarray(list(byte_counts), dtype=np.uint16)
 
 
 def main() -> None:
