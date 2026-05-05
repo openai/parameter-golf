@@ -1,0 +1,26 @@
+{
+  "name": "MHALM — Multi-Head Atlas Language Model",
+  "author": "Alexandre Quemy",
+  "github_id": "aquemy",
+  "val_bpb": null,
+  "artifact_bytes": null,
+  "code_bytes": null,
+  "total_bytes": null,
+  "training_time_seconds": null,
+  "hardware": "8xH100 SXM",
+  "num_runs": null,
+  "description": "Multi-kernel LM with 5 learned readout heads (Nystrom spherical, Gabor, Laplacian, Tucker GL, linear) in 128-dim Stäckel coordinate space + BigramHash(10240). ~12.8M params trained end-to-end with torch.compile at ~100ms/step on 8xH100.",
+  "techniques": [
+    "Learned multi-kernel readout (5 heads, d_max=128)",
+    "BigramHash embedding (10240 vocab)",
+    "Nystrom causal kernel (dual-resolution, Gegenbauer mixture, row-sum normalised)",
+    "Gabor + Laplacian + Tucker GL cross-product heads (d_eff=128, R=128)",
+    "ComplexSSM with state carry-over + causal self-attention",
+    "Muon optimizer (momentum warmup 0.92-0.99)",
+    "SmearGate",
+    "Orthogonal init",
+    "SWA",
+    "Int8 + zstd-22 compression",
+    "torch.compile (per-submodule)"
+  ]
+}
