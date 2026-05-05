@@ -1,0 +1,5 @@
+transformers==4.44.2
+flash-linear-attention==0.4.2
+fla-core==0.4.2
+sentencepiece==0.2.1
+einops==0.8.2

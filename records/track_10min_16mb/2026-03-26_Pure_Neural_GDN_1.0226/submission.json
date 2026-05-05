@@ -1,0 +1,8 @@
+{
+  "author": "shalyhinpavel",
+  "github_id": "shalyhinpavel",
+  "val_bpb": 1.0226,
+  "summary": "Pure Neural SOTA: Gated DeltaNet baseline with optimized curriculum batching and non-blocking prefetching. No TTT/Caching.",
+  "date": "2026-03-26",
+  "info": "records/track_10min_16mb/2026-03-26_Pure_Neural_GDN_1.0226/README.md"
+}
