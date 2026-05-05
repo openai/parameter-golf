@@ -1,0 +1,11 @@
+{
+  "author": "Chandrasen Pandey",
+  "github_id": "Devchandrasen",
+  "name": "CAGE5 TRUE H100 3-seed proxy validation",
+  "blurb": "Non-record 16MB true H100 3-seed proxy validation of legal score-first TTT plus a strictly causal hashed 5-gram mixer.",
+  "date": "2026-04-14T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 4.42756265,
+  "val_bpb": 2.56061156,
+  "bytes_total": 1320479
+}
