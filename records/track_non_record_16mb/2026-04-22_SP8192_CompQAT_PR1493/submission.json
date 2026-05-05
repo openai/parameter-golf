@@ -1,0 +1,36 @@
+{
+  "author": "yevh",
+  "github_id": "yevh",
+  "name": "SP8192 + Compression-Aware QAT on PR #1493",
+  "date": "2026-04-22",
+  "track": "non_record_16mb",
+  "val_bpb": 1.10314,
+  "val_bpb_std": 0.00009,
+  "seeds": [1338, 1339, 1340],
+  "seed_results": {
+    "1338": {
+      "val_bpb": 1.10325,
+      "artifact_bytes": 15996195,
+      "sliding_val_bpb": 1.10482,
+      "train_steps": 2675
+    },
+    "1339": {
+      "val_bpb": 1.10312,
+      "artifact_bytes": 15999417,
+      "sliding_val_bpb": 1.10455,
+      "train_steps": 2665
+    },
+    "1340": {
+      "val_bpb": 1.10307,
+      "artifact_bytes": 15994396,
+      "sliding_val_bpb": 1.10450,
+      "train_steps": 2671
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1493 stack plus compression-aware QAT: entropy surrogate over soft int6 histograms, lambda=0.001, beta=10.0, warmup=200.",
+  "blurb": "PR #1493 recipe plus a differentiable compression-surrogate loss term during training: mean Shannon entropy of soft-int6 histograms, lambda=0.001, beta=10.0, warmup=200. The submission evaluates whether post-quantization compressibility can be optimized directly during training. It achieves a 3-seed mean val_bpb of 1.10314 with std 0.00009 and max artifact size 15,999,417 bytes.",
+  "contribution_type": "methodology",
+  "summary_note": "Complete 3-seed submission evaluating compression-aware QAT under the 10-minute / 16MB rules. The compression surrogate decreases monotonically during training across all seeds, but the current implementation has enough per-step overhead to reduce effective training steps and does not improve over PR #1493 on BPB."
+}
