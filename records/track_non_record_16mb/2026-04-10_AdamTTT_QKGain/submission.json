@@ -1,0 +1,22 @@
+{
+  "name": "AdamTTT + QK-Gain Search",
+  "author": "Lakshay Bansal",
+  "github_id": "lakshaybansal",
+  "val_bpb": null,
+  "artifact_bytes": null,
+  "track": "non-record",
+  "notes": "Replaces SGD with Adam in TTT loop. Also searches QK-Gain above 5.25. Built on top of PR #1493 (bigbag SOTA). No training logs — submitted as novel algorithmic idea without compute access.",
+  "base_pr": 1493,
+  "techniques": [
+    "SP8192",
+    "3-layer depth recurrence",
+    "parallel residuals (layers 7+)",
+    "QK-gain tuning",
+    "Adam-TTT (novel: replace SGD with Adam in test-time training)",
+    "GPTQ SDClip int6/int8",
+    "MuonEq-R",
+    "EMA 0.9965",
+    "LZMA code compression"
+  ],
+  "key_change": "TTT optimizer changed from SGD (momentum=0.9) to Adam (beta1=0.9, beta2=0.999). Adam adapts per-parameter learning rates, converging faster within the TTT budget. Controlled by TTT_OPTIMIZER env var (adam/adamw/sgd)."
+}
