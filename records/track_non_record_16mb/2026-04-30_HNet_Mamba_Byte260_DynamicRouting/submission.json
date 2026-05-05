@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "HNet Mamba Byte-Level LM with Dynamic Routing",
+  "author": "firfre",
+  "github_id": "firfre",
+  "val_bpb": 3.4922,
+  "val_loss": 2.4206,
+  "bytes_total": 13254071
+}

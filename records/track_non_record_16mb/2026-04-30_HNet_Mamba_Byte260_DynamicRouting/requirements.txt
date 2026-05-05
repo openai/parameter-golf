@@ -1,0 +1,8 @@
+torch>=2.5.1
+numpy
+sentencepiece
+einops
+flash-attn
+mamba-ssm
+hnet @ git+https://github.com/goombalab/hnet.git
+brotli
