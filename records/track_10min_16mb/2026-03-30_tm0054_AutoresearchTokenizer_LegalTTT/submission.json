@@ -1,0 +1,43 @@
+{
+  "name": "Scylla (novel tokenizer) + Legal Score-First TTT (val_bpb: 1.08056553)",
+  "author": "Simon Marcus",
+  "github_id": "simon-marcus",
+  "date": "2026-03-30",
+  "val_bpb": 1.08056553,
+  "bytes_total": 15866740,
+  "bytes_code": 120316,
+  "blurb": "Scylla is a TokenMonster-derived tm0054 tokenizer discovered via autoresearch, promoted through proxy validation, retokenized over the full FineWeb competition bundle, and paired with a legal score-first TTT stack. Full-data 3-seed mean legal_ttt_exact val_bpb: 1.08056553 (std 0.00047061).",
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.08008661,
+      "roundtrip_val_bpb": 1.10466967,
+      "sliding_val_bpb": 1.08295388,
+      "steps": 7091,
+      "step_avg_ms": 84.63,
+      "bytes_total": 15866740,
+      "status": "completed"
+    },
+    "1337": {
+      "val_bpb": 1.08102737,
+      "roundtrip_val_bpb": 1.10565088,
+      "sliding_val_bpb": 1.08398224,
+      "steps": 7084,
+      "step_avg_ms": 84.71,
+      "bytes_total": 15850756,
+      "status": "completed"
+    },
+    "2026": {
+      "val_bpb": 1.08058261,
+      "roundtrip_val_bpb": 1.10490932,
+      "sliding_val_bpb": 1.0831599,
+      "steps": 7089,
+      "step_avg_ms": 84.65,
+      "bytes_total": 15849792,
+      "status": "completed"
+    }
+  },
+  "mean_val_bpb": 1.08056553,
+  "std_val_bpb": 0.00047061,
+  "model_params": 26911580,
+  "notes": "Complete draft pending final language review. Full-data tm0054 bundle uses 79 train shards and 1 val shard, with metadata-driven tokenizer byte accounting and legal score-first TTT only."
+}
