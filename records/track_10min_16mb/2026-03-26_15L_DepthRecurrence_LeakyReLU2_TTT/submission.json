@@ -1,0 +1,15 @@
+{
+  "val_bpb": 1.1360,
+  "seeds": [1337],
+  "val_bpb_per_seed": {
+    "1337": 1.13599509
+  },
+  "artifact_size_bytes_per_seed": {
+    "1337": 15869829
+  },
+  "training_time_seconds": 600,
+  "eval_time_seconds": 125,
+  "hardware": "8xH100 SXM 80GB",
+  "author": "aruniyer",
+  "status": "draft"
+}
