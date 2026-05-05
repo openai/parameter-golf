@@ -1,0 +1,87 @@
+{
+  "author": "Shikhar",
+  "github_id": "Itssshikhar",
+  "name": "PR1851 graph + 9-hparam stack + wd_strong + GPTQ AR + pergroup compression — 3-seed re-evaluation",
+  "blurb": "Re-evaluation of the parent record candidate using the published train_gpt.py and the parent README's exact env block, run on three seeds (42, 0, 1234 — same seeds PR #1855 used) for an apples-to-apples comparison. Seed 42 reproduces (1.05948583 vs parent README 1.05956571). Honest 3-seed mean is 1.06017968, giving a -0.00090 delta vs PR #1855's 3-seed mean (1.06107587), versus the parent README's headline -0.00151 framing which compares this candidate's best seed to PR #1855's mean.",
+  "date": "2026-05-03",
+  "track": "10min_16mb",
+  "kind": "three_seed_re_evaluation",
+  "parent_record": "records/track_10min_16mb/2026-05-01_PR1851_9HpStack_WDStrong_AR_Pergroup_1.05957",
+  "val_loss": 2.32006613,
+  "val_bpb": 1.06017968,
+  "val_bpb_stdev": 0.00064459,
+  "val_bpb_spread": 0.00127406,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31854773,
+      "val_bpb": 1.05948583,
+      "pre_quant_val_loss": 2.32690788,
+      "pre_quant_val_bpb": 1.06323705,
+      "post_quant_val_loss": 2.34691873,
+      "post_quant_val_bpb": 1.07238064,
+      "artifact_bytes": 15899339,
+      "quantized_model_bytes": 15865019,
+      "compressed_code_bytes": 34320,
+      "steps": 4862,
+      "train_time_ms": 592131,
+      "ttt_eval_time_s": 498.315
+    },
+    "0": {
+      "val_loss": 2.32031482,
+      "val_bpb": 1.06029333,
+      "pre_quant_val_loss": 2.32882448,
+      "pre_quant_val_bpb": 1.06411281,
+      "post_quant_val_loss": 2.34873874,
+      "post_quant_val_bpb": 1.07321226,
+      "artifact_bytes": 15903214,
+      "quantized_model_bytes": 15868894,
+      "compressed_code_bytes": 34320,
+      "steps": 4849,
+      "train_time_ms": 592065,
+      "ttt_eval_time_s": 460.305
+    },
+    "1234": {
+      "val_loss": 2.32133583,
+      "val_bpb": 1.06075989,
+      "pre_quant_val_loss": 2.32924057,
+      "pre_quant_val_bpb": 1.06430293,
+      "post_quant_val_loss": 2.34964283,
+      "post_quant_val_bpb": 1.07362536,
+      "artifact_bytes": 15909242,
+      "quantized_model_bytes": 15874922,
+      "compressed_code_bytes": 34320,
+      "steps": 4878,
+      "train_time_ms": 592046,
+      "ttt_eval_time_s": 464.003
+    }
+  },
+  "comparison": {
+    "parent_readme_seed42_claim_bpb": 1.05956571,
+    "parent_readme_claimed_delta_vs_pr1855_3seed_mean": -0.00151016,
+    "pr1855_3seed_mean_bpb": 1.06107587,
+    "pr1855_seed_results_bpb": {
+      "42": 1.05989454,
+      "0": 1.06124613,
+      "1234": 1.06208695
+    },
+    "honest_3seed_delta_vs_pr1855_3seed_mean": -0.00089619,
+    "per_seed_delta_vs_pr1855": {
+      "42": -0.00040871,
+      "0": -0.00095280,
+      "1234": -0.00132706
+    },
+    "seed42_reproduction_delta_vs_parent_readme": -0.00007988
+  },
+  "artifact_bytes_mean": 15903932,
+  "artifact_bytes_max": 15909242,
+  "artifact_bytes_min": 15899339,
+  "artifact_bytes_cap": 16777216,
+  "artifact_bytes_max_margin": 867974,
+  "train_steps_mean": 4863.0,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attention": "flash_attn_3 from windreamer/flash-attention3-wheels/cu128_torch291",
+  "technique_summary": "Re-eval of parent record on 3 seeds using its own train_gpt.py + env block; PR #1851 graph with PR #1855's 9 hparams, wd_strong Muon weight-decay schedule (0.5 low / 1.75 high), GPTQ all-rank Hessian averaging, and PR #1855 per-group lrzip+brotli compression."
+}

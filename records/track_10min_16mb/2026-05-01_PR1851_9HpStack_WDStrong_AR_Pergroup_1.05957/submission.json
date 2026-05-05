@@ -1,0 +1,41 @@
+{
+  "author": "Shikhar",
+  "github_id": "Itssshikhar",
+  "name": "PR1851 graph + 9-hparam stack + wd_strong + GPTQ AR + pergroup compression",
+  "blurb": "PR #1851-derived BOS-fixed SmearGate + LQER asymmetric + SparseAttnGate/PolarNS/FusedCE stack with PR #1855's 9 hparam overrides, a stronger Muon weight-decay schedule, GPTQ all-rank Hessian averaging, and PR #1855-style per-group lrzip+brotli compression ported into the PR #1851 graph. Seed 42 reaches 1.05956571 BPB with a 15,901,624 byte artifact.",
+  "date": "2026-05-01",
+  "track": "10min_16mb",
+  "val_loss": 2.31872252,
+  "val_bpb": 1.05956571,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31872252,
+      "val_bpb": 1.05956571,
+      "pre_quant_val_loss": 2.32715881,
+      "pre_quant_val_bpb": 1.06335171,
+      "post_quant_val_loss": 2.34710161,
+      "post_quant_val_bpb": 1.07246420,
+      "artifact_bytes": 15901624,
+      "quantized_model_bytes": 15867294,
+      "compressed_code_bytes": 34330,
+      "steps": 4844,
+      "train_time_ms": 592124,
+      "step_avg_ms": 122.24,
+      "ttt_eval_time_s": 516.992
+    }
+  },
+  "comparison_baseline_bpb": 1.06107587,
+  "comparison_baseline_name": "PR #1855 3-seed mean",
+  "delta_vs_baseline_bpb": -0.00151016,
+  "delta_vs_pr1855_seed42_bpb": -0.00032883,
+  "artifact_bytes_mean": 15901624,
+  "artifact_bytes_max": 15901624,
+  "bytes_total": 15901624,
+  "train_steps_mean": 4844,
+  "step_avg_ms_mean": 122.24,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "technique_summary": "PR #1851 graph with PR #1855's 9 hparams, wd_strong Muon weight-decay schedule (0.5 low / 1.75 high), GPTQ all-rank Hessian averaging, and PR #1855 per-group lrzip+brotli compression ported into train_gpt.py."
+}
