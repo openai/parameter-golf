@@ -1,0 +1,1 @@
+fused-softcap-ce @ git+https://github.com/anthony-maio/fused-softcap-ce.git@25e7ad6292cd1e837eef592f50e4d9f5990b6c84
