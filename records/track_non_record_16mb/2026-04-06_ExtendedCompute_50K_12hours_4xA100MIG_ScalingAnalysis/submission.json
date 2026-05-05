@@ -1,0 +1,20 @@
+{
+  "name": "Extended Compute Scaling Analysis (50K Steps, ~12 Hours)",
+  "val_bpb": 1.0858,
+  "val_bpb_std": 0.0005,
+  "bytes_total": 14296887,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": { "val_bpb": 1.0853, "pre_ttt_bpb": 1.0942, "ttt_gain": -0.0089, "artifact_bytes": 14330478, "step_avg_ms": 829.02 },
+    "42":   { "val_bpb": 1.0857, "pre_ttt_bpb": 1.0945, "ttt_gain": -0.0088, "artifact_bytes": 14206210, "step_avg_ms": 830.86 },
+    "2024": { "val_bpb": 1.0865, "pre_ttt_bpb": 1.0953, "ttt_gain": -0.0088, "artifact_bytes": 14353974, "step_avg_ms": 828.72 }
+  },
+  "blurb": "Scaling analysis of the PR #549 SOTA stack (LeakyReLU² + TTT + Parallel Muon) under extended compute on 4×A100 MIG. 50K steps (~12 hours training) achieves 1.0858 BPB post-TTT (3-seed mean, std 0.0005) with ~14.30MB artifact. Extends the 20K scaling curve showing continued power-law decay and TTT gains scaling with compute (-0.0089 BPB vs -0.0058 at 20K).",
+  "author": "Jundong Hu",
+  "github_id": "OnlyJundong",
+  "date": "2026-04-06",
+  "track": "non_record_16mb",
+  "hardware": "4×A100 MIG",
+  "steps": 50000,
+  "step_avg_ms_mean": 829.53
+}
