@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-20",
+  "name": "GDN-Hybrid + Legal Score-First TTT + Full-Hessian GPTQ Int6",
+  "author": "mlinh",
+  "github_id": "gracebml",
+  "val_bpb": 1.0996,
+  "val_loss": 1.8567,
+  "bytes_total": 14034252,
+  "notes": "Unlimited compute track. 80-hour wallclock run on 1 GPU H100 (wallclock-capped at 4800s per session). Final BPB measured with sliding-window stride=32 on the full FineWeb validation split."
+}
