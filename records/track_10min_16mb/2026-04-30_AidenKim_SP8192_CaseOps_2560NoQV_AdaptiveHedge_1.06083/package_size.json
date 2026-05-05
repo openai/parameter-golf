@@ -1,0 +1,27 @@
+{
+  "cap_bytes": 16000000,
+  "code_path": "train_gpt.py",
+  "code_wrapper_sha256": "37e54152983aab20b248e54b5b624b057624a78295035958ab4bbc3feca47320",
+  "code_source_sha256": "88b870cbdf784d72d75e652f13336a82bab012b563a2e0acf7f83935f4bcff45",
+  "code_uncompressed_bytes": 247230,
+  "code_wrapper_brotli_base85_bytes": 57552,
+  "external_ngram_files_required": false,
+  "self_contained_ngram_code": true,
+  "per_seed_model_bytes": {
+    "42": 15872234,
+    "0": 15871302,
+    "1234": 15874515
+  },
+  "per_seed_model_sha256": {
+    "42": "565441a723c0705e7d6d81bfe34271f6a4704fc21ceb1a50b076241c135b762c",
+    "0": "489cf25b2c852a79a6f8265d007ee1f18196dbd2e5e34b96ef4a9234774e2622",
+    "1234": "8b5521ee68a41df1c1e91ade6a814f68c7cf0034096fc775e1f4583275399a41"
+  },
+  "artifact_bytes_by_seed": {
+    "42": 15929786,
+    "0": 15928854,
+    "1234": 15932067
+  },
+  "artifact_bytes_max": 15932067,
+  "margin_bytes": 67933
+}
