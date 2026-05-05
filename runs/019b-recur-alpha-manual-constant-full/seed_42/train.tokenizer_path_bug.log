@@ -1,0 +1,325 @@
+W0421 06:36:24.842000 392 torch/distributed/run.py:803] 
+W0421 06:36:24.842000 392 torch/distributed/run.py:803] *****************************************
+W0421 06:36:24.842000 392 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0421 06:36:24.842000 392 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank2]:     train_and_eval(h, device)
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3406, in train_and_eval
+[rank2]:     val_data = ValidationData(h, device)
+[rank2]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 248, in __init__
+[rank2]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank2]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank2]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank2]:     return self.LoadFromFile(model_file)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank2]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]: OSError: Not found: "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank5]:     main()
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank5]:     train_and_eval(h, device)
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3406, in train_and_eval
+[rank5]:     val_data = ValidationData(h, device)
+[rank5]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 248, in __init__
+[rank5]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank5]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank5]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank5]:     return self.LoadFromFile(model_file)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank5]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]: OSError: Not found: "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank3]:     main()
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank3]:     train_and_eval(h, device)
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3406, in train_and_eval
+[rank3]:     val_data = ValidationData(h, device)
+[rank3]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 248, in __init__
+[rank3]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank3]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank3]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank3]:     return self.LoadFromFile(model_file)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank3]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]: OSError: Not found: "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank7]:     main()
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank7]:     train_and_eval(h, device)
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3406, in train_and_eval
+[rank7]:     val_data = ValidationData(h, device)
+[rank7]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 248, in __init__
+[rank7]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank7]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank7]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank7]:     return self.LoadFromFile(model_file)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank7]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]: OSError: Not found: "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+  artifact_dir: /workspace/runs/019b-recur-alpha-manual-constant-full/seed_42
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank4]:     main()
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank4]:     train_and_eval(h, device)
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3406, in train_and_eval
+[rank4]:     val_data = ValidationData(h, device)
+[rank4]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 248, in __init__
+[rank4]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank4]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank4]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank4]:     return self.LoadFromFile(model_file)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank4]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]: OSError: Not found: "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank6]:     train_and_eval(h, device)
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3406, in train_and_eval
+[rank6]:     val_data = ValidationData(h, device)
+[rank6]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 248, in __init__
+[rank6]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank6]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank6]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank6]:     return self.LoadFromFile(model_file)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank6]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]: OSError: Not found: "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank1]:     train_and_eval(h, device)
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3406, in train_and_eval
+[rank1]:     val_data = ValidationData(h, device)
+[rank1]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 248, in __init__
+[rank1]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank1]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank1]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank1]:     return self.LoadFromFile(model_file)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank1]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]: OSError: Not found: "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.95
+  caseops_enabled: True
+  compressor: brotli
+  data_dir: /workspace/parameter-golf/data
+  datasets_dir: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 15.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gate_window: 12
+  gated_attn_enabled: True
+  gated_attn_init_std: 0.005
+  gated_attn_quant_gate: True
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 4.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: /workspace/runs/019b-recur-alpha-manual-constant-full/seed_42/2c2459f7-a40c-4d92-bd3e-5de07b4b85f4.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_clip_sigmas: 12.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /workspace/runs/019b-recur-alpha-manual-constant-full/seed_42/final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 3
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  quantized_model_path: /workspace/runs/019b-recur-alpha-manual-constant-full/seed_42/final_model.int6.ptz
+  rank: 0
+  recur_alpha_enabled: True
+  recur_diag_p2p_cos: False
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: 2c2459f7-a40c-4d92-bd3e-5de07b4b85f4
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: False
+  spinquant_enabled: False
+  spinquant_seed: 42
+  spinquant_sites: attn_in,attn_proj_in,mlp_in,mlp_proj_in
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+  train_batch_tokens: 786432
+  train_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_train_*.bin
+  train_log_every: 100
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_bytes_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.75
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3581, in <module>
+[rank0]:     main()
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3575, in main
+[rank0]:     train_and_eval(h, device)
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 3406, in train_and_eval
+[rank0]:     val_data = ValidationData(h, device)
+[rank0]:                ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/workspace/parameter-golf/records/track_10min_16mb/2026-04-19_SP8192_CaseOps_GatedAttn_QuantGate_Loop45_PhasedTTT/train_gpt.py", line 248, in __init__
+[rank0]:     self.sp = spm.SentencePieceProcessor(model_file=h.tokenizer_path)
+[rank0]:               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 468, in Init
+[rank0]:     self.Load(model_file=model_file, model_proto=model_proto)
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 961, in Load
+[rank0]:     return self.LoadFromFile(model_file)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/dist-packages/sentencepiece/__init__.py", line 316, in LoadFromFile
+[rank0]:     return _sentencepiece.SentencePieceProcessor_LoadFromFile(self, arg)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]: OSError: Not found: "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192_caseops/datasets/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model": No such file or directory Error #2
+[rank0]:[W421 06:36:36.198903889 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0421 06:36:37.546000 392 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 502 closing signal SIGTERM
+W0421 06:36:37.549000 392 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 503 closing signal SIGTERM
+W0421 06:36:37.550000 392 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 504 closing signal SIGTERM
+W0421 06:36:37.552000 392 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 506 closing signal SIGTERM
+W0421 06:36:37.554000 392 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 507 closing signal SIGTERM
+W0421 06:36:37.554000 392 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 508 closing signal SIGTERM
+W0421 06:36:37.555000 392 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 509 closing signal SIGTERM
+E0421 06:36:38.874000 392 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 3 (pid: 505) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-21_06:36:37
+  host      : 9c28f8b148b1
+  rank      : 3 (local_rank: 3)
+  exitcode  : 1 (pid: 505)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
