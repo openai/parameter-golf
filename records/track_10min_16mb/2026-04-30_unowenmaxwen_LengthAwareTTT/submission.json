@@ -1,0 +1,48 @@
+{
+  "author": "Max Wen",
+  "email": "max.wen@unimelb.edu.au",
+  "github_id": "unowenmaxwen",
+  "github_url": "https://github.com/unowenmaxwen/",
+  "name": "Single-seed validation of LQER SparseAttnGate BOS-fixed phased TTT stack",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "submission_type": "non_record_single_seed_validation",
+  "sota_claim": false,
+  "val_loss": 2.32006828,
+  "val_bpb": 1.06018067,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.32006828,
+      "val_bpb": 1.06018067,
+      "artifact_bytes": 15898824,
+      "steps": 4872,
+      "train_time_s": 592.059,
+      "eval_time_s": 497.6,
+      "pre_quant_val_bpb": 1.06427086,
+      "post_quant_val_bpb": 1.07281079
+    }
+  },
+  "current_sota_reference": {
+    "folder": "records/track_10min_16mb/2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611",
+    "val_bpb": 1.06107587,
+    "required_record_target_bpb_approx": 1.05879,
+    "note": "This package has only one full seed and does not establish p < 0.01 or the required 0.005-nat improvement."
+  },
+  "hardware": "8xH100 SXM 80GB",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "technique_summary": "Single-seed validation of the 2026-04-27 LQER SparseAttnGate BOS-fixed stack using the public CaseOps Hugging Face export. No tokenizer or dataset changes.",
+  "compliance": {
+    "artifact_under_16mb": true,
+    "artifact_bytes_max": 15898824,
+    "train_loop_under_600s": true,
+    "train_time_max_s": 592.059,
+    "eval_under_600s": true,
+    "eval_time_max_s": 497.6,
+    "three_full_seeds": false,
+    "no_tokenizer_dataset_changes": true,
+    "ttt_only_sweeps_excluded": true,
+    "do_not_submit_as_sota_record": true
+  }
+}
