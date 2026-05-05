@@ -1,0 +1,11 @@
+{
+  "author": "Cynthia Damodaran",
+  "github_id": "dcynth",
+  "name": "MuonEq-R + Muon Weight Decay",
+  "blurb": "SP-1024 9x512 KV4 baseline with MuonEq-R (row-normalise each gradient matrix before Newton-Schulz orthogonalisation) and decoupled weight decay on Muon (MUON_WEIGHT_DECAY=0.085). Average of 3 seeds.",
+  "date": "2026-04-26T00:00:00Z",
+  "val_loss": 2.06629398,
+  "val_bpb": 1.22377569,
+  "bytes_total": 15879569,
+  "bytes_code": 56399
+}
