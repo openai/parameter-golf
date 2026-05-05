@@ -1,0 +1,13 @@
+numpy
+tqdm
+torch
+huggingface-hub
+kernels
+setuptools
+typing-extensions==4.15.0
+datasets
+tiktoken
+sentencepiece
+scipy
+cupy-cuda12x
+zstandard
