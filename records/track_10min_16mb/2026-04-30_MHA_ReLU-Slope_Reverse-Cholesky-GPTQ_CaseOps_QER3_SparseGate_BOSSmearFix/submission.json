@@ -1,0 +1,38 @@
+{
+  "author": "Tim Shen (@TimS-ml) & Billy Li (@lijuncheng16)",
+  "github_id": "TimS-ml",
+  "name": "Record: MHA Path + 1855 9-hparam Stack + Leaky ReLU Slope + GPTQ Reverse-Cholesky + PR #1948 + PR #1855 (val_bpb = 1.06184, 3-seed)",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.06184,
+  "val_bpb_std": 0.000379,
+  "seeds": [1334, 999, 42],
+  "seed_results": {
+    "1334": {"val_bpb": 1.06222, "artifact_bytes": 15844523},
+    "999":  {"val_bpb": 1.06183, "artifact_bytes": 15834049},
+    "42":   {"val_bpb": 1.06146, "artifact_bytes": 15843016}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 CaseOps + 11L MHA(KV=8)/XSA11 + L3-5 depth recurrence x2 + L8+ parallel residual lanes + LeakyReLU(0.3)^2 MLP(mult=3.5) + ln-scale + tied embeddings + SmearGate BOS-safe + SparseAttnGate int8 (gate_scale=0.5) + GPTQ int6 Reverse-Cholesky/SDClip (mlp_clip=11.5) + embed int7 (clip=14) + LQER-asym rank4 top3 + lrzip pergroup + phased TTT LoRA r80 bs16 3ph (prefix_docs=2500, beta2=0.99, wd=0.5) + Adam BETA2=0.99 + WARMDOWN_FRAC=0.85",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "three_seeds": true,
+    "score_first_ttt": true,
+    "smeargate_bos_fix": true
+  },
+  "attribution": {
+    "pr1948": "@TimS-ml; @lijuncheng16 (PR #1948)",
+    "pr1938": "@lijuncheng16; @TimS-ml (PR #1938)",
+    "pr1867": "@lijuncheng16; @TimS-ml (PR #1867)",
+    "pr1855": "@codemath3000 (PR #1855)",
+    "smeargate_bos_audit": "@cocohearts (PR #1797)",
+    "lqer_asym": "@dexhunter (PR #1797)",
+    "caseops_tokenizer": "@romeerp (PR #1729, #1736); shards from romeerp/parameter-golf-caseops-v1",
+    "sparse_attn_gate": "@nprime06 (PR #1787)",
+    "phased_ttt": "@dexhunter (PR #1736), @abaybektursun (PR #549)",
+    "gptq_sdclip": "@clarkkev (PR #1394)"
+  }
+}
