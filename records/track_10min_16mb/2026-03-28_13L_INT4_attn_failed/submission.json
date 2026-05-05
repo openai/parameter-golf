@@ -1,0 +1,9 @@
+{
+  "name": "Non-record: 13L INT4 attn — slow steps, worse BPB",
+  "val_bpb": 1.1640,
+  "bytes_total": 15137448,
+  "blurb": "Experiment: 13-layer model with INT4 attention (INT6→INT4 to free space for extra layer). Result: 172.8ms/step vs 148ms for 12L VE, only 3485 steps in 10 min. ttt_bpb=1.1640, worse than 12L INT4 VE (1.1574). Conclusion: extra layer does not compensate for step overhead — consistent with community finding that 12L+ at seq2048 is worse than 11L. INT4 attn penalty is too high.",
+  "author": "Harsh Soni",
+  "github_id": "SoHarshH",
+  "date": "2026-03-28"
+}
