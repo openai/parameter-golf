@@ -1,0 +1,77 @@
+data_setup: vocab=8192 shards=128
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+W0416 17:03:08.789000 305 torch/distributed/run.py:803] 
+W0416 17:03:08.789000 305 torch/distributed/run.py:803] *****************************************
+W0416 17:03:08.789000 305 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+wrapper: local vendored FLA imports already work
+wrapper: importing train_gdn_7k
+wrapper: import ok, entering train_main
+=== GDN Hybrid 7k Full Training ===
+Arch: K_KVShare_Wider (ARCH_MODE=K)
+Seed: 1337, Steps: 7000, Warmdown: 2100
+World size: 8, Grad accum: 1
+EMA decay: 0.997, SWA: True (every 50)
+Late QAT threshold: 0.15
+Eval compile enabled: False
+Validation tokens: 40,540,160
+Model built in 0.3s
+Parameters: {'embedding': 4861441, 'recurrent': 11269920, 'attention': 5440, 'mlp': 17761600, 'other': 11424, 'total': 33909825}
+Total params: 33,909,825
+Matrix params: 29,400,192
+Scalar params: 53,185
+Embed params: 4,456,448
+Generated coprime shard order: stride across 128 shards
+================================================================================
+Starting training: 7000 steps (from step 0)
+[rank0]:[W416 17:04:22.464538238 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank4]:[W416 17:04:22.554721511 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank5]:[W416 17:04:22.578729687 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank6]:[W416 17:04:22.592133300 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank7]:[W416 17:04:22.598708539 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank2]:[W416 17:04:22.610173671 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank3]:[W416 17:04:22.642753158 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W416 17:04:22.654023506 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+step     1/7000 | loss 9.0073 | lr_mul 0.0500 | mom 0.850 | 0.01 steps/s | 126s
+step     2/7000 | loss 8.7870 | lr_mul 0.1000 | mom 0.850 | 0.02 steps/s | 126s
+step     3/7000 | loss 8.2119 | lr_mul 0.1500 | mom 0.851 | 0.02 steps/s | 126s
+step     4/7000 | loss 7.6929 | lr_mul 0.2000 | mom 0.851 | 0.03 steps/s | 127s
+step     5/7000 | loss 7.3819 | lr_mul 0.2500 | mom 0.851 | 0.04 steps/s | 127s
+step     6/7000 | loss 7.3836 | lr_mul 0.3000 | mom 0.851 | 0.05 steps/s | 127s
+step     7/7000 | loss 7.3728 | lr_mul 0.3500 | mom 0.851 | 0.05 steps/s | 128s
+step     8/7000 | loss 7.2195 | lr_mul 0.4000 | mom 0.852 | 0.06 steps/s | 128s
+step     9/7000 | loss 7.0525 | lr_mul 0.4500 | mom 0.852 | 0.07 steps/s | 128s
+step    10/7000 | loss 6.9312 | lr_mul 0.5000 | mom 0.852 | 0.08 steps/s | 128s
+step   100/7000 | loss 5.0926 | lr_mul 1.0000 | mom 0.870 | 0.65 steps/s | 154s
+step   200/7000 | loss 4.1688 | lr_mul 1.0000 | mom 0.890 | 1.09 steps/s | 183s
+step   300/7000 | loss 3.7872 | lr_mul 1.0000 | mom 0.910 | 1.42 steps/s | 212s
+step   400/7000 | loss 3.6149 | lr_mul 1.0000 | mom 0.930 | 1.66 steps/s | 240s
+step   500/7000 | loss 3.5175 | lr_mul 1.0000 | mom 0.950 | 1.86 steps/s | 269s
+step   600/7000 | loss 3.4531 | lr_mul 1.0000 | mom 0.950 | 2.01 steps/s | 298s
+step   700/7000 | loss 3.4341 | lr_mul 1.0000 | mom 0.950 | 2.14 steps/s | 327s
+step   800/7000 | loss 3.3717 | lr_mul 1.0000 | mom 0.950 | 2.25 steps/s | 355s
+step   900/7000 | loss 3.3735 | lr_mul 1.0000 | mom 0.950 | 2.34 steps/s | 384s
+step  1000/7000 | loss 3.3300 | lr_mul 1.0000 | mom 0.950 | 2.42 steps/s | 413s
+step  1100/7000 | loss 3.3436 | lr_mul 1.0000 | mom 0.950 | 2.49 steps/s | 442s
+step  1200/7000 | loss 3.2732 | lr_mul 1.0000 | mom 0.950 | 2.55 steps/s | 470s
+step  1300/7000 | loss 3.2799 | lr_mul 1.0000 | mom 0.950 | 2.60 steps/s | 499s
+step  1400/7000 | loss 3.2655 | lr_mul 1.0000 | mom 0.950 | 2.65 steps/s | 528s
+step  1500/7000 | loss 3.2346 | lr_mul 1.0000 | mom 0.950 | 2.69 steps/s | 557s
+step  1600/7000 | loss 3.2463 | lr_mul 1.0000 | mom 0.950 | 2.73 steps/s | 586s
+Wallclock limit reached (600s), will stop after this step
+Stopping early at step 1652 (wallclock limit)
+Training complete in 600s
+Peak memory: 41127 MiB
+=== Applying EMA weights ===
+EMA BPB (no XSA): 1.020660
+Saved raw EMA model
+=== Quantizing to int6 + zstd-22 ===
+Artifact: 15,762,406 bytes (15.03 MB)
+=== Roundtrip Validation (quantized model) ===
+Quantized BPB (no XSA): 1.039674
+Quantization degradation: +0.019015
+FINAL RESULTS — K_KVShare_Wider seed=1337
+  Training: 7000 steps, 600s
+  EMA BPB (fp32):     1.020660
+  Quantized BPB:      1.039674
+  Artifact size:      15,762,406 bytes
+final_int6_roundtrip_exact val_loss:3.16104735 val_bpb:1.03967403
