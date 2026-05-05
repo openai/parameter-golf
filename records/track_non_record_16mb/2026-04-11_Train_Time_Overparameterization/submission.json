@@ -1,0 +1,9 @@
+{
+  "author": "Andrew Mouldon",
+  "github_id": "andrewmouldon",
+  "name": "Train-Time Overparameterization — Temporary MLP Expansion with Consolidation",
+  "blurb": "TTO temporarily expands MLP capacity during training, learns which neurons to keep using stochastic hard gates, then consolidates back to the original inference width. Directly builds on the initial naive baseline and is trained for a fixed 10k steps. Improves the final model without increasing inference size.",
+  "date": "2026-04-11T00:00:00Z",
+  "val_bpb": 1.2269,
+  "bytes_total": 15887260,
+}
