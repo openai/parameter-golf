@@ -1,0 +1,118 @@
+
+======================================================================
+  SLOT VIOLATES RULE 1 (STRICT CAUSAL DEPENDENCE)
+  Issue #1017 — Empirical proof
+======================================================================
+
+Rule 1: 'at position t, only use tokens x_1..x_{t-1}'
+
+SLOT optimizes delta/logit_bias using target tokens, then scores
+those same targets.  If the prediction at position t changes when
+we modify a FUTURE target x_{t+k}, Rule 1 is violated.
+
+======================================================================
+SANITY CHECK: Without SLOT, scoring is pointwise in targets
+======================================================================
+  (Without SLOT, NLL at position i depends only on logits[i] and
+   y[i].  Changing y[j] for j != i has zero effect.  This is the
+   null hypothesis that SLOT violates.)
+  Flipped target at position 127
+  Max NLL change at positions 0..126: 0.00e+00
+  PASS
+
+----------------------------------------------------------------------
+TEST A [shared delta]: Future-token sensitivity
+----------------------------------------------------------------------
+  Flipped target at position 127
+  NLL changes at OTHER scored positions (64..126):
+    Max:  0.255651
+    Mean: 0.074185
+    Min:  0.000614
+  Positions affected (delta > 1e-4): 63/63
+  >>> VIOLATION: changing future token x_{128} affected predictions at 63 earlier positions <<<
+
+----------------------------------------------------------------------
+TEST B [shared delta]: Self-prediction advantage
+----------------------------------------------------------------------
+  Position 96: always scoring token 177
+  NLL(token 177) when SLOT optimizes toward 177:  38.2198
+  NLL(token 177) when SLOT optimizes toward wrong token: 38.4580  (mean/32)
+  Self-prediction advantage (positive = answer leaks):  +0.2382
+  >>> VIOLATION: P(x_{t+1}) is LOWER (better) when x_{t+1} is in  <<<
+      the SLOT optimization targets. The answer leaks through delta.
+
+----------------------------------------------------------------------
+TEST C [shared delta]: Systematic cross-position leakage
+----------------------------------------------------------------------
+  Flipped 16 individual targets in scored range
+  Checked 240 cross-position pairs
+  Violations (|delta NLL| > 1e-4): 240/240 (100.0%)
+  Max cross-position NLL change:   0.341888
+  Mean cross-position NLL change:  0.076761
+  >>> VIOLATION: 100% of position pairs show information leakage <<<
+
+----------------------------------------------------------------------
+TEST A [per-sample + logit_bias]: Future-token sensitivity
+----------------------------------------------------------------------
+  Flipped target at position 127
+  NLL changes at OTHER scored positions (64..126):
+    Max:  0.774387
+    Mean: 0.221930
+    Min:  0.001133
+  Positions affected (delta > 1e-4): 63/63
+  >>> VIOLATION: changing future token x_{128} affected predictions at 63 earlier positions <<<
+
+----------------------------------------------------------------------
+TEST B [per-sample + logit_bias]: Self-prediction advantage
+----------------------------------------------------------------------
+  Position 96: always scoring token 177
+  NLL(token 177) when SLOT optimizes toward 177:  37.1895
+  NLL(token 177) when SLOT optimizes toward wrong token: 37.9150  (mean/32)
+  Self-prediction advantage (positive = answer leaks):  +0.7255
+  >>> VIOLATION: P(x_{t+1}) is LOWER (better) when x_{t+1} is in  <<<
+      the SLOT optimization targets. The answer leaks through delta.
+
+----------------------------------------------------------------------
+TEST C [per-sample + logit_bias]: Systematic cross-position leakage
+----------------------------------------------------------------------
+  Flipped 16 individual targets in scored range
+  Checked 240 cross-position pairs
+  Violations (|delta NLL| > 1e-4): 240/240 (100.0%)
+  Max cross-position NLL change:   1.060562
+  Mean cross-position NLL change:  0.229559
+  >>> VIOLATION: 100% of position pairs show information leakage <<<
+
+======================================================================
+SUMMARY
+======================================================================
+
+Without SLOT (baseline):  predictions are perfectly causal.
+                          Changing targets has ZERO effect on NLL.
+
+With SLOT:                predictions depend on FUTURE targets.
+                          Rule 1 is violated.
+
+Metric                                            Shared Per-sample
+───────────────────────────────────────────── ────────── ──────────
+Max NLL change from future token flip           0.255651   0.774387
+Self-prediction advantage                         0.2382     0.7255
+Cross-position violations                            240        240
+Cross-position checks                                240        240
+Violation rate                                    100.0%     100.0%
+
+The violation is STRUCTURAL — it exists in the SLOT procedure itself,
+regardless of model architecture, weights, or scale.
+
+Mathematical argument (why this holds for ANY model, not just random):
+  SLOT loss: L(delta, y) = sum_t CE(f(H_t + delta), y_t)
+  Gradient:  dL/d(delta) = sum_t dCE/df * df/d(delta)
+  The gradient explicitly depends on every y_t.  After optimization,
+  delta = g(y_1,...,y_T) for some function g.  Therefore the scored
+  NLL at position t = CE(f(H_t + g(y_1,...,y_T)), y_t) depends on
+  ALL targets, not just y_t.  This holds whenever the gradient is
+  nonzero — i.e., for any model that isn't perfectly converged.
+
+This applies to ALL SLOT submissions:
+  - PR #1209 (shared delta, 1.1064 BPB)
+  - PR #1229 (per-sample + logit_bias, 0.9300 BPB)
+  - Any future variant that optimizes on targets before scoring them
