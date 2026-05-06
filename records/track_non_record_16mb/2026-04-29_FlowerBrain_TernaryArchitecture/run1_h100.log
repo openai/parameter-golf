@@ -1,0 +1,194 @@
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /root/data/
+  datasets_dir: /root/data/datasets/fineweb10B_sp8192
+  distributed: False
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 8
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 50000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/0e0c5884-9230-45c1-929f-a5c7c6443036.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 3600.0
+  min_lr: 0.0
+  mlp_mult: 3.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 12
+  num_loops: 2
+  parallel_residual_start: 7
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: 0e0c5884-9230-45c1-929f-a5c7c6443036
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /root/data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: /root/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 100
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: False
+  ttt_epochs: 3
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: /root/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 500
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 1
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.10.12 (main, Mar  3 2026, 11:56:32) [GCC 11.4.0]
+Running PyTorch 2.11.0+cu130
+Tue Apr 28 12:30:32 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.95.05              Driver Version: 580.95.05      CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:8B:00.0 Off |                    0 |
+| N/A   31C    P0            116W /  700W |     527MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+train_shards: 128
+val_tokens: 40540160
+model_params:32539744
+gptq:reserving 12s, effective=3588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4, 5] decoder:[3, 4, 5, 6, 7, 8, 9, 10, 11]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/50000 val_loss: 9.0064 val_bpb: 3.4867
+1/50000 train_loss: 9.0073 train_time: 0.0m tok/s: 831140
+2/50000 train_loss: 12.4878 train_time: 0.0m tok/s: 763679
+3/50000 train_loss: 11.3767 train_time: 0.1m tok/s: 784347
+4/50000 train_loss: 9.8244 train_time: 0.1m tok/s: 795033
+5/50000 train_loss: 8.6657 train_time: 0.1m tok/s: 801411
+CHECKPOINT saved: /root/checkpoints/step_100.pt
+100/50000 train_loss: 4.4703 train_time: 1.6m tok/s: 821473
+200/50000 train_loss: 3.7179 train_time: 3.2m tok/s: 821864
+300/50000 train_loss: 3.5052 train_time: 4.8m tok/s: 822624
+400/50000 train_loss: 3.4179 train_time: 6.4m tok/s: 822500
+CHECKPOINT saved: /root/checkpoints/step_500.pt
+500/50000 train_loss: 3.3673 train_time: 8.0m tok/s: 822633
+500/50000 val_loss: 3.3499 val_bpb: 1.2969
+600/50000 train_loss: 3.2818 train_time: 9.6m tok/s: 822911
+700/50000 train_loss: 3.3218 train_time: 11.1m tok/s: 823241
+800/50000 train_loss: 3.2468 train_time: 12.7m tok/s: 823441
+900/50000 train_loss: 3.2283 train_time: 14.3m tok/s: 823723
+CHECKPOINT saved: /root/checkpoints/step_1000.pt
+1000/50000 train_loss: 3.2234 train_time: 15.9m tok/s: 823854
+1000/50000 val_loss: 3.2271 val_bpb: 1.2493
+1100/50000 train_loss: 3.2496 train_time: 17.5m tok/s: 823937
+1200/50000 train_loss: 3.2071 train_time: 19.1m tok/s: 824116
+1300/50000 train_loss: 3.1787 train_time: 20.7m tok/s: 824194
+layer_loop:enabled step:1317 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4, 5] decoder:[3, 4, 5, 6, 7, 8, 9, 10, 11]
+1400/50000 train_loss: 3.1938 train_time: 22.9m tok/s: 800572
+1500/50000 train_loss: 3.1494 train_time: 25.3m tok/s: 777496
+1500/50000 val_loss: 3.1374 val_bpb: 1.2146
+1600/50000 train_loss: 3.1217 train_time: 27.7m tok/s: 758307
+1700/50000 train_loss: 3.0794 train_time: 30.0m tok/s: 741809
+1800/50000 train_loss: 3.1161 train_time: 32.4m tok/s: 728041
+1900/50000 train_loss: 3.0780 train_time: 34.8m tok/s: 716068
+2000/50000 train_loss: 3.0282 train_time: 37.1m tok/s: 705780
+2000/50000 val_loss: 3.0315 val_bpb: 1.1736
+2100/50000 train_loss: 2.9896 train_time: 39.5m tok/s: 696666
+2200/50000 train_loss: 2.9863 train_time: 41.9m tok/s: 688623
+CHECKPOINT saved: /root/checkpoints/step_2300.pt
+2300/50000 train_loss: 2.9874 train_time: 44.2m tok/s: 681315
+2400/50000 train_loss: 2.9814 train_time: 46.6m tok/s: 674825
+2500/50000 train_loss: 2.9437 train_time: 49.0m tok/s: 668967
+2500/50000 val_loss: 2.9504 val_bpb: 1.1422
+2600/50000 train_loss: 2.9450 train_time: 51.4m tok/s: 663646
+2700/50000 train_loss: 2.9163 train_time: 53.7m tok/s: 658786
+2800/50000 train_loss: 2.8932 train_time: 56.1m tok/s: 654331
+2900/50000 train_loss: 2.9002 train_time: 58.5m tok/s: 650118
+2957/50000 val_loss: 2.8818 val_bpb: 1.1156
+stopping_early: wallclock_cap train_time: 3589036ms step: 2957/50000
+peak memory allocated: 41112 MiB reserved: 41202 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.88140020 val_bpb:1.11547981 eval_time:24909ms
+Serialized model: 121815565 bytes
+Code size: 52751 bytes
+Collecting Hessians for mixed compression...
+Hessians collected in 14.8s
+Mixed compression: 32,539,744 params, ternary void 17.4%
+Mixed compression done in 21.5s
+Serialized ternary+brotli: 10349729 bytes
+Total submission size: 10402480 bytes
+SIZE OK: 5597520 headroom
+quantized val_loss:4.64845853 val_bpb:1.79956316 eval_time:42265ms
