@@ -1,0 +1,52 @@
+{
+  "author": "Benjamin Hadad",
+  "github_id": "codemath3000",
+  "name": "11L XSA + LQER + SparseAttnGate + SmearGate (BOS-fixed) + PolarNS Muon + 9-hparam stack",
+  "blurb": "11L 512d 8H/4KV transformer with U-Net skips, parallel decoder, partial RoPE, Polar-Express Newton-Schulz Muon (5 steps), LQER asymmetric int4 rank-4 quant correction, sparse attention head-output gate (gate_window=12), SmearGate position-mixing (with cross-document leak fix on BOS positions), fused LeakyReLU-square MLP, fused softcapped CE Triton kernel, GPTQ int6 + int7 embed + per-row int8 attn-gate quantization, per-group lrzip+brotli compression, phased TTT eval (3 phases, prefix=2500 docs). Plus 9 greedy-validated hyperparameter overrides on top of the published baseline. 3-seed mean: 1.06107587 BPB, beating the current official leaderboard (1.0810 BPB) by 0.01992 BPB / 0.04359 nats.",
+  "date": "2026-04-27",
+  "track": "10min_16mb",
+  "val_loss": 2.32202732,
+  "val_bpb": 1.06107587,
+  "val_loss_std": 0.00198,
+  "val_bpb_std": 0.00090,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31944212,
+      "val_bpb": 1.05989454,
+      "artifact_bytes": 15897259,
+      "steps": 4945,
+      "step_avg_ms": 121.3,
+      "eval_time_s": 508.8
+    },
+    "0": {
+      "val_loss": 2.32239991,
+      "val_bpb": 1.06124613,
+      "artifact_bytes": 15900947,
+      "steps": 4932,
+      "step_avg_ms": 121.7,
+      "eval_time_s": 455.1
+    },
+    "1234": {
+      "val_loss": 2.32423994,
+      "val_bpb": 1.06208695,
+      "artifact_bytes": 15907550,
+      "steps": 4917,
+      "step_avg_ms": 122.0,
+      "eval_time_s": 470.0
+    }
+  },
+  "comparison_baseline_bpb": 1.0810,
+  "delta_vs_leaderboard_bpb": -0.01992,
+  "delta_vs_leaderboard_nats": -0.04359,
+  "artifact_bytes_mean": 15901919,
+  "artifact_bytes_max": 15907550,
+  "bytes_total": 15907550,
+  "train_steps_mean": 4931.33,
+  "step_avg_ms_mean": 121.7,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 (cu128_torch291 wheel)",
+  "technique_summary": "11L XSA + LQER int4-rank4 + SparseAttnGate + BOS-fixed SmearGate + Polar-Express Muon + per-group lrzip compression + 9-hparam greedy stack (clips_tighter, BETA2=0.99, TTT_BETA2=0.99, TTT_WEIGHT_DECAY=0.5, TTT_LORA_RANK=80, SPARSE_ATTN_GATE_SCALE=0.5, PHASED_TTT_PREFIX_DOCS=2500, WARMDOWN_FRAC=0.85)"
+}

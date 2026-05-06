@@ -1,0 +1,40 @@
+{
+  "name": "SP8192 + QK-Gain 5 + Legal Score-First TTT",
+  "val_bpb": 1.08279384,
+  "bytes_total": 15992546,
+  "blurb": "PR #1394 sp8192 stack + QK_GAIN_INIT=5.0 + legal score-first TTT (TTT_LR=0.005, freeze 0 blocks, 3 epochs). 3-seed mean 1.08279 across seeds 0/42/1234. No SLOT, no ETLB, no pre-quant TTT. Beats PR #1394 by 0.00283 bpb = 0.00731 nats/token.",
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "date": "2026-04-06",
+  "base_pr": 1394,
+  "val_bpb_method": "legal_ttt_exact_sliding_window_stride64",
+  "seeds": {
+    "0":    {"val_bpb": 1.08209788, "val_loss": 2.79517119, "bytes_total": 15991018, "train_time_ms": 588004, "ttt_time_ms": 293430},
+    "42":   {"val_bpb": 1.08314800, "val_loss": 2.79788378, "bytes_total": 15992546, "train_time_ms": 588009, "ttt_time_ms": 289945},
+    "1234": {"val_bpb": 1.08313564, "val_loss": 2.79785185, "bytes_total": 15989058, "train_time_ms": 588000, "ttt_time_ms": 295337}
+  },
+  "mean_bpb": 1.08279384,
+  "sliding_bpb_mean": 1.08485681,
+  "pre_ttt_sliding_mean": 1.08485681,
+  "tokenizer": "SentencePiece BPE 8192",
+  "architecture": "11L/512d/8H/4KV, MLP 4x, LeakyReLU(0.5)^2, Partial RoPE 16d, Depth-recurrence (loop layers 4-5 twice from 50% training), XSA last 4, GPTQ int6 matrices + int8 embeddings + SD-clip, Muon, EMA, Brotli+byte-shuffle, legal score-first TTT with LR=0.005 epochs=3 freeze=0",
+  "platform": "GCP 8xH100 80GB SXM, PyTorch 2.9.1+cu128, NCCL socket",
+  "compliance": {
+    "artifact_under_16mb": true,
+    "training_under_600s": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_pr1394": "@clarkkev",
+    "sp8192_gptq_embeds_sdclip_muon_eq_r_depth_recur": "@clarkkev (PR #1394)",
+    "legal_ttt_framework": "@Christopher-Lee-McClendon (PR #461) and merged precedent PR #549",
+    "qk_gain_init_5": "@clarkkev (PR #1394 default is 4.0, we raised to 5.0)"
+  },
+  "our_contribution": "Port of PR #1394's clean sp8192 stack to a legal score-first TTT eval (TTT_LR=0.005, 3 epochs, freeze 0 blocks) + single-knob QK_GAIN_INIT=5 verified on 3 seeds. All 3 seeds fit 16MB with 7-11KB margin."
+}

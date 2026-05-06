@@ -1,0 +1,12 @@
+{
+  "tokenizers": [
+    {
+      "name": "sp_bpe_8192_lossless_caps_caseops_v1_reserved",
+      "dataset_suffix": "sp8192_lossless_caps_caseops_v1_reserved",
+      "vocab_size": 8192,
+      "text_transform": "lossless_caps_caseops_v1",
+      "reserve_text_transform_controls": true,
+      "model_prefix": "fineweb_8192_bpe_lossless_caps_caseops_v1_reserved"
+    }
+  ]
+}

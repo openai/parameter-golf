@@ -1,0 +1,20 @@
+{
+  "author": "Darius Feher",
+  "github_id": "DariusFeher",
+  "name": "H-Net Byte vs H-Net Subword Study",
+  "blurb": "Systematic ablation comparing H-Net dynamic chunking on byte260 vs sp1024 tokenization. 20+ matched runs across 4 axes (chunk length, outer layers, ratio loss, LR diff). First working multi-GPU H-Net with boundary visualization showing the model learns word-level segmentation from raw bytes.",
+  "date": "2026-03-30",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 0.94198807,
+  "val_bpb": 1.35945128,
+  "pre_quant_val_bpb": 1.3250,
+  "step_stop": 85242,
+  "wallclock_seconds": 14400,
+  "bytes_total": 15962226,
+  "bytes_model_int8_zlib": 15904258,
+  "bytes_code": 57968,
+  "best_10min_byte260_val_bpb": 1.40320671,
+  "best_10min_byte260_bytes_total": 15779986,
+  "best_10min_sp1024_val_bpb": 1.37344745,
+  "best_10min_sp1024_bytes_total": 15998337
+}

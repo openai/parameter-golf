@@ -1,0 +1,14 @@
+{
+  "author": "David Gao",
+  "github_id": "ddavidgao",
+  "name": "DG Attention: Depth-Scheduled Differential Payloads for Language Modeling",
+  "blurb": "Alternative attention mechanism that replaces raw value projections with differential payloads in deep layers. Matches standard attention within 0.004 BPB (1.155 vs 1.152) — an informative negative result documenting gate-collapse and depth-dependent redundancy.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.0089,
+  "val_bpb": 1.1898,
+  "bytes_total": 16638468,
+  "bytes_code": 80288,
+  "step_stop": 2979,
+  "wallclock_seconds": 600.0
+}

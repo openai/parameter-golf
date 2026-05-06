@@ -1,0 +1,20 @@
+{
+  "author": "aryanbhosale",
+  "github_id": "aryanbhosale",
+  "name": "SP4096 + Depth Recurrence + Parallel Residuals + MuonEq-R + QK-Gain 5.0",
+  "date": "2026-04-04",
+  "track": "10min_16mb",
+  "val_bpb": 1.08971631,
+  "val_bpb_std": 0.00028794,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {"val_bpb": 1.08938974, "artifact_bytes": 15999533},
+    "314": {"val_bpb": 1.08982552, "artifact_bytes": 15992752},
+    "999": {"val_bpb": 1.08993367, "artifact_bytes": 15988473}
+  },
+  "comparison_baseline_pr": 1019,
+  "delta_vs_pr1019_bpb": -0.02502,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP4096 + MLP 4x + WD 0.090 + Depth Recurrence + Parallel Residuals + MuonEq-R + QK-Gain 5.0 + Full GPTQ int6 + Brotli"
+}

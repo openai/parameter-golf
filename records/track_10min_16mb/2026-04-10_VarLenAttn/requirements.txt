@@ -1,0 +1,16 @@
+# FlashAttention 3 must be installed separately; see README.md
+# PyTorch 2.9.1+cu128 required; install using:
+# uv pip install torch==2.9.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128
+numpy
+tqdm
+torch
+huggingface-hub
+kernels
+setuptools
+typing-extensions==4.15.0
+datasets
+tiktoken
+sentencepiece
+zstandard
+brotli
+python-minifier
