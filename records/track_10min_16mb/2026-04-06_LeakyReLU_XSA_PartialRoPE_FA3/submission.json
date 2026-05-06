@@ -1,0 +1,9 @@
+{
+  "name": "LeakyReLU² + FA3 + XSA-4 + Partial RoPE",
+  "val_bpb": 1.2092,
+  "bytes_total": 14389751,
+  "blurb": "LeakyReLU(0.75)² + FastAttention + Partial RoPE + XSA (PR #399) + GPTQ-int6 (PR#1019) 3-seed mean: 1.2092 (std 0.0019). All artifacts under 16MB, all eval under 10 min.",
+  "author": "kjahan",
+  "github_id": "kjahan",
+  "date": "2026-04-06"
+}
