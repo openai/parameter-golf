@@ -1,0 +1,6 @@
+{
+  "model_path": "final_model.int8.ptz",
+  "tokenizer_path": "data/tokenizers/fineweb_1024_bpe.model",
+  "train_script": "train_gpt.py",
+  "val_bpb": 1.5999
+}
