@@ -1,0 +1,14 @@
+{
+    "name": "Viraj Deshwal",
+    "github_id": "VirajDeshwal",
+    "val_bpb": 1.1412,
+    "val_bpb_std": 0.0008,
+    "seeds": [1337, 42, 2025],
+    "seed_results": [1.1416, 1.1416, 1.1403],
+    "artifact_bytes": 15981039,
+    "training_time_seconds": 600,
+    "eval_time_seconds": 408,
+    "gpu": "8xH100 80GB SXM",
+    "pytorch_version": "2.8.0+cu128",
+    "summary": "Unified Attention (single W_unified projection, 67% fewer attn params) + FA3 with head-dim zero-padding + Legal Score-First TTT"
+}
