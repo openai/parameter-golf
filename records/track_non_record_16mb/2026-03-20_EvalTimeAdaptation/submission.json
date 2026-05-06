@@ -1,0 +1,11 @@
+{
+  "author": "kellyvv",
+  "github_id": "kellyvv",
+  "name": "Eval-time Adaptation: Stride-OGD + Two-Pass + NTK-RoPE",
+  "blurb": "Three eval-time adaptation techniques: (1) Stride-OGD — online vocab bias updated every 64 tokens with exact gradient + EMA, zero artifact cost; (2) Two-Pass eval — collect gradients pass 1, re-score pass 2; (3) NTK-RoPE 4096 — extended context without retraining. All fit within 600s eval budget.",
+  "date": "2026-03-21T01:45:00Z",
+  "val_loss": 2.5603,
+  "val_bpb": 1.5164,
+  "bytes_total": 12704729,
+  "bytes_code": 67933
+}
