@@ -1,0 +1,32 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-04-30",
+  "name": "CondPPM_1.015784",
+  "author": "Anmar Hindi",
+  "github_id": "anmarhindi",
+  "val_bpb": 1.015784,
+  "val_bpb_std": 0.000524,
+  "val_bpb_per_seed": {
+    "42": 1.01519482,
+    "1337": 1.0159581,
+    "314": 1.01619827
+  },
+  "diagnostic_pre_ema_3seed_mean": 1.087591,
+  "diagnostic_quantized_3seed_mean": 1.101712,
+  "diagnostic_sliding_window_3seed_mean": 1.106655,
+  "headline_metric": "quantized_cond_ppm",
+  "headline_metric_description": "byte-level conditional-PPM mixture BPB on FULL val (all 9,662,464 tokens / 32,756,252 canonical bytes per seed; cppm chunks all-gathered across all 8 ranks before rank-0 PPM byte-state advancement). Sigmoid gate alpha=15 beta=0.80. P_NN(byte_0|history) is the proper marginal of the SP8192 softmax via per-position first-byte mask selection: mask_no_space when prev IS boundary, mask_with_space otherwise \u2014 no per-token uniform-split fallback for the include_space case. C2 holds for every position regardless of leading-space prepend status. Forensic evidence per seed: 'cond_ppm tokens=9662464 bytes=32756252 cond_mix_bpb=...' line in train_seed{42,1337,314}.log.",
+  "artifact_bytes_max": 15527283,
+  "wrapped_code_bytes": 49485,
+  "total_submission_bytes_max": 15576768,
+  "compliant_under_16mb": true,
+  "seeds": [
+    42,
+    1337,
+    314
+  ],
+  "hardware": "8xH100 80GB SXM",
+  "eval_full_val_verified": true,
+  "eval_token_count_per_seed": 9662464,
+  "eval_canonical_byte_count_per_seed": 32756252
+}
