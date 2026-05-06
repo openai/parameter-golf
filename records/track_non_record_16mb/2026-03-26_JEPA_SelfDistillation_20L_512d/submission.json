@@ -1,0 +1,18 @@
+{
+  "author": "Manav Pandey",
+  "github_id": "MVPandey",
+  "name": "JEPA Self-Distillation: Negative Results",
+  "blurb": "Controlled A/B showing JEPA auxiliary self-distillation with EMA target encoder doesn't help autoregressive LM. Vanilla CE is 40% faster and converges to same or better BPB. Pushing in the spirit of good science.",
+  "date": "2026-03-26",
+  "track": "non-record-unlimited-compute-16mb",
+  "results_11L": {
+    "jepa": {"val_bpb": 1.1896, "val_bpb_live": 1.1811, "steps": 5751, "step_time_ms": 310, "artifact_bytes": 16324677},
+    "vanilla": {"val_bpb": 1.1841, "val_bpb_live": 1.1732, "steps": 8120, "step_time_ms": 222, "artifact_bytes": 16274262}
+  },
+  "results_20L": {
+    "jepa": {"val_bpb": 1.1590, "val_bpb_live": 1.1537, "steps": 3635, "step_time_ms": 495},
+    "vanilla": {"val_bpb": 1.1598, "val_bpb_live": 1.1545, "steps": 3617, "step_time_ms": 498}
+  },
+  "wallclock_seconds": 1800,
+  "hardware": "8xH100 SXM"
+}

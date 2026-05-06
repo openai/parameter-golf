@@ -1,0 +1,121 @@
+arch:JEPA layers=11 dim=512 heads=8/4 d_latent=256 jepa_w=0.0 vic_var=0.0 vic_cov=0.04 tgt_ema=0.9995 attn=fa3
+params: total=27223129 ctx_encoder=26829913 (saved in artifact)
+warmup:10/20
+warmup:20/20
+step:0/200000 val_loss:6.9300 val_bpb:4.1043 time:0ms avg:0.02ms
+step:1/200000 loss:6.9318 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:400ms avg:399.78ms
+step:2/200000 loss:6.9282 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:563ms avg:281.63ms
+step:3/200000 loss:6.9082 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:764ms avg:254.65ms
+step:4/200000 loss:6.8680 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:993ms avg:248.29ms
+step:5/200000 loss:6.7853 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1203ms avg:240.54ms
+step:6/200000 loss:6.6618 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1404ms avg:234.08ms
+step:7/200000 loss:6.4899 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1607ms avg:229.54ms
+step:8/200000 loss:6.3031 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1808ms avg:225.94ms
+step:9/200000 loss:6.1215 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:2009ms avg:223.20ms
+step:10/200000 loss:5.9618 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:2211ms avg:221.08ms
+step:100/200000 loss:3.7436 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:19926ms avg:199.26ms
+step:200/200000 loss:2.9621 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:43000ms avg:215.00ms
+step:300/200000 loss:2.9538 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:65141ms avg:217.14ms
+step:400/200000 loss:2.6795 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:88871ms avg:222.18ms
+step:500/200000 loss:2.5441 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:108575ms avg:217.15ms
+step:500/200000 val_loss:2.5104 val_bpb:1.4868 time:108631ms avg:217.26ms
+step:600/200000 loss:2.4354 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:130767ms avg:217.95ms
+step:700/200000 loss:2.4291 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:153832ms avg:219.76ms
+step:800/200000 loss:2.3066 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:175971ms avg:219.96ms
+step:900/200000 loss:2.1883 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:198644ms avg:220.72ms
+step:1000/200000 loss:2.3368 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:218333ms avg:218.33ms
+step:1000/200000 val_loss:2.2829 val_bpb:1.3520 time:218377ms avg:218.38ms
+step:1100/200000 loss:2.3736 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:241867ms avg:219.88ms
+step:1200/200000 loss:2.4067 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:264715ms avg:220.60ms
+step:1300/200000 loss:2.1433 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:287277ms avg:220.98ms
+step:1400/200000 loss:2.2399 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:310379ms avg:221.70ms
+step:1500/200000 loss:2.2664 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:330064ms avg:220.04ms
+step:1500/200000 val_loss:2.2293 val_bpb:1.3203 time:330106ms avg:220.07ms
+step:1600/200000 loss:2.1290 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:354876ms avg:221.80ms
+step:1700/200000 loss:2.1880 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:379050ms avg:222.97ms
+step:1800/200000 loss:2.1938 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:401456ms avg:223.03ms
+step:1900/200000 loss:2.1770 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:421140ms avg:221.65ms
+step:2000/200000 loss:2.1062 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:444098ms avg:222.05ms
+step:2000/200000 val_loss:2.1736 val_bpb:1.2873 time:444147ms avg:222.07ms
+step:2100/200000 loss:2.0861 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:466495ms avg:222.14ms
+step:2200/200000 loss:2.1682 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:488808ms avg:222.19ms
+step:2300/200000 loss:2.1519 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:511209ms avg:222.26ms
+step:2400/200000 loss:2.1061 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:530899ms avg:221.21ms
+step:2500/200000 loss:2.2084 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:553457ms avg:221.38ms
+step:2500/200000 val_loss:2.1473 val_bpb:1.2718 time:553506ms avg:221.40ms
+step:2600/200000 loss:2.1532 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:575754ms avg:221.44ms
+step:2700/200000 loss:2.1449 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:598647ms avg:221.72ms
+step:2800/200000 loss:2.1964 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:622235ms avg:222.23ms
+step:2900/200000 loss:2.0630 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:641950ms avg:221.36ms
+step:3000/200000 loss:2.1971 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:664357ms avg:221.45ms
+step:3000/200000 val_loss:2.1308 val_bpb:1.2620 time:664405ms avg:221.47ms
+step:3100/200000 loss:2.0768 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:689084ms avg:222.29ms
+step:3200/200000 loss:2.2147 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:712497ms avg:222.66ms
+step:3300/200000 loss:2.1104 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:732191ms avg:221.88ms
+step:3400/200000 loss:2.0589 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:756734ms avg:222.57ms
+step:3500/200000 loss:2.2216 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:778918ms avg:222.55ms
+step:3500/200000 val_loss:2.1226 val_bpb:1.2571 time:778960ms avg:222.56ms
+step:3600/200000 loss:2.1365 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:802442ms avg:222.90ms
+step:3700/200000 loss:2.1412 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:825133ms avg:223.01ms
+step:3800/200000 loss:2.1168 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:844827ms avg:222.32ms
+step:3900/200000 loss:2.1249 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:867403ms avg:222.41ms
+step:4000/200000 loss:2.0222 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:891140ms avg:222.78ms
+step:4000/200000 val_loss:2.1119 val_bpb:1.2508 time:891184ms avg:222.80ms
+step:4100/200000 loss:2.0621 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:913441ms avg:222.79ms
+step:4200/200000 loss:2.1982 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:936850ms avg:223.06ms
+step:4300/200000 loss:2.1130 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:956569ms avg:222.46ms
+step:4400/200000 loss:2.0920 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:981606ms avg:223.09ms
+step:4500/200000 loss:2.1843 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1004890ms avg:223.31ms
+step:4500/200000 val_loss:2.1039 val_bpb:1.2460 time:1004932ms avg:223.32ms
+step:4600/200000 loss:1.8980 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1027275ms avg:223.32ms
+step:4700/200000 loss:2.2960 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1046961ms avg:222.76ms
+step:4800/200000 loss:2.4975 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1068905ms avg:222.69ms
+step:4900/200000 loss:2.1234 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1091034ms avg:222.66ms
+step:5000/200000 loss:2.1802 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1114680ms avg:222.94ms
+step:5000/200000 val_loss:2.0981 val_bpb:1.2426 time:1114723ms avg:222.94ms
+step:5100/200000 loss:2.1998 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1137706ms avg:223.08ms
+step:5200/200000 loss:2.1232 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1157398ms avg:222.58ms
+step:5300/200000 loss:2.0950 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1179855ms avg:222.61ms
+step:5400/200000 loss:2.1305 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1202977ms avg:222.77ms
+step:5500/200000 loss:2.1104 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1225064ms avg:222.74ms
+step:5500/200000 val_loss:2.0943 val_bpb:1.2403 time:1225107ms avg:222.75ms
+step:5600/200000 loss:2.0519 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1249248ms avg:223.08ms
+step:5700/200000 loss:2.1136 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1268975ms avg:222.63ms
+step:5800/200000 loss:2.1147 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1292436ms avg:222.83ms
+step:5900/200000 loss:2.0201 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1314400ms avg:222.78ms
+step:6000/200000 loss:2.0406 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1337047ms avg:222.84ms
+step:6000/200000 val_loss:2.0931 val_bpb:1.2397 time:1337101ms avg:222.85ms
+step:6100/200000 loss:2.0293 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1356749ms avg:222.42ms
+step:6200/200000 loss:2.0829 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1378645ms avg:222.36ms
+step:6300/200000 loss:2.0681 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1400512ms avg:222.30ms
+step:6400/200000 loss:2.1257 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1422360ms avg:222.24ms
+step:6500/200000 loss:2.2115 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1445218ms avg:222.34ms
+step:6500/200000 val_loss:2.0874 val_bpb:1.2363 time:1445263ms avg:222.35ms
+step:6600/200000 loss:1.9883 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1464910ms avg:221.96ms
+step:6700/200000 loss:2.0762 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1488228ms avg:222.12ms
+step:6800/200000 loss:2.1724 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1510107ms avg:222.07ms
+step:6900/200000 loss:1.9703 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1533721ms avg:222.28ms
+step:7000/200000 loss:1.9362 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1556643ms avg:222.38ms
+step:7000/200000 val_loss:2.0864 val_bpb:1.2357 time:1556686ms avg:222.38ms
+step:7100/200000 loss:2.0925 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1576452ms avg:222.04ms
+step:7200/200000 loss:2.0540 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1598406ms avg:222.00ms
+step:7300/200000 loss:2.1658 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1620376ms avg:221.97ms
+step:7400/200000 loss:2.0788 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1644020ms avg:222.16ms
+step:7500/200000 loss:2.0324 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1663753ms avg:221.83ms
+step:7500/200000 val_loss:2.0562 val_bpb:1.2178 time:1663795ms avg:221.84ms
+step:7600/200000 loss:1.9225 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1685560ms avg:221.78ms
+step:7700/200000 loss:1.9880 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1707422ms avg:221.74ms
+step:7800/200000 loss:2.0311 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1730320ms avg:221.84ms
+swa:start step:7850
+step:7900/200000 loss:2.0623 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1753049ms avg:221.90ms
+step:8000/200000 loss:1.9401 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1772912ms avg:221.61ms
+step:8000/200000 val_loss:1.9833 val_bpb:1.1746 time:1773035ms avg:221.63ms
+step:8100/200000 loss:2.0310 jepa:0.0000 vic:0.0000 z_std:0.000/0.000 jw:0.000 time:1795842ms avg:221.71ms
+step:8120/200000 val_loss:1.9809 val_bpb:1.1732 time:1799910ms avg:221.66ms
+peak mem: 29765 MiB
+ema:applying
+DIAGNOSTIC val_loss:1.9909 val_bpb:1.1791 time:2019ms
+artifact: 16274262 bytes (model:16228904 code:45358)
+final_int6_roundtrip val_loss:1.9992 val_bpb:1.1841 time:5506ms
+final_int6_roundtrip_exact val_loss:1.99923618 val_bpb:1.18406028
+final_int8_zlib_roundtrip_exact val_loss:1.99923618 val_bpb:1.18406028

@@ -1,0 +1,67 @@
+arch:JEPA layers=20 dim=512 heads=8/4 d_latent=256 jepa_w=0.3 vic_var=1.0 vic_cov=0.04 tgt_ema=0.9995 attn=fa3
+params: total=48477857 ctx_encoder=48084641 (saved in artifact)
+warmup:10/20
+warmup:20/20
+step:0/200000 val_loss:6.9300 val_bpb:4.1043 time:0ms avg:0.02ms
+step:1/200000 loss:7.0011 jepa:1.0032 vic:0.0693 z_std:0.996/0.871 jw:0.000 time:723ms avg:723.06ms
+step:2/200000 loss:6.9974 jepa:1.0034 vic:0.0676 z_std:0.996/0.879 jw:0.002 time:1190ms avg:595.10ms
+step:3/200000 loss:6.9780 jepa:1.0033 vic:0.0668 z_std:0.992/0.867 jw:0.003 time:1658ms avg:552.82ms
+step:4/200000 loss:6.9364 jepa:1.0037 vic:0.0638 z_std:0.988/0.883 jw:0.004 time:2129ms avg:532.27ms
+step:5/200000 loss:6.8594 jepa:1.0028 vic:0.0681 z_std:0.980/0.879 jw:0.006 time:2596ms avg:519.12ms
+step:6/200000 loss:6.7485 jepa:1.0043 vic:0.0792 z_std:0.965/0.867 jw:0.007 time:3062ms avg:510.40ms
+step:7/200000 loss:6.6054 jepa:1.0000 vic:0.1067 z_std:0.941/0.852 jw:0.009 time:3528ms avg:503.99ms
+step:8/200000 loss:6.4605 jepa:0.9743 vic:0.1476 z_std:0.914/0.805 jw:0.011 time:3995ms avg:499.32ms
+step:9/200000 loss:6.3229 jepa:0.8863 vic:0.1914 z_std:0.863/0.773 jw:0.012 time:4466ms avg:496.18ms
+step:10/200000 loss:6.2029 jepa:0.7771 vic:0.2307 z_std:0.840/0.727 jw:0.013 time:4932ms avg:493.20ms
+step:100/200000 loss:3.8706 jepa:1.0638 vic:0.0343 z_std:1.039/0.996 jw:0.148 time:46560ms avg:465.60ms
+step:200/200000 loss:3.2707 jepa:1.0867 vic:0.0256 z_std:1.023/0.953 jw:0.298 time:97150ms avg:485.75ms
+step:300/200000 loss:3.3600 jepa:1.2835 vic:0.0452 z_std:1.070/0.941 jw:0.300 time:145770ms avg:485.90ms
+step:400/200000 loss:3.0244 jepa:1.2922 vic:0.0245 z_std:1.062/0.953 jw:0.300 time:195664ms avg:489.16ms
+step:500/200000 loss:2.9142 jepa:1.3347 vic:0.0275 z_std:1.055/0.973 jw:0.300 time:241914ms avg:483.83ms
+step:500/200000 val_loss:2.4488 val_bpb:1.4503 time:241927ms avg:483.85ms
+step:600/200000 loss:2.8553 jepa:1.4696 vic:0.0292 z_std:1.055/0.965 jw:0.300 time:292464ms avg:487.44ms
+step:700/200000 loss:2.9054 jepa:1.7162 vic:0.0249 z_std:1.047/0.977 jw:0.300 time:341823ms avg:488.32ms
+step:800/200000 loss:2.9246 jepa:2.1831 vic:0.0241 z_std:1.055/0.984 jw:0.300 time:390300ms avg:487.87ms
+step:900/200000 loss:2.8888 jepa:2.4577 vic:0.0229 z_std:1.055/0.969 jw:0.300 time:439773ms avg:488.64ms
+step:1000/200000 loss:3.1432 jepa:2.8421 vic:0.0214 z_std:1.055/0.965 jw:0.300 time:486018ms avg:486.02ms
+step:1000/200000 val_loss:2.2228 val_bpb:1.3165 time:486027ms avg:486.03ms
+step:1100/200000 loss:3.1389 jepa:2.6599 vic:0.0229 z_std:1.070/0.984 jw:0.300 time:537805ms avg:488.91ms
+step:1200/200000 loss:3.1666 jepa:2.6949 vic:0.0192 z_std:1.078/0.977 jw:0.300 time:590709ms avg:492.26ms
+step:1300/200000 loss:2.9626 jepa:2.8603 vic:0.0198 z_std:1.055/0.973 jw:0.300 time:640484ms avg:492.68ms
+step:1400/200000 loss:3.0090 jepa:2.7234 vic:0.0183 z_std:1.070/0.992 jw:0.300 time:690584ms avg:493.27ms
+step:1500/200000 loss:3.0830 jepa:2.8754 vic:0.0158 z_std:1.078/1.016 jw:0.300 time:737880ms avg:491.92ms
+step:1500/200000 val_loss:2.1676 val_bpb:1.2838 time:737886ms avg:491.92ms
+step:1600/200000 loss:2.9303 jepa:2.8407 vic:0.0149 z_std:1.086/0.984 jw:0.300 time:790373ms avg:493.98ms
+step:1700/200000 loss:2.9752 jepa:2.7933 vic:0.0125 z_std:1.070/0.984 jw:0.300 time:839639ms avg:493.91ms
+step:1800/200000 loss:2.8884 jepa:2.4764 vic:0.0139 z_std:1.062/0.984 jw:0.300 time:888220ms avg:493.46ms
+step:1900/200000 loss:2.6569 jepa:1.8077 vic:0.0098 z_std:1.047/0.977 jw:0.300 time:934493ms avg:491.84ms
+step:2000/200000 loss:2.6247 jepa:1.9254 vic:0.0075 z_std:1.047/0.980 jw:0.300 time:983952ms avg:491.98ms
+step:2000/200000 val_loss:2.1065 val_bpb:1.2476 time:983958ms avg:491.98ms
+step:2100/200000 loss:2.6236 jepa:2.0098 vic:0.0068 z_std:1.062/0.980 jw:0.300 time:1033883ms avg:492.33ms
+step:2200/200000 loss:2.6975 jepa:1.8103 vic:0.0399 z_std:1.070/0.984 jw:0.300 time:1082798ms avg:492.18ms
+step:2300/200000 loss:2.5801 jepa:1.6389 vic:0.0056 z_std:1.055/1.008 jw:0.300 time:1133040ms avg:492.63ms
+step:2400/200000 loss:2.5484 jepa:1.7036 vic:0.0052 z_std:1.070/0.996 jw:0.300 time:1179311ms avg:491.38ms
+step:2500/200000 loss:2.6292 jepa:1.5804 vic:0.0064 z_std:1.062/0.996 jw:0.300 time:1229362ms avg:491.74ms
+step:2500/200000 val_loss:2.0761 val_bpb:1.2296 time:1229369ms avg:491.75ms
+step:2600/200000 loss:2.5523 jepa:1.5744 vic:0.0043 z_std:1.055/1.000 jw:0.300 time:1281242ms avg:492.79ms
+step:2700/200000 loss:2.5548 jepa:1.6141 vic:0.0040 z_std:1.062/1.000 jw:0.298 time:1331934ms avg:493.31ms
+step:2800/200000 loss:2.5963 jepa:1.6622 vic:0.0051 z_std:1.055/0.977 jw:0.283 time:1383650ms avg:494.16ms
+step:2900/200000 loss:2.4101 jepa:1.6672 vic:0.0040 z_std:1.078/1.008 jw:0.255 time:1432140ms avg:493.84ms
+step:3000/200000 loss:2.4628 jepa:1.6496 vic:0.0031 z_std:1.062/0.992 jw:0.214 time:1484162ms avg:494.72ms
+step:3000/200000 val_loss:2.0364 val_bpb:1.2061 time:1484169ms avg:494.72ms
+step:3100/200000 loss:2.2312 jepa:1.5970 vic:0.0027 z_std:1.078/1.016 jw:0.166 time:1536014ms avg:495.49ms
+step:3200/200000 loss:2.2706 jepa:1.4941 vic:0.0023 z_std:1.031/0.992 jw:0.120 time:1584454ms avg:495.14ms
+step:3300/200000 loss:2.1045 jepa:1.6718 vic:0.0022 z_std:1.102/1.055 jw:0.079 time:1630690ms avg:494.15ms
+swa:start step:3350
+step:3400/200000 loss:1.9693 jepa:1.5087 vic:0.0017 z_std:1.055/1.023 jw:0.040 time:1682134ms avg:494.75ms
+step:3500/200000 loss:2.0756 jepa:1.5010 vic:0.0011 z_std:1.070/1.039 jw:0.014 time:1732622ms avg:495.03ms
+step:3500/200000 val_loss:1.9519 val_bpb:1.1560 time:1732779ms avg:495.08ms
+step:3600/200000 loss:1.9647 jepa:1.5935 vic:0.0016 z_std:1.117/1.086 jw:0.001 time:1783656ms avg:495.46ms
+step:3635/200000 val_loss:1.9479 val_bpb:1.1537 time:1800022ms avg:495.19ms
+peak mem: 52998 MiB
+ema:applying
+DIAGNOSTIC val_loss:1.9507 val_bpb:1.1553 time:3589ms
+artifact: 29215526 bytes (model:29170516 code:45010)
+final_int6_roundtrip val_loss:1.9570 val_bpb:1.1590 time:10176ms
+final_int6_roundtrip_exact val_loss:1.95699220 val_bpb:1.15904101
+final_int8_zlib_roundtrip_exact val_loss:1.95699220 val_bpb:1.15904101
