@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-28",
+  "name": "JEPA-LM: When Synthetic Success Doesn't Transfer to Real Language",
+  "author": "Himanshu Dongre",
+  "github_id": "himanshudongre",
+  "val_bpb": null,
+  "val_loss": null,
+  "bytes_total": null,
+  "note": "Local-only research. JEPA showed -19.5% CE on synthetic Markov chains but only -0.24% on real text. Submitted as negative result to check off OpenAI's JEPA request."
+}
