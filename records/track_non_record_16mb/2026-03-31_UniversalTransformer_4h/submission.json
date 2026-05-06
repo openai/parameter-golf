@@ -1,0 +1,13 @@
+{
+  "author": "Shifat Islam Santo",
+  "github_id": "oneKn8",
+  "name": "Universal Transformer (4h Unlimited Compute)",
+  "blurb": "Single shared 1024d transformer block iterated 24 times with learned step embeddings. Weight sharing frees parameter budget for 2x wider model. Targets the unlimited compute track (4h on 8xH100). Responds to the 'Universal transformer' item in Requests for PRs.",
+  "date": "2026-03-31T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null,
+  "track": "unlimited_compute",
+  "notes": "Awaiting compute access for training. Architecture validated for correctness, training logs will be added after first run."
+}
