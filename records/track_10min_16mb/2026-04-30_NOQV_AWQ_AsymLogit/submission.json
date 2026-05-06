@@ -1,0 +1,62 @@
+{
+  "author": "aquarious dante workman",
+  "github_id": "aquariouseworkman",
+  "name": "PR #1953 stack: no_qv TTT + AWQ-lite + AsymLogit + long-context eval",
+  "blurb": "PR #1855 base with AWQ-lite mixed-precision GPTQ (PR #1908), asymmetric logit rescale (PR #1923), long-context eval at 2560 tokens, no_qv TTT mask, TTT_LOCAL_LR_MULT=0.75, QK_GAIN_INIT=5.25, per-group lrzip+brotli compression. 3-seed mean: 1.05847 BPB.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 2.31633129,
+  "val_bpb": 1.05847301,
+  "val_loss_std": 0.00138,
+  "val_bpb_std": 0.00063,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31502770,
+      "val_bpb": 1.05787732,
+      "artifact_bytes": 15979342,
+      "steps": 4892,
+      "train_time_s": 595.967,
+      "eval_time_s": 493.2,
+      "pre_quant_bpb": 1.06125885,
+      "quantized_bpb": 1.06961861
+    },
+    "0": {
+      "val_loss": 2.31617807,
+      "val_bpb": 1.05840300,
+      "artifact_bytes": 15979187,
+      "steps": 4884,
+      "train_time_s": 595.967,
+      "eval_time_s": 420.5,
+      "pre_quant_bpb": 1.06180915,
+      "quantized_bpb": 1.07019470
+    },
+    "1234": {
+      "val_loss": 2.31778809,
+      "val_bpb": 1.05913871,
+      "artifact_bytes": 15985934,
+      "steps": 4894,
+      "train_time_s": 596.140,
+      "eval_time_s": 428.4,
+      "pre_quant_bpb": 1.06232109,
+      "quantized_bpb": 1.07093119
+    }
+  },
+  "hardware": "8xH100 SXM 80GB",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 3.0.0 (cu128_torch291 wheel)",
+  "compressor": "pergroup",
+  "artifact_bytes_max": 15985934,
+  "technique_summary": "PR #1855 9-hparam base + AWQ-lite int8 salient-group GPTQ (PR #1908) + asymmetric logit rescale (PR #1923) + no_qv TTT mask + TTT_LOCAL_LR_MULT=0.75 + QK_GAIN_INIT=5.25 + EVAL_SEQ_LEN=2560 + PHASED_TTT_PREFIX_DOCS=3000 + TTT_LORA_RANK=56 + per-group lrzip compression",
+  "compliance": {
+    "artifact_bytes_max": 15985934,
+    "train_time_max_s": 596.140,
+    "eval_time_max_s": 493.2,
+    "no_ppm": true,
+    "no_slot": true,
+    "no_prequant_ttt": true,
+    "single_pass": true,
+    "score_before_update": true
+  }
+}
