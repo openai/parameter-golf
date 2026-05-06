@@ -1,0 +1,57 @@
+{
+  "authors": [
+    {
+      "name": "Renqian Luo",
+      "github_id": "renqianluo"
+    }
+  ],
+  "description": "Four composable novel TTT-LoRA improvements on top of dexhunter's phased TTT pipeline: (1) alpha/rank output scaling, (2) warm-start of LoRA A across batches, (3) raised TTT weight decay 0.5->1.0 to regularize the warmed A, (4) alpha lifted to 144 (vs rank 128 so effective scale=1.125) giving LoRA more adaptation strength while WD=1.0 keeps it stable. 3-seed mean 1.07209 BPB.",
+  "val_bpb": 1.07208661,
+  "seed_results": {
+    "1337": 1.07189164,
+    "42": 1.07247808,
+    "314": 1.07189010
+  },
+  "eval_time_seconds": {
+    "1337": 456.5,
+    "42": 456.7,
+    "314": 455.7
+  },
+  "train_time_seconds": {
+    "1337": 596.0,
+    "42": 596.0,
+    "314": 596.1
+  },
+  "artifact_size_bytes": {
+    "1337": 15935101,
+    "42": 15930195,
+    "314": 15935817
+  },
+  "methods": [
+    "Novel (1): alpha/rank scaling on BatchedLinearLoRA — decouples rank from effective LR, enabling stable rank 128",
+    "Novel (2): warm-start of LoRA A across batches (only B resets to zero) — feature directions accumulate",
+    "Novel (3): TTT weight decay 0.5 -> 1.0 — counteracts the across-batch A overfit enabled by (2)",
+    "Novel (4): alpha lifted from 96 to 144 (scale = 144/128 = 1.125). With WD=1.0 as a regularizer the stronger LoRA converges cleanly on all 3 seeds instead of drifting.",
+    "LoRA rank 128, alpha 144, WD 1.0, warm-start A enabled",
+    "Inherits dexhunter's phased TTT + multi-phase global SGD + trimmed GPTQ + MATRIX_LR=0.026; samacqua's VarLen + Fused Triton MLP; bigbag's triple depth recurrence + parallel residuals"
+  ],
+  "attribution": {
+    "alpha_scaled_lora__warm_start_A__higher_wd__raised_alpha": "Renqian Luo (this work)",
+    "varlen_attention_fused_mlp_doc_ttt": "@samacqua (PR #1530)",
+    "phased_ttt_concept": "@romeerp (PR #1610)",
+    "multi_phase_global_sgd_trimmed_gptq": "@dexhunter",
+    "triple_recurrence_parallel_residuals": "@bigbag (PR #1493), @EthanYangTW (PR #1523)",
+    "legal_ttt_framework": "@abaybektursun (PR #549)"
+  },
+  "legal_ttt": true,
+  "compliance": {
+    "train_under_600s": true,
+    "eval_under_600s": true,
+    "artifact_under_16mb": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  }
+}
