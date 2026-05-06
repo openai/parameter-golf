@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mind Of Experimenter</title>
+<style>
+:root {
+  --bg: #f8f7f4;
+  --card: #ffffff;
+  --card-community: #f3f1ff;
+  --card-leaderboard: #eef7f1;
+  --accent: #7c5cfc;
+  --accent2: #34a366;
+  --text: #1a1a1a;
+  --text2: #666;
+  --text3: #999;
+  --border: rgba(0,0,0,0.06);
+  --green: #34c759;
+  --red: #ff3b30;
+  --amber: #e6a800;
+  --conn: #ccc9c2;
+  --conn-community: #b8b0e8;
+  --conn-leaderboard: #8ec5a0;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  overflow: hidden; height: 100vh; width: 100vw;
+}
+
+/* === HEADER === */
+.header {
+  position: fixed; top:0; left:0; right:0; z-index:100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px; gap: 12px;
+  background: rgba(248,247,244,0.94); backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.header h1 { font-size:19px; font-weight:700; letter-spacing:-0.3px; white-space:nowrap; }
+.header h1 span { color: var(--accent); }
+.header-center { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center; }
+.header-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+
+/* Toggle pills */
+.toggle-container {
+  display:flex; background:#eeedf0; border-radius:22px; padding:3px;
+}
+.toggle-btn {
+  padding:7px 16px; border-radius:18px; font-size:12.5px; font-weight:600;
+  border:none; cursor:pointer; transition:all .25s; background:transparent; color:#888;
+}
+.toggle-btn.active { background:#fff; color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.1); }
+
+/* Filter chips */
+.filters { display:flex; gap:6px; flex-wrap:wrap; }
+.chip {
+  padding:5px 12px; border-radius:16px; font-size:11.5px; font-weight:600;
+  border:1.5px solid #ddd; cursor:pointer; transition:all .2s;
+  background:#fff; color:#888; user-select:none;
+}
+.chip:hover { border-color:#bbb; color:#555; }
+.chip.active { border-color:var(--accent); color:var(--accent); background:#f6f3ff; }
+.chip.active-green { border-color:var(--green); color:#1d8f3f; background:#eafaef; }
+.chip.active-red { border-color:var(--red); color:#cc2222; background:#fff0f0; }
+.chip.active-amber { border-color:var(--amber); color:#a68500; background:#fffbe6; }
+
+.btn {
+  padding:7px 14px; border-radius:8px; font-size:12px; font-weight:600;
+  border:1px solid rgba(0,0,0,.1); cursor:pointer; background:#fff; color:#666; transition:all .2s;
+}
+.btn:hover { background:#f0f0f0; }
+.btn-path.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-path.active:hover { background:#6a48e8; }
+
+/* === CANVAS === */
+#canvas-container {
+  position:absolute; top:0; left:0; right:0; bottom:0; overflow:hidden; cursor:grab;
+}
+#canvas-container.dragging { cursor:grabbing; }
+#world { position:absolute; transform-origin:0 0; will-change:transform; }
+canvas#connections { position:absolute; top:0; left:0; pointer-events:none; }
+
+/* === NODES === */
+.node {
+  position:absolute; background:var(--card); border-radius:14px;
+  padding:14px 18px; width:195px;
+  box-shadow:0 2px 10px rgba(0,0,0,.05), 0 0 0 1px rgba(0,0,0,.03);
+  cursor:pointer; transition:transform .2s, box-shadow .2s, opacity .35s;
+  user-select:none; opacity:1;
+}
+.node:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.09), 0 0 0 1px rgba(0,0,0,.05); }
+.node.community { background:var(--card-community); border:1.5px dashed var(--conn-community); }
+.node.leaderboard { background:var(--card-leaderboard); border:1.5px solid var(--conn-leaderboard); }
+.node.hidden-node { opacity:0; pointer-events:none; transform:scale(.92); }
+.node.dim { opacity:.18; pointer-events:none; }
+.node.path-dim { opacity:.12; }
+.node.path-highlight {
+  box-shadow:0 0 0 3px var(--accent), 0 6px 24px rgba(124,92,252,.2);
+  z-index:5;
+}
+.node.path-start::before, .node.path-end::before {
+  position:absolute; top:-28px; left:50%; transform:translateX(-50%);
+  font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.7px;
+  padding:4px 14px; border-radius:12px; white-space:nowrap; z-index:6;
+  box-shadow:0 2px 8px rgba(0,0,0,.15);
+}
+.node.path-start::before {
+  content:'⚑ START'; background:#7c5cfc; color:#fff;
+}
+.node.path-end::before {
+  content:'★ CURRENT STATE'; background:linear-gradient(135deg,#34c759,#28a745); color:#fff;
+}
+.node.path-start {
+  box-shadow:0 0 0 3px #7c5cfc, 0 0 16px rgba(124,92,252,.25) !important;
+}
+.node.path-end {
+  box-shadow:0 0 0 3px #34c759, 0 0 16px rgba(52,199,89,.25) !important;
+}
+/* Permanent markers — always visible regardless of path state */
+.node.marker-start::after, .node.marker-end::after {
+  position:absolute; top:-28px; left:50%; transform:translateX(-50%);
+  font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.7px;
+  padding:4px 14px; border-radius:12px; white-space:nowrap; z-index:6;
+  box-shadow:0 2px 8px rgba(0,0,0,.15); pointer-events:none;
+}
+.node.marker-start::after {
+  content:'⚑ START'; background:#7c5cfc; color:#fff;
+}
+.node.marker-end::after {
+  content:'★ CURRENT STATE'; background:linear-gradient(135deg,#34c759,#28a745); color:#fff;
+}
+.node.marker-start {
+  box-shadow:0 0 0 2.5px rgba(124,92,252,.4), 0 2px 10px rgba(0,0,0,.05) !important;
+}
+.node.marker-end {
+  box-shadow:0 0 0 2.5px rgba(52,199,89,.4), 0 2px 10px rgba(0,0,0,.05) !important;
+}
+/* Path step number badge */
+.path-step {
+  position:absolute; top:-10px; left:-10px;
+  width:22px; height:22px; border-radius:50%;
+  background:var(--accent); color:#fff;
+  font-size:10px; font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  z-index:7; box-shadow:0 2px 6px rgba(124,92,252,.3);
+  pointer-events:none;
+}
+/* Path breadcrumb bar */
+.path-bar {
+  position:fixed; bottom:56px; left:50%; transform:translateX(-50%);
+  background:rgba(255,255,255,.95); backdrop-filter:blur(12px);
+  border-radius:14px; padding:10px 16px; z-index:60;
+  box-shadow:0 4px 20px rgba(0,0,0,.08); border:1px solid rgba(0,0,0,.06);
+  display:none; align-items:center; gap:6px; max-width:90vw; overflow-x:auto;
+}
+.path-bar.visible { display:flex; }
+.path-bar-item {
+  font-size:11px; font-weight:600; padding:4px 10px;
+  border-radius:8px; white-space:nowrap; cursor:pointer; transition:all .15s;
+}
+.path-bar-item.pb-ours { background:#f3f1ff; color:#5b4fc7; }
+.path-bar-item.pb-start { background:#7c5cfc; color:#fff; }
+.path-bar-item.pb-end { background:#34c759; color:#fff; }
+.path-bar-item:hover { filter:brightness(.92); }
+.path-bar-arrow { color:#ccc; font-size:13px; flex-shrink:0; }
+.path-bar-close {
+  width:22px; height:22px; border-radius:50%; border:none;
+  background:#f0f0f0; cursor:pointer; font-size:12px; color:#888;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-left:6px;
+}
+.path-bar-close:hover { background:#e0e0e0; }
+
+.node-name { font-size:13px; font-weight:650; line-height:1.35; margin-bottom:5px; }
+.community .node-name { color:#5b4fc7; }
+.leaderboard .node-name { color:#2a7d4a; }
+.node-desc { font-size:11px; color:var(--text3); line-height:1.4; }
+.node-badge {
+  display:inline-block; width:7px; height:7px; border-radius:50%;
+  margin-right:5px; vertical-align:middle; position:relative; top:-1px;
+}
+.node-badge.positive { background:var(--green); }
+.node-badge.negative { background:var(--red); }
+.node-badge.neutral { background:var(--amber); }
+
+.node-source-tag {
+  position:absolute; top:6px; right:10px;
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+  padding:2px 6px; border-radius:4px;
+}
+.node.community .node-source-tag { background:#ece8ff; color:#7c5cfc; }
+.node.leaderboard .node-source-tag { background:#ddf3e5; color:#2a7d4a; }
+
+/* === PANEL === */
+.panel-overlay {
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,.12); z-index:200;
+  opacity:0; pointer-events:none; transition:opacity .3s;
+}
+.panel-overlay.open { opacity:1; pointer-events:all; }
+.detail-panel {
+  position:fixed; top:0; right:-500px; bottom:0; width:470px; max-width:92vw;
+  background:#fff; box-shadow:-4px 0 40px rgba(0,0,0,.1);
+  z-index:201; transition:right .35s cubic-bezier(.4,0,.2,1);
+  display:flex; flex-direction:column; border-radius:20px 0 0 20px;
+}
+.detail-panel.open { right:0; }
+.panel-header { padding:28px 28px 0; display:flex; justify-content:space-between; align-items:flex-start; }
+.panel-title { font-size:19px; font-weight:700; line-height:1.3; max-width:360px; }
+.panel-close {
+  width:32px; height:32px; border-radius:50%; border:none;
+  background:#f2f2f2; cursor:pointer; font-size:16px; color:#888;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.panel-close:hover { background:#e8e8e8; }
+.panel-sentiment { padding:12px 28px 0; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+.panel-sentiment.positive { color:var(--green); }
+.panel-sentiment.negative { color:var(--red); }
+.panel-sentiment.neutral { color:var(--amber); }
+.tabs { display:flex; padding:18px 28px 0; border-bottom:1px solid #eee; }
+.tab {
+  padding:9px 18px; font-size:13px; font-weight:600; color:var(--text3);
+  border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; transition:all .2s;
+}
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab:hover { color:#555; }
+.tab-content { flex:1; overflow-y:auto; padding:22px 28px 28px; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+.learning-item {
+  display:flex; align-items:flex-start; gap:10px; margin-bottom:12px;
+  padding:12px 14px; background:#fafafa; border-radius:10px; font-size:13px; line-height:1.5;
+}
+.learning-tag {
+  font-size:9.5px; font-weight:700; text-transform:uppercase; padding:2px 7px;
+  border-radius:4px; white-space:nowrap; flex-shrink:0; margin-top:2px;
+}
+.learning-tag.positive { background:#e8f9ed; color:#1d8f3f; }
+.learning-tag.negative { background:#fee; color:#cc2222; }
+.learning-tag.neutral { background:#fff8e0; color:#a68500; }
+.math-section { margin-bottom:18px; }
+.math-label { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#aaa; margin-bottom:7px; }
+.math-content { font-size:13.5px; line-height:1.6; color:#333; }
+.math-formula {
+  background:#f6f5ff; border-radius:8px; padding:10px 14px; margin:6px 0;
+  font-family:'Menlo','Fira Code',monospace; font-size:12px; color:#5b4fc7;
+  border-left:3px solid var(--accent); word-break:break-all;
+}
+
+/* === LEGEND & CONTROLS === */
+.legend {
+  position:fixed; bottom:16px; left:16px;
+  background:rgba(255,255,255,.92); backdrop-filter:blur(8px);
+  border-radius:12px; padding:12px 16px;
+  box-shadow:0 2px 12px rgba(0,0,0,.05); z-index:50;
+  font-size:11.5px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+}
+.legend-item { display:flex; align-items:center; gap:5px; }
+.legend-line { width:22px; height:0; border-top:2px solid; display:inline-block; vertical-align:middle; }
+.legend-line.dashed { border-top-style:dashed; }
+
+.zoom-controls {
+  position:fixed; bottom:16px; right:16px;
+  display:flex; gap:4px; z-index:50;
+}
+.zoom-btn {
+  width:34px; height:34px; border-radius:9px;
+  border:1px solid rgba(0,0,0,.07); background:rgba(255,255,255,.92);
+  backdrop-filter:blur(8px); cursor:pointer; font-size:17px; color:#555;
+  display:flex; align-items:center; justify-content:center;
+}
+.zoom-btn:hover { background:#eee; }
+
+/* minimap */
+.minimap {
+  position:fixed; bottom:60px; right:16px; width:180px; height:120px;
+  background:rgba(255,255,255,.9); border-radius:10px;
+  box-shadow:0 2px 12px rgba(0,0,0,.06); z-index:50; overflow:hidden;
+  border:1px solid rgba(0,0,0,.06);
+}
+.minimap canvas { width:100%; height:100%; }
+
+@media (max-width:700px) {
+  .header { padding:10px 14px; flex-wrap:wrap; }
+  .filters { display:none; }
+  .detail-panel { width:100%; max-width:100%; border-radius:0; }
+  .legend { font-size:10px; gap:8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>Mind</span> Of Experimenter</h1>
+  <div class="header-center">
+    <div class="toggle-container">
+      <button class="toggle-btn active" id="toggle-ours" onclick="setMode('ours')">Our Journey</button>
+      <button class="toggle-btn" id="toggle-community" onclick="setMode('community')">+ Community</button>
+    </div>
+    <div class="filters">
+      <div class="chip active" data-filter="all" onclick="toggleFilter(this)">All</div>
+      <div class="chip" data-filter="positive" onclick="toggleFilter(this)">Positive</div>
+      <div class="chip" data-filter="negative" onclick="toggleFilter(this)">Negative</div>
+      <div class="chip" data-filter="neutral" onclick="toggleFilter(this)">Neutral</div>
+      <div class="chip" data-filter="architecture" onclick="toggleFilter(this)">Architecture</div>
+      <div class="chip" data-filter="optimization" onclick="toggleFilter(this)">Optimization</div>
+      <div class="chip" data-filter="quantization" onclick="toggleFilter(this)">Quantization</div>
+      <div class="chip" data-filter="evaluation" onclick="toggleFilter(this)">Evaluation</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-path" id="btn-my-path" onclick="toggleMyPath()">✦ My Path</button>
+    <button class="btn" onclick="downloadJSON()">&#11015; JSON</button>
+  </div>
+</div>
+
+<div id="canvas-container">
+  <div id="world">
+    <canvas id="connections"></canvas>
+  </div>
+</div>
+
+<div class="panel-overlay" id="overlay" onclick="closePanel()"></div>
+<div class="detail-panel" id="panel">
+  <div class="panel-header">
+    <div class="panel-title" id="panel-title"></div>
+    <button class="panel-close" onclick="closePanel()">&#x2715;</button>
+  </div>
+  <div class="panel-sentiment" id="panel-sentiment"></div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('learnings',this)">Learnings</button>
+    <button class="tab" onclick="switchTab('math',this)">Math</button>
+  </div>
+  <div class="tab-content">
+    <div class="tab-pane active" id="tab-learnings"></div>
+    <div class="tab-pane" id="tab-math"></div>
+  </div>
+</div>
+
+<div class="path-bar" id="path-bar"></div>
+
+<div class="legend">
+  <div class="legend-item"><span class="node-badge positive"></span>Positive</div>
+  <div class="legend-item"><span class="node-badge negative"></span>Negative</div>
+  <div class="legend-item"><span class="node-badge neutral"></span>Neutral</div>
+  <div class="legend-item" id="leg-comm" style="display:none"><span class="legend-line dashed" style="border-color:var(--conn-community)"></span>Community</div>
+  <div class="legend-item" id="leg-lb" style="display:none"><span class="legend-line" style="border-color:var(--conn-leaderboard)"></span>Leaderboard</div>
+  <div class="legend-item" id="leg-cross" style="display:none"><span class="legend-line dashed" style="border-color:rgb(200,140,60)"></span>Cross-lineage</div>
+</div>
+
+<div class="minimap"><canvas id="minimap-canvas"></canvas></div>
+
+<div class="zoom-controls">
+  <button class="zoom-btn" onclick="zoomIn()">+</button>
+  <button class="zoom-btn" onclick="zoomOut()">&minus;</button>
+  <button class="zoom-btn" onclick="resetView()" style="font-size:12px">&#8634;</button>
+</div>
+
+<script>
+// ================================================================
+// NODE DATA — spacious layout, 3 tiers of sources
+// ================================================================
+
+// Column-based layout for less clutter
+// Our journey flows left→right in rows with generous spacing
+const W = 240, H = 170; // cell grid
+
+const nodes = [
+  // ==================== OUR JOURNEY ====================
+  { id:"baseline", name:"Baseline SOTA Reproduction", source:"ours", tags:["architecture"],
+    x:80, y:320, parents:[], sentiment:"positive",
+    desc:"Reproduced top leaderboard config on A40 — the starting point",
+    learnings:[
+      {type:"positive",text:"Successfully reproduced ~1.17 bpb reference, confirming infrastructure works end-to-end"},
+      {type:"neutral",text:"A40 results don't always transfer to H100 — treat as directional, not definitive"}
+    ],
+    math:{hypothesis:"Transfer the leading leaderboard configuration to our hardware to establish a reliable ablation baseline.",formulas:[],insight:"A valid baseline is the foundation of all experimentation — without it, gains can't be attributed to specific interventions."}
+  },
+  { id:"multi_token", name:"Multi-Token Prediction", source:"ours", tags:["architecture","evaluation"],
+    x:80, y:80, parents:["baseline"], sentiment:"neutral",
+    desc:"Auxiliary loss predicting 2-3 future tokens simultaneously",
+    learnings:[
+      {type:"negative",text:"Compute overhead from extra prediction heads eats into the tight 10-minute training budget"},
+      {type:"neutral",text:"Proven at larger scale but doesn't translate to extreme time constraints"}
+    ],
+    math:{hypothesis:"Extract 2-3× gradient signal per step by predicting multiple future tokens.",formulas:["L = L_next + λ(L_next+1 + L_next+2)","Extra heads add ~15% compute per step"],insight:"Marginal information gain per token doesn't compensate for wall-clock cost at 600s."}
+  },
+  { id:"int4_quant", name:"Aggressive Quantization (Int4)", source:"ours", tags:["quantization"],
+    x:80, y:560, parents:["baseline"], sentiment:"neutral",
+    desc:"Push MLP to int4 with int6 attention, free params for 11th layer",
+    learnings:[
+      {type:"positive",text:"Frees significant parameter budget — enough for an extra layer"},
+      {type:"negative",text:"Int4 quality gap is severe (+0.065 bpb) without careful compensation"}
+    ],
+    math:{hypothesis:"Lower bit-width on MLP frees budget for depth. Trading quantization noise for capacity.",formulas:["Quant error ~ O(2^-bits)","int4: ±8 levels vs int6: ±32 levels"],insight:"MLP weights tolerate quantization better than attention, but int4 pushes past the threshold."}
+  },
+  { id:"value_embeds", name:"Value Embeddings", source:"ours", tags:["architecture"],
+    x:80, y:800, parents:["baseline"], sentiment:"neutral",
+    desc:"Inject token identity directly into attention value path",
+    learnings:[
+      {type:"neutral",text:"Tiny param cost (~327K) but no detectable gain at this scale"},
+      {type:"neutral",text:"Later analysis: layer 8 VE is dead (scale 0.128) — potential for layer reallocation"}
+    ],
+    math:{hypothesis:"Adding token-identity shortcut into V helps the model recall what token produced each value.",formulas:["V_new = V_original + VE_lookup[token_id]"],insight:"At small scale, hidden state already encodes token identity sufficiently."}
+  },
+  { id:"curriculum", name:"Curriculum Learning", source:"ours", tags:["optimization"],
+    x:340, y:80, parents:["baseline"], sentiment:"neutral",
+    desc:"Frequency-sorted: train on frequent tokens first, then rare",
+    learnings:[
+      {type:"neutral",text:"Zero-parameter intervention with mixed results"},
+      {type:"negative",text:"High early learning rate washes out ordering benefit"}
+    ],
+    math:{hypothesis:"Frequency-sorted curriculum builds strong common-pattern representations first.",formulas:[],insight:"With only ~7000 steps, the curriculum window is too short for a meaningful ordering effect."}
+  },
+  { id:"cyclic_momentum", name:"Cyclic Momentum", source:"ours", tags:["optimization"],
+    x:340, y:320, parents:["baseline"], sentiment:"positive",
+    desc:"Triangle wave momentum (0.85-0.95) instead of fixed schedule",
+    learnings:[
+      {type:"positive",text:"Biggest single-technique win from early experiments — consistently helps"},
+      {type:"positive",text:"Periodic resets let optimizer revisit recent loss valleys from different angles"}
+    ],
+    math:{hypothesis:"Fixed high momentum → lazy convergence. Cycling creates periodic warm restarts that escape sharp minima.",formulas:["momentum(t) = m_min + (m_max - m_min) · triangle(t/period)","Period=50 steps over ~7000 steps = 140 mini-restarts"],insight:"Sharp minima generalize poorly after quantization. Cyclic momentum promotes flatter minima."}
+  },
+  { id:"wider_model", name:"Wider Model (d=576)", source:"ours", tags:["architecture"],
+    x:340, y:560, parents:["baseline"], sentiment:"neutral",
+    desc:"Increase dim to 576 with 9 heads, prune 10% MLP to compensate",
+    learnings:[
+      {type:"neutral",text:"Width gains offset by MLP pruning needed to stay in budget"},
+      {type:"negative",text:"Slower per-step → fewer total steps in 600 seconds"}
+    ],
+    math:{hypothesis:"Wider hidden dim allows richer representations. Compensate budget by pruning least-important MLP neurons.",formulas:["Params ~ d² · num_layers · (1 + mlp_mult)"],insight:"Each 1ms/step overhead costs ~0.006 bpb. Width must justify proportional quality gain."}
+  },
+  { id:"ttt_sgd", name:"Test-Time Training (SGD)", source:"ours", tags:["evaluation"],
+    x:600, y:320, parents:["cyclic_momentum"], sentiment:"positive",
+    desc:"Document-specific SGD adaptation at evaluation time",
+    learnings:[
+      {type:"positive",text:"First major breakthrough — per-document adaptation captures distribution shifts"},
+      {type:"positive",text:"Simple SGD surprisingly effective — simplicity wins over complex optimizers"}
+    ],
+    math:{hypothesis:"Language has document-level coherence a fixed model can't exploit. One SGD step adapts to local distribution.",formulas:["θ_doc = θ - lr · ∇L(θ; context)","Legal: adapt on prefix, evaluate on suffix (causal)"],insight:"TTT bridges training-time generalization and evaluation-time specialization."}
+  },
+  { id:"relu_sq", name:"ReLU² + Deeper Shared Layers", source:"ours", tags:["architecture","optimization"],
+    x:600, y:560, parents:["cyclic_momentum","ttt_sgd"], sentiment:"positive",
+    desc:"Squared ReLU activation + 11 layers with weight sharing + early SWA",
+    learnings:[
+      {type:"positive",text:"ReLU² produces sparser activations than GELU — better gradient flow"},
+      {type:"positive",text:"11 layers via last-layer sharing = free depth (zero param cost)"},
+      {type:"positive",text:"SWA at 0.2 fraction smooths weights for better quantization"}
+    ],
+    math:{hypothesis:"ReLU²(x) = max(0,x)² creates sharper, sparser activations. Combined with free extra depth from sharing.",formulas:["ReLU²(x) = [max(0, x)]²","11 virtual layers, 10 unique weight sets","SWA: θ_avg = (1/N) Σ θ_i over last N snapshots"],insight:"Sparsity from ReLU² reduces effective compute while maintaining representational power."}
+  },
+  { id:"awq", name:"AWQ Quantization", source:"ours", tags:["quantization"],
+    x:860, y:560, parents:["relu_sq"], sentiment:"positive",
+    desc:"Activation-aware per-column scaling before post-training quantization",
+    learnings:[
+      {type:"positive",text:"Closes int5→int6 gap from 0.027 to 0.010 bpb (63% reduction)"},
+      {type:"positive",text:"Scale factors fold into LayerNorm — zero runtime cost"}
+    ],
+    math:{hypothesis:"Columns interacting with high-magnitude activations need protection during quantization.",formulas:["w_q[i] = clip(w[i]/s[i], -2^(b-1), 2^(b-1)-1)","s[i] = percentile(|act·w[i]|, 99.9)^α, α=0.5"],insight:"AWQ is a free lunch — protects critical weights with zero inference overhead."}
+  },
+  { id:"first_submission", name:"First Submission (8×H100)", source:"ours", tags:["architecture"],
+    x:860, y:320, parents:["awq"], sentiment:"positive",
+    desc:"All Phase 2 wins stacked — first official submission at 1.1507 bpb",
+    learnings:[
+      {type:"positive",text:"1×H100 findings scale cleanly to 8×H100 distributed training"},
+      {type:"neutral",text:"Solid (1.1507) but far from frontier — more architectural innovation needed"}
+    ],
+    math:{hypothesis:"Stack cyclic momentum + ReLU² + 11L shared + AWQ + SWA and verify at full scale.",formulas:[],insight:"Technique stacking isn't additive — interactions must be verified at target scale. Our stack held."}
+  },
+  { id:"speed_opt", name:"Speed Optimization", source:"ours", tags:["optimization"],
+    x:1120, y:320, parents:["first_submission"], sentiment:"positive",
+    desc:"Maximize throughput — int6 attention, int5 MLP, LZMA compression",
+    learnings:[
+      {type:"positive",text:"Faster throughput = more training steps = lower loss at same architecture"},
+      {type:"neutral",text:"LZMA compression adds eval cost but saves artifact bytes"}
+    ],
+    math:{hypothesis:"In fixed wall-clock budget, throughput → more gradient updates → lower loss monotonically in underfitting regime.",formulas:["bpb_gain ~ O(1/√total_steps)"],insight:"We're firmly in the underfitting regime at 600s — every extra step counts."}
+  },
+  { id:"bank_tensors", name:"Bank Tensor Architecture", source:"ours", tags:["architecture"],
+    x:1120, y:560, parents:["speed_opt"], sentiment:"positive",
+    desc:"Contiguous parameter banks for vectorized TTT updates",
+    learnings:[
+      {type:"positive",text:"Major rewrite — banks enable efficient per-document adaptation"},
+      {type:"positive",text:"Single SGD step updates all layers simultaneously via contiguous memory"}
+    ],
+    math:{hypothesis:"Scattered per-layer matrices cause fragmentation during TTT. Contiguous banks [slots, out, in] enable vectorized updates.",formulas:["θ_bank ← θ_bank - lr · ∇L(θ_bank)","One matmul replaces N per-layer matmuls"],insight:"Data layout matters as much as algorithm design. Banks turned TTT from expensive to practical."}
+  },
+  { id:"partial_rope", name:"Partial RoPE", source:"ours", tags:["architecture"],
+    x:1380, y:400, parents:["bank_tensors"], sentiment:"positive",
+    desc:"Rotary embeddings on only 16/64 head dimensions",
+    learnings:[
+      {type:"positive",text:"Frees 75% of head dims for content-based (position-free) attention"},
+      {type:"positive",text:"Later layers mostly don't need positional information"}
+    ],
+    math:{hypothesis:"Full RoPE forces ALL dims to encode position. Most deep-layer attention is content-based. Partial RoPE splits rotational from content.",formulas:["Q = [Q_rope[:16] ⊗ RoPE, Q_content[16:]]","Only 25% of dims carry position info"],insight:"Position is a low-bandwidth signal. Content matching is the heavy lifter in deep layers."}
+  },
+  { id:"meta_ttt", name:"Meta-TTT (FOMAML)", source:"ours", tags:["optimization","evaluation"],
+    x:1380, y:640, parents:["partial_rope","bank_tensors"], sentiment:"positive",
+    desc:"First-Order MAML trains init optimal for 1-step TTT adaptation",
+    learnings:[
+      {type:"positive",text:"Meta-learning finds flat loss regions that generalize well after adaptation"},
+      {type:"positive",text:"Every-4-steps meta updates outperform every-8"}
+    ],
+    math:{hypothesis:"FOMAML optimizes for post-adaptation loss: find θ such that L(θ - lr·∇L(θ)) is minimal.",formulas:["L_meta(θ) = L(θ - lr·∇L(θ; D_support); D_query)","First-order approx: no Hessian needed"],insight:"Meta-TTT finds weights that are good starting points for per-document adaptation."}
+  },
+  { id:"size_opt_meta", name:"Size-Optimized Meta-TTT", source:"ours", tags:["optimization"],
+    x:1640, y:480, parents:["meta_ttt"], sentiment:"positive",
+    desc:"Smaller bigram (4096×64) + meta-TTT every 4 steps → SOTA 1.1169",
+    learnings:[
+      {type:"positive",text:"Best result before community integration: legal_ttt = 1.1169"},
+      {type:"positive",text:"Shrinking bigram table frees params without quality loss"}
+    ],
+    math:{hypothesis:"Bigram hash table is over-provisioned. Shrink 10240×128 → 4096×64, reinvest in model capacity.",formulas:["Param savings: ~1M params freed","Meta-TTT every 4 steps > every 8 steps"],insight:"Parameter reallocation from auxiliary tables to core capacity is a consistent win."}
+  },
+  { id:"random_split", name:"Random-Split FOMAML", source:"ours", tags:["optimization"],
+    x:1640, y:720, parents:["size_opt_meta"], sentiment:"negative",
+    desc:"Randomize support/query split — regressed 0.0108 bpb",
+    learnings:[
+      {type:"negative",text:"Random splits break causal document asymmetry"},
+      {type:"negative",text:"First and second halves of documents have fundamentally different statistics"}
+    ],
+    math:{hypothesis:"Sequential split biases meta toward document-start patterns. Random split should give more uniform coverage.",formulas:[],insight:"Wrong — documents are causally asymmetric. Early tokens are harder (less context), late tokens easier. Sequential split correctly models this."}
+  },
+  { id:"pos_cond_bigram", name:"Position-Conditional Bigram", source:"ours", tags:["architecture"],
+    x:1900, y:400, parents:["size_opt_meta"], sentiment:"positive",
+    desc:"Separate hash space by word-start vs within-word — zero-param trick",
+    learnings:[
+      {type:"positive",text:"Model learned to kill word-start bigrams (boost→0.007) — they're noise"},
+      {type:"positive",text:"Within-word bigrams like (qu,ick) are highly predictive; word boundaries are not"}
+    ],
+    math:{hypothesis:"Bigram hash collisions between word-boundary and within-word patterns degrade quality. Split by position class.",formulas:["word_start_boost: 1.0 → 0.007 (~99.3% suppression)","Inverse gating: trigram@word-start, bigram@within-word"],insight:"The model told us the answer by learning to suppress word-start bigrams. Adding a learnable gate reveals which patterns matter."}
+  },
+  { id:"meta_ttt_ablation", name:"Meta-TTT Ablation", source:"ours", tags:["optimization","evaluation"],
+    x:1900, y:640, parents:["pos_cond_bigram"], sentiment:"neutral",
+    desc:"Removed meta-TTT entirely — ceiling is architecture-limited",
+    learnings:[
+      {type:"neutral",text:"Meta-TTT contributes only +0.00036 bpb — within noise for 3% compute cost"},
+      {type:"positive",text:"Key insight: TTT delta is fixed at ~0.023 bpb regardless of training method"}
+    ],
+    math:{hypothesis:"If removing meta-TTT doesn't hurt, TTT ceiling is determined by architecture (bank rank × dim), not training.",formulas:["TTT delta ≈ 0.023 bpb (invariant across 4 experiments)"],insight:"Profound finding: TTT is a fixed-capacity mechanism. Better meta-learning can't improve it — only higher-rank banks can."}
+  },
+  { id:"sam_inner", name:"SAM Inner Loop", source:"ours", tags:["optimization"],
+    x:1900, y:880, parents:["meta_ttt_ablation"], sentiment:"negative",
+    desc:"Sharpness-Aware Minimization in meta-TTT — confirmed ceiling",
+    learnings:[
+      {type:"negative",text:"Even with explicit sharpness minimization, TTT delta stays at ~0.023"},
+      {type:"negative",text:"Four independent experiments confirm: ceiling is structural, not a training problem"}
+    ],
+    math:{hypothesis:"SAM perturbs weights to worst-case neighborhood before updating. If this can't break the ceiling, it's truly structural.",formulas:["∇_SAM = ∇L(θ + ρ · ∇L(θ)/‖∇L(θ)‖)"],insight:"Vanilla SGD, MetaSGD, SAM, no-meta all show identical TTT delta. Case closed."}
+  },
+  { id:"recurrence_par_resid", name:"3-Layer Recurrence + Parallel Residuals", source:"ours", tags:["architecture"],
+    x:2160, y:400, parents:["meta_ttt_ablation","pos_cond_bigram"], sentiment:"positive",
+    desc:"SP8192 tokenizer, blocks 3-5 reused 3×, GPT-J parallel lanes",
+    learnings:[
+      {type:"positive",text:"Massive leap — val_bpb from 1.115 to 1.087. Recurrence is the biggest architectural win"},
+      {type:"positive",text:"SP8192 compresses embeddings, making room for recurrence"},
+      {type:"positive",text:"Parallel residuals (attn + MLP on separate lanes) improve quantization quality"}
+    ],
+    math:{hypothesis:"Reusing blocks 3-5 for 3 passes gives 17 virtual layers from 11 physical. Parallel residual routing maximizes depth-per-parameter.",formulas:["Virtual depth = 11 + (3 × 2) = 17 effective layers","Parallel: out = x + Attn(x) + MLP(x)"],insight:"Recurrence is fundamentally different from weight sharing — it builds iterative refinement like an unrolled optimization loop."}
+  },
+  { id:"wider_loop", name:"Wider Loop Embeddings + TapIn V6", source:"ours", tags:["architecture","evaluation"],
+    x:2420, y:320, parents:["recurrence_par_resid"], sentiment:"positive",
+    desc:"Per-pass loop embeddings + cross-window n-gram matching → 1.0788",
+    learnings:[
+      {type:"positive",text:"Best result achieved: legal_ttt = 1.0788"},
+      {type:"positive",text:"Per-pass embeddings (3×512, zero-init) let each recurrence pass specialize"},
+      {type:"positive",text:"TapIn V6 captures long-range repetition patterns via C++ matcher"}
+    ],
+    math:{hypothesis:"Each recurrence pass should have loop-specific context. Per-pass embeddings distinguish which iteration it's on.",formulas:["h_pass_k = h + E_loop[k], E_loop ~ (passes, model_dim)","Zero-init → starts as no-op, learns pass-specific modulations"],insight:"Simplest possible way to give recurrence 'loop awareness' — and it works."}
+  },
+  { id:"improved_par_resid", name:"Improved Parallel Residuals", source:"ours", tags:["architecture"],
+    x:2420, y:560, parents:["wider_loop"], sentiment:"positive",
+    desc:"Enhanced cross-lane accumulation — richer attn/MLP interaction",
+    learnings:[
+      {type:"positive",text:"Cross-lane residuals further improve quantization resilience"},
+      {type:"positive",text:"legal_ttt ~1.0744 with enhanced parallel routing"}
+    ],
+    math:{hypothesis:"Standard parallel residuals are independent. Enhanced routing adds cross-lane interaction.",formulas:["out = x + α·Attn(x) + β·MLP(x) + γ·Attn(MLP(x))"],insight:"Cross-lane term reuses existing computation but captures attn-MLP interactions that pure parallel misses."}
+  },
+  { id:"cooccurrence_qk", name:"Co-occurrence QK Init", source:"ours", tags:["architecture","optimization"],
+    x:860, y:800, parents:["awq"], sentiment:"neutral",
+    desc:"Initialize QK projections from token co-occurrence statistics",
+    learnings:[
+      {type:"positive",text:"Promising concept — gives attention a head start from corpus statistics"},
+      {type:"neutral",text:"Full-scale 8×H100 results still pending"}
+    ],
+    math:{hypothesis:"Random QK init wastes early steps learning basic co-occurrence. Init from SVD of co-occurrence matrix.",formulas:["QK_init ~ SVD(co_occurrence_matrix)[:rank]"],insight:"Providing attention's answer at init lets training focus on harder semantic patterns immediately."}
+  },
+
+  // ==================== COMMUNITY NODES ====================
+  { id:"c_xsa", name:"Exclusive Self-Attention (XSA)", source:"community", tags:["architecture"],
+    x:600, y:80, parents:["ttt_sgd"], sentiment:"positive",
+    desc:"Remove self-value bias via orthogonal projection in final layers",
+    learnings:[
+      {type:"positive",text:"Zero parameter overhead — near-universal in frontier submissions"},
+      {type:"negative",text:"TTT + XSA actively hurts by 0.016 bpb — they interfere"},
+      {type:"neutral",text:"Most effective on last 3-4 layers only"}
+    ],
+    math:{hypothesis:"Self-attention attending to its own position creates a copy bias. Orthogonal projection removes self-value contribution.",formulas:["V_xsa = V - proj(V, self_position)"],insight:"Current token's representation is already in the residual stream — copying it via attention is wasteful."}
+  },
+  { id:"c_ngram", name:"N-gram Eval Cache", source:"community", tags:["evaluation"],
+    x:860, y:80, parents:["ttt_sgd"], sentiment:"positive",
+    desc:"Multi-order n-gram mixing at eval — single largest performance lever",
+    learnings:[
+      {type:"positive",text:"Single biggest performance lever in the entire competition"},
+      {type:"negative",text:"Many implementations disqualified for violating causality"},
+      {type:"neutral",text:"Legal versions require full-vocab probability normalization"}
+    ],
+    math:{hypothesis:"N-gram statistics from earlier context provide a strong non-parametric prior mixed with neural predictions.",formulas:["P_final = (1-α)·P_model + α·P_ngram","α adapted by entropy of P_model"],insight:"N-gram caching is the most powerful eval-time technique, but getting implementation legally correct is tricky."}
+  },
+  { id:"c_int6", name:"Int6 Quantization Consensus", source:"community", tags:["quantization"],
+    x:340, y:800, parents:["int4_quant"], sentiment:"positive",
+    desc:"Community-wide: int6 per-row is the sweet spot for 16MB",
+    learnings:[
+      {type:"positive",text:"Near-universal in frontier submissions — the Pareto-optimal bit-width"},
+      {type:"negative",text:"Int4 confirmed too aggressive (+0.065 bpb penalty)"}
+    ],
+    math:{hypothesis:"6 bits balances precision loss against budget savings. Per-row scaling halves quant error vs per-tensor.",formulas:["Bits saved: 8-6=2 per weight → ~6.75MB freed for 27M params"],insight:"Pareto-optimal — going lower (int4/5) costs more quality than extra parameters are worth."}
+  },
+  { id:"c_late_qat", name:"Late QAT (Final 4%)", source:"community", tags:["quantization","optimization"],
+    x:1120, y:800, parents:["awq"], sentiment:"positive",
+    desc:"Activate quantization-aware training only during final warmdown",
+    learnings:[
+      {type:"positive",text:"~0.007 bpb int6 gap — better than post-training quantization alone"},
+      {type:"negative",text:"Full-training QAT destabilizes optimization"}
+    ],
+    math:{hypothesis:"STE during final 4% of training teaches weights to be quantization-robust without hurting convergence.",formulas:["STE: ∇(quantize(w)) ≈ ∇(w)","Activate when lr < 0.04 · peak_lr"],insight:"Training loss landscape changes during warmdown. QAT here helps weights settle into quant-friendly configurations."}
+  },
+  { id:"c_smeargate", name:"SmearGate + Bigram Hash", source:"community", tags:["architecture"],
+    x:80, y:1040, parents:["baseline"], sentiment:"positive",
+    desc:"Learned gates inject token-pair context into embeddings (~512 params)",
+    learnings:[
+      {type:"positive",text:"Worth ~0.03+ bpb on mid-tier bases with orthogonal init"},
+      {type:"neutral",text:"Diminishing returns at frontier — our pos-conditional bigram is more targeted"}
+    ],
+    math:{hypothesis:"Token embeddings lack context. Learned gate mixes current and prev token via hash lookup.",formulas:["emb_new = emb[t] + gate · hash_lookup(t, t-1)"],insight:"Validates our bigram hash approach — local token-pair info is genuinely useful at embedding time."}
+  },
+  { id:"c_normuon", name:"NorMuon Optimizer", source:"community", tags:["optimization"],
+    x:1380, y:880, parents:["bank_tensors"], sentiment:"neutral",
+    desc:"Muon + per-neuron adaptive LR from second-order statistics",
+    learnings:[
+      {type:"positive",text:"Standard Muon ~35% faster than AdamW via orthogonal gradient updates"},
+      {type:"neutral",text:"NorMuon adds per-neuron adaptation but marginal returns at frontier"},
+      {type:"negative",text:"Exotic variants (Mousse, Turbo-Muon) showed zero or negative returns"}
+    ],
+    math:{hypothesis:"Muon's Newton-Schulz already captures first-order structure. NorMuon adds per-neuron second-order scaling.",formulas:["Muon: G_orth = G·(G^T·G)^(-½) via Newton-Schulz","NorMuon: G_scaled = G_orth · diag(1/√E[g²])"],insight:"At small scale with 600s budget, optimizer sophistication has diminishing returns."}
+  },
+  { id:"c_comp_distill", name:"Complementary Distillation", source:"community", tags:["optimization"],
+    x:2160, y:640, parents:["pos_cond_bigram"], sentiment:"neutral",
+    desc:"Train model to diverge from n-gram predictions — specialize where neural nets excel",
+    learnings:[
+      {type:"neutral",text:"Push model to predict what n-grams can't — a theoretically elegant approach"},
+      {type:"neutral",text:"Not yet widely validated in competition"}
+    ],
+    math:{hypothesis:"If n-gram cache is used at eval, train neural model on the residual (what n-grams miss).",formulas:["L = L_standard - λ·KL(P_ngram ‖ P_model)"],insight:"Ensemble diversity by construction rather than by accident."}
+  },
+  { id:"c_vocab_opt", name:"Vocabulary Optimization", source:"community", tags:["architecture"],
+    x:2420, y:800, parents:["recurrence_par_resid"], sentiment:"neutral",
+    desc:"Beyond greedy BPE — TokenMonster ungreedy search (37.5% fewer tokens)",
+    learnings:[
+      {type:"positive",text:"Ungreedy search reduced token count 37.5% vs standard BPE"},
+      {type:"neutral",text:"Requires pre-computation and careful tokenizer integration"}
+    ],
+    math:{hypothesis:"BPE's greedy merges are suboptimal. Global optimization finds better token sets.",formulas:["37.5% fewer tokens = 37.5% more context per window"],insight:"SP8192 in our architecture validates the 'bigger, smarter vocab' hypothesis."}
+  },
+  { id:"c_hedge", name:"Fixed-Share Hedge Algorithms", source:"community", tags:["evaluation"],
+    x:2680, y:800, parents:["wider_loop"], sentiment:"neutral",
+    desc:"Non-stationary expert weighting — optimal regret for changing distributions",
+    learnings:[
+      {type:"neutral",text:"Adapts mixture weights between neural and statistical models dynamically"},
+      {type:"neutral",text:"Theoretically optimal regret bounds for non-stationary sequences"}
+    ],
+    math:{hypothesis:"Document content is non-stationary. Fixed-share hedge adapts expert weights with bounded regret.",formulas:["w_{t+1}[i] = (1-α)·w_t[i]·exp(-η·loss_t[i])/Z + α/K"],insight:"Principled alternative to entropy-adaptive alpha in n-gram mixing."}
+  },
+
+  // ==================== LEADERBOARD LINEAGE ====================
+  { id:"lb_naive", name:"Naive Baseline", source:"leaderboard", tags:["architecture"],
+    x:80, y:1300, parents:["baseline"], sentiment:"neutral",
+    desc:"Official OpenAI baseline — 9L×512d, SP-1024 vocab, 1.2244 bpb",
+    learnings:[
+      {type:"neutral",text:"Vanilla transformer with tied embeddings — the competition starting point"},
+      {type:"neutral",text:"All submissions improve upon this reference implementation"}
+    ],
+    math:{hypothesis:"Establish a reproducible, minimal reference for the 16MB / 10-min constraint.",formulas:["9 layers, 512d, 8 heads, 4 KV heads, SP-1024"],insight:"Simple architecture, no tricks — the floor to beat."}
+  },
+  { id:"lb_fp16_lr", name:"FP16 Embed + LR Tuning", source:"leaderboard", tags:["optimization","quantization"],
+    x:430, y:1300, parents:["lb_naive"], sentiment:"positive",
+    desc:"FP16 tied embeddings + lower LR (0.02) + longer context (2048)",
+    learnings:[
+      {type:"positive",text:"FP16 embeddings prevent compounding precision losses in tied weights"},
+      {type:"positive",text:"LR sweep showed 0.02 optimal vs default 0.04"},
+      {type:"positive",text:"Seq 2048 better than 1024 for same compute budget"}
+    ],
+    math:{hypothesis:"Low-hanging fruit: precision + learning rate + context length each give independent gains.",formulas:["Combined: 1.2244 → ~1.19 bpb"],insight:"First submissions showed that simple hyperparameter tuning goes a long way."}
+  },
+  { id:"lb_mlp3x_int6_sw", name:"MLP 3× + Int6 + Sliding Window", source:"leaderboard", tags:["architecture","quantization","evaluation"],
+    x:780, y:1300, parents:["lb_fp16_lr","relu_sq"], sentiment:"positive",
+    desc:"11 layers, 3× MLP, int6 QAT, sliding window eval → 1.1502 bpb",
+    learnings:[
+      {type:"positive",text:"Three core techniques that became standard: wider MLP, int6, sliding window"},
+      {type:"positive",text:"Sliding window alone worth ~0.034 bpb (pure eval improvement)"},
+      {type:"positive",text:"Int6 QAT via STE achieves near-zero quantization gap"}
+    ],
+    math:{hypothesis:"Stack architectural width (MLP 3×), quantization efficiency (int6), and eval strategy (sliding window) for compounding gains.",formulas:["MLP hidden: 512→1536 (3×)","Sliding window: stride=64, 960+ tokens context"],insight:"These three became the 'consensus stack' — nearly every frontier submission uses all three."}
+  },
+  { id:"lb_smear_bigram_swa", name:"SmearGate + BigramHash + SWA", source:"leaderboard", tags:["architecture","optimization"],
+    x:1130, y:1300, parents:["lb_mlp3x_int6_sw","awq"], sentiment:"positive",
+    desc:"Learned token blending + bigram hash + weight averaging → 1.1458 bpb",
+    learnings:[
+      {type:"positive",text:"SmearGate + BigramHash inject local context cheaply (~512 + 512K params)"},
+      {type:"positive",text:"SWA every 50 steps smooths late-training noise"},
+      {type:"positive",text:"Orthogonal init + Muon WD=0.04 + momentum warmup (0.92→0.99)"}
+    ],
+    math:{hypothesis:"Local token-pair context at embedding level combined with late-training weight averaging.",formulas:["SmearGate: learned blend of current + prev token","BigramHash: 4096 buckets × 128 dim"],insight:"Multiple small wins stacking: init, optimizer tuning, embedding enrichment, weight averaging."}
+  },
+  { id:"lb_xsa_ema_rope", name:"XSA + EMA + Partial RoPE", source:"leaderboard", tags:["architecture"],
+    x:1480, y:1300, parents:["lb_smear_bigram_swa","partial_rope"], sentiment:"positive",
+    desc:"Exclusive Self-Attention + EMA 0.997 + Partial RoPE (16/64) → 1.1248 bpb",
+    learnings:[
+      {type:"positive",text:"XSA on last 4 layers removes self-copy bias at zero param cost"},
+      {type:"positive",text:"EMA (every step, decay 0.997) better than periodic SWA"},
+      {type:"positive",text:"Partial RoPE frees head dims for content-based attention"}
+    ],
+    math:{hypothesis:"Three orthogonal attention improvements: remove self-bias (XSA), smooth weights (EMA), free position dims (partial RoPE).",formulas:["XSA on layers 8-11, EMA decay=0.997","Partial RoPE: 16/64 dims rotated"],insight:"Each targets a different inefficiency — they compose cleanly."}
+  },
+  { id:"lb_leaky_ttt_muon", name:"LeakyReLU² + Legal TTT + Parallel Muon", source:"leaderboard", tags:["architecture","optimization","evaluation"],
+    x:1830, y:1300, parents:["lb_xsa_ema_rope","ttt_sgd"], sentiment:"positive",
+    desc:"LeakyReLU(0.5)² activation + score-first TTT + parallel Muon → 1.1194 bpb",
+    learnings:[
+      {type:"positive",text:"LeakyReLU(0.5)² beats ReLU² by 0.003 bpb — negative slope helps"},
+      {type:"positive",text:"Score-first TTT: backward-looking, legal, SGD 3 epochs all blocks unfrozen"},
+      {type:"positive",text:"Parallel Muon speeds up distributed training"}
+    ],
+    math:{hypothesis:"Leaky negative slope preserves gradient flow through dead neurons. Combined with legal TTT framework.",formulas:["LeakyReLU(0.5)²: [max(0.5x, x)]²","TTT: SGD, lr=0.01, 3 epochs, freeze=0"],insight:"First submission to combine activation improvement, legal TTT, and optimizer parallelism."}
+  },
+  { id:"lb_sp8192_recur", name:"SP8192 + Depth Recurrence + GPTQ", source:"leaderboard", tags:["architecture","quantization"],
+    x:2180, y:1300, parents:["lb_leaky_ttt_muon","bank_tensors"], sentiment:"positive",
+    desc:"8192 vocab + MuonEq-R + depth recurrence (blocks 4-5) + GPTQ SDClip → 1.0828 bpb",
+    learnings:[
+      {type:"positive",text:"SP8192 tokenizer: bigger vocab compresses embeddings, enables more architecture"},
+      {type:"positive",text:"Depth recurrence (blocks 4-5 reused) adds virtual layers at zero param cost"},
+      {type:"positive",text:"GPTQ with SD-based clipping superior to Hessian-based approaches"}
+    ],
+    math:{hypothesis:"Larger vocabulary reduces sequence length, freeing compute. Depth recurrence adds capacity without parameters.",formulas:["SP8192: 8× more tokens vs SP1024","Recurrence: blocks 4-5 reused → extra virtual layers"],insight:"The SP8192 era — vocabulary expansion unlocked a new regime of improvements."}
+  },
+  { id:"lb_par_resid_ttt", name:"Parallel Residuals + Score-First TTT", source:"leaderboard", tags:["architecture","evaluation"],
+    x:2530, y:1300, parents:["lb_sp8192_recur","improved_par_resid"], sentiment:"positive",
+    desc:"GPT-J parallel residuals (layer 7+) + refined TTT → 1.0822 bpb",
+    learnings:[
+      {type:"positive",text:"Parallel residuals: attn and MLP on separate lanes with merge scalar (init 0.5)"},
+      {type:"positive",text:"Lane merge scalar lets model learn optimal attn/MLP blending per layer"}
+    ],
+    math:{hypothesis:"Parallel residual routing allows independent quantization budgets for attention vs MLP pathways.",formulas:["out = x + merge·Attn(x) + (1-merge)·MLP(x)","merge initialized at 0.5, learned per layer"],insight:"Separating attn/MLP pathways improves both quantization and gradient flow."}
+  },
+  { id:"lb_3layer_sota", name:"3-Layer Recurrence → Current SOTA", source:"leaderboard", tags:["architecture","evaluation"],
+    x:2880, y:1300, parents:["lb_par_resid_ttt","recurrence_par_resid"], sentiment:"positive",
+    desc:"Blocks 3-5 reused 3×, QK-Gain 5.25, EMA, WD 0.095 → 1.0810 bpb",
+    learnings:[
+      {type:"positive",text:"Current leaderboard SOTA: val_bpb = 1.0810 (3-seed mean, extremely tight std=0.0002)"},
+      {type:"positive",text:"3-layer recurrence (L3-5, 3 passes) → 17 virtual layers from 11 physical"},
+      {type:"positive",text:"QK-Gain 5.25 > 5.0 > 4.0 — higher query scaling consistently helps"},
+      {type:"positive",text:"Full Track B legal-TTT compliance — all 4 conditions satisfied"}
+    ],
+    math:{hypothesis:"Extend recurrence from 2 to 3 layers, increase QK-Gain, add EMA — each independently improves quality.",formulas:["17 = 11 + (3 layers × 2 extra passes)","QK_GAIN=5.25, EMA=0.9965, WD=0.095","4550 steps in 588s on 8×H100"],insight:"The culmination of systematic community optimization. Score trajectory: 1.2244 → 1.0810 (11.7% total improvement)."}
+  }
+];
+
+// Edge labels describe WHY the connection exists
+const edgeLabels = {
+  // Our journey internal
+  "baseline→multi_token": "tried auxiliary loss",
+  "baseline→int4_quant": "explored compression",
+  "baseline→value_embeds": "enriched attention",
+  "baseline→curriculum": "data ordering",
+  "baseline→cyclic_momentum": "optimizer experiment",
+  "baseline→wider_model": "capacity scaling",
+  "cyclic_momentum→ttt_sgd": "best optimizer + eval adapt",
+  "cyclic_momentum→relu_sq": "combined wins",
+  "ttt_sgd→relu_sq": "stacked improvements",
+  "relu_sq→awq": "quantization-aware",
+  "awq→first_submission": "combined stack",
+  "first_submission→speed_opt": "throughput push",
+  "speed_opt→bank_tensors": "efficient TTT layout",
+  "bank_tensors→partial_rope": "freed head dims",
+  "bank_tensors→meta_ttt": "vectorized adaptation",
+  "partial_rope→meta_ttt": "architecture + meta-learning",
+  "meta_ttt→size_opt_meta": "optimized & tuned",
+  "size_opt_meta→random_split": "tried alt split",
+  "size_opt_meta→pos_cond_bigram": "hash space analysis",
+  "pos_cond_bigram→meta_ttt_ablation": "ablation study",
+  "meta_ttt_ablation→sam_inner": "ceiling investigation",
+  "meta_ttt_ablation→recurrence_par_resid": "architecture leap",
+  "pos_cond_bigram→recurrence_par_resid": "community integration",
+  "recurrence_par_resid→wider_loop": "loop specialization",
+  "wider_loop→improved_par_resid": "cross-lane routing",
+  "awq→cooccurrence_qk": "init from statistics",
+  // Community
+  "ttt_sgd→c_xsa": "attention refinement",
+  "ttt_sgd→c_ngram": "eval-time adaptation",
+  "int4_quant→c_int6": "optimal bit-width",
+  "awq→c_late_qat": "training-aware quant",
+  "baseline→c_smeargate": "token-pair context",
+  "bank_tensors→c_normuon": "optimizer variant",
+  "pos_cond_bigram→c_comp_distill": "neural/n-gram split",
+  "recurrence_par_resid→c_vocab_opt": "tokenizer search",
+  "wider_loop→c_hedge": "mixture weighting",
+  // Cross: LB ← ours
+  "baseline→lb_naive": "same starting point",
+  "relu_sq→lb_mlp3x_int6_sw": "shared 11L + MLP 3×",
+  "awq→lb_smear_bigram_swa": "shared quant + SWA",
+  "partial_rope→lb_xsa_ema_rope": "independent discovery",
+  "ttt_sgd→lb_leaky_ttt_muon": "TTT lineage",
+  "bank_tensors→lb_sp8192_recur": "param banking",
+  "improved_par_resid→lb_par_resid_ttt": "parallel residuals",
+  "recurrence_par_resid→lb_3layer_sota": "same architecture",
+  // LB internal
+  "lb_naive→lb_fp16_lr": "hyperparameter tuning",
+  "lb_fp16_lr→lb_mlp3x_int6_sw": "consensus stack",
+  "lb_mlp3x_int6_sw→lb_smear_bigram_swa": "embedding enrichment",
+  "lb_smear_bigram_swa→lb_xsa_ema_rope": "attention improvements",
+  "lb_xsa_ema_rope→lb_leaky_ttt_muon": "activation + TTT",
+  "lb_leaky_ttt_muon→lb_sp8192_recur": "vocab + recurrence",
+  "lb_sp8192_recur→lb_par_resid_ttt": "parallel lanes",
+  "lb_par_resid_ttt→lb_3layer_sota": "extended recurrence",
+};
+
+const edges = nodes.flatMap(n => n.parents.map(p => {
+  const parentNode = nodes.find(nd => nd.id === p);
+  const isCross = parentNode && parentNode.source !== n.source;
+  const label = edgeLabels[p + '→' + n.id] || '';
+  return {from:p, to:n.id, source:n.source, cross:isCross, label};
+}));
+
+// ================================================================
+// RENDERING ENGINE
+// ================================================================
+const container = document.getElementById('canvas-container');
+const world = document.getElementById('world');
+const canvas = document.getElementById('connections');
+const ctx = canvas.getContext('2d');
+
+let scale = 0.62, panX = 50, panY = -20;
+let isDragging = false, dragSX, dragSY, panSX, panSY;
+let currentMode = 'ours';
+let activeFilter = 'all';
+
+// Node dragging state
+let dragNode = null, dragNodeSX, dragNodeSY, dragNodeOX, dragNodeOY, dragMoved = false;
+
+function updateTransform() {
+  world.style.transform = `translate(${panX}px,${panY}px) scale(${scale})`;
+  drawMinimap();
+}
+
+function resizeCanvas() {
+  canvas.width = Math.max(...nodes.map(n=>n.x)) + 800;
+  canvas.height = Math.max(...nodes.map(n=>n.y)) + 500;
+}
+
+// Arrow drawing
+function drawArrow(x1,y1,x2,y2, style) {
+  // Bezier curve
+  const dx = x2-x1, dy = y2-y1;
+  const dist = Math.sqrt(dx*dx+dy*dy);
+  // Control points — create organic curves
+  const cx1 = x1 + dx*0.4 + dy*0.15;
+  const cy1 = y1 + dy*0.1 - dx*0.05;
+  const cx2 = x2 - dx*0.4 + dy*0.1;
+  const cy2 = y2 - dy*0.1 - dx*0.05;
+
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.bezierCurveTo(cx1,cy1,cx2,cy2,x2,y2);
+
+  if (style === 'path') {
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(124,92,252,0.85)';
+    ctx.lineWidth = 2.8;
+    ctx.shadowColor = 'rgba(124,92,252,0.3)';
+    ctx.shadowBlur = 6;
+  } else if (style === 'cross') {
+    ctx.setLineDash([4,3,1,3]);
+    ctx.strokeStyle = 'rgba(200,140,60,0.55)';
+    ctx.lineWidth = 1.5;
+  } else if (style === 'community') {
+    ctx.setLineDash([6,4]);
+    ctx.strokeStyle = 'rgba(184,176,232,0.6)';
+    ctx.lineWidth = 1.4;
+  } else if (style === 'leaderboard') {
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(142,197,160,0.6)';
+    ctx.lineWidth = 1.4;
+  } else {
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(192,188,178,0.7)';
+    ctx.lineWidth = 1.6;
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+
+  // Arrowhead
+  const t = 0.97;
+  const ti = 1-t;
+  const tangentX = 3*ti*ti*(cx1-x1) + 6*ti*t*(cx2-cx1) + 3*t*t*(x2-cx2);
+  const tangentY = 3*ti*ti*(cy1-y1) + 6*ti*t*(cy2-cy1) + 3*t*t*(y2-cy2);
+  const angle = Math.atan2(tangentY, tangentX);
+  const aLen = 8;
+
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - aLen*Math.cos(angle - 0.35), y2 - aLen*Math.sin(angle - 0.35));
+  ctx.lineTo(x2 - aLen*Math.cos(angle + 0.35), y2 - aLen*Math.sin(angle + 0.35));
+  ctx.closePath();
+  if (style === 'path') ctx.fillStyle = 'rgba(124,92,252,0.9)';
+  else if (style === 'cross') ctx.fillStyle = 'rgba(200,140,60,0.65)';
+  else if (style === 'community') ctx.fillStyle = 'rgba(184,176,232,0.7)';
+  else if (style === 'leaderboard') ctx.fillStyle = 'rgba(142,197,160,0.7)';
+  else ctx.fillStyle = 'rgba(192,188,178,0.8)';
+  ctx.fill();
+
+  // Return midpoint on bezier for label placement (t=0.5)
+  const mt = 0.5, mti = 0.5;
+  const mx = mti*mti*mti*x1 + 3*mti*mti*mt*cx1 + 3*mti*mt*mt*cx2 + mt*mt*mt*x2;
+  const my = mti*mti*mti*y1 + 3*mti*mti*mt*cy1 + 3*mti*mt*mt*cy2 + mt*mt*mt*y2;
+  return {mx, my};
+}
+
+function drawConnections() {
+  resizeCanvas();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // If path is active, draw non-path edges first (dimmed), then path edges on top
+  const pathSet = activePath ? new Set(activePath) : null;
+  const sortedEdges = pathSet ? [...edges].sort((a,b) => {
+    const aOnPath = pathSet.has(a.from) && pathSet.has(a.to) ? 1 : 0;
+    const bOnPath = pathSet.has(b.from) && pathSet.has(b.to) ? 1 : 0;
+    return aOnPath - bOnPath; // non-path first, path last (drawn on top)
+  }) : edges;
+
+  sortedEdges.forEach(e => {
+    if (e.source === 'community' && currentMode === 'ours') return;
+    if (e.source === 'leaderboard' && currentMode === 'ours') return;
+
+    const fn = nodes.find(n=>n.id===e.from);
+    const tn = nodes.find(n=>n.id===e.to);
+    if (!fn || !tn) return;
+
+    const fEl = document.getElementById('node-'+e.from);
+    const tEl = document.getElementById('node-'+e.to);
+    if (!fEl || !tEl) return;
+
+    // Check dim state
+    if (fEl.classList.contains('dim') && tEl.classList.contains('dim')) return;
+
+    const fw = fEl.offsetWidth || 195, fh = fEl.offsetHeight || 60;
+    const tw = tEl.offsetWidth || 195, th = tEl.offsetHeight || 60;
+
+    // Connect from right edge of source to left edge of target (or closest edges)
+    let fx, fy, tx, ty;
+    const fcx = fn.x + fw/2, fcy = fn.y + fh/2;
+    const tcx = tn.x + tw/2, tcy = tn.y + th/2;
+
+    if (tcx > fcx + fw/2) {
+      // Target is to the right
+      fx = fn.x + fw; fy = fcy;
+      tx = tn.x; ty = tcy;
+    } else if (tcx < fcx - fw/2) {
+      fx = fn.x; fy = fcy;
+      tx = tn.x + tw; ty = tcy;
+    } else if (tcy > fcy) {
+      fx = fcx; fy = fn.y + fh;
+      tx = tcx; ty = tn.y;
+    } else {
+      fx = fcx; fy = fn.y;
+      tx = tcx; ty = tn.y + th;
+    }
+
+    const isOnPath = pathSet && pathSet.has(e.from) && pathSet.has(e.to);
+    const isPathDimmed = pathSet && !isOnPath;
+
+    // If path active and this edge is dimmed, reduce opacity
+    if (isPathDimmed) {
+      ctx.save();
+      ctx.globalAlpha = 0.08;
+    }
+
+    let style = e.cross ? 'cross' : e.source === 'community' ? 'community' : e.source === 'leaderboard' ? 'leaderboard' : 'ours';
+    if (isOnPath) style = 'path'; // override with path style
+    const mid = drawArrow(fx, fy, tx, ty, style);
+
+    if (isPathDimmed) ctx.restore();
+
+    // Draw label at midpoint
+    if (e.label && mid && !isPathDimmed) {
+      ctx.save();
+      ctx.font = '600 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      const tw2 = ctx.measureText(e.label).width;
+      const pad = 5;
+      // Background pill
+      const bgColor = style === 'cross' ? 'rgba(255,243,224,0.92)' :
+                       style === 'community' ? 'rgba(240,237,255,0.92)' :
+                       style === 'leaderboard' ? 'rgba(232,248,238,0.92)' :
+                       'rgba(248,247,244,0.92)';
+      const textColor = style === 'cross' ? '#a06820' :
+                        style === 'community' ? '#6b5cc7' :
+                        style === 'leaderboard' ? '#2a7d4a' :
+                        '#888';
+      ctx.fillStyle = bgColor;
+      ctx.beginPath();
+      ctx.roundRect(mid.mx - tw2/2 - pad, mid.my - 7 - pad/2, tw2 + pad*2, 14 + pad, 6);
+      ctx.fill();
+      // Border
+      ctx.strokeStyle = style === 'cross' ? 'rgba(200,140,60,0.3)' :
+                        style === 'community' ? 'rgba(184,176,232,0.3)' :
+                        style === 'leaderboard' ? 'rgba(142,197,160,0.3)' :
+                        'rgba(192,188,178,0.3)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      // Text
+      ctx.fillStyle = textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.label, mid.mx, mid.my);
+      ctx.restore();
+    }
+  });
+}
+
+function renderNodes() {
+  document.querySelectorAll('.node').forEach(el=>el.remove());
+
+  nodes.forEach(n => {
+    const el = document.createElement('div');
+    const cls = n.source === 'community' ? 'community' : n.source === 'leaderboard' ? 'leaderboard' : '';
+    const hidden = (n.source !== 'ours' && currentMode === 'ours') ? ' hidden-node' : '';
+    const dim = shouldDim(n) ? ' dim' : '';
+    el.className = `node ${cls}${hidden}${dim}`;
+    el.id = 'node-' + n.id;
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+
+    // Node drag
+    el.addEventListener('mousedown', e2 => {
+      e2.stopPropagation();
+      dragNode = n; dragMoved = false;
+      dragNodeSX = e2.clientX; dragNodeSY = e2.clientY;
+      dragNodeOX = n.x; dragNodeOY = n.y;
+      el.style.zIndex = 10; el.style.cursor = 'grabbing';
+    });
+    el.addEventListener('click', e2 => {
+      if (!dragMoved) openPanel(n);
+    });
+
+    const sourceTag = n.source !== 'ours' ?
+      `<span class="node-source-tag">${n.source === 'leaderboard' ? 'LB' : 'COMM'}</span>` : '';
+
+    el.innerHTML = `
+      ${sourceTag}
+      <div class="node-name"><span class="node-badge ${n.sentiment}"></span>${n.name}</div>
+      <div class="node-desc">${n.desc}</div>
+    `;
+    world.appendChild(el);
+  });
+
+  requestAnimationFrame(drawConnections);
+}
+
+function shouldDim(n) {
+  if (activeFilter === 'all') return false;
+  if (['positive','negative','neutral'].includes(activeFilter)) return n.sentiment !== activeFilter;
+  return !n.tags.includes(activeFilter);
+}
+
+// ================================================================
+// MODE & FILTERS
+// ================================================================
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('toggle-ours').classList.toggle('active', mode==='ours');
+  document.getElementById('toggle-community').classList.toggle('active', mode==='community');
+  document.getElementById('leg-comm').style.display = mode==='community' ? 'flex' : 'none';
+  document.getElementById('leg-lb').style.display = mode==='community' ? 'flex' : 'none';
+  document.getElementById('leg-cross').style.display = mode==='community' ? 'flex' : 'none';
+
+  document.querySelectorAll('.node.community, .node.leaderboard').forEach(el => {
+    el.classList.toggle('hidden-node', mode==='ours');
+  });
+  requestAnimationFrame(drawConnections);
+  drawMinimap();
+}
+
+function toggleFilter(chip) {
+  const f = chip.dataset.filter;
+  // Deactivate all chips
+  document.querySelectorAll('.chip').forEach(c => c.className = 'chip');
+  // Activate this one
+  activeFilter = f;
+  const colorClass = f==='positive' ? ' active-green' : f==='negative' ? ' active-red' : f==='neutral' ? ' active-amber' : ' active';
+  chip.className = 'chip' + colorClass;
+
+  // Apply dim
+  nodes.forEach(n => {
+    const el = document.getElementById('node-'+n.id);
+    if (!el) return;
+    const dim = shouldDim(n);
+    el.classList.toggle('dim', dim);
+  });
+  requestAnimationFrame(drawConnections);
+}
+
+// ================================================================
+// DETAIL PANEL
+// ================================================================
+function openPanel(node) {
+  document.getElementById('panel-title').textContent = node.name;
+  const sentEl = document.getElementById('panel-sentiment');
+  sentEl.textContent = node.sentiment.charAt(0).toUpperCase() + node.sentiment.slice(1) + ' outcome';
+  sentEl.className = 'panel-sentiment ' + node.sentiment;
+
+  document.getElementById('tab-learnings').innerHTML = node.learnings.map(l => `
+    <div class="learning-item">
+      <span class="learning-tag ${l.type}">${l.type}</span>
+      <span>${l.text}</span>
+    </div>
+  `).join('');
+
+  let mh = '';
+  if (node.math.hypothesis) mh += `<div class="math-section"><div class="math-label">Hypothesis</div><div class="math-content">${node.math.hypothesis}</div></div>`;
+  if (node.math.formulas?.length) mh += `<div class="math-section"><div class="math-label">Key Formulas</div>${node.math.formulas.map(f=>`<div class="math-formula">${f}</div>`).join('')}</div>`;
+  if (node.math.insight) mh += `<div class="math-section"><div class="math-label">Insight</div><div class="math-content">${node.math.insight}</div></div>`;
+  document.getElementById('tab-math').innerHTML = mh;
+
+  switchTab('learnings', document.querySelector('.tab'));
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+function closePanel() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+  // Don't clear path on panel close — path stays visible
+  // User can clear via the ✕ on the breadcrumb bar
+}
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ================================================================
+// PATH HIGHLIGHTING
+// ================================================================
+let activePath = null; // array of node ids from root to clicked node
+
+function getAncestryPath(node) {
+  // BFS backward from clicked node to find the full path to a root (same-source preferred)
+  // Returns array of node ids from root → clicked
+  const visited = new Set();
+  const parentMap = {};
+  const queue = [node.id];
+  visited.add(node.id);
+  let root = node.id;
+
+  while (queue.length) {
+    const cur = queue.shift();
+    const curNode = nodes.find(n => n.id === cur);
+    if (!curNode) continue;
+    // Filter parents to same source or 'ours' (prefer own lineage)
+    const relevantParents = curNode.parents.filter(pid => {
+      const pn = nodes.find(n => n.id === pid);
+      return pn && (pn.source === curNode.source || pn.source === 'ours');
+    });
+    if (relevantParents.length === 0 && curNode.parents.length === 0) {
+      root = cur; // true root
+    }
+    for (const pid of relevantParents) {
+      if (!visited.has(pid)) {
+        visited.add(pid);
+        parentMap[pid] = cur;
+        queue.push(pid);
+      }
+    }
+  }
+
+  // Find actual root — node with no parents in visited set
+  const allInVisited = [...visited];
+  for (const nid of allInVisited) {
+    const nd = nodes.find(n => n.id === nid);
+    if (nd && nd.parents.filter(p => visited.has(p)).length === 0) {
+      root = nid;
+      break;
+    }
+  }
+
+  // Trace from root to clicked node using BFS parent tree
+  // We need forward path, so rebuild: from root, find path to node.id
+  const forwardAdj = {};
+  for (const nid of visited) {
+    const nd = nodes.find(n => n.id === nid);
+    if (!nd) continue;
+    for (const pid of nd.parents) {
+      if (visited.has(pid)) {
+        if (!forwardAdj[pid]) forwardAdj[pid] = [];
+        forwardAdj[pid].push(nid);
+      }
+    }
+  }
+
+  // BFS from root to target
+  const fQueue = [root];
+  const fParent = {[root]: null};
+  while (fQueue.length) {
+    const cur = fQueue.shift();
+    if (cur === node.id) break;
+    for (const child of (forwardAdj[cur] || [])) {
+      if (!(child in fParent)) {
+        fParent[child] = cur;
+        fQueue.push(child);
+      }
+    }
+  }
+
+  // Reconstruct path
+  const path = [];
+  let cur = node.id;
+  while (cur !== null && cur !== undefined) {
+    path.unshift(cur);
+    cur = fParent[cur];
+  }
+  return path;
+}
+
+// Find all leaf nodes (nodes with no children) to detect "current state"
+function getLeafNodes() {
+  const hasChild = new Set();
+  nodes.forEach(n => n.parents.forEach(p => hasChild.add(p)));
+  return nodes.filter(n => !hasChild.has(n.id) && n.source === 'ours').map(n => n.id);
+}
+
+// Permanent start/end markers (independent of click)
+const JOURNEY_START = 'baseline';
+const JOURNEY_END = 'improved_par_resid'; // our actual latest experiment
+
+function addPermanentMarkers() {
+  const startEl = document.getElementById('node-' + JOURNEY_START);
+  const endEl = document.getElementById('node-' + JOURNEY_END);
+  if (startEl) startEl.classList.add('marker-start');
+  if (endEl) endEl.classList.add('marker-end');
+}
+
+function highlightPath(node) {
+  clearPath();
+  const path = getAncestryPath(node);
+  if (path.length < 2 && node.parents.length === 0) {
+    activePath = [node.id];
+  } else {
+    activePath = path;
+  }
+
+  const pathSet = new Set(activePath);
+
+  // Dim all non-path nodes, highlight path nodes
+  nodes.forEach(n => {
+    const el = document.getElementById('node-' + n.id);
+    if (!el) return;
+    if (el.classList.contains('hidden-node')) return;
+
+    el.classList.remove('path-dim', 'path-highlight');
+    el.querySelectorAll('.path-step').forEach(s => s.remove());
+
+    if (pathSet.has(n.id)) {
+      el.classList.add('path-highlight');
+      const idx = activePath.indexOf(n.id);
+      const stepBadge = document.createElement('div');
+      stepBadge.className = 'path-step';
+      stepBadge.textContent = idx + 1;
+      el.appendChild(stepBadge);
+    } else {
+      el.classList.add('path-dim');
+    }
+  });
+
+  // Build breadcrumb bar
+  const bar = document.getElementById('path-bar');
+  let html = '';
+  activePath.forEach((nid, i) => {
+    const nd = nodes.find(n => n.id === nid);
+    if (!nd) return;
+    const cls = i === 0 ? 'pb-start' : i === activePath.length - 1 ? 'pb-end' : 'pb-ours';
+    html += `<div class="path-bar-item ${cls}" onclick="panToNode('${nid}')">${nd.name}</div>`;
+    if (i < activePath.length - 1) html += '<span class="path-bar-arrow">→</span>';
+  });
+  html += '<button class="path-bar-close" onclick="clearPath()">✕</button>';
+  bar.innerHTML = html;
+  bar.classList.add('visible');
+
+  // Redraw connections with path emphasis
+  requestAnimationFrame(drawConnections);
+}
+
+function clearPath() {
+  activePath = null;
+  myPathActive = false;
+  const btn = document.getElementById('btn-my-path');
+  if (btn) btn.classList.remove('active');
+  nodes.forEach(n => {
+    const el = document.getElementById('node-' + n.id);
+    if (!el) return;
+    el.classList.remove('path-dim', 'path-highlight');
+    el.querySelectorAll('.path-step').forEach(s => s.remove());
+  });
+  document.getElementById('path-bar').classList.remove('visible');
+  document.getElementById('path-bar').innerHTML = '';
+  requestAnimationFrame(drawConnections);
+}
+
+let myPathActive = false;
+function toggleMyPath() {
+  const btn = document.getElementById('btn-my-path');
+  if (myPathActive) {
+    clearPath();
+    myPathActive = false;
+    btn.classList.remove('active');
+  } else {
+    const endNode = nodes.find(n => n.id === JOURNEY_END);
+    if (endNode) highlightPath(endNode);
+    myPathActive = true;
+    btn.classList.add('active');
+  }
+}
+
+function panToNode(nid) {
+  const nd = nodes.find(n => n.id === nid);
+  if (!nd) return;
+  const rect = container.getBoundingClientRect();
+  panX = rect.width / 2 - nd.x * scale - 97;
+  panY = rect.height / 2 - nd.y * scale - 40;
+  updateTransform();
+}
+
+// ================================================================
+// PAN & ZOOM
+// ================================================================
+container.addEventListener('mousedown', e => {
+  if (e.target.closest('.node')) return;
+  isDragging = true; container.classList.add('dragging');
+  dragSX = e.clientX; dragSY = e.clientY; panSX = panX; panSY = panY;
+});
+window.addEventListener('mousemove', e => {
+  // Node dragging takes priority
+  if (dragNode) {
+    const dx = (e.clientX - dragNodeSX) / scale;
+    const dy = (e.clientY - dragNodeSY) / scale;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+    dragNode.x = dragNodeOX + dx;
+    dragNode.y = dragNodeOY + dy;
+    const el = document.getElementById('node-' + dragNode.id);
+    if (el) { el.style.left = dragNode.x + 'px'; el.style.top = dragNode.y + 'px'; }
+    requestAnimationFrame(drawConnections);
+    return;
+  }
+  if (!isDragging) return;
+  panX = panSX + (e.clientX - dragSX);
+  panY = panSY + (e.clientY - dragSY);
+  updateTransform();
+});
+window.addEventListener('mouseup', () => {
+  if (dragNode) {
+    const el = document.getElementById('node-' + dragNode.id);
+    if (el) { el.style.zIndex = ''; el.style.cursor = 'pointer'; }
+    dragNode = null;
+    drawMinimap();
+    return;
+  }
+  isDragging = false; container.classList.remove('dragging');
+});
+container.addEventListener('wheel', e => {
+  e.preventDefault();
+  const d = e.deltaY > 0 ? 0.92 : 1.08;
+  const ns = Math.min(2.5, Math.max(0.2, scale*d));
+  const r = container.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  panX = mx - (mx - panX)*(ns/scale);
+  panY = my - (my - panY)*(ns/scale);
+  scale = ns;
+  updateTransform();
+}, {passive:false});
+
+function zoomIn() { scale = Math.min(2.5, scale*1.2); updateTransform(); }
+function zoomOut() { scale = Math.max(0.2, scale*0.8); updateTransform(); }
+function resetView() { scale=0.62; panX=50; panY=-20; updateTransform(); }
+
+// ================================================================
+// MINIMAP
+// ================================================================
+const mmCanvas = document.getElementById('minimap-canvas');
+const mmCtx = mmCanvas.getContext('2d');
+
+function drawMinimap() {
+  const cw = 180, ch = 120;
+  mmCanvas.width = cw; mmCanvas.height = ch;
+  mmCtx.clearRect(0,0,cw,ch);
+
+  const allX = nodes.filter(n=> n.source==='ours'||currentMode==='community').map(n=>n.x);
+  const allY = nodes.filter(n=> n.source==='ours'||currentMode==='community').map(n=>n.y);
+  const minX = Math.min(...allX)-50, maxX = Math.max(...allX)+250;
+  const minY = Math.min(...allY)-50, maxY = Math.max(...allY)+150;
+  const sx = cw/(maxX-minX), sy = ch/(maxY-minY), s = Math.min(sx,sy);
+
+  nodes.forEach(n => {
+    if (n.source!=='ours' && currentMode==='ours') return;
+    const nx = (n.x - minX)*s, ny = (n.y - minY)*s;
+    mmCtx.fillStyle = n.source==='community' ? '#c4bbf0' : n.source==='leaderboard' ? '#8ec5a0' :
+      n.sentiment==='positive' ? '#34c759' : n.sentiment==='negative' ? '#ff3b30' : '#ffcc00';
+    mmCtx.fillRect(nx, ny, 4, 3);
+  });
+
+  // Viewport indicator
+  const rect = container.getBoundingClientRect();
+  const vx = (-panX/scale - minX)*s;
+  const vy = (-panY/scale - minY)*s;
+  const vw = (rect.width/scale)*s;
+  const vh = (rect.height/scale)*s;
+  mmCtx.strokeStyle = 'rgba(124,92,252,0.6)';
+  mmCtx.lineWidth = 1;
+  mmCtx.strokeRect(vx, vy, vw, vh);
+}
+
+// ================================================================
+// JSON EXPORT
+// ================================================================
+function downloadJSON() {
+  const data = {
+    title: "Mind Of Experimenter",
+    description: "OpenAI Parameter Golf — experimentation journey, community landscape, and leaderboard lineage",
+    exported: new Date().toISOString(),
+    nodes: nodes.map(n => ({
+      id:n.id, name:n.name, source:n.source, sentiment:n.sentiment, tags:n.tags,
+      description:n.desc, parents:n.parents, learnings:n.learnings, math:n.math
+    })),
+    edges
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'MindOfExperimenter.json';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ================================================================
+// INIT
+// ================================================================
+updateTransform();
+renderNodes();
+setTimeout(() => {
+  drawConnections();
+  drawMinimap();
+  addPermanentMarkers();
+}, 200);
+window.addEventListener('resize', () => { drawConnections(); drawMinimap(); });
+</script>
+</body>
+</html>
