@@ -1,0 +1,22 @@
+# RunPod / CUDA runtime requirements for parameter-golf-ssm.
+#
+# The RunPod "Parameter Golf" template comes with PyTorch + CUDA already
+# installed, so torch is intentionally NOT pinned here — we use whatever
+# CUDA build the image ships and only layer on the small library set the
+# training/quantization path needs.
+#
+# If you ever provision a non-PG image and need to install torch yourself:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# (cu121 / cu124 both work; train_gpt.py only relies on stock PyTorch APIs.)
+#
+# Mirrors records/track_10min_16mb/2026-03-31_ParallelResiduals_MiniDepthRecurrence/requirements.txt
+# plus the SSM-side memory packing path (brotli) and a couple of helpers.
+
+numpy
+tqdm
+huggingface-hub
+setuptools
+typing-extensions==4.15.0
+datasets
+sentencepiece
+brotli
