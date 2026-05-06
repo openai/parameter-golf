@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-27",
+  "name": "GatedDeltaNet with Document-Boundary State Reset",
+  "author": "Brian Zhang",
+  "github_id": "brian386",
+  "val_loss": "2.1139",
+  "val_bpb": "1.2519",
+  "bytes_total": "15998290",
+  "bytes_code": "46143"
+}
