@@ -1,0 +1,29 @@
+{
+  "author": "Luciano Ribas",
+  "github_id": "lucribas",
+  "name": "Activation-Space Compressed-Sensing Adapters (SP1024, 8xH100)",
+  "blurb": "Non-record submission: ACSA on SP1024 with score-before-update eval-time adaptation, validated on 8xH100 and packaged under the 16MB artifact cap.",
+  "date": "2026-04-28T00:00:00Z",
+  "track": "non_record_16mb",
+  "val_loss": 2.12404399,
+  "val_bpb": 1.25797841,
+  "pre_quant_val_loss": 2.16657313,
+  "pre_quant_val_bpb": 1.28316664,
+  "step_stop": 16858,
+  "wallclock_seconds": 590,
+  "bytes_total": 15829207,
+  "artifact_bytes": 15829207,
+  "bytes_model_int8_zlib": 15790377,
+  "bytes_code": 38830,
+  "artifact_file": "final_model.int8.ptz",
+  "gpu": "8xH100 SXM 80GB",
+  "hardware": "8xH100 SXM 80GB",
+  "compliance": {
+    "train_under_limit": false,
+    "artifact_under_limit": true,
+    "eval_under_limit": true,
+    "score_first_ttt": true,
+    "debug_val_docs": 0,
+    "eval_time_ms": 144491
+  }
+}
