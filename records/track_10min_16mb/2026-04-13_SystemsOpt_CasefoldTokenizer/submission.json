@@ -1,0 +1,57 @@
+{
+  "author": "Benjamin Hadad",
+  "github_id": "codemath3000",
+  "name": "Custom Casefold Tokenizer + Parallel Residuals + Systems Optimization",
+  "date": "2026-04-13",
+  "track": "10min_16mb",
+  "val_loss": 3.07049489,
+  "val_bpb": 1.06394663,
+  "val_bpb_std": 0.00058672,
+  "seeds": [1337, 2024, 42],
+  "seed_results": {
+    "1337": {
+      "steps": 4716,
+      "step_avg_ms": 124.5,
+      "val_loss": 3.07230326,
+      "val_bpb": 1.06457324,
+      "post_ema_val_bpb": 1.07085491,
+      "artifact_bytes": 15985530
+    },
+    "2024": {
+      "steps": 4731,
+      "step_avg_ms": 124.1,
+      "val_loss": 3.06894695,
+      "val_bpb": 1.06341025,
+      "post_ema_val_bpb": 1.06969591,
+      "artifact_bytes": 15980244
+    },
+    "42": {
+      "steps": 4726,
+      "step_avg_ms": 124.3,
+      "val_loss": 3.07023446,
+      "val_bpb": 1.06385639,
+      "post_ema_val_bpb": 1.07011406,
+      "artifact_bytes": 15982918
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1578 casefold v2 vocabulary + PR #1529 dual-lane parallel residuals + systems optimization (fused Muon, EMA foreach, loader prealloc). Identical ML to PR #1578; faster step time yields extra training steps.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "casefold_tokenizer": "@mikeapedia (PR #1578)",
+    "parallel_residuals_architecture": "@msisovic (PR #1529)",
+    "base_stack": "@clarkkev (PR #1394), @dexhunter (PR #1413), @X-Abhishek-X (PR #1445)",
+    "systems_optimization": "@codemath3000 (fused Muon, EMA foreach, loader prealloc)"
+  }
+}

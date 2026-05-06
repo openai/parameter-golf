@@ -1,0 +1,62 @@
+Casefold Tokenizer Byte Verification
+======================================================================
+  Docs:        data\docs_selected.jsonl
+  Max docs:    all
+  Tokenizer:   data\tokenizers\fineweb_8192_bpe_casefold_refined_v2.model
+  Vocab size:  8192
+  Workers:     20
+
+======================================================================
+CHECK 1: Zero uppercase tokens in casefold vocabulary
+======================================================================
+  PASS: 0 uppercase tokens found in 7932 learned pieces
+
+======================================================================
+CHECK 2: LUT byte count vs ground-truth bytes (per document)
+======================================================================
+  Using 20 workers
+  Counting lines... 15,368,808
+  Chunks: 20 x ~768,441 lines
+  Processing...
+  ... worker 0 done: 768,441 docs (768,441/15,368,808 total)
+  ... worker 1 done: 768,441 docs (1,536,882/15,368,808 total)
+  ... worker 3 done: 768,441 docs (2,305,323/15,368,808 total)
+  ... worker 2 done: 768,441 docs (3,073,764/15,368,808 total)
+  ... worker 4 done: 768,441 docs (3,842,205/15,368,808 total)
+  ... worker 5 done: 768,441 docs (4,610,646/15,368,808 total)
+  ... worker 6 done: 768,441 docs (5,379,087/15,368,808 total)
+  ... worker 7 done: 768,441 docs (6,147,528/15,368,808 total)
+  ... worker 8 done: 768,441 docs (6,915,969/15,368,808 total)
+  ... worker 9 done: 768,441 docs (7,684,410/15,368,808 total)
+  ... worker 10 done: 768,441 docs (8,452,851/15,368,808 total)
+  ... worker 11 done: 768,441 docs (9,221,292/15,368,808 total)
+  ... worker 12 done: 768,441 docs (9,989,733/15,368,808 total)
+  ... worker 13 done: 768,441 docs (10,758,174/15,368,808 total)
+  ... worker 14 done: 768,441 docs (11,526,615/15,368,808 total)
+  ... worker 15 done: 768,441 docs (12,295,056/15,368,808 total)
+  ... worker 16 done: 768,441 docs (13,063,497/15,368,808 total)
+  ... worker 18 done: 768,441 docs (13,831,938/15,368,808 total)
+  ... worker 17 done: 768,441 docs (14,600,379/15,368,808 total)
+  ... worker 19 done: 768,429 docs (15,368,808/15,368,808 total)
+
+  Documents:         15,368,808
+  Tokens:            11,423,532,518
+  Ground-truth bytes:47,707,155,846
+  LUT bytes:         47,707,155,846
+  Tok/byte:          0.239451
+  Mismatched docs:   0 / 15,368,808
+
+  PASS: LUT exactly matches ground truth on every document
+
+======================================================================
+SUMMARY
+======================================================================
+  Documents verified:  15,368,808
+  Ground-truth bytes:  47,707,155,846
+  LUT bytes:           47,707,155,846
+  LUT == ground truth: yes
+  Tokens:              11,423,532,518
+  Tok/byte:            0.239451
+
+RESULT: ALL CHECKS PASSED
+The casefold v2 tokenizer counts bytes correctly.
