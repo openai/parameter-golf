@@ -1,0 +1,7 @@
+numpy
+sentencepiece
+brotli
+tqdm
+huggingface-hub
+datasets
+typing-extensions==4.15.0

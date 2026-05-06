@@ -1,0 +1,151 @@
+﻿2026-04-29 18:14:16+08:00 === Linked /root/top1_control_ttt/data -> /data ===
+2026-04-29 18:14:16+08:00 === FULL: control-subspace TTT run_id=top1-control-tailall-muon098-minlr010-seed42 seed=42 ===
+2026-04-29 18:14:16+08:00 === Env overrides: {'MUON_MOMENTUM': '0.98', 'MIN_LR': '0.10', 'TTT_PARAM_MODE': 'control_tail_all', 'TTT_TRAIN_LAST_N': '3'} ===
+2026-04-29 18:14:44+08:00 Hyperparameters:
+2026-04-29 18:14:44+08:00   adam_eps: 1e-08
+2026-04-29 18:14:44+08:00   adam_wd: 0.02
+2026-04-29 18:14:44+08:00   beta1: 0.9
+2026-04-29 18:14:44+08:00   beta2: 0.95
+2026-04-29 18:14:44+08:00   compressor: brotli
+2026-04-29 18:14:44+08:00   data_dir: ./data/
+2026-04-29 18:14:44+08:00   datasets_dir: ./data/datasets/fineweb10B_sp8192
+2026-04-29 18:14:44+08:00   distributed: True
+2026-04-29 18:14:44+08:00   ema_decay: 0.9965
+2026-04-29 18:14:44+08:00   embed_bits: 8
+2026-04-29 18:14:44+08:00   embed_clip_sigmas: 20.0
+2026-04-29 18:14:44+08:00   embed_lr: 0.6
+2026-04-29 18:14:44+08:00   embed_wd: 0.085
+2026-04-29 18:14:44+08:00   embedding_dim: 512
+2026-04-29 18:14:44+08:00   enable_looping_at: 0.35
+2026-04-29 18:14:44+08:00   etlb_clip: 3.0
+2026-04-29 18:14:44+08:00   etlb_enabled: False
+2026-04-29 18:14:44+08:00   etlb_lr: 0.05
+2026-04-29 18:14:44+08:00   etlb_steps: 5
+2026-04-29 18:14:44+08:00   eval_seq_len: 2048
+2026-04-29 18:14:44+08:00   eval_stride: 64
+2026-04-29 18:14:44+08:00   gptq_calibration_batches: 64
+2026-04-29 18:14:44+08:00   gptq_reserve_seconds: 12.0
+2026-04-29 18:14:44+08:00   grad_accum_steps: 1
+2026-04-29 18:14:44+08:00   grad_clip_norm: 0.3
+2026-04-29 18:14:44+08:00   head_lr: 0.008
+2026-04-29 18:14:44+08:00   is_main_process: True
+2026-04-29 18:14:44+08:00   iterations: 20000
+2026-04-29 18:14:44+08:00   ln_scale: True
+2026-04-29 18:14:44+08:00   local_rank: 0
+2026-04-29 18:14:44+08:00   logfile: logs/top1-control-tailall-muon098-minlr010-seed42.txt
+2026-04-29 18:14:44+08:00   logit_softcap: 30.0
+2026-04-29 18:14:44+08:00   loop_end: 5
+2026-04-29 18:14:44+08:00   loop_start: 3
+2026-04-29 18:14:44+08:00   matrix_bits: 6
+2026-04-29 18:14:44+08:00   matrix_clip_sigmas: 12.85
+2026-04-29 18:14:44+08:00   matrix_lr: 0.022
+2026-04-29 18:14:44+08:00   max_wallclock_seconds: 600.0
+2026-04-29 18:14:44+08:00   min_lr: 0.1
+2026-04-29 18:14:44+08:00   mlp_mult: 4.0
+2026-04-29 18:14:44+08:00   model_dim: 512
+2026-04-29 18:14:44+08:00   model_path: final_model.pt
+2026-04-29 18:14:44+08:00   muon_backend_steps: 5
+2026-04-29 18:14:44+08:00   muon_beta2: 0.95
+2026-04-29 18:14:44+08:00   muon_momentum: 0.98
+2026-04-29 18:14:44+08:00   muon_momentum_warmup_start: 0.92
+2026-04-29 18:14:44+08:00   muon_momentum_warmup_steps: 1500
+2026-04-29 18:14:44+08:00   muon_row_normalize: True
+2026-04-29 18:14:44+08:00   muon_wd: 0.095
+2026-04-29 18:14:44+08:00   num_heads: 8
+2026-04-29 18:14:44+08:00   num_kv_heads: 4
+2026-04-29 18:14:44+08:00   num_layers: 11
+2026-04-29 18:14:44+08:00   num_loops: 2
+2026-04-29 18:14:44+08:00   parallel_residual_start: 7
+2026-04-29 18:14:44+08:00   qk_gain_init: 5.25
+2026-04-29 18:14:44+08:00   quantized_model_path: final_model.int6.ptz
+2026-04-29 18:14:44+08:00   rank: 0
+2026-04-29 18:14:44+08:00   rope_base: 10000.0
+2026-04-29 18:14:44+08:00   rope_dims: 16
+2026-04-29 18:14:44+08:00   rope_train_seq_len: 2048
+2026-04-29 18:14:44+08:00   run_id: top1-control-tailall-muon098-minlr010-seed42
+2026-04-29 18:14:44+08:00   scalar_lr: 0.02
+2026-04-29 18:14:44+08:00   seed: 42
+2026-04-29 18:14:44+08:00   skip_gates_enabled: True
+2026-04-29 18:14:44+08:00   sliding_window_enabled: True
+2026-04-29 18:14:44+08:00   smoke_val_tokens: 0
+2026-04-29 18:14:44+08:00   tie_embeddings: True
+2026-04-29 18:14:44+08:00   tied_embed_init_std: 0.005
+2026-04-29 18:14:44+08:00   tied_embed_lr: 0.03
+2026-04-29 18:14:44+08:00   tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+2026-04-29 18:14:44+08:00   train_batch_tokens: 786432
+2026-04-29 18:14:44+08:00   train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+2026-04-29 18:14:44+08:00   train_log_every: 500
+2026-04-29 18:14:44+08:00   train_seq_len: 2048
+2026-04-29 18:14:44+08:00   ttt_chunk_tokens: 32768
+2026-04-29 18:14:44+08:00   ttt_enabled: True
+2026-04-29 18:14:44+08:00   ttt_epochs: 3
+2026-04-29 18:14:44+08:00   ttt_lr: 0.005
+2026-04-29 18:14:44+08:00   ttt_momentum: 0.9
+2026-04-29 18:14:44+08:00   ttt_param_mode: control_tail_all
+2026-04-29 18:14:44+08:00   ttt_train_last_n: 3
+2026-04-29 18:14:44+08:00   val_batch_tokens: 524288
+2026-04-29 18:14:44+08:00   val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+2026-04-29 18:14:44+08:00   val_loss_every: 4000
+2026-04-29 18:14:44+08:00   vocab_size: 8192
+2026-04-29 18:14:44+08:00   warmdown_frac: 0.72
+2026-04-29 18:14:44+08:00   warmup_steps: 20
+2026-04-29 18:14:44+08:00   world_size: 8
+2026-04-29 18:14:44+08:00   xsa_last_n: 11
+2026-04-29 18:14:45+08:00 train_shards: 128
+2026-04-29 18:14:45+08:00 val_tokens: 40540160
+2026-04-29 18:14:46+08:00 model_params:35944536
+2026-04-29 18:14:47+08:00 gptq:reserving 12s, effective=588000ms
+2026-04-29 18:17:23+08:00 warmup_step: 1/20
+2026-04-29 18:19:14+08:00 warmup_step: 2/20
+2026-04-29 18:19:20+08:00 warmup_step: 3/20
+2026-04-29 18:19:20+08:00 warmup_step: 4/20
+2026-04-29 18:19:21+08:00 warmup_step: 5/20
+2026-04-29 18:19:21+08:00 warmup_step: 6/20
+2026-04-29 18:19:21+08:00 warmup_step: 10/20
+2026-04-29 18:19:22+08:00 warmup_step: 20/20
+2026-04-29 18:19:22+08:00 loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2026-04-29 18:22:03+08:00 loop_warmup_step: 1/20
+2026-04-29 18:22:12+08:00 loop_warmup_step: 2/20
+2026-04-29 18:22:12+08:00 loop_warmup_step: 3/20
+2026-04-29 18:22:12+08:00 loop_warmup_step: 4/20
+2026-04-29 18:22:12+08:00 loop_warmup_step: 5/20
+2026-04-29 18:22:12+08:00 loop_warmup_step: 6/20
+2026-04-29 18:22:13+08:00 loop_warmup_step: 10/20
+2026-04-29 18:22:14+08:00 loop_warmup_step: 20/20
+2026-04-29 18:25:46+08:00 0/20000 val_loss: 9.0090 val_bpb: 3.4877
+2026-04-29 18:25:46+08:00 1/20000 train_loss: 9.0111 train_time: 0.0m tok/s: 8899603
+2026-04-29 18:25:46+08:00 2/20000 train_loss: 12.3696 train_time: 0.0m tok/s: 8679908
+2026-04-29 18:25:46+08:00 3/20000 train_loss: 11.1356 train_time: 0.0m tok/s: 8492024
+2026-04-29 18:25:46+08:00 4/20000 train_loss: 9.4131 train_time: 0.0m tok/s: 8420715
+2026-04-29 18:25:47+08:00 5/20000 train_loss: 8.3273 train_time: 0.0m tok/s: 8395955
+2026-04-29 18:26:34+08:00 500/20000 train_loss: 3.3335 train_time: 0.8m tok/s: 8140352
+2026-04-29 18:27:23+08:00 1000/20000 train_loss: 3.1967 train_time: 1.6m tok/s: 8115786
+2026-04-29 18:28:12+08:00 1500/20000 train_loss: 3.1011 train_time: 2.4m tok/s: 8108065
+2026-04-29 18:29:00+08:00 2000/20000 train_loss: 3.0821 train_time: 3.2m tok/s: 8100599
+2026-04-29 18:29:12+08:00 layer_loop:enabled step:2120 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2026-04-29 18:30:06+08:00 2500/20000 train_loss: 3.0801 train_time: 4.3m tok/s: 7566514
+2026-04-29 18:31:18+08:00 3000/20000 train_loss: 2.9659 train_time: 5.5m tok/s: 7113601
+2026-04-29 18:32:30+08:00 3500/20000 train_loss: 2.9855 train_time: 6.7m tok/s: 6812515
+2026-04-29 18:33:41+08:00 4000/20000 train_loss: 2.9359 train_time: 7.9m tok/s: 6622444
+2026-04-29 18:39:07+08:00 4000/20000 val_loss: 2.8950 val_bpb: 1.1207
+2026-04-29 18:40:17+08:00 4500/20000 train_loss: 2.7815 train_time: 9.1m tok/s: 6491405
+2026-04-29 18:41:02+08:00 4787/20000 val_loss: 2.8221 val_bpb: 1.0925
+2026-04-29 18:41:02+08:00 stopping_early: wallclock_cap train_time: 588060ms step: 4787/20000
+2026-04-29 18:41:02+08:00 peak memory allocated: 39045 MiB reserved: 39126 MiB
+2026-04-29 18:41:02+08:00 ema:applying EMA weights
+2026-04-29 18:41:29+08:00 pre-quantization post-ema val_loss:2.80006722 val_bpb:1.08399328 eval_time:26415ms
+2026-04-29 18:41:29+08:00 Serialized model: 135431033 bytes
+2026-04-29 18:41:29+08:00 Code size: 17056 bytes
+2026-04-29 18:41:29+08:00 GPTQ:collecting Hessians from calibration data...
+2026-04-29 18:41:41+08:00 GPTQ:collected 67 Hessians in 12.0s
+2026-04-29 18:41:54+08:00 Quantized weights:
+2026-04-29 18:41:54+08:00   gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+2026-04-29 18:41:54+08:00   gptq (int8): tok_emb.weight
+2026-04-29 18:41:54+08:00   passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+2026-04-29 18:42:59+08:00 Serialized model quantized+brotli: 15973681 bytes
+2026-04-29 18:42:59+08:00 Total submission size quantized+brotli: 15990737 bytes
+2026-04-29 18:46:49+08:00 quantized val_loss:2.82955073 val_bpb:1.09540727 eval_time:228606ms
+2026-04-29 18:52:02+08:00 quantized_sliding_window val_loss:2.78639421 val_bpb:1.07870003 eval_time:313404ms
+2026-04-29 18:52:05+08:00 ttt:start chunks=1238 ttt_lr=0.005 ttt_epochs=3
+2026-04-29 18:52:05+08:00 ttt_param_mode:control_tail_all ttt_param_count:8681560
+2026-04-29 19:05:01+08:00 quantized_ttt val_loss:2.78289460 val_bpb:1.07734522 eval_time:776046ms

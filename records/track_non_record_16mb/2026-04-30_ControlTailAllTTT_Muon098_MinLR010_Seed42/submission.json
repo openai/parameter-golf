@@ -1,0 +1,69 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "Control+Tail Score-First TTT on the Accepted SP8192 Top-1 Stack",
+  "author": "zhenyi-ji",
+  "github_id": "Gotnhub",
+  "val_bpb": 1.07734522,
+  "val_loss": 2.78289460,
+  "bytes_total": 15990737,
+  "seed": 42,
+  "base_submission": "2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT",
+  "base_pr": 1493,
+  "val_bpb_method": "legal_ttt_exact_sliding_window_stride64",
+  "run": {
+    "run_id": "top1-control-tailall-muon098-minlr010-seed42",
+    "modal_call_id": "fc-01KQCBP780FKR45925KMK2QK2X",
+    "seed": 42,
+    "train_steps": 4787,
+    "train_time_ms": 588060,
+    "pre_quant_val_loss": 2.80006722,
+    "pre_quant_bpb": 1.08399328,
+    "quantized_val_loss": 2.82955073,
+    "quantized_bpb": 1.09540727,
+    "quantized_sliding_val_loss": 2.78639421,
+    "quantized_sliding_bpb": 1.07870003,
+    "quantized_ttt_val_loss": 2.78289460,
+    "quantized_ttt_bpb": 1.07734522,
+    "ttt_eval_time_ms": 776046,
+    "ttt_param_count": 8681560
+  },
+  "defaults": {
+    "MUON_MOMENTUM": 0.98,
+    "MIN_LR": 0.10,
+    "TTT_PARAM_MODE": "control_tail_all",
+    "TTT_TRAIN_LAST_N": 3,
+    "TTT_LR": 0.005,
+    "TTT_EPOCHS": 3,
+    "QK_GAIN_INIT": 5.25
+  },
+  "architecture": "Accepted SP8192 11L/512d/8H/4KV stack with 3-layer recurrence, parallel residuals, QK gain 5.25, GPTQ int6 matrices, int8 embeddings, Brotli compression, and legal score-first TTT.",
+  "our_contribution": "During score-first TTT, freeze the full model except existing control/gating parameters everywhere plus all parameters in the last 3 transformer blocks. This control_tail_all subset adapts 8,681,560 parameters instead of the accepted all-parameter TTT path, while preserving score-before-update ordering and avoiding new adapter modules.",
+  "novelty": "A targeted implicit-adapter TTT subspace built entirely from existing model weights: global scalar/gating controls plus terminal transformer blocks. This sits between control-only TTT, which was too weak, and all-parameter TTT, which is less selective.",
+  "comparisons": {
+    "local_accepted_base_seed42_bpb": 1.07960392,
+    "muon098_seed42_bpb": 1.07898847,
+    "control_only_seed42_bpb": 1.08009438,
+    "control_tail_all_seed42_bpb": 1.07734522,
+    "control_tail_all_last4_anchor_seed42_bpb": 1.07944810
+  },
+  "compliance": {
+    "artifact_under_16mb": true,
+    "training_under_600s": true,
+    "eval_under_600s": false,
+    "score_first_ttt": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "single_seed_only": true,
+    "non_record_submission": true,
+    "unlimited_compute_style": true
+  },
+  "attribution": {
+    "accepted_top1_base": "2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT and its listed contributors",
+    "legal_ttt_framework": "Accepted score-first TTT precedent from the base submission",
+    "adapter_ttt_principle": "PR #1767 used only as mechanism inspiration; no code copied",
+    "warmdown_floor_principle": "PR #1874 MIN_LR signal used as hyperparameter inspiration; no code copied"
+  },
+  "notes": "This is intentionally submitted as a non-record contribution. It is one validated seed, does not beat the current official SOTA shown in the README on 2026-04-30, and its TTT eval time (776.046s) is above the 10-minute eval cutoff. The artifact remains under 16MB and the score-first TTT order is legal."
+}
