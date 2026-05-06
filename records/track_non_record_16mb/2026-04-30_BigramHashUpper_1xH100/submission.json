@@ -1,0 +1,39 @@
+{
+  "author": "Felix Fuhs",
+  "github_id": "FelixFuhs",
+  "name": "BigramHash Upper Enrichment on 1xH100",
+  "blurb": "Non-record 1xH100 submission: additive 12,288-bucket BigramHash injected at layer 1, with a tokenizer-derived uppercase bit folded into the hash address. Single-seed post-quant val_bpb 1.31321205 under the 16MB artifact cap. The sweep documents positive results for simple hash-address enrichment and negative results for count init, multi-inject, skip-bigram, trigram hashing, byte features, and higher LR.",
+  "date": "2026-04-30",
+  "track": "non-record-16mb",
+  "val_loss": 2.21730354,
+  "val_bpb": 1.31321205,
+  "pre_quant_val_loss": 2.2156,
+  "pre_quant_val_bpb": 1.3122,
+  "seeds": [
+    1337
+  ],
+  "seed_results": {
+    "1337": {
+      "val_loss": 2.21730354,
+      "val_bpb": 1.31321205,
+      "pre_quant_val_loss": 2.2156,
+      "pre_quant_val_bpb": 1.3122,
+      "artifact_bytes": 15343280,
+      "steps": 1430,
+      "step_avg_ms": 419.79,
+      "eval_time_s": 11.207
+    }
+  },
+  "bytes_total": 15343280,
+  "bytes_model_int8_zlib": 15278637,
+  "bytes_code": 64643,
+  "model_params": 18698312,
+  "step_stop": 1430,
+  "wallclock_seconds": 600,
+  "hardware": "1xH100 80GB",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "13.0",
+  "technique_summary": "Stock 9L/512d/1024-vocab baseline plus additive BigramHash table_size=12288, inject_layer=1, hash_dim=128, HASH_ENRICH=upper.",
+  "record_claim": false,
+  "notes": "Single-seed non-record result. Not run on 8xH100 SXM and not statistically significant for the official leaderboard."
+}
