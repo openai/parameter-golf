@@ -1,0 +1,77 @@
+root@2ee266737d61:/workspace/parameter-golf# RUN_ID=leaderboard-8xh100-v1 \
+EVAL_SEQ_LEN=4096 \
+EVAL_STRIDE=64 \
+torchrun --standalone --nproc_per_node=8 train_gpt.py
+W0321 06:59:07.538000 645 torch/distributed/run.py:803] 
+W0321 06:59:07.538000 645 torch/distributed/run.py:803] *****************************************
+W0321 06:59:07.538000 645 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+W0321 06:59:07.538000 645 torch/distributed/run.py:803] *****************************************
+logs/leaderboard-8xh100-v1.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:25517137
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+qat:True bigram:10240x128 swa:True(frac=0.35,every=25) prune:0.05 eval_seq_len:4096 warmdown:cosine
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9323 val_bpb:4.1057 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9334 train_time:145ms step_avg:144.56ms
+step:2/20000 train_loss:8.4074 train_time:213ms step_avg:106.62ms
+step:3/20000 train_loss:7.4121 train_time:306ms step_avg:102.07ms
+step:4/20000 train_loss:7.0521 train_time:400ms step_avg:100.07ms
+step:5/20000 train_loss:6.9346 train_time:494ms step_avg:98.82ms
+step:6/20000 train_loss:6.8894 train_time:587ms step_avg:97.87ms
+step:7/20000 train_loss:6.7259 train_time:681ms step_avg:97.31ms
+step:8/20000 train_loss:6.6039 train_time:775ms step_avg:96.91ms
+step:9/20000 train_loss:6.3139 train_time:869ms step_avg:96.59ms
+step:10/20000 train_loss:6.0867 train_time:964ms step_avg:96.37ms
+step:100/20000 train_loss:3.1891 train_time:8995ms step_avg:89.95ms
+step:200/20000 train_loss:2.3975 train_time:18032ms step_avg:90.16ms
+step:300/20000 train_loss:2.5535 train_time:27091ms step_avg:90.30ms
+step:400/20000 train_loss:2.4311 train_time:36137ms step_avg:90.34ms
+step:500/20000 train_loss:2.4165 train_time:45122ms step_avg:90.24ms
+step:500/20000 val_loss:2.3707 val_bpb:1.4040 train_time:45156ms step_avg:90.31ms
+step:600/20000 train_loss:2.3510 train_time:54194ms step_avg:90.32ms
+step:700/20000 train_loss:2.3652 train_time:63268ms step_avg:90.38ms
+step:800/20000 train_loss:2.2612 train_time:72326ms step_avg:90.41ms
+step:900/20000 train_loss:2.1540 train_time:81392ms step_avg:90.44ms
+step:1000/20000 train_loss:2.2987 train_time:90371ms step_avg:90.37ms
+step:1000/20000 val_loss:2.2472 val_bpb:1.3309 train_time:90406ms step_avg:90.41ms
+step:1100/20000 train_loss:2.3475 train_time:99427ms step_avg:90.39ms
+step:1200/20000 train_loss:2.3789 train_time:108481ms step_avg:90.40ms
+step:1300/20000 train_loss:2.1250 train_time:117541ms step_avg:90.42ms
+step:1400/20000 train_loss:2.2087 train_time:126604ms step_avg:90.43ms
+step:1500/20000 train_loss:2.2508 train_time:135575ms step_avg:90.38ms
+step:1500/20000 val_loss:2.2067 val_bpb:1.3069 train_time:135612ms step_avg:90.41ms
+step:1600/20000 train_loss:2.1055 train_time:144640ms step_avg:90.40ms
+step:1700/20000 train_loss:2.1743 train_time:153695ms step_avg:90.41ms
+step:1800/20000 train_loss:2.1855 train_time:162749ms step_avg:90.42ms
+step:1900/20000 train_loss:2.1541 train_time:171731ms step_avg:90.38ms
+step:2000/20000 train_loss:2.0981 train_time:180795ms step_avg:90.40ms
+step:2000/20000 val_loss:2.1593 val_bpb:1.2789 train_time:180830ms step_avg:90.41ms
+Connection to 100.65.14.141 closed.
+Connection to ssh.runpod.io closed.
