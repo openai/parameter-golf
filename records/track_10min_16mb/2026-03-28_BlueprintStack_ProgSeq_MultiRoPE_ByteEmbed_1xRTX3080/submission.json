@@ -1,0 +1,9 @@
+{
+  "name": "Blueprint Stack: ProgSeq + Multi-scale RoPE + ByteEmbed (1xRTX 3080)",
+  "val_bpb": 1.5568,
+  "bytes_total": 15900102,
+  "blurb": "Non-record, single-GPU exploration. 10L blueprint stack with progressive sequence length (512->1024->2048), grouped multi-scale RoPE (4 KV groups, bases 1K/10K/100K/1M), byte-level token embeddings (dim 64), and mixed-bit export (int5 MLP, int6 attn/bigram/byte + zstd). Trained 10 min on 1xRTX 3080 (3647 steps, 164.5 ms/step, loss still dropping). Systematic ablation of 12 leaderboard techniques across 3 phases found most 8xH100-proven techniques hurt on single GPU due to step-time overhead.",
+  "author": "Blakethefn",
+  "github_id": "Blakethefn",
+  "date": "2026-03-28"
+}
