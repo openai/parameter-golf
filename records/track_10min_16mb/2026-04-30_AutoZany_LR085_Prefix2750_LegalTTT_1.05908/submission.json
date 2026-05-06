@@ -1,0 +1,72 @@
+{
+  "author": "Zane Peycke",
+  "github_id": "ZanePeycke",
+  "name": "AutoZany final-day LR 0.85 + prefix2750 legal phased TTT on PR #1953 stack",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.05907559,
+  "val_bpb_std": 0.00041335,
+  "val_loss": 2.31764997,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.05849788,
+      "val_loss": 2.31638573,
+      "stop_step": 4889,
+      "train_wallclock_ms": 596017,
+      "eval_time_ms": 473829,
+      "artifact_bytes": 15976870,
+      "pre_quant_val_bpb": 1.06193713,
+      "quantized_val_bpb": 1.07022525,
+      "wallclock_status": "strict under 600s"
+    },
+    "0": {
+      "val_bpb": 1.05928718,
+      "val_loss": 2.31811300,
+      "stop_step": 4888,
+      "train_wallclock_ms": 596020,
+      "eval_time_ms": 464754,
+      "artifact_bytes": 15980787,
+      "pre_quant_val_bpb": 1.06282344,
+      "quantized_val_bpb": 1.07113858,
+      "wallclock_status": "strict under 600s"
+    },
+    "1234": {
+      "val_bpb": 1.05944171,
+      "val_loss": 2.31845117,
+      "stop_step": 4906,
+      "train_wallclock_ms": 596115,
+      "eval_time_ms": 468273,
+      "artifact_bytes": 15984508,
+      "pre_quant_val_bpb": 1.06264173,
+      "quantized_val_bpb": 1.07122159,
+      "wallclock_status": "strict under 600s"
+    }
+  },
+  "stack_components": {
+    "base": "PR #1953 / PR #1945 lineage: #1855 + AWQ-lite + Asymmetric Logit Rescale + CaseOps tokenizer + no_qv legal TTT",
+    "eval_context": "EVAL_SEQ_LEN=2560 and TTT_EVAL_SEQ_LEN=2560",
+    "ttt_mask": "no_qv: TTT_Q_LORA=0 and TTT_V_LORA=0",
+    "ttt_lr": "TTT_LOCAL_LR_MULT=0.85",
+    "ttt_prefix": "PHASED_TTT_PREFIX_DOCS=2750",
+    "qk_gain": "QK_GAIN_INIT=5.25"
+  },
+  "compliance": {
+    "artifact_under_16mb": true,
+    "train_under_600s_strict": true,
+    "eval_under_600s": true,
+    "three_seeds": true,
+    "score_before_update": "inherits PR #1953 phased TTT score-first implementation; prefix2750 eval scores before adaptation updates",
+    "no_pre_quant_ttt": true,
+    "no_ngram_or_ppm": true,
+    "full_validation_set": true
+  },
+  "logs": {
+    "seed42_train": "train_seed42.log",
+    "seed0_train": "train_seed0.log",
+    "seed1234_train": "train_seed1234.log",
+    "seed42_prefix2750_eval": "ttt_prefix2750_seed42.log",
+    "seed0_prefix2750_eval": "ttt_prefix2750_seed0.log",
+    "seed1234_prefix2750_eval": "ttt_prefix2750_seed1234.log"
+  }
+}
