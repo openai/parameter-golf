@@ -1,0 +1,58 @@
+{
+  "author": "Romeer Pillay",
+  "github_id": "romeerp",
+  "name": "PR1855 base + activation-aware GPTQ mixed precision (step-matched)",
+  "blurb": "PR #1855 base training recipe with activation-aware mixed-precision GPTQ. Groups are scored by act_rms * mean(abs(weight)) and one salient 64-column group is quantized at int8 inside the same full-tensor GPTQ solve, with stock PR1855 LQER on top. Results are reported on matched seed/step reruns against PR #1855 to isolate quantization quality under reproduction variance.",
+  "date": "2026-04-28",
+  "track": "10min_16mb",
+  "val_loss": 2.32144716,
+  "val_bpb": 1.06081076,
+  "val_loss_std": 0.00194,
+  "val_bpb_std": 0.00089,
+  "seeds": [
+    42,
+    0,
+    1234
+  ],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31873674,
+      "val_bpb": 1.05957221,
+      "artifact_bytes": 15985824,
+      "steps": 4945,
+      "prequant_bpb": 1.06384082,
+      "quantized_bpb": 1.07225564,
+      "eval_time_s": 461.0
+    },
+    "0": {
+      "val_loss": 2.32245934,
+      "val_bpb": 1.06127329,
+      "artifact_bytes": 15983935,
+      "steps": 4932,
+      "prequant_bpb": 1.06555331,
+      "quantized_bpb": 1.07403531,
+      "eval_time_s": 414.0
+    },
+    "1234": {
+      "val_loss": 2.3231454,
+      "val_bpb": 1.06158679,
+      "artifact_bytes": 15996559,
+      "steps": 4917,
+      "prequant_bpb": 1.06574247,
+      "quantized_bpb": 1.07427091,
+      "eval_time_s": 418.6
+    }
+  },
+  "comparison_baseline_name": "PR1855 matched-step baseline",
+  "comparison_baseline_bpb": 1.06107587,
+  "comparison_baseline_quantized_bpb": 1.07379675,
+  "comparison_baseline_prequant_bpb": 1.06512551,
+  "delta_vs_baseline_bpb": -0.00026511,
+  "delta_vs_baseline_quantized_bpb": -0.00027613,
+  "artifact_bytes_mean": 15988773,
+  "artifact_bytes_max": 15996559,
+  "bytes_total": 15996559,
+  "train_steps_mean": 4931.33,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "Activation-aware mixed-precision GPTQ on PR1855 base; selection score = act_rms * mean(abs(weight)); one salient 64-column group protected at int8 inside the GPTQ solve; stock PR1855 LQER on top; matched-step seed suite."
+}
