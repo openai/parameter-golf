@@ -1,0 +1,25 @@
+{
+  "author": "Raahil Shah",
+  "github_id": "raahilshah",
+  "name": "Int6 MLP3x + SmearGate + BigramHash + OrthoInit + Muon WD + SWA",
+  "blurb": "Per-row int6 quantization on MLP/attention weights with zstd-22 compression, enabling 3x MLP expansion (hidden=1536). SmearGate blends adjacent token embeddings via a learned gate. BigramHash embedding (4096 buckets, dim=128) captures token-pair context. Orthogonal weight initialization with muP output scaling. Muon optimizer with decoupled weight decay (WD=0.04) and momentum warmup (0.92->0.99 over 1500 steps). Stochastic Weight Averaging every 50 steps over the last 50% of training. Trained at seq_len=2048 with batch=786432, grad_clip=0.3, warmdown=3000. Sliding window evaluation at stride=64.",
+  "date": "2026-03-20T05:30:00Z",
+  "val_loss": 1.93465876,
+  "val_bpb": 1.14581692,
+  "val_loss_std": 0.00139,
+  "val_bpb_std": 0.00082,
+  "seeds": [1337, 42, 7],
+  "seed_results": {
+    "1337": {"val_loss": 1.93492097, "val_bpb": 1.14597222},
+    "42": {"val_loss": 1.93591485, "val_bpb": 1.14656085},
+    "7": {"val_loss": 1.93314046, "val_bpb": 1.14491770}
+  },
+  "pre_quant_val_loss": 1.9613,
+  "pre_quant_val_bpb": 1.1616,
+  "step_stop": 7379,
+  "wallclock_seconds": 600.075,
+  "eval_time_seconds": 155.204,
+  "bytes_total": 15862650,
+  "bytes_model_int6_zstd": 15810407,
+  "bytes_code": 52243
+}

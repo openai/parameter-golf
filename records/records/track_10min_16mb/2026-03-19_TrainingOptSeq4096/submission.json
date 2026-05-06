@@ -1,0 +1,11 @@
+{
+  "author": "Spokane Way",
+  "github_id": "spokane-way",
+  "name": "Training Opt Seq4096 v1",
+  "blurb": "SP-1024 9x512 KV4 run at TRAIN_SEQ_LEN=4096 with aggressively tuned Muon optimizer: momentum 0.99, lower LR (0.020/0.020/0.030), 3/4 batch (393K tokens), warmdown 3000 steps, and extended momentum warmup (1500 steps from 0.92). Combines long-context training with training optimization to beat the naive baseline by 0.023 BPB.",
+  "date": "2026-03-19T04:28:00Z",
+  "val_loss": 2.02857127,
+  "val_bpb": 1.20143417,
+  "bytes_total": 15868326,
+  "bytes_code": 47759
+}
