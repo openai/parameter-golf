@@ -1,0 +1,67 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-26",
+  "name": "Post-Quantization Damage Gap - 11L GPTQ Int6 + Entropy Curriculum + Sliding TTT (Negative Result)",
+  "author": "Takoda Mundy",
+  "github_id": "taka6745",
+  "val_bpb": 2.766343,
+  "val_bpb_std": 0.034647,
+  "val_bpb_stderr": 0.020004,
+  "val_loss": 7.145696,
+  "n_seeds": 3,
+  "seeds": [42, 1337, 2024],
+  "val_bpb_per_seed": {
+    "42": 2.728464,
+    "1337": 2.796432,
+    "2024": 2.774133
+  },
+  "metric_label": "post_TTT val_bpb (sliding window stride=64) - 3-seed mean",
+  "intermediate_metrics": {
+    "pre_quant_val_bpb_mean": 1.100898,
+    "pre_quant_val_bpb_std": 0.001133,
+    "post_quant_pre_ttt_val_bpb_mean": 3.462027,
+    "post_quant_pre_ttt_val_bpb_std": 0.017323,
+    "quantization_damage_bpb": 2.361129,
+    "ttt_recovery_bpb": 0.695684
+  },
+  "artifact_bytes_per_seed": {
+    "42": 15720987,
+    "1337": 15652160,
+    "2024": 15715938
+  },
+  "artifact_bytes_mean": 15696362,
+  "artifact_bytes_max": 15720987,
+  "code_bytes": 151448,
+  "total_bytes_max": 15872435,
+  "params": 35988657,
+  "model": {
+    "num_layers": 11,
+    "model_dim": 512,
+    "embedding_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 4.0,
+    "tie_embeddings": true,
+    "vocab_size": 8192,
+    "rotary_dim": 16,
+    "tokenizer": "SentencePiece BPE 8192 on FineWeb"
+  },
+  "training": {
+    "wallclock_seconds": 600,
+    "train_seq_len": 2048,
+    "train_global_batch_tokens": 524288,
+    "optimizer": "Muon (NS-3) + AdamW (fused) + EMA 0.9965",
+    "warmup_steps": 20,
+    "warmdown_wallclock_fraction": 0.72,
+    "curriculum": "entropy-bucket weighted shard sampler, easy-to-hard time-based crossfade with 0.02 floor weight"
+  },
+  "quantization": "GPTQ int6 matrix + int5 embedding + 2:4 sparsity (3-bit values + position codes) + freeze-dry + zstd-22",
+  "ttt": "test-time training, sliding window, 3 chunks, cosine LR, score-first; recovers 0.70 BPB of post-quant damage",
+  "compute": {
+    "gpus": "8xH100 SXM",
+    "training_wallclock_seconds": 600,
+    "eval_wallclock_seconds_per_seed_approx": 380,
+    "spend_usd_approx": 60
+  },
+  "honest_summary": "Reimplemented an 11-layer GQA transformer with curriculum sampling and a stack of speed levers, reaching pre-quant val_bpb=1.1009 in 600 s on 8xH100 - better than typical pre-quant numbers in the leaderboard reference stack. However, GPTQ int6 quantization catastrophically damages this sharper minimum: post-quant val_bpb=3.4620 (+2.36 BPB damage). Test-time training partially recovers to 2.7663 - still below the 1.2244 naive baseline. Submitted as a non-record research contribution documenting the post-quantization damage gap and proposing progressive depth-grown training as a candidate mitigation."
+}
