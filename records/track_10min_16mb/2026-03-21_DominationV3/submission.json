@@ -1,0 +1,36 @@
+{
+  "author": "yesbhautik",
+  "github_id": "yesbhautik",
+  "name": "DominationV3: 11L EMA + Partial RoPE + LN Scale + GPTQ-lite + TTT(25ep, lr=0.012)",
+  "blurb": "11-layer with EMA(0.997), Partial RoPE(16/64), LN Scale, BigramHash(4096x128), GPTQ-lite clip search, int6 quant on mlp+attn+tok_emb, zstd-22, and 25-epoch aggressive SGD TTT (lr=0.012, all blocks unfrozen).",
+  "date": "2026-03-23T06:00:00Z",
+  "val_loss": 1.89835246,
+  "val_bpb": 1.12431423,
+  "pre_quant_val_loss": 1.9440,
+  "pre_quant_val_bpb": 1.1513,
+  "step_stop": 8438,
+  "wallclock_seconds": 599.8,
+  "eval_time_seconds": 585.0,
+  "bytes_total": 15965664,
+  "bytes_model_int6_zstd": 15915703,
+  "bytes_code": 49961,
+  "seeds": {
+    "1337": {
+      "val_bpb": 1.12513674,
+      "train_time_ms": 599779,
+      "bytes_total": 15965664
+    },
+    "7": {
+      "val_bpb": 1.12540132,
+      "train_time_ms": 599841,
+      "bytes_total": 15829190
+    },
+    "42": {
+      "val_bpb": 1.12431423,
+      "train_time_ms": 599822,
+      "bytes_total": 15806256
+    }
+  },
+  "mean_val_bpb": 1.12495076,
+  "stdev_val_bpb": 0.00056691
+}
