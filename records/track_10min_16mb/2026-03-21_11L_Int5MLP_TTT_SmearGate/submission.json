@@ -1,0 +1,14 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "11L Int5-MLP + Int6-Attn + SmearGate + BigramHash + TTT-SGD + SWA",
+  "author": "stukenov",
+  "seed_results": {
+    "1337": {"val_loss": 1.93420516, "val_bpb": 1.14554827, "steps": 5197, "ms_per_step": 115.47}
+  },
+  "mean_val_loss": 1.93420516,
+  "mean_val_bpb": 1.14554827,
+  "artifact_bytes": 15937186,
+  "code_bytes": 56124,
+  "notes": "Single seed. 3-seed validation in progress."
+}
