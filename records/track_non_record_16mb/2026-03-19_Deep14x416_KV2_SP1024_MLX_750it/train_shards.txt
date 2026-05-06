@@ -1,0 +1,10 @@
+data/datasets/fineweb10B_sp1024/fineweb_train_000000.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000001.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000002.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000003.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000004.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000005.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000006.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000007.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000008.bin
+data/datasets/fineweb10B_sp1024/fineweb_train_000009.bin
