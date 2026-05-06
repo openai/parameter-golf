@@ -1,0 +1,43 @@
+{
+  "name": "SP8192 + Score-First TTT + QK-Gain 5.25 — Neural-Only 1.0810",
+  "author": "G3sparky (Gavin Saunders)",
+  "github_id": "G3sparky",
+  "date": "2026-04-29T04:00:00Z",
+  "val_bpb": 1.08100,
+  "val_bpb_std": 0.00037,
+  "bytes_total": 15996321,
+  "bytes_code": 20177,
+  "blurb": "Neural-only entry: legal score-first TTT (2-epoch SGD per chunk) on the SP8192 + 3-layer recurrence + parallel residuals stack. 8xH100 SXM, 3-seed mean 1.0810 BPB (std 0.0004). Also includes experimental PPM-D byte mixture (0.9727 on 8M subset, pending Issue #1872 ruling). Cross-platform verification: 1.0886 BPB on SDPA backend.",
+  "seeds": {
+    "42": {"ttt_bpb": 1.08062, "sliding_bpb": 1.0818, "quantized_bpb": 1.0983, "artifact_bytes": 15996321, "ttt_eval_seconds": 395, "steps": 3770},
+    "314": {"ttt_bpb": 1.08103, "sliding_bpb": 1.0823, "quantized_bpb": 1.0990, "artifact_bytes": 15995838, "ttt_eval_seconds": 358, "steps": 3770},
+    "999": {"ttt_bpb": 1.08135, "sliding_bpb": 1.0825, "quantized_bpb": 1.0991, "artifact_bytes": 15995930, "ttt_eval_seconds": 349, "steps": 3770}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "training_time_seconds": 588,
+  "experimental_ppmd": {
+    "mix_bpb_mean": 0.9727,
+    "mix_bpb_std": 0.0004,
+    "subset_tokens": 8000000,
+    "note": "PPM-D byte mixture (order-5) with anti-hijack gate. Evaluated on 8M token subset. In PPM-D class under Issue #1872 discussion.",
+    "anti_hijack_gate": {
+      "threshold_nats": 0.277,
+      "mean_gate_skip": 0.3055
+    }
+  },
+  "cross_platform_verification": {
+    "sdpa_mean_bpb": 1.0886,
+    "sdpa_std": 0.0009,
+    "note": "Same config trained with PyTorch SDPA instead of flash_attn_3. Verifies robustness across attention backends."
+  },
+  "key_changes": [
+    "Legal score-first TTT: 2-epoch SGD per chunk on quantized model (Issue #1017 C3 compliant)",
+    "Neural-only: no PPM-D required for headline 1.0810 result",
+    "Cross-platform verified: 1.0886 on SDPA, 1.0810 on flash_attn_3",
+    "Experimental PPM-D mixture: 0.9727 on 8M subset (pending #1872)",
+    "Anti-hijack gate: suppress PPM when NN NLL < 0.277 nats",
+    "Deterministic LZMA bootstrap: source captured at startup",
+    "Brotli-11 model compression"
+  ],
+  "base": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25"
+}
