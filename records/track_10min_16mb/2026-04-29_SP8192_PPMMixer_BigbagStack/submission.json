@@ -1,0 +1,36 @@
+{
+  "submission_name": "SP8192 + 3-Layer Recurrence + Parallel Residuals + Byte-PPM Mixer (no TTT)",
+  "author": "Rafael Mosquera",
+  "github_id": "remg1997",
+  "track": "10min_16mb",
+  "val_bpb_3seed_mean": 0.99621,
+  "val_bpb_3seed_std": 0.00064,
+  "seeds": [42, 314, 999],
+  "per_seed_results": {
+    "42":  {"ppm_mixer_val_bpb": 0.99548272, "model_bytes": 15977849},
+    "314": {"ppm_mixer_val_bpb": 0.99668774, "model_bytes": 15977842},
+    "999": {"ppm_mixer_val_bpb": 0.99646089, "model_bytes": 15977286}
+  },
+  "compliance_run": {
+    "config": "TTT_ENABLED=0, seed=42",
+    "ppm_mixer_val_bpb": 0.99528899,
+    "eval_time_4xh100_seconds": 553,
+    "projected_eval_time_8xh100_seconds": 460,
+    "projected_train_time_8xh100_seconds": 520
+  },
+  "lineage": [
+    "PR #1493 (bigbag) — 3-layer recurrence + parallel residuals + score-first TTT",
+    "PR #1394 (clarkkev) — SP8192 + GPTQ embeddings + SDClip",
+    "PR #1795 (OE-GOD) — byte-PPM mixer + legal causal gate"
+  ],
+  "key_innovation": "Adopts the eval-time byte-level PPM-D order-4 mixer (PR #1795) on top of bigbag's PR #1493 neural stack, with a strict-legal outcome-independent adaptive-lambda gate. Training is unchanged.",
+  "compliance": {
+    "track": "B (legal eval-time adaptation)",
+    "ppm_causality": "score-before-update on every byte; gate cf computed from PPM tables BEFORE looking up observed byte's count (prefix-only)",
+    "no_slot": true,
+    "no_two_pass": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "tokenizer_change": false
+  }
+}
