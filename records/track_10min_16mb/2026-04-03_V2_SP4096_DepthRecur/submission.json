@@ -1,0 +1,10 @@
+{
+  "name": "SP4096 + Polar Express + MuonEq-R + Depth Recurrence + WD=0.105",
+  "val_bpb": 1.0923,
+  "bytes_total": 15694101,
+  "blurb": "On clarkkev PR #1218 SP4096 base: Polar Express NS 4-step, MuonEq-R, depth recurrence layers 3,4,5 (shared MLP weights), WD=0.105, MLR=0.022. 3-seed mean 1.0923 (1337=1.0927, 42=1.0917, 2025=1.0925). Clean — no SLOT, no TTT.",
+  "author": "Omri Gotlieb",
+  "github_id": "Omrigotlieb",
+  "date": "2026-04-04",
+  "seeds": {"1337": 1.0927, "42": 1.0917, "2025": 1.0925}
+}
