@@ -1,0 +1,23 @@
+{
+  "author": "Kshitiz",
+  "github_id": "kshitizz36",
+  "name": "11L XSA4 EMA Modal Run (Over 16MB)",
+  "blurb": "Non-record reference run from Modal app logs. Strong sliding-window BPB (1.12296159) but invalid for 16MB leaderboard due to oversized int6+zstd artifact (20,906,280 bytes).",
+  "date": "2026-03-21T18:45:44Z",
+  "track": "non-record-over16mb",
+  "run_id": "ap-7GgwPNSXR9TJqDNlPWoWxQ",
+  "step_stop": 6900,
+  "step_avg_ms": 86.96,
+  "wallclock_seconds": 600.027,
+  "pre_quant_val_loss": 1.9340,
+  "pre_quant_val_bpb": 1.1454,
+  "int6_roundtrip_val_loss": 1.93554747,
+  "int6_roundtrip_val_bpb": 1.14634024,
+  "val_loss": 1.89606859,
+  "val_bpb": 1.12296159,
+  "bytes_total": 20906280,
+  "bytes_model_int6_zstd": 20830583,
+  "bytes_code": 75697,
+  "size_limit_bytes": 16000000,
+  "bytes_over_limit": 4906280
+}
