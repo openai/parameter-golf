@@ -1,0 +1,92 @@
+output/run_sweep_record_try_sp1024_v1/record_try_sp1024_512d_mlp2_value_resid_last2_ppm_hi075_steps2200_20260501_051628/20260501_051631.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+Architecture: Discrete N-Gram Hash (Max N=2)
+lora_params:0
+model_params:17385709
+world_size:1 grad_accum_steps:4
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True matrix_lr:0.04 scalar_lr:0.04
+ttt_enabled:False ttt_mode:lora lora_ttt_enabled:False
+parallel_v2_enabled:0 mode:dual_add second_lane:mlp active_layers:[] second_lane_params:0
+W0501 05:17:04.134000 130660118263360 torch/fx/experimental/symbolic_shapes.py:4449] [0/0_1] q0 is not in var_ranges, defaulting to unknown range.
+W0501 05:17:04.175000 130660118263360 torch/fx/experimental/symbolic_shapes.py:4449] [0/0_1] z0 is not in var_ranges, defaulting to unknown range.
+W0501 05:17:06.797000 130660118263360 torch/fx/experimental/symbolic_shapes.py:4449] [0/0_1] x0 is not in var_ranges, defaulting to unknown range.
+W0501 05:17:43.264000 130660118263360 torch/fx/experimental/symbolic_shapes.py:4449] [0/1] q0 is not in var_ranges, defaulting to unknown range.
+W0501 05:17:43.279000 130660118263360 torch/fx/experimental/symbolic_shapes.py:4449] [0/1] z0 is not in var_ranges, defaulting to unknown range.
+W0501 05:17:45.391000 130660118263360 torch/fx/experimental/symbolic_shapes.py:4449] [0/1] x0 is not in var_ranges, defaulting to unknown range.
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+EMA Enabled: decay=0.997
+Scheduled Late QAT to start at step 1870 (last 15.0%)
+step:0/2200 val_loss:6.9311 val_bpb:4.1050 train_time:3ms step_avg:3.24ms
+step:1/2200 train_loss:6.9310 train_time:5646ms step_avg:5645.96ms
+step:2/2200 train_loss:6.7587 train_time:6260ms step_avg:3130.22ms
+step:3/2200 train_loss:6.3280 train_time:6876ms step_avg:2291.92ms
+step:4/2200 train_loss:6.0142 train_time:7491ms step_avg:1872.66ms
+step:5/2200 train_loss:5.8538 train_time:8105ms step_avg:1621.03ms
+step:6/2200 train_loss:5.7285 train_time:8720ms step_avg:1453.37ms
+step:7/2200 train_loss:5.6112 train_time:9335ms step_avg:1333.56ms
+step:8/2200 train_loss:5.5435 train_time:9950ms step_avg:1243.71ms
+step:9/2200 train_loss:5.4271 train_time:10564ms step_avg:1173.82ms
+step:10/2200 train_loss:5.3285 train_time:11179ms step_avg:1117.95ms
+step:200/2200 train_loss:2.6610 train_time:127902ms step_avg:639.51ms
+step:400/2200 train_loss:2.3472 train_time:250871ms step_avg:627.18ms
+step:600/2200 train_loss:2.4710 train_time:373898ms step_avg:623.16ms
+step:800/2200 train_loss:2.3273 train_time:496924ms step_avg:621.15ms
+step:1000/2200 train_loss:2.3827 train_time:619883ms step_avg:619.88ms
+step:1000/2200 val_loss:2.3569 val_bpb:1.3959 train_time:619884ms step_avg:619.88ms
+step:1200/2200 train_loss:2.2925 train_time:742828ms step_avg:619.02ms
+step:1400/2200 train_loss:2.3217 train_time:865823ms step_avg:618.44ms
+step:1600/2200 train_loss:2.1926 train_time:988786ms step_avg:617.99ms
+step:1800/2200 train_loss:2.2291 train_time:1111692ms step_avg:617.61ms
+[Step 1870] Activating Late QAT — enabling branchless STE quantization.
+step:2000/2200 train_loss:2.1763 train_time:1234584ms step_avg:617.29ms
+step:2000/2200 val_loss:2.1922 val_bpb:1.2984 train_time:1234584ms step_avg:617.29ms
+step:2200/2200 train_loss:2.1102 train_time:1357536ms step_avg:617.06ms
+step:2200/2200 val_loss:2.1771 val_bpb:1.2894 train_time:1357536ms step_avg:617.06ms
+peak memory allocated: 29237 MiB reserved: 30568 MiB
+Applying EMA weights for final evaluation...
+saved raw checkpoint: output/run_sweep_record_try_sp1024_v1/record_try_sp1024_512d_mlp2_value_resid_last2_ppm_hi075_steps2200_20260501_051628/final_model.pt (67,874,184 bytes)
+model_size int8+zlib:15650103 bytes  code:156032 bytes  total:15806135 bytes  limit:16MB(16777216)  FITS
+  payload:17568410  raw_torch:17615294  compression_ratio:3.86x
+/workspace/parameter-golf/mytrain_gpt_v6_1.py:3216: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+final_int8_zlib_roundtrip val_loss:2.1839 val_bpb:1.2934 eval_time:14683ms
+final_int8_zlib_roundtrip_exact val_loss:2.18385094 val_bpb:1.29339954
+Starting PPM byte mixture evaluation...
+ppm_mix_progress seq:500/60568 tokens:513024 bytes:1223626 contexts:330630 skipped_ctx:0 mix_bpb:0.772718
+ppm_mix_progress seq:1000/60568 tokens:1025024 bytes:2455049 contexts:498547 skipped_ctx:0 mix_bpb:0.791232
+ppm_mix_progress seq:1500/60568 tokens:1537024 bytes:3681252 contexts:626070 skipped_ctx:0 mix_bpb:0.798705
+ppm_mix_progress seq:2000/60568 tokens:2049024 bytes:4901593 contexts:743558 skipped_ctx:0 mix_bpb:0.806348
+ppm_mix_progress seq:2500/60568 tokens:2561024 bytes:6124160 contexts:844658 skipped_ctx:0 mix_bpb:0.809410
+ppm_mix_progress seq:3000/60568 tokens:3073024 bytes:7342115 contexts:940062 skipped_ctx:0 mix_bpb:0.812034
+ppm_mix_progress seq:3500/60568 tokens:3585024 bytes:8556619 contexts:1034335 skipped_ctx:0 mix_bpb:0.815524
+ppm_mix_progress seq:4000/60568 tokens:4097024 bytes:9782949 contexts:1114667 skipped_ctx:0 mix_bpb:0.817923
+ppm_mix_progress seq:4500/60568 tokens:4609024 bytes:11023557 contexts:1185904 skipped_ctx:0 mix_bpb:0.820011
+ppm_mix_progress seq:5000/60568 tokens:5121024 bytes:12250013 contexts:1260459 skipped_ctx:0 mix_bpb:0.821949
+ppm_mix_progress seq:5500/60568 tokens:5633024 bytes:13478107 contexts:1335757 skipped_ctx:0 mix_bpb:0.823841
+ppm_mix_progress seq:6000/60568 tokens:6145024 bytes:14694159 contexts:1408314 skipped_ctx:0 mix_bpb:0.825123
+ppm_mix_progress seq:6500/60568 tokens:6657024 bytes:15917346 contexts:1482153 skipped_ctx:0 mix_bpb:0.826809
+ppm_mix_progress seq:7000/60568 tokens:7169024 bytes:17147554 contexts:1545185 skipped_ctx:0 mix_bpb:0.827852
+ppm_mix_progress seq:7500/60568 tokens:7681024 bytes:18359660 contexts:1612554 skipped_ctx:0 mix_bpb:0.828923
+ppm_mix_bpb:0.829467
