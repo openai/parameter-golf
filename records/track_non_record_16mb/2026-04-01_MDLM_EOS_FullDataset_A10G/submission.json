@@ -1,0 +1,18 @@
+{
+  "author": "aiejvn",
+  "github_id": "139830381",
+  "name": "MDLM v5: EOS Learning + Full Dataset Shard Rotation (Non-Record)",
+  "blurb": "Builds on PR #1106 MDLM stack. Adds EOS token learning (token 1 as document boundary anchor, never masked) and dedicated PAD_ID=1025 to separate structural padding from diffusion masking. Full FineWeb SP-1024 dataset trained via shard rotation: loads 4 shards at a time, rotates every 6000 steps, ensuring all 80 shards are seen without exceeding RAM. val_var_bpb=0.9901 (128 eval steps), 33M params, 1267 min on 1x AWS A10G.",
+  "date": "2026-04-01",
+  "val_bpb": 0.9901,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_var_bpb": 0.990101083045782}
+  },
+  "step_stop": 6000,
+  "wallclock_seconds": 76019,
+  "eval_time_seconds": null,
+  "hardware": "1x AWS A10G (24GB VRAM)",
+  "non_record_reason": "Not 8xH100 SXM — trained on 1x AWS A10G"
+}
