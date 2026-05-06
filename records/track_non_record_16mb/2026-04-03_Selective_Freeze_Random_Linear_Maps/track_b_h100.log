@@ -1,0 +1,134 @@
+Device: cuda, Batch: 64
+Track B Enhanced — Freeze MLP, Learn Attention
+
+Downloading Gutenberg data...
+Train: torch.Size([3446, 513]), Eval: torch.Size([383, 513])
+
+
+============================================================
+1_baseline_6L_192d
+============================================================
+  [1_baseline_6L_192d] Learned=2,410,944 Frozen=0 Total=2,410,944 Frozen%=0.0% Artifact=2354KB
+    Step    0 | CE=7.0204 | Best=7.0204 | 0s
+    Step  500 | CE=1.3688 | Best=1.3688 | 31s
+    Step 1000 | CE=1.2996 | Best=1.2996 | 61s
+    Step 1500 | CE=1.3534 | Best=1.2996 | 91s
+    Step 2000 | CE=1.4577 | Best=1.2996 | 121s
+    Step 2500 | CE=1.5430 | Best=1.2996 | 150s
+    Step 3000 | CE=1.5621 | Best=1.2996 | 181s
+    Final: Best CE=1.2996 (181s)
+
+============================================================
+2_freeze_mlp_6L_192d
+============================================================
+  [2_freeze_mlp_6L_192d] Learned=1,083,840 Frozen=1,327,104 Total=2,410,944 Frozen%=55.0% Artifact=1058KB
+    Step    0 | CE=6.9614 | Best=6.9614 | 0s
+    Step  500 | CE=1.7383 | Best=1.7383 | 29s
+    Step 1000 | CE=1.5351 | Best=1.5351 | 57s
+    Step 1500 | CE=1.4573 | Best=1.4573 | 84s
+    Step 2000 | CE=1.4113 | Best=1.4113 | 115s
+    Step 2500 | CE=1.3878 | Best=1.3878 | 148s
+    Step 3000 | CE=1.3838 | Best=1.3838 | 182s
+    Final: Best CE=1.3838 (182s)
+
+============================================================
+3_freeze_mlp+out_6L_192d
+============================================================
+  [3_freeze_mlp+out_6L_192d] Learned=862,656 Frozen=1,548,288 Total=2,410,944 Frozen%=64.2% Artifact=842KB
+    Step    0 | CE=7.0629 | Best=7.0629 | 0s
+    Step  500 | CE=1.7943 | Best=1.7943 | 32s
+    Step 1000 | CE=1.5732 | Best=1.5732 | 60s
+    Step 1500 | CE=1.4893 | Best=1.4893 | 89s
+    Step 2000 | CE=1.4495 | Best=1.4495 | 120s
+    Step 2500 | CE=1.4270 | Best=1.4270 | 153s
+    Step 3000 | CE=1.4214 | Best=1.4214 | 183s
+    Final: Best CE=1.4214 (183s)
+
+============================================================
+4_freeze_gate_up_6L_192d
+============================================================
+  [4_freeze_gate_up_6L_192d] Learned=1,526,208 Frozen=884,736 Total=2,410,944 Frozen%=36.7% Artifact=1490KB
+    Step    0 | CE=6.9760 | Best=6.9760 | 0s
+    Step  500 | CE=1.4157 | Best=1.4157 | 30s
+    Step 1000 | CE=1.2878 | Best=1.2878 | 59s
+    Step 1500 | CE=1.2729 | Best=1.2729 | 89s
+    Step 2000 | CE=1.2805 | Best=1.2729 | 120s
+    Step 2500 | CE=1.2916 | Best=1.2729 | 150s
+    Step 3000 | CE=1.2922 | Best=1.2729 | 178s
+    Final: Best CE=1.2729 (178s)
+
+============================================================
+5_freeze_mlp_12L_384d
+============================================================
+  [5_freeze_mlp_12L_384d] Learned=7,480,704 Frozen=10,616,832 Total=18,097,536 Frozen%=58.7% Artifact=7305KB
+    Step    0 | CE=6.9172 | Best=6.9172 | 0s
+    Step  500 | CE=1.4025 | Best=1.4025 | 61s
+    Step 1000 | CE=1.3049 | Best=1.3049 | 121s
+    Step 1500 | CE=1.3053 | Best=1.3049 | 181s
+    Step 2000 | CE=1.3441 | Best=1.3049 | 242s
+    Step 2500 | CE=1.3758 | Best=1.3049 | 302s
+    Step 3000 | CE=1.3828 | Best=1.3049 | 363s
+    Final: Best CE=1.3049 (363s)
+
+============================================================
+6_freeze_mlp_12L_512d
+============================================================
+  [6_freeze_mlp_12L_512d] Learned=13,120,000 Frozen=18,874,368 Total=31,994,368 Frozen%=59.0% Artifact=12812KB
+    Step    0 | CE=7.0778 | Best=7.0778 | 0s
+    Step  500 | CE=1.3297 | Best=1.3297 | 89s
+    Step 1000 | CE=1.3247 | Best=1.3247 | 178s
+    Step 1500 | CE=1.4744 | Best=1.3247 | 267s
+    Step 2000 | CE=1.7378 | Best=1.3247 | 356s
+    Step 2500 | CE=1.9561 | Best=1.3247 | 445s
+    Step 3000 | CE=2.0145 | Best=1.3247 | 533s
+    Final: Best CE=1.3247 (533s)
+
+============================================================
+7_baseline_12L_384d
+============================================================
+  [7_baseline_12L_384d] Learned=18,097,536 Frozen=0 Total=18,097,536 Frozen%=0.0% Artifact=17673KB
+    Step    0 | CE=6.9010 | Best=6.9010 | 0s
+    Step  500 | CE=1.2873 | Best=1.2873 | 68s
+    Step 1000 | CE=1.7143 | Best=1.2873 | 136s
+    Step 1500 | CE=2.5456 | Best=1.2873 | 204s
+    Step 2000 | CE=3.1006 | Best=1.2873 | 271s
+    Step 2500 | CE=3.2485 | Best=1.2873 | 339s
+    Step 3000 | CE=3.2692 | Best=1.2873 | 407s
+    Final: Best CE=1.2873 (407s)
+
+============================================================
+8_freeze_mlp_6L_192d_4x
+============================================================
+  [8_freeze_mlp_6L_192d_4x] Learned=1,083,840 Frozen=2,654,208 Total=3,738,048 Frozen%=71.0% Artifact=1058KB
+    Step    0 | CE=6.9715 | Best=6.9715 | 0s
+    Step  500 | CE=1.7304 | Best=1.7304 | 30s
+    Step 1000 | CE=1.5302 | Best=1.5302 | 61s
+    Step 1500 | CE=1.4528 | Best=1.4528 | 91s
+    Step 2000 | CE=1.4145 | Best=1.4145 | 121s
+    Step 2500 | CE=1.3927 | Best=1.3927 | 143s
+    Step 3000 | CE=1.3854 | Best=1.3854 | 165s
+    Final: Best CE=1.3854 (165s)
+
+============================================================
+SUMMARY
+============================================================
+  1_baseline_6L_192d                 : CE=1.2996 (+0.0% vs baseline) [PASS]
+  2_freeze_mlp_6L_192d               : CE=1.3838 (+6.5% vs baseline) [PASS]
+  3_freeze_mlp+out_6L_192d           : CE=1.4214 (+9.4% vs baseline) [PASS]
+  4_freeze_gate_up_6L_192d           : CE=1.2729 (-2.1% vs baseline) [PASS]
+  5_freeze_mlp_12L_384d              : CE=1.3049 (+1.4% vs baseline) [PASS]
+  6_freeze_mlp_12L_512d              : CE=1.3247 (+2.9% vs baseline) [PASS]
+  7_baseline_12L_384d                : CE=1.2873 (+0.0% vs baseline) [PASS]
+  8_freeze_mlp_6L_192d_4x            : CE=1.3854 (+6.6% vs baseline) [PASS]
+
+  KEY QUESTION: Does freeze-MLP close the gap vs full VeRA freeze?
+    Full VeRA freeze (93%): CE=2.3221
+    Freeze MLP only (64%):  CE=1.3838
+    YES — freeze-MLP is 40.4% better!
+
+  KEY QUESTION: Does larger frozen model beat smaller learned model?
+    Small learned (6L 192d, 4.2M):    CE=1.2996
+    Large frozen-MLP (12L 384d):       CE=1.3049
+    Gap: +0.4%
+
+Saved. Finished: 11:52:01

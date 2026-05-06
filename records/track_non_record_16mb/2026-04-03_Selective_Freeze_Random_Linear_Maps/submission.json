@@ -1,0 +1,9 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-03",
+  "name": "Selective Freeze on Random Linear Maps — Why Freezing Gate+Up Beats Full Freeze + LoRA",
+  "author": "Himanshu Dongre",
+  "github_id": "himanshudongre",
+  "val_bpb": null,
+  "notes": "Implements OpenAI wishlist item. Selective freeze (gate+up only, 37%) outperforms full freeze + LoRA (94%). Larger frozen model beats smaller learned model by 11.5% on FineWeb at same artifact budget. H100 validated."
+}
