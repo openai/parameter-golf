@@ -1,0 +1,12 @@
+# Extra dependencies beyond the standard Parameter Golf competition environment.
+# The competition VM already provides: torch, numpy, sentencepiece, zlib (stdlib).
+#
+# Minimum versions:
+#   Python >= 3.12
+#   torch  >= 2.11 (torch.compile fullgraph improvements, CUDA 13.0 support)
+#
+# brotli: ~1-5% better compression than lzma/zstd on int6-quantized weights.
+# The code falls back gracefully (lzma → zlib) if missing, but brotli is
+# needed to hit the 16MB artifact cap with maximum model capacity.
+torch>=2.11
+brotli>=1.1
