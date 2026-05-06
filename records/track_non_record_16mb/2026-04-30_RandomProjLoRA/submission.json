@@ -1,0 +1,19 @@
+{
+  "name": "Ammar Falah",
+  "github_id": "Ammar12Falah",
+  "track": "non_record_16mb",
+  "title": "Random Projection + Low-Rank Adapter MLPs",
+  "summary": "Replaces MLP linear layers with W = R(seed) + alpha * BA. R is a frozen Gaussian regenerated from an 8-byte seed; only the low-rank adapter (A, B) is learned. Reference implementation of the 'Learning adapters on random linear maps' Request for PR. Single-seed pilot, two-rank ablation (16, 64). Best result at rank=64.",
+  "val_bpb": 1.4135,
+  "val_loss": 2.3867,
+  "rank_used_for_headline": 64,
+  "all_results": {
+    "rank_16": {"val_bpb": 1.4472, "val_loss": 2.4436, "params": 8065096, "steps": 1236, "artifact_bytes": 6868428},
+    "rank_64": {"val_bpb": 1.4135, "val_loss": 2.3867, "params": 9392200, "steps": 1209, "artifact_bytes": 8926711}
+  },
+  "compute": "1xH100 PCIe (Runpod), 600s wallclock cap per run",
+  "tokenizer": "sp1024 (baseline, unchanged)",
+  "seeds": [1337],
+  "num_seeds": 1,
+  "notes": "Non-record submission. Single seed, no statistical-significance averaging. Rank=64 used as headline result; rank=16 included as ablation showing meaningful returns to adapter capacity (delta 0.034 nats)."
+}
