@@ -1,0 +1,53 @@
+{
+  "author": "mikeapedia",
+  "github_id": "mikeapedia",
+  "name": "Custom Casefold Tokenizer",
+  "blurb": "PR #1529 parallel residuals architecture with casefold v2 vocabulary (~10.4% better compression from eliminating case-duplicate tokens). Built on SP8192 tokenizer from PR #1334. 3-seed mean: 1.06681663 BPB / 3.07877758 nats.",
+  "date": "2026-04-12",
+  "track": "10min_16mb",
+  "val_loss": 3.07877758,
+  "val_bpb": 1.06681663,
+  "val_loss_std": 0.00370879,
+  "val_bpb_std": 0.00128512,
+  "seeds": [1337, 2024, 42],
+  "seed_results": {
+    "1337": {
+      "steps": 4442,
+      "step_avg_ms": 135.1,
+      "val_loss": 3.07375351,
+      "val_bpb": 1.06507576,
+      "post_ema_val_loss": 3.09227763,
+      "post_ema_val_bpb": 1.07149449,
+      "artifact_bytes": 15993577
+    },
+    "2024": {
+      "steps": 4446,
+      "step_avg_ms": 134.9,
+      "val_loss": 3.08259413,
+      "val_bpb": 1.06813909,
+      "post_ema_val_loss": 3.1002764,
+      "post_ema_val_bpb": 1.07426611,
+      "artifact_bytes": 15992914
+    },
+    "42": {
+      "steps": 4440,
+      "step_avg_ms": 135.1,
+      "val_loss": 3.0799851,
+      "val_bpb": 1.06723505,
+      "post_ema_val_loss": 3.09755371,
+      "post_ema_val_bpb": 1.07332268,
+      "artifact_bytes": 15996484
+    }
+  },
+  "baseline_pr": 1529,
+  "tokenizer_pr": 1334,
+  "artifact_bytes_mean": 15994325.0,
+  "artifact_bytes_max": 15996484,
+  "bytes_total": 15996484,
+  "code_bytes": 19041,
+  "tokenizer": "sp8192_casefold_v2",
+  "tokenizer_model": "fineweb_8192_bpe_casefold_refined_v2.model",
+  "hardware": "8xH100 80GB SXM",
+  "evaluation": "legal_ttt_exact",
+  "technique_summary": "Custom casefold v2 vocabulary + parallel residual routing + legal TTT"
+}
