@@ -1,0 +1,11 @@
+{
+    "author": "Alex Ibarra",
+    "github_id": "elninja",
+    "name": "ApproachH_FocalLoss",
+    "blurb": "Focal loss (gamma=2) on top of Int5 GPTQ + 33.6M params + SWA + XSA + VE. Down-weights easy tokens to focus training on hard tokens.",
+    "date": "2026-04-01",
+    "val_loss": null,
+    "val_bpb": null,
+    "bytes_total": null,
+    "bytes_code": null
+}
