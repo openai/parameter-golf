@@ -1,0 +1,13 @@
+{
+  "author": "verifily",
+  "github_id": "verifily",
+  "name": "Verifily Data Quality: Three-Tier Token Weighting + DCLS Salience + Complementary Eval",
+  "blurb": "Layered on top of SOTA XSA+GPTQ+BigramHash baseline. Three data-quality components validated locally (M4 Max, -0.63% BPB vs baseline): (1) GPU-resident bigram statistics for complementary training — tokens predictable by bigrams get 0.10 weight (soft nudge), freeing neural capacity for harder tokens. (2) Three-tier token classification: Predictable (0.10w, top ~5%), Frontier (1.0w), Noise (0.70w) based on bigram probability + document quality signals (vocabulary richness, repetition). Data-driven thresholds (~p95 bigram, median quality). (3) DCLS-inspired salience tracker: surprise-driven batch loss multiplier [0.85, 1.15]. (4) Quality-conditioned eval-time bigram mixer: alpha conditioned on document quality.",
+  "date": "2026-04-05",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "seeds": [42, 314, 999],
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "Verifily three-tier token weighting + DCLS salience + quality-conditioned bigram mixer, on SOTA XSA+GPTQ+BigramHash base"
+}
