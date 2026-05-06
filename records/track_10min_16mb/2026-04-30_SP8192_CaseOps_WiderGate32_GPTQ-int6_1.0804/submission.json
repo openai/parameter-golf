@@ -1,0 +1,41 @@
+{
+  "author": "Kamil Krawczyk",
+  "github_id": "bsisduck",
+  "name": "11L XSA + WiderGate32 + SmearGate + PolarNS Muon + CaseOps SP8192",
+  "blurb": "11L 512d 8H/4KV transformer with U-Net skips, parallel decoder, partial RoPE, Polar-Express Newton-Schulz Muon (5 steps), wider attention output gates (GATE_WIDTH=32 vs standard 12, giving per-head gates a richer 32-dim view of the residual stream), SmearGate position-mixing (width=32), fused LeakyReLU-square MLP, GPTQ int6 all weights + brotli-11 compression, phased TTT eval (1 phase, prefix=2000 docs). Key innovation: widening the AttnOutGate input from 12 to 32 dimensions improves pre-quant BPB by -0.002. 3-seed mean: 1.08037 BPB.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 2.78796,
+  "val_bpb": 1.08037,
+  "val_loss_std": 0.00360,
+  "val_bpb_std": 0.00139,
+  "seeds": [0, 42, 1234],
+  "seed_results": {
+    "0": {
+      "val_loss": 2.79483,
+      "val_bpb": 1.08196,
+      "artifact_bytes": 15890131,
+      "eval_time_s": 391.9
+    },
+    "42": {
+      "val_loss": 2.78881,
+      "val_bpb": 1.07983,
+      "artifact_bytes": 15887137,
+      "eval_time_s": 428.7
+    },
+    "1234": {
+      "val_loss": 2.78749,
+      "val_bpb": 1.07932,
+      "artifact_bytes": 15888516,
+      "eval_time_s": 333.3
+    }
+  },
+  "comparison_baseline_bpb": 1.0810,
+  "delta_vs_leaderboard_bpb": -0.00063,
+  "artifact_bytes_mean": 15888595,
+  "artifact_bytes_max": 15890131,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "technique_summary": "11L XSA + WiderGate32 (AttnOutGate width=32) + SmearGate (width=32) + PolarNS Muon + CaseOps SP8192 + GPTQ int6 all weights + brotli-11 + phased TTT LoRA rank-96"
+}

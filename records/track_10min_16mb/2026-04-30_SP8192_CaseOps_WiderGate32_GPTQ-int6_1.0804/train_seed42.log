@@ -1,0 +1,788 @@
+W0430 02:17:33.901000 2684062 torch/distributed/run.py:803] 
+W0430 02:17:33.901000 2684062 torch/distributed/run.py:803] *****************************************
+W0430 02:17:33.901000 2684062 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0430 02:17:33.901000 2684062 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: 
+  attn_clip_sigmas: 13.0
+  attn_out_gate: True
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 6
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  gate_width: 32
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 4.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  leaky_slope: 0.5
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/seed_42.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: False
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 600.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 10.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_enabled: False
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rho1_enabled: False
+  rho1_top_k: 0.7
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: seed_42
+  scalar_lr: 0.02
+  seed: 42
+  sin_squared_activation: False
+  skip_gates_enabled: True
+  sliding_window_enabled: False
+  smear_gate: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 0.5
+  val_batch_tokens: 524288
+  val_doc_fraction: 1.0
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 8192
+  warmdown_frac: 0.75
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 80
+val_tokens: 40546304
+model_params:35947451
+gptq:reserving 4s, effective=596000ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+[rank5]:W0430 02:17:57.602000 2684325 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.319c0b70-bf5a-475f-a927-a2be1a0e73ec is not empty - skipping!
+[rank2]:W0430 02:17:59.409000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.f1543e47-2ede-4646-a3ca-1c1e932e35b0 is not empty - skipping!
+[rank2]:W0430 02:17:59.410000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.0e3f00d9-89f0-496a-8eaf-71241d895ee8 is not empty - skipping!
+[rank2]:W0430 02:17:59.411000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.2cba07d9-446d-4a6b-bf61-4fe1179ab0b4 is not empty - skipping!
+[rank2]:W0430 02:17:59.412000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.1a10a214-af41-43d1-83f1-029f826e382a is not empty - skipping!
+[rank2]:W0430 02:17:59.412000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.2833b9f9-1d87-455a-8881-53d3172583f4 is not empty - skipping!
+[rank2]:W0430 02:17:59.413000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.c5e8fdfb-ab0e-428a-abb7-e89146558bf6 is not empty - skipping!
+[rank2]:W0430 02:17:59.414000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.3852661b-6be3-408f-b9e2-3e9461974735 is not empty - skipping!
+[rank2]:W0430 02:17:59.415000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.58c04a0f-1985-4d3d-92bf-a914f143b201 is not empty - skipping!
+[rank2]:W0430 02:17:59.415000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.5e423382-4ffb-4a15-8461-6d0d97021514 is not empty - skipping!
+[rank2]:W0430 02:17:59.416000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.639e482f-bd64-49b2-8a82-d5a0d3656fce is not empty - skipping!
+[rank2]:W0430 02:17:59.417000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.6eca1fac-9518-4ce6-8fee-bccfbf12d46a is not empty - skipping!
+[rank2]:W0430 02:17:59.418000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.b29f8476-aa00-4027-bce7-745967d58d44 is not empty - skipping!
+[rank2]:W0430 02:17:59.419000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.3a591a77-8ec9-4055-b6f4-05f26fe19882 is not empty - skipping!
+[rank2]:W0430 02:17:59.419000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.93bc6261-7329-4be8-bb97-5f02cb908784 is not empty - skipping!
+[rank2]:W0430 02:17:59.420000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.64f06248-efc0-4748-adad-07d25be80ec2 is not empty - skipping!
+[rank2]:W0430 02:17:59.421000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.eb9e087d-a6aa-4974-b906-761a9d05e010 is not empty - skipping!
+[rank2]:W0430 02:17:59.421000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.1c860067-b387-469f-9de8-681939c90019 is not empty - skipping!
+[rank2]:W0430 02:17:59.422000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.6424610d-c5b2-4c79-b458-6f22a6e8cb8a is not empty - skipping!
+[rank2]:W0430 02:17:59.423000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.f1a71690-30a2-4474-9b2e-9f091d9a7917 is not empty - skipping!
+[rank2]:W0430 02:17:59.424000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.9bc3dee1-8ea8-48bb-9df7-7d3619f1ccb9 is not empty - skipping!
+[rank2]:W0430 02:17:59.425000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.bdf4c742-e131-4595-b7d4-8cdc1fffbde4 is not empty - skipping!
+[rank2]:W0430 02:17:59.425000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.06c9b554-77c3-42e7-99e1-7f68c51d1e99 is not empty - skipping!
+[rank2]:W0430 02:17:59.426000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.130a8ada-fafb-43a7-914d-04773ae35d41 is not empty - skipping!
+[rank2]:W0430 02:17:59.427000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.de9df326-e1a8-45a6-bc10-678b684194ec is not empty - skipping!
+[rank2]:W0430 02:17:59.428000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.e99dc0cf-2692-4500-85f8-55686a86890f is not empty - skipping!
+[rank2]:W0430 02:17:59.428000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.91d14e6b-5ffb-40f0-8f29-770a2c3b0019 is not empty - skipping!
+[rank2]:W0430 02:17:59.429000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.8018a804-5718-4583-ba71-9b096ffa0ba0 is not empty - skipping!
+[rank2]:W0430 02:17:59.430000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.fbafd19b-834f-4264-937f-060284e9fb3f is not empty - skipping!
+[rank2]:W0430 02:17:59.431000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.033c8eaa-c7c4-452c-b32b-ad933e4dd7b3 is not empty - skipping!
+[rank2]:W0430 02:17:59.431000 2684319 torch/_inductor/triton_bundler.py:396] [0/0] Directory /workspace/.cache/triton/tmp.5d3395db-ddce-4138-a526-3e735ba15ea2 is not empty - skipping!
+[rank6]:W0430 02:19:54.395000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.4d3fca8a-75e6-4a49-a9bf-a477b48eca37 is not empty - skipping!
+[rank2]:W0430 02:19:54.396000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.301637fe-5007-40ad-8d7c-14223111a0b4 is not empty - skipping!
+[rank6]:W0430 02:19:54.396000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.6e286397-290a-40ab-b15e-e33b7c79fb01 is not empty - skipping!
+[rank4]:W0430 02:19:54.396000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.758bc009-93f0-4065-a992-f50b0cffd55a is not empty - skipping!
+[rank0]:W0430 02:19:54.396000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.fadbf4aa-b3de-412b-8fb0-7d6683115c73 is not empty - skipping!
+[rank1]:W0430 02:19:54.396000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.9e1a5b5e-b2b3-41fd-8747-c24065f78766 is not empty - skipping!
+[rank2]:W0430 02:19:54.396000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.6209aa4b-ed5b-4ad0-96e3-5b15ea55a1ca is not empty - skipping!
+[rank6]:W0430 02:19:54.397000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d7c69063-8c8a-44f9-8e48-19ee87c0dd7c is not empty - skipping!
+[rank4]:W0430 02:19:54.397000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b00b9c8a-0b5d-4ae8-97f1-351586abb08d is not empty - skipping!
+[rank0]:W0430 02:19:54.397000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a9e055f0-fd79-4771-98b6-da4adef9d6aa is not empty - skipping!
+[rank2]:W0430 02:19:54.397000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.ddcd1c2b-32b8-4bc0-b464-75dcc6db8fee is not empty - skipping!
+[rank1]:W0430 02:19:54.397000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.e0a27daa-69bd-4b7b-9cd3-df0c694526be is not empty - skipping!
+[rank6]:W0430 02:19:54.397000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.05ea1bd7-33f9-4886-bc6e-f56fc3a1a19e is not empty - skipping!
+[rank2]:W0430 02:19:54.398000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b8cddb23-7e72-4ef6-9163-8e872169f359 is not empty - skipping!
+[rank4]:W0430 02:19:54.398000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.68c73e7f-cc96-4117-984f-e40c94049e37 is not empty - skipping!
+[rank6]:W0430 02:19:54.398000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.47ca26c2-f5a0-4a3b-bbfa-a6edc69224a2 is not empty - skipping!
+[rank0]:W0430 02:19:54.398000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d38531ff-51a7-4176-96a0-48d9053e3eb7 is not empty - skipping!
+[rank1]:W0430 02:19:54.399000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.4e581022-87de-4f95-80e0-85d9d85e1ad5 is not empty - skipping!
+[rank5]:W0430 02:19:54.399000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a3b46aa1-c336-4bad-a7e5-6a03a138f63f is not empty - skipping!
+[rank2]:W0430 02:19:54.399000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.fb2ef782-8d1b-4956-8902-5290f9c6ebb1 is not empty - skipping!
+[rank4]:W0430 02:19:54.399000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.568ef2de-f033-48c6-9729-b3fe109ceedb is not empty - skipping!
+[rank6]:W0430 02:19:54.399000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.98273707-b08a-45c3-bce2-1e5484f4d9e1 is not empty - skipping!
+[rank0]:W0430 02:19:54.399000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.e4f74e63-45f1-43d4-8f7d-eaee65532cfb is not empty - skipping!
+[rank1]:W0430 02:19:54.400000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d93cd9f9-a3a7-472b-8122-d01e900bdf30 is not empty - skipping!
+[rank5]:W0430 02:19:54.400000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.7b26dfe4-af55-4b8d-a0dc-9d4fb1e63818 is not empty - skipping!
+[rank2]:W0430 02:19:54.400000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.5ca485d9-e2a5-4dc7-aa4b-89e2c5924200 is not empty - skipping!
+[rank6]:W0430 02:19:54.400000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.6a77bc8f-afae-4c16-bd6a-1a5009d3b97e is not empty - skipping!
+[rank4]:W0430 02:19:54.400000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d276c80b-6fdd-444a-8627-7ba14ca65b30 is not empty - skipping!
+[rank0]:W0430 02:19:54.400000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.ff42d271-cbfb-4a63-8813-91937f2ae19e is not empty - skipping!
+[rank5]:W0430 02:19:54.400000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.800e0079-ab5f-4e6b-b31a-623e3d9c4284 is not empty - skipping!
+[rank1]:W0430 02:19:54.400000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.6be91fed-4c0f-4452-9222-a0ead5fed2e8 is not empty - skipping!
+[rank2]:W0430 02:19:54.401000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.0f3bc172-205d-4718-a5d3-bc10d78b87a7 is not empty - skipping!
+[rank6]:W0430 02:19:54.401000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.78697bdf-53ea-4221-b036-28cd1acb02a8 is not empty - skipping!
+[rank4]:W0430 02:19:54.401000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.068d636b-9ee3-4494-8fbb-93d10273ded5 is not empty - skipping!
+[rank0]:W0430 02:19:54.401000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.fc786ea1-f20a-49e7-9f80-801d5625f531 is not empty - skipping!
+[rank5]:W0430 02:19:54.401000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c936faf6-4860-4aec-8e81-606d369b7171 is not empty - skipping!
+[rank1]:W0430 02:19:54.401000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.2bfe6b70-a056-44ac-8723-d88e983c3c34 is not empty - skipping!
+[rank2]:W0430 02:19:54.402000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.608fba85-38e0-4385-b14d-067e72c2df20 is not empty - skipping!
+[rank6]:W0430 02:19:54.402000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.54f674c8-33cd-4154-b19e-18387ae0d851 is not empty - skipping!
+[rank4]:W0430 02:19:54.402000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.24b245ad-2b81-4dc3-a9a8-3c0ab8e93fa6 is not empty - skipping!
+[rank0]:W0430 02:19:54.402000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.803c8f36-77aa-442b-9c01-e437109d3599 is not empty - skipping!
+[rank5]:W0430 02:19:54.402000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c8380ca8-0f3b-4cc4-a7cf-2cc33eff6caf is not empty - skipping!
+[rank1]:W0430 02:19:54.402000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d863e793-b7d0-4db4-88ce-dd62368e3477 is not empty - skipping!
+[rank7]:W0430 02:19:54.402000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.1bf80801-f214-4a7d-8187-02fdac1da7c2 is not empty - skipping!
+[rank6]:W0430 02:19:54.403000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.178db356-6e5b-48dd-8e33-5138a3b124a8 is not empty - skipping!
+[rank2]:W0430 02:19:54.403000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a9410d71-5bf3-45df-ac08-ae7a1d14bf93 is not empty - skipping!
+[rank4]:W0430 02:19:54.403000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.db1fc21f-8ab2-4c86-8eb4-97aaff7b3e25 is not empty - skipping!
+[rank0]:W0430 02:19:54.403000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.026e1ad3-193d-4e7b-a0db-31263cf39f47 is not empty - skipping!
+[rank5]:W0430 02:19:54.403000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.73808383-d2a4-4a51-ac77-916f963bd17b is not empty - skipping!
+[rank1]:W0430 02:19:54.403000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.316e7895-f56f-4d34-99d2-d3d9e3b00097 is not empty - skipping!
+[rank7]:W0430 02:19:54.403000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.582404a0-55fd-4e4d-82cc-4d123ef74187 is not empty - skipping!
+[rank6]:W0430 02:19:54.404000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.18949164-456d-4b12-b914-7ac6c7d63197 is not empty - skipping!
+[rank2]:W0430 02:19:54.404000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.5e372fe3-b45b-4c0a-ade0-ece167edab2d is not empty - skipping!
+[rank4]:W0430 02:19:54.404000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a76a17a5-adda-4b14-8b69-9d5457d981f2 is not empty - skipping!
+[rank0]:W0430 02:19:54.404000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b67b1934-b6ed-4bf7-8121-ef47084c59ae is not empty - skipping!
+[rank5]:W0430 02:19:54.404000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.96ef1f8c-b630-47dc-965d-3bd8bbb28063 is not empty - skipping!
+[rank7]:W0430 02:19:54.404000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c6507cbe-79d6-4928-ad2a-29aea216c3f0 is not empty - skipping!
+[rank6]:W0430 02:19:54.404000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.f252d340-0b88-4a88-b5a8-6ddbd9b57a57 is not empty - skipping!
+[rank2]:W0430 02:19:54.405000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.6012a06c-64b7-4d2f-b50b-bd1078290a52 is not empty - skipping!
+[rank3]:W0430 02:19:54.404000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c0048f31-33fb-44e0-9fce-63aaae3c6848 is not empty - skipping!
+[rank0]:W0430 02:19:54.405000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.fdb901ec-1e34-4fb3-8859-7443025b242c is not empty - skipping!
+[rank4]:W0430 02:19:54.405000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.51e2acb4-71b1-4044-a16d-42b7adbc030e is not empty - skipping!
+[rank5]:W0430 02:19:54.405000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.eb1e3f72-ca22-4ab4-8cc0-f59c0332d07b is not empty - skipping!
+[rank7]:W0430 02:19:54.405000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b4579d70-d631-4187-9f4d-0ce8796042dc is not empty - skipping!
+[rank6]:W0430 02:19:54.405000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a02fb907-e90b-4c47-995b-4f23e69a1ed9 is not empty - skipping!
+[rank2]:W0430 02:19:54.405000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.e07b2a0d-5ca3-4d64-9940-9cd448598612 is not empty - skipping!
+[rank3]:W0430 02:19:54.406000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.3d627599-5711-43fa-b480-b5302928d989 is not empty - skipping!
+[rank0]:W0430 02:19:54.406000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.cd01cc7a-54f8-4922-8d62-4fe377cf157a is not empty - skipping!
+[rank4]:W0430 02:19:54.406000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.545d1abd-0d46-46f6-bdcf-3e6cc9586281 is not empty - skipping!
+[rank5]:W0430 02:19:54.406000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.3735b021-1433-4b80-9272-19a908de5530 is not empty - skipping!
+[rank7]:W0430 02:19:54.406000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d503475b-00cf-4b1e-b3a0-ba05fade6898 is not empty - skipping!
+[rank2]:W0430 02:19:54.406000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a58945f9-0aef-46a2-aa9e-d22fb5cbe606 is not empty - skipping!
+[rank6]:W0430 02:19:54.406000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.9cedd4d4-509b-460d-8220-a071aa39700d is not empty - skipping!
+[rank0]:W0430 02:19:54.407000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.795a42fa-0fb3-4480-bad0-b66bf1222d9e is not empty - skipping!
+[rank3]:W0430 02:19:54.407000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b2d5dc11-24f2-46a8-b40b-94900985d191 is not empty - skipping!
+[rank4]:W0430 02:19:54.407000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.870a9998-5175-4e0f-b08f-249ea34d70a0 is not empty - skipping!
+[rank5]:W0430 02:19:54.407000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.e901026f-c55a-4ed3-b49f-e197f865b1de is not empty - skipping!
+[rank7]:W0430 02:19:54.407000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b4899d63-ec01-4e8a-86b5-05f0dc401fe9 is not empty - skipping!
+[rank2]:W0430 02:19:54.407000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.7d93048a-7212-4e19-93dd-e9bfaa6652cb is not empty - skipping!
+[rank6]:W0430 02:19:54.407000 2684326 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.32fea9f8-b4e6-4c0f-abcd-5f3bf037c0ac is not empty - skipping!
+[rank1]:W0430 02:19:54.407000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.29aaeecd-3de5-4244-9679-e4218c9ba79f is not empty - skipping!
+[rank4]:W0430 02:19:54.408000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.9c79e4e8-ba64-498d-a537-6ccf98f54566 is not empty - skipping!
+[rank3]:W0430 02:19:54.408000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.14b5829f-aa4a-4363-acd8-29b62cc0246f is not empty - skipping!
+[rank5]:W0430 02:19:54.408000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.4e23d1f0-0396-4530-91bf-1f1ef11de6f0 is not empty - skipping!
+[rank2]:W0430 02:19:54.408000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.4b0ff466-02e0-44f3-860c-8d5afe4e6220 is not empty - skipping!
+[rank7]:W0430 02:19:54.408000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.3f837dcb-fad3-47fc-b3f7-b032b9b6e634 is not empty - skipping!
+[rank0]:W0430 02:19:54.408000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.83f0e806-a54a-4106-be56-beb559f346fe is not empty - skipping!
+[rank1]:W0430 02:19:54.408000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.6fa6c210-41b9-4e7c-b06c-eb6a203f9e35 is not empty - skipping!
+[rank4]:W0430 02:19:54.408000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.501c797b-0374-4fe0-b59a-c5974658a487 is not empty - skipping!
+[rank3]:W0430 02:19:54.408000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.7dc0d91c-2cd9-4af1-bc4b-ded755f2d636 is not empty - skipping!
+[rank5]:W0430 02:19:54.408000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.705e4d4c-bb50-4b81-9663-719c8ea8fdfa is not empty - skipping!
+[rank2]:W0430 02:19:54.409000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.e1409412-f7d2-4eed-a58f-614d4c02f350 is not empty - skipping!
+[rank7]:W0430 02:19:54.409000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.fce1d1ee-6c70-49e2-8bb7-8f6c96ca8aa1 is not empty - skipping!
+[rank0]:W0430 02:19:54.409000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.aca929f2-fffa-46ac-ab5c-fc646904d1e1 is not empty - skipping!
+[rank4]:W0430 02:19:54.409000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.04232a3d-fc7b-4f38-bccf-2ba28bdcf745 is not empty - skipping!
+[rank1]:W0430 02:19:54.409000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.e5b746bc-a363-4ba4-aed5-d27e0d2ca4ce is not empty - skipping!
+[rank5]:W0430 02:19:54.409000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.1c0364dc-2595-40a9-8e89-2d9a15542760 is not empty - skipping!
+[rank3]:W0430 02:19:54.409000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c56d5f25-1063-44f3-bce4-409cd0a86455 is not empty - skipping!
+[rank2]:W0430 02:19:54.410000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.1e30dc94-b2de-45ba-9ae5-57cd5dddb3bd is not empty - skipping!
+[rank7]:W0430 02:19:54.410000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d16c9d41-e5e6-4ee4-9a43-6cad775ae558 is not empty - skipping!
+[rank0]:W0430 02:19:54.410000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.9451aae5-73fb-49ad-92e5-97dd7237fe66 is not empty - skipping!
+[rank4]:W0430 02:19:54.410000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.5fd0c409-56cd-41f9-b8d3-e3ec8c95af0f is not empty - skipping!
+[rank1]:W0430 02:19:54.410000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.2a6aee39-b74b-4c3e-8fd4-03d319dc78c3 is not empty - skipping!
+[rank5]:W0430 02:19:54.410000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.fc4f1812-d408-4475-a595-d5e3d9902db4 is not empty - skipping!
+[rank3]:W0430 02:19:54.410000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.1f3919f8-dd4c-4a7a-a6fe-b3b8d0e8e878 is not empty - skipping!
+[rank2]:W0430 02:19:54.411000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c40e2c6f-6378-46d0-b9f2-9832186b2053 is not empty - skipping!
+[rank7]:W0430 02:19:54.411000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.1f8dfd41-79db-4268-bb56-504e1415ceb9 is not empty - skipping!
+[rank0]:W0430 02:19:54.411000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.bf78f40c-9e64-42a3-8177-1dbd8bdf1e55 is not empty - skipping!
+[rank4]:W0430 02:19:54.411000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.339eacbb-72c2-45a8-af0c-8bd10e51de25 is not empty - skipping!
+[rank5]:W0430 02:19:54.411000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.7aac9478-fbc6-4b24-9aea-a8de4986c664 is not empty - skipping!
+[rank1]:W0430 02:19:54.411000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.9a0ad05b-3024-488b-9232-9a1e1b398b74 is not empty - skipping!
+[rank3]:W0430 02:19:54.411000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.cdc93780-6f19-4035-a968-d6982849c5e5 is not empty - skipping!
+[rank2]:W0430 02:19:54.411000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c4169605-4431-471d-944f-7a7f1293806d is not empty - skipping!
+[rank7]:W0430 02:19:54.412000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.229490c0-b3b3-487a-bda7-12ccc094166d is not empty - skipping!
+[rank0]:W0430 02:19:54.412000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c6b45fca-288c-44d9-91e6-e896a34155bc is not empty - skipping!
+[rank4]:W0430 02:19:54.412000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.bf292fd9-ea2d-4d51-95f1-987e4b26ef4e is not empty - skipping!
+[rank5]:W0430 02:19:54.412000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.bc96703a-fa79-47a7-b437-cfb8fa001f83 is not empty - skipping!
+[rank1]:W0430 02:19:54.412000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.af6159f5-396a-4f96-aa6e-ad83b0e5b307 is not empty - skipping!
+[rank3]:W0430 02:19:54.412000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.7b9cbc90-ef11-40e4-88c7-d8f410baf509 is not empty - skipping!
+[rank2]:W0430 02:19:54.412000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.cab8b279-aa14-4078-b819-e35ab69597d8 is not empty - skipping!
+[rank7]:W0430 02:19:54.412000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a79c09cd-ddde-4d3a-a5e9-f27b88591319 is not empty - skipping!
+[rank0]:W0430 02:19:54.413000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.faa4467c-607f-4521-adb2-1757a6e644db is not empty - skipping!
+[rank4]:W0430 02:19:54.413000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a56bc48b-9e8e-4ee1-a0f9-70df5b236563 is not empty - skipping!
+[rank5]:W0430 02:19:54.413000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c9d7a023-7349-48b9-b96e-c3edaea11e9e is not empty - skipping!
+[rank1]:W0430 02:19:54.413000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.cc0d25c0-9ee5-446a-8921-afd852c3afae is not empty - skipping!
+[rank3]:W0430 02:19:54.413000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.bea11515-8685-41e4-bac8-3d8fb9b4d29a is not empty - skipping!
+[rank2]:W0430 02:19:54.413000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.cbfce613-c579-40f6-9725-56607941f0fe is not empty - skipping!
+[rank7]:W0430 02:19:54.413000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.917a1346-e7d9-4d60-a0b8-ee404e271129 is not empty - skipping!
+[rank0]:W0430 02:19:54.413000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d03d31fa-9a39-4e4d-acca-54d94d9354ef is not empty - skipping!
+[rank4]:W0430 02:19:54.414000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.da58ca60-09a6-46d8-b802-24c48ddc6ce9 is not empty - skipping!
+[rank5]:W0430 02:19:54.414000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.be905672-5952-4e5e-84bb-f4ed73aa6d4b is not empty - skipping!
+[rank1]:W0430 02:19:54.414000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.20058e9e-cfef-43df-a1b3-2449ac6eea44 is not empty - skipping!
+[rank3]:W0430 02:19:54.414000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.77a6a51b-c69c-4984-a152-a36c2a85f3ff is not empty - skipping!
+[rank2]:W0430 02:19:54.414000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.23481eb9-abbf-45fd-86b4-1e729bcfceb9 is not empty - skipping!
+[rank7]:W0430 02:19:54.414000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.c9d84186-a61b-42d2-a2cb-c46500db89e8 is not empty - skipping!
+[rank0]:W0430 02:19:54.414000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.29c90043-e157-4732-b45e-d6d5e44c080e is not empty - skipping!
+[rank4]:W0430 02:19:54.415000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.189fda89-8138-4806-b8a3-3180645170c9 is not empty - skipping!
+[rank5]:W0430 02:19:54.415000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.e9df601f-1e00-4816-b15d-73004978f3a8 is not empty - skipping!
+[rank1]:W0430 02:19:54.415000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.27b06926-1e50-4f1c-aee3-810804c175b1 is not empty - skipping!
+[rank2]:W0430 02:19:54.415000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.1d3f1a2e-13c3-4327-a7e9-914e3d0a0cfc is not empty - skipping!
+[rank3]:W0430 02:19:54.415000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.5b901d7b-fbbc-4181-bdb5-a5f2b14fc42d is not empty - skipping!
+[rank7]:W0430 02:19:54.415000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b37154f1-3520-4316-b028-2a62c4b15edc is not empty - skipping!
+[rank0]:W0430 02:19:54.415000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.25f355af-ab5f-4050-81d2-8436a5dd3691 is not empty - skipping!
+[rank4]:W0430 02:19:54.415000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b856392f-8f30-4c55-96e3-c7ff69617437 is not empty - skipping!
+[rank5]:W0430 02:19:54.415000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.70913fe0-ca3f-434a-bc24-390af1443885 is not empty - skipping!
+[rank2]:W0430 02:19:54.416000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.fac9c1e1-b31d-431a-a38b-0ea60a7ff9eb is not empty - skipping!
+[rank1]:W0430 02:19:54.416000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.12053b3a-3f52-4b46-9f58-2c97f3ac2146 is not empty - skipping!
+[rank3]:W0430 02:19:54.416000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.ed4bcdd5-0fdf-462b-bf7d-265df13f63e5 is not empty - skipping!
+[rank7]:W0430 02:19:54.416000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.23a53cdc-c715-424c-a5a8-b121fc3ef9fa is not empty - skipping!
+[rank0]:W0430 02:19:54.416000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.9e6e0cb3-60af-41e5-bc84-4aed0bc5b842 is not empty - skipping!
+[rank4]:W0430 02:19:54.416000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.d4427c5e-6508-4537-8a21-2e67092bc8b9 is not empty - skipping!
+[rank5]:W0430 02:19:54.416000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.e1f52cbb-1d61-425c-ac4d-af36e3c15cd8 is not empty - skipping!
+[rank2]:W0430 02:19:54.416000 2684319 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.5dd17939-6f34-40bf-8578-9d118fca1102 is not empty - skipping!
+[rank1]:W0430 02:19:54.417000 2684317 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a2350d11-eea3-45f5-b0c8-dd8a14e078b0 is not empty - skipping!
+[rank3]:W0430 02:19:54.417000 2684321 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.a0143506-ffed-4d37-b597-f615c205f4d3 is not empty - skipping!
+[rank7]:W0430 02:19:54.417000 2684329 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.9c7cba90-95f2-4aa8-8909-9a8f0c0229b1 is not empty - skipping!
+[rank0]:W0430 02:19:54.417000 2684315 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.cbdfd096-0abe-4e56-8e47-c7b77b697072 is not empty - skipping!
+[rank5]:W0430 02:19:54.417000 2684325 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.b89c85c5-8839-42eb-b883-fe9d1d88174d is not empty - skipping!
+[rank4]:W0430 02:19:54.417000 2684324 torch/_inductor/triton_bundler.py:396] [1/0] Directory /workspace/.cache/triton/tmp.adee9d7a-47b4-42f8-8652-c3626f60286a is not empty - skipping!
+[rank4]:W0430 02:19:54.773000 2684324 torch/_inductor/triton_bundler.py:396] [1/1] Directory /workspace/.cache/triton/tmp.10b2fee3-4c62-40a3-ace8-1e3faad7d77c is not empty - skipping!
+[rank4]:W0430 02:19:54.774000 2684324 torch/_inductor/triton_bundler.py:396] [1/1] Directory /workspace/.cache/triton/tmp.bf357635-b064-4b8d-96d4-d7da756a2e7e is not empty - skipping!
+[rank4]:W0430 02:19:54.775000 2684324 torch/_inductor/triton_bundler.py:396] [1/1] Directory /workspace/.cache/triton/tmp.e72de486-8beb-4b94-afa6-175c08e36933 is not empty - skipping!
+[rank6]:W0430 02:19:54.775000 2684326 torch/_inductor/triton_bundler.py:396] [1/1] Directory /workspace/.cache/triton/tmp.8ad1f647-c9d8-4991-8a9e-9080ad25f9ea is not empty - skipping!
+[rank4]:W0430 02:19:54.775000 2684324 torch/_inductor/triton_bundler.py:396] [1/1] Directory /workspace/.cache/triton/tmp.9acb01f2-7d02-471b-8fb0-21dc1454fd0d is not empty - skipping!
+[rank6]:W0430 02:19:54.776000 2684326 torch/_inductor/triton_bundler.py:396] [1/1] Directory /workspace/.cache/triton/tmp.3f8fed0d-180d-4301-bdc8-dc088a0bf05e is not empty - skipping!
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+[rank6]:W0430 02:20:01.910000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.7b4848f3-1ea8-43ba-81cb-12f63c313163 is not empty - skipping!
+[rank6]:W0430 02:20:01.911000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.9451ffad-1e76-4d63-aecc-0ed7136e6e6a is not empty - skipping!
+[rank6]:W0430 02:20:01.912000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.8cb2bb2a-1c5e-4df2-8444-5afb48de7e30 is not empty - skipping!
+[rank6]:W0430 02:20:01.912000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.76e573b6-a194-4dca-8534-96d27eaa6e27 is not empty - skipping!
+[rank6]:W0430 02:20:01.914000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.8f48749e-8c02-43ff-bcf4-f01c21e30366 is not empty - skipping!
+[rank6]:W0430 02:20:01.914000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.de9adb53-bc28-45b2-8a45-39788e9c6828 is not empty - skipping!
+[rank6]:W0430 02:20:01.915000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.3cbb7777-44b6-4e85-adc8-bf758ae417fe is not empty - skipping!
+[rank6]:W0430 02:20:01.916000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.be6dc795-b6d5-422e-b9cd-97fbea66e225 is not empty - skipping!
+[rank6]:W0430 02:20:01.916000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.f8965a43-d430-4961-a012-f70ffd1a3294 is not empty - skipping!
+[rank6]:W0430 02:20:01.917000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.d6543b67-cf7a-449c-a0f7-4ad0944adddf is not empty - skipping!
+[rank6]:W0430 02:20:01.918000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.417b9733-165f-4a67-b740-e5d8c3d26aec is not empty - skipping!
+[rank6]:W0430 02:20:01.919000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.619714d2-bab7-4200-be43-942a300ecd4b is not empty - skipping!
+[rank6]:W0430 02:20:01.920000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.b544bb59-9d7d-46d1-b3ac-2efbbc27721d is not empty - skipping!
+[rank6]:W0430 02:20:01.922000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.32b80430-dd10-4937-b2d9-4d382b04fa7e is not empty - skipping!
+[rank6]:W0430 02:20:01.923000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.70472ca5-8668-401f-8e77-56d2d3134311 is not empty - skipping!
+[rank6]:W0430 02:20:01.923000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.0e53fcf8-1ed2-426f-95ee-3ab33d71eac6 is not empty - skipping!
+[rank2]:W0430 02:20:01.924000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.8eca8b71-1ac6-4aaf-9c7d-e0f9314f7133 is not empty - skipping!
+[rank6]:W0430 02:20:01.924000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.b4402990-9f40-42d8-9c42-38b395275816 is not empty - skipping!
+[rank2]:W0430 02:20:01.925000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.739ca192-bf19-4f44-93fe-cb70ff05b00a is not empty - skipping!
+[rank6]:W0430 02:20:01.926000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.b0c2d68c-f0b6-4dbf-8249-1076b638992b is not empty - skipping!
+[rank2]:W0430 02:20:01.927000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.aad85643-367d-4fb1-836b-5b6b4d660e07 is not empty - skipping!
+[rank6]:W0430 02:20:01.927000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.80b326eb-c09b-4115-8059-1f2f6b8a17b7 is not empty - skipping!
+[rank6]:W0430 02:20:01.927000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.b67074d3-aa07-4ed9-869c-01d99c757229 is not empty - skipping!
+[rank2]:W0430 02:20:01.927000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.68e9f9a6-df4e-4f8f-bf54-9c6c6bbd7136 is not empty - skipping!
+[rank6]:W0430 02:20:01.928000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.466db1ca-ac05-4689-a115-a89a8ce36d50 is not empty - skipping!
+[rank2]:W0430 02:20:01.929000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.4413cb1d-628f-44b6-a2a4-870857971f8b is not empty - skipping!
+[rank6]:W0430 02:20:01.929000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.50807cb5-e546-4c6f-a1d6-1d5714537796 is not empty - skipping!
+[rank2]:W0430 02:20:01.929000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.8497b036-978f-4d46-a4f1-7ed04ab08857 is not empty - skipping!
+[rank2]:W0430 02:20:01.930000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.fd3564e4-ba52-4c80-8b45-1eff5155ecad is not empty - skipping!
+[rank6]:W0430 02:20:01.930000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.eb6b9587-bddc-4cbb-8f1f-97056661ac15 is not empty - skipping!
+[rank2]:W0430 02:20:01.931000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.93589fb7-fc70-4c8a-aa9b-6b1ef21ccc4a is not empty - skipping!
+[rank6]:W0430 02:20:01.931000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.ab50d1ba-7cfe-492c-93ad-ed5e2f0dfffa is not empty - skipping!
+[rank7]:W0430 02:20:01.931000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.b36c55fa-bf6f-46b8-8d6b-a57464b6f498 is not empty - skipping!
+[rank2]:W0430 02:20:01.931000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.14f4457c-c5c2-4ab5-b7af-1d1391b5487f is not empty - skipping!
+[rank7]:W0430 02:20:01.932000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.53e7041f-5afe-40d5-936a-3feb78111a96 is not empty - skipping!
+[rank2]:W0430 02:20:01.932000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.87785462-ee80-4051-abfa-0f0edcddba25 is not empty - skipping!
+[rank6]:W0430 02:20:01.933000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.f64c573d-986f-4dd6-9a34-6275b00079fc is not empty - skipping!
+[rank7]:W0430 02:20:01.933000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.b1bf2f57-a79f-40f2-b45c-b2a59fb63fec is not empty - skipping!
+[rank2]:W0430 02:20:01.933000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.e45ab25f-bec5-480b-9bdb-fcb4503468a7 is not empty - skipping!
+[rank6]:W0430 02:20:01.933000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.8194b21c-10b6-46d5-9525-a41fa3e3af45 is not empty - skipping!
+[rank7]:W0430 02:20:01.934000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.17096d0b-1e5b-4a72-974d-b00a237e195b is not empty - skipping!
+[rank2]:W0430 02:20:01.934000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.2fa1a953-e291-4da0-8426-aa452dfeadf5 is not empty - skipping!
+[rank7]:W0430 02:20:01.934000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.5e6ab6ee-e869-4614-b8e6-84f3f2aba850 is not empty - skipping!
+[rank6]:W0430 02:20:01.934000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.f461caeb-80d7-4e84-aa49-0c7545c0ccda is not empty - skipping!
+[rank2]:W0430 02:20:01.934000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.98ac566b-2f9c-402f-baf1-558b75c6ef24 is not empty - skipping!
+[rank7]:W0430 02:20:01.935000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.0ce0878b-bef1-4ecf-afb3-e9e19c5953b2 is not empty - skipping!
+[rank6]:W0430 02:20:01.935000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.52273992-6cb1-48a9-abc6-a2b554e46d26 is not empty - skipping!
+[rank2]:W0430 02:20:01.935000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.67970d8c-4b38-490b-b13b-f231798d75b9 is not empty - skipping!
+[rank7]:W0430 02:20:01.936000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.d4c4097d-a885-4574-b9c7-c2181a98f826 is not empty - skipping!
+[rank6]:W0430 02:20:01.936000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.0cad5311-6ca4-4180-b8ed-3139f26960f6 is not empty - skipping!
+[rank7]:W0430 02:20:01.936000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.6a8d0563-4427-41f3-9558-8201579da45c is not empty - skipping!
+[rank6]:W0430 02:20:01.937000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.4e59edd5-3c9c-46d4-b211-34113c04bba3 is not empty - skipping!
+[rank7]:W0430 02:20:01.937000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.a1540800-f3a8-458f-8ccc-341119021abd is not empty - skipping!
+[rank2]:W0430 02:20:01.937000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.594a87e5-11ce-41e1-b20a-f1e85242adea is not empty - skipping!
+[rank6]:W0430 02:20:01.937000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.be80fd49-d3ff-435c-b624-8fb3a4dbd88c is not empty - skipping!
+[rank7]:W0430 02:20:01.938000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.1acc8949-6865-4ed9-aec1-5a645580739a is not empty - skipping!
+[rank2]:W0430 02:20:01.938000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.3fc1ade5-bd13-4dc7-b541-78e00e55259a is not empty - skipping!
+[rank6]:W0430 02:20:01.938000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.a00333fb-d0a6-47cb-8113-525a74cad9d6 is not empty - skipping!
+[rank7]:W0430 02:20:01.939000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.ae7a9e95-61f7-412c-940d-80bf62b3a967 is not empty - skipping!
+[rank2]:W0430 02:20:01.939000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.9ccf71f0-1928-4f9c-b52e-d2d397206653 is not empty - skipping!
+[rank6]:W0430 02:20:01.939000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.2ef4c511-716e-4486-9cd2-489bedc6effa is not empty - skipping!
+[rank2]:W0430 02:20:01.939000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.2109d375-c257-444c-a66b-352400906f72 is not empty - skipping!
+[rank7]:W0430 02:20:01.940000 2684329 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.331be18d-998d-43da-afaa-18f26ff74a63 is not empty - skipping!
+[rank6]:W0430 02:20:01.940000 2684326 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.882be637-025d-48a4-8e49-24d93dc5e966 is not empty - skipping!
+[rank2]:W0430 02:20:01.940000 2684319 torch/_inductor/triton_bundler.py:396] [2/0] Directory /workspace/.cache/triton/tmp.8c18c54d-b631-40fb-9eaa-f9877ed5b847 is not empty - skipping!
+0/20000 val_loss: 9.0095 val_bpb: 3.4883
+1/20000 train_loss: 9.0097 train_time: 0.0m tok/s: 12495036
+2/20000 train_loss: 12.2256 train_time: 0.0m tok/s: 11596773
+3/20000 train_loss: 11.2678 train_time: 0.0m tok/s: 10382476
+4/20000 train_loss: 9.6303 train_time: 0.0m tok/s: 9823223
+5/20000 train_loss: 8.0954 train_time: 0.0m tok/s: 9527899
+500/20000 train_loss: 3.2935 train_time: 0.8m tok/s: 8059518
+1000/20000 train_loss: 3.1140 train_time: 1.7m tok/s: 7820952
+1500/20000 train_loss: 3.0923 train_time: 2.5m tok/s: 7758084
+2000/20000 train_loss: 3.0486 train_time: 3.4m tok/s: 7715542
+layer_loop:enabled step:2047 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 3.0482 train_time: 4.5m tok/s: 7226541
+3000/20000 train_loss: 2.8329 train_time: 5.7m tok/s: 6893133
+3500/20000 train_loss: 2.8831 train_time: 6.9m tok/s: 6622681
+4000/20000 train_loss: 2.9363 train_time: 8.1m tok/s: 6448975
+[rank3]:W0430 02:28:16.042000 2684321 torch/_inductor/triton_bundler.py:396] [2/2] Directory /workspace/.cache/triton/tmp.c7ee942d-2c98-4484-a42c-7ff94b621eb8 is not empty - skipping!
+[rank3]:W0430 02:28:16.043000 2684321 torch/_inductor/triton_bundler.py:396] [2/2] Directory /workspace/.cache/triton/tmp.881749be-4958-419c-ab39-c3a31ea95617 is not empty - skipping!
+[rank3]:W0430 02:28:16.044000 2684321 torch/_inductor/triton_bundler.py:396] [2/2] Directory /workspace/.cache/triton/tmp.07d144f0-6502-41f7-b2b3-29f8f2e0e7ba is not empty - skipping!
+[rank4]:W0430 02:28:16.044000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.767d0a2a-bd38-4819-abc6-64dcea0b3384 is not empty - skipping!
+[rank4]:W0430 02:28:16.045000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.8e689428-dec8-4e93-9cdd-16aa7125c530 is not empty - skipping!
+[rank4]:W0430 02:28:16.046000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.d1f8450c-da58-4787-84e2-dfe2311000e1 is not empty - skipping!
+[rank4]:W0430 02:28:16.047000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.17c88156-e23c-46a9-b499-2ca5196f306a is not empty - skipping!
+[rank4]:W0430 02:28:16.048000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.d7dada34-7bd2-42e3-bf9b-a121d936e348 is not empty - skipping!
+[rank4]:W0430 02:28:16.049000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.920b2091-aef5-4b94-a3c9-d72d02db5f5f is not empty - skipping!
+[rank4]:W0430 02:28:16.050000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.16a6d418-c8f9-42b7-990d-bb40ac54bf30 is not empty - skipping!
+[rank4]:W0430 02:28:16.050000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.eb5b30a3-6680-4a7b-935b-2270a4f5ea49 is not empty - skipping!
+[rank4]:W0430 02:28:16.052000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.87febdb1-0aa9-4f72-a574-873697963c57 is not empty - skipping!
+[rank4]:W0430 02:28:16.053000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.0b94c3db-4182-4268-9dce-8526008ea436 is not empty - skipping!
+[rank4]:W0430 02:28:16.054000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.d97063ba-9c24-4146-afd6-b7b238d9cccb is not empty - skipping!
+[rank4]:W0430 02:28:16.055000 2684324 torch/_inductor/triton_bundler.py:396] [2/1] Directory /workspace/.cache/triton/tmp.88da3285-a048-471a-96dd-15541710e114 is not empty - skipping!
+4000/20000 val_loss: 2.8621 val_bpb: 1.1081
+4500/20000 train_loss: 2.7624 train_time: 9.3m tok/s: 6344744
+4773/20000 val_loss: 2.7903 val_bpb: 1.0804
+stopping_early: wallclock_cap train_time: 596070ms step: 4773/20000
+peak memory allocated: 40445 MiB reserved: 44498 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.76456068 val_bpb:1.07038845 eval_time:6960ms
+Serialized model: 135424701 bytes
+Code size (uncompressed): 130789 bytes
+Code size (compressed): 29430 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 3.5s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight, tok_emb.weight
+  passthrough (float16): blocks.attn.attn_out_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_lambda, smear_w
+Serialized model quantized+brotli: 15857707 bytes
+Total submission size quantized+brotli: 15887137 bytes
+[rank0]:W0430 02:31:43.075000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.c627287b-dc01-4364-b3f4-dd58c09e50fc is not empty - skipping!
+[rank0]:W0430 02:31:43.076000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.6daef428-b0c9-4265-b079-106942ca087a is not empty - skipping!
+[rank0]:W0430 02:31:43.077000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.0b46912f-8cda-4a95-b87a-6cf8de9d2f9d is not empty - skipping!
+[rank0]:W0430 02:31:43.078000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.636510f0-4866-4346-be3b-0a41cb7b15ee is not empty - skipping!
+[rank0]:W0430 02:31:43.078000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.84265a46-1cb0-4890-8246-edb985b736e7 is not empty - skipping!
+[rank0]:W0430 02:31:43.079000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.4018c09e-b26d-42b7-8050-5a43fad5f4da is not empty - skipping!
+[rank0]:W0430 02:31:43.080000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.ae0f08a6-df50-42e1-b65f-2d3b1cab4ddd is not empty - skipping!
+[rank0]:W0430 02:31:43.080000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.54f71d26-3b8c-4469-83dd-490a5661a0cd is not empty - skipping!
+[rank0]:W0430 02:31:43.081000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.e3b7f3a8-301a-4054-8cd6-4f95030d9ff6 is not empty - skipping!
+[rank0]:W0430 02:31:43.082000 2684315 torch/_inductor/triton_bundler.py:396] [0/2] Directory /workspace/.cache/triton/tmp.37e6c771-6cc3-4427-8a1f-b53d7ac4c93f is not empty - skipping!
+[rank4]:W0430 02:31:43.083000 2684324 torch/_inductor/triton_bundler.py:396] [0/1] Directory /workspace/.cache/triton/tmp.3cd754f1-823f-4e19-952c-2d2dfce53b61 is not empty - skipping!
+[rank4]:W0430 02:31:43.084000 2684324 torch/_inductor/triton_bundler.py:396] [0/1] Directory /workspace/.cache/triton/tmp.49285614-fbeb-4058-b398-2b02140f1134 is not empty - skipping!
+diagnostic quantized val_loss:2.81973181 val_bpb:1.09174973 eval_time:10906ms
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (142.0s)
+
+beginning TTT eval timer
+ttt_phased: total_docs:49999 prefix_docs:2000 suffix_docs:47999 num_phases:1 boundaries:[2000]
+ttp: b779/782 bl:2.6524 bb:1.0836 rl:2.6524 rb:1.0836 dl:9051-11137 gd:0
+ttp: b770/782 bl:2.6652 bb:1.0601 rl:2.6564 rb:1.0760 dl:4490-4708 gd:0
+ttp: b762/782 bl:2.8554 bb:1.0883 rl:2.6948 rb:1.0785 dl:3433-3538 gd:0
+ttp: b756/782 bl:2.8661 bb:1.0980 rl:2.7193 rb:1.0814 dl:2974-3037 gd:0
+ttp: b752/782 bl:2.8056 bb:1.0690 rl:2.7293 rb:1.0799 dl:2742-2798 gd:0
+ttp: b744/782 bl:2.6554 bb:1.0676 rl:2.7225 rb:1.0788 dl:2388-2421 gd:0
+ttpp: phase:1/1 pd:2447 gd:2000 t:216.4s
+tttg: c1/214 lr:0.001000 t:1.8s
+tttg: c2/214 lr:0.001000 t:1.8s
+tttg: c3/214 lr:0.001000 t:1.9s
+tttg: c4/214 lr:0.001000 t:2.0s
+tttg: c5/214 lr:0.000999 t:2.1s
+tttg: c6/214 lr:0.000999 t:2.2s
+tttg: c7/214 lr:0.000998 t:2.3s
+tttg: c8/214 lr:0.000997 t:2.3s
+tttg: c9/214 lr:0.000997 t:2.4s
+tttg: c10/214 lr:0.000996 t:2.5s
+tttg: c11/214 lr:0.000995 t:2.6s
+tttg: c12/214 lr:0.000993 t:2.7s
+tttg: c13/214 lr:0.000992 t:2.7s
+tttg: c14/214 lr:0.000991 t:2.8s
+tttg: c15/214 lr:0.000989 t:2.9s
+tttg: c16/214 lr:0.000988 t:3.0s
+tttg: c17/214 lr:0.000986 t:3.0s
+tttg: c18/214 lr:0.000984 t:3.1s
+tttg: c19/214 lr:0.000982 t:3.2s
+tttg: c20/214 lr:0.000980 t:3.3s
+tttg: c21/214 lr:0.000978 t:3.4s
+tttg: c22/214 lr:0.000976 t:3.4s
+tttg: c23/214 lr:0.000974 t:3.5s
+tttg: c24/214 lr:0.000972 t:3.6s
+tttg: c25/214 lr:0.000969 t:3.7s
+tttg: c26/214 lr:0.000966 t:3.8s
+tttg: c27/214 lr:0.000964 t:3.8s
+tttg: c28/214 lr:0.000961 t:3.9s
+tttg: c29/214 lr:0.000958 t:4.0s
+tttg: c30/214 lr:0.000955 t:4.1s
+tttg: c31/214 lr:0.000952 t:4.2s
+tttg: c32/214 lr:0.000949 t:4.2s
+tttg: c33/214 lr:0.000945 t:4.3s
+tttg: c34/214 lr:0.000942 t:4.4s
+tttg: c35/214 lr:0.000938 t:4.5s
+tttg: c36/214 lr:0.000935 t:4.5s
+tttg: c37/214 lr:0.000931 t:4.6s
+tttg: c38/214 lr:0.000927 t:4.7s
+tttg: c39/214 lr:0.000924 t:4.8s
+tttg: c40/214 lr:0.000920 t:4.9s
+tttg: c41/214 lr:0.000915 t:4.9s
+tttg: c42/214 lr:0.000911 t:5.0s
+tttg: c43/214 lr:0.000907 t:5.1s
+tttg: c44/214 lr:0.000903 t:5.2s
+tttg: c45/214 lr:0.000898 t:5.3s
+tttg: c46/214 lr:0.000894 t:5.3s
+tttg: c47/214 lr:0.000889 t:5.4s
+tttg: c48/214 lr:0.000885 t:5.5s
+tttg: c49/214 lr:0.000880 t:5.6s
+tttg: c50/214 lr:0.000875 t:5.7s
+tttg: c51/214 lr:0.000870 t:5.7s
+tttg: c52/214 lr:0.000865 t:5.8s
+tttg: c53/214 lr:0.000860 t:5.9s
+tttg: c54/214 lr:0.000855 t:6.0s
+tttg: c55/214 lr:0.000850 t:6.1s
+tttg: c56/214 lr:0.000844 t:6.1s
+tttg: c57/214 lr:0.000839 t:6.2s
+tttg: c58/214 lr:0.000833 t:6.3s
+tttg: c59/214 lr:0.000828 t:6.4s
+tttg: c60/214 lr:0.000822 t:6.5s
+tttg: c61/214 lr:0.000817 t:6.5s
+tttg: c62/214 lr:0.000811 t:6.6s
+tttg: c63/214 lr:0.000805 t:6.7s
+tttg: c64/214 lr:0.000799 t:6.8s
+tttg: c65/214 lr:0.000793 t:6.8s
+tttg: c66/214 lr:0.000787 t:6.9s
+tttg: c67/214 lr:0.000781 t:7.0s
+tttg: c68/214 lr:0.000775 t:7.1s
+tttg: c69/214 lr:0.000769 t:7.2s
+tttg: c70/214 lr:0.000763 t:7.2s
+tttg: c71/214 lr:0.000756 t:7.3s
+tttg: c72/214 lr:0.000750 t:7.4s
+tttg: c73/214 lr:0.000744 t:7.5s
+tttg: c74/214 lr:0.000737 t:7.6s
+tttg: c75/214 lr:0.000731 t:7.6s
+tttg: c76/214 lr:0.000724 t:7.7s
+tttg: c77/214 lr:0.000717 t:7.8s
+tttg: c78/214 lr:0.000711 t:7.9s
+tttg: c79/214 lr:0.000704 t:7.9s
+tttg: c80/214 lr:0.000697 t:8.0s
+tttg: c81/214 lr:0.000690 t:8.1s
+tttg: c82/214 lr:0.000684 t:8.2s
+tttg: c83/214 lr:0.000677 t:8.3s
+tttg: c84/214 lr:0.000670 t:8.4s
+tttg: c85/214 lr:0.000663 t:8.4s
+tttg: c86/214 lr:0.000656 t:8.5s
+tttg: c87/214 lr:0.000649 t:8.6s
+tttg: c88/214 lr:0.000642 t:8.7s
+tttg: c89/214 lr:0.000635 t:8.7s
+tttg: c90/214 lr:0.000628 t:8.8s
+tttg: c91/214 lr:0.000620 t:8.9s
+tttg: c92/214 lr:0.000613 t:9.0s
+tttg: c93/214 lr:0.000606 t:9.1s
+tttg: c94/214 lr:0.000599 t:9.1s
+tttg: c95/214 lr:0.000592 t:9.2s
+tttg: c96/214 lr:0.000584 t:9.3s
+tttg: c97/214 lr:0.000577 t:9.4s
+tttg: c98/214 lr:0.000570 t:9.4s
+tttg: c99/214 lr:0.000563 t:9.5s
+tttg: c100/214 lr:0.000555 t:9.6s
+tttg: c101/214 lr:0.000548 t:9.7s
+tttg: c102/214 lr:0.000541 t:9.8s
+tttg: c103/214 lr:0.000533 t:9.8s
+tttg: c104/214 lr:0.000526 t:9.9s
+tttg: c105/214 lr:0.000518 t:10.0s
+tttg: c106/214 lr:0.000511 t:10.1s
+tttg: c107/214 lr:0.000504 t:10.2s
+tttg: c108/214 lr:0.000496 t:10.3s
+tttg: c109/214 lr:0.000489 t:10.3s
+tttg: c110/214 lr:0.000482 t:10.4s
+tttg: c111/214 lr:0.000474 t:10.5s
+tttg: c112/214 lr:0.000467 t:10.6s
+tttg: c113/214 lr:0.000459 t:10.7s
+tttg: c114/214 lr:0.000452 t:10.7s
+tttg: c115/214 lr:0.000445 t:10.8s
+tttg: c116/214 lr:0.000437 t:10.9s
+tttg: c117/214 lr:0.000430 t:11.0s
+tttg: c118/214 lr:0.000423 t:11.1s
+tttg: c119/214 lr:0.000416 t:11.1s
+tttg: c120/214 lr:0.000408 t:11.2s
+tttg: c121/214 lr:0.000401 t:11.3s
+tttg: c122/214 lr:0.000394 t:11.4s
+tttg: c123/214 lr:0.000387 t:11.5s
+tttg: c124/214 lr:0.000380 t:11.5s
+tttg: c125/214 lr:0.000372 t:11.6s
+tttg: c126/214 lr:0.000365 t:11.7s
+tttg: c127/214 lr:0.000358 t:11.8s
+tttg: c128/214 lr:0.000351 t:11.9s
+tttg: c129/214 lr:0.000344 t:12.0s
+tttg: c130/214 lr:0.000337 t:12.0s
+tttg: c131/214 lr:0.000330 t:12.1s
+tttg: c132/214 lr:0.000323 t:12.2s
+tttg: c133/214 lr:0.000316 t:12.3s
+tttg: c134/214 lr:0.000310 t:12.4s
+tttg: c135/214 lr:0.000303 t:12.4s
+tttg: c136/214 lr:0.000296 t:12.5s
+tttg: c137/214 lr:0.000289 t:12.6s
+tttg: c138/214 lr:0.000283 t:12.7s
+tttg: c139/214 lr:0.000276 t:12.8s
+tttg: c140/214 lr:0.000269 t:12.8s
+tttg: c141/214 lr:0.000263 t:12.9s
+tttg: c142/214 lr:0.000256 t:13.0s
+tttg: c143/214 lr:0.000250 t:13.1s
+tttg: c144/214 lr:0.000244 t:13.2s
+tttg: c145/214 lr:0.000237 t:13.2s
+tttg: c146/214 lr:0.000231 t:13.3s
+tttg: c147/214 lr:0.000225 t:13.4s
+tttg: c148/214 lr:0.000219 t:13.5s
+tttg: c149/214 lr:0.000213 t:13.6s
+tttg: c150/214 lr:0.000207 t:13.6s
+tttg: c151/214 lr:0.000201 t:13.7s
+tttg: c152/214 lr:0.000195 t:13.8s
+tttg: c153/214 lr:0.000189 t:13.9s
+tttg: c154/214 lr:0.000183 t:13.9s
+tttg: c155/214 lr:0.000178 t:14.0s
+tttg: c156/214 lr:0.000172 t:14.1s
+tttg: c157/214 lr:0.000167 t:14.2s
+tttg: c158/214 lr:0.000161 t:14.3s
+tttg: c159/214 lr:0.000156 t:14.3s
+tttg: c160/214 lr:0.000150 t:14.4s
+tttg: c161/214 lr:0.000145 t:14.5s
+tttg: c162/214 lr:0.000140 t:14.6s
+tttg: c163/214 lr:0.000135 t:14.7s
+tttg: c164/214 lr:0.000130 t:14.7s
+tttg: c165/214 lr:0.000125 t:14.8s
+tttg: c166/214 lr:0.000120 t:14.9s
+tttg: c167/214 lr:0.000115 t:15.0s
+tttg: c168/214 lr:0.000111 t:15.1s
+tttg: c169/214 lr:0.000106 t:15.1s
+tttg: c170/214 lr:0.000102 t:15.2s
+tttg: c171/214 lr:0.000097 t:15.3s
+tttg: c172/214 lr:0.000093 t:15.4s
+tttg: c173/214 lr:0.000089 t:15.4s
+tttg: c174/214 lr:0.000085 t:15.5s
+tttg: c175/214 lr:0.000080 t:15.6s
+tttg: c176/214 lr:0.000076 t:15.7s
+tttg: c177/214 lr:0.000073 t:15.8s
+tttg: c178/214 lr:0.000069 t:15.8s
+tttg: c179/214 lr:0.000065 t:15.9s
+tttg: c180/214 lr:0.000062 t:16.0s
+tttg: c181/214 lr:0.000058 t:16.1s
+tttg: c182/214 lr:0.000055 t:16.2s
+tttg: c183/214 lr:0.000051 t:16.2s
+tttg: c184/214 lr:0.000048 t:16.3s
+tttg: c185/214 lr:0.000045 t:16.4s
+tttg: c186/214 lr:0.000042 t:16.5s
+tttg: c187/214 lr:0.000039 t:16.5s
+tttg: c188/214 lr:0.000036 t:16.6s
+tttg: c189/214 lr:0.000034 t:16.7s
+tttg: c190/214 lr:0.000031 t:16.8s
+tttg: c191/214 lr:0.000028 t:16.9s
+tttg: c192/214 lr:0.000026 t:17.0s
+tttg: c193/214 lr:0.000024 t:17.0s
+tttg: c194/214 lr:0.000022 t:17.1s
+tttg: c195/214 lr:0.000020 t:17.2s
+tttg: c196/214 lr:0.000018 t:17.3s
+tttg: c197/214 lr:0.000016 t:17.3s
+tttg: c198/214 lr:0.000014 t:17.4s
+tttg: c199/214 lr:0.000012 t:17.5s
+tttg: c200/214 lr:0.000011 t:17.6s
+tttg: c201/214 lr:0.000009 t:17.7s
+tttg: c202/214 lr:0.000008 t:17.8s
+tttg: c203/214 lr:0.000007 t:17.8s
+tttg: c204/214 lr:0.000005 t:17.9s
+tttg: c205/214 lr:0.000004 t:18.0s
+tttg: c206/214 lr:0.000003 t:18.1s
+tttg: c207/214 lr:0.000003 t:18.1s
+tttg: c208/214 lr:0.000002 t:18.2s
+tttg: c209/214 lr:0.000001 t:18.3s
+tttg: c210/214 lr:0.000001 t:18.4s
+tttg: c211/214 lr:0.000000 t:18.5s
+tttg: c212/214 lr:0.000000 t:18.5s
+tttg: c213/214 lr:0.000000 t:18.6s
+ttpr: phase:1/1 t:237.2s
+ttp: b738/782 bl:2.7717 bb:1.0714 rl:2.7264 rb:1.0782 dl:2196-2228 gd:1
+ttp: b733/782 bl:2.7393 bb:1.0468 rl:2.7272 rb:1.0760 dl:2063-2092 gd:1
+ttp: b725/782 bl:2.7435 bb:1.0757 rl:2.7282 rb:1.0760 dl:1902-1916 gd:1
+ttp: b717/782 bl:2.7783 bb:1.0567 rl:2.7308 rb:1.0750 dl:1758-1773 gd:1
+ttp: b710/782 bl:2.7102 bb:1.0311 rl:2.7298 rb:1.0729 dl:1661-1674 gd:1
+ttp: b702/782 bl:2.8322 bb:1.0808 rl:2.7341 rb:1.0732 dl:1573-1583 gd:1
+ttp: b694/782 bl:2.7874 bb:1.0773 rl:2.7362 rb:1.0734 dl:1494-1504 gd:1
+ttp: b684/782 bl:2.7933 bb:1.0951 rl:2.7382 rb:1.0741 dl:1408-1414 gd:1
+ttp: b673/782 bl:2.8698 bb:1.0649 rl:2.7424 rb:1.0738 dl:1328-1335 gd:1
+ttp: b670/782 bl:2.8270 bb:1.0773 rl:2.7450 rb:1.0739 dl:1310-1316 gd:1
+ttp: b657/782 bl:2.7996 bb:1.0599 rl:2.7465 rb:1.0735 dl:1227-1233 gd:1
+ttp: b652/782 bl:2.7762 bb:1.0753 rl:2.7473 rb:1.0736 dl:1199-1204 gd:1
+ttp: b640/782 bl:2.7785 bb:1.0671 rl:2.7480 rb:1.0734 dl:1135-1138 gd:1
+ttp: b636/782 bl:2.7556 bb:1.0591 rl:2.7482 rb:1.0731 dl:1116-1119 gd:1
+ttp: b626/782 bl:2.7716 bb:1.0329 rl:2.7487 rb:1.0721 dl:1069-1073 gd:1
+ttp: b618/782 bl:2.7396 bb:1.0585 rl:2.7485 rb:1.0719 dl:1032-1036 gd:1
+ttp: b611/782 bl:2.8583 bb:1.0848 rl:2.7507 rb:1.0721 dl:1003-1007 gd:1
+ttp: b606/782 bl:2.7935 bb:1.0919 rl:2.7515 rb:1.0725 dl:982-986 gd:1
+ttp: b598/782 bl:2.8179 bb:1.0801 rl:2.7527 rb:1.0726 dl:950-954 gd:1
+ttp: b590/782 bl:2.7563 bb:1.0470 rl:2.7528 rb:1.0722 dl:924-927 gd:1
+ttp: b579/782 bl:2.7463 bb:1.0442 rl:2.7527 rb:1.0717 dl:887-889 gd:1
+ttp: b571/782 bl:2.8459 bb:1.0799 rl:2.7541 rb:1.0718 dl:861-865 gd:1
+ttp: b566/782 bl:2.7306 bb:1.0306 rl:2.7538 rb:1.0712 dl:845-848 gd:1
+ttp: b558/782 bl:2.7608 bb:1.0510 rl:2.7539 rb:1.0709 dl:821-824 gd:1
+ttp: b545/782 bl:2.7758 bb:1.0752 rl:2.7542 rb:1.0710 dl:784-787 gd:1
+ttp: b537/782 bl:2.8328 bb:1.0937 rl:2.7552 rb:1.0713 dl:764-766 gd:1
+ttp: b533/782 bl:2.7813 bb:1.0534 rl:2.7555 rb:1.0710 dl:754-757 gd:1
+ttp: b524/782 bl:2.7997 bb:1.0684 rl:2.7561 rb:1.0710 dl:732-735 gd:1
+ttp: b516/782 bl:2.8155 bb:1.0650 rl:2.7568 rb:1.0709 dl:711-714 gd:1
+ttp: b508/782 bl:2.7356 bb:1.0342 rl:2.7565 rb:1.0705 dl:693-695 gd:1
+ttp: b500/782 bl:2.8718 bb:1.0834 rl:2.7578 rb:1.0706 dl:675-677 gd:1
+ttp: b488/782 bl:2.7852 bb:1.0555 rl:2.7581 rb:1.0705 dl:648-651 gd:1
+ttp: b480/782 bl:2.8075 bb:1.1024 rl:2.7586 rb:1.0708 dl:632-634 gd:1
+ttp: b471/782 bl:2.8139 bb:1.0669 rl:2.7591 rb:1.0708 dl:614-616 gd:1
+ttp: b465/782 bl:2.8081 bb:1.1239 rl:2.7595 rb:1.0712 dl:602-604 gd:1
+ttp: b456/782 bl:2.7688 bb:1.0459 rl:2.7596 rb:1.0710 dl:586-588 gd:1
+ttp: b448/782 bl:2.7914 bb:1.0692 rl:2.7599 rb:1.0710 dl:571-573 gd:1
+ttp: b444/782 bl:2.8227 bb:1.0659 rl:2.7604 rb:1.0709 dl:564-566 gd:1
+ttp: b435/782 bl:2.7750 bb:1.0588 rl:2.7606 rb:1.0708 dl:547-549 gd:1
+ttp: b427/782 bl:2.7796 bb:1.0694 rl:2.7607 rb:1.0708 dl:533-535 gd:1
+ttp: b417/782 bl:2.9365 bb:1.1067 rl:2.7620 rb:1.0711 dl:516-517 gd:1
+ttp: b411/782 bl:2.6960 bb:1.0604 rl:2.7615 rb:1.0710 dl:506-508 gd:1
+ttp: b403/782 bl:2.8296 bb:1.0520 rl:2.7620 rb:1.0709 dl:493-495 gd:1
+ttp: b396/782 bl:2.7958 bb:1.0487 rl:2.7623 rb:1.0707 dl:482-484 gd:1
+ttp: b389/782 bl:2.8030 bb:1.0610 rl:2.7625 rb:1.0707 dl:471-473 gd:1
+ttp: b380/782 bl:2.8093 bb:1.0829 rl:2.7628 rb:1.0707 dl:459-460 gd:1
+ttp: b372/782 bl:2.8300 bb:1.0682 rl:2.7633 rb:1.0707 dl:447-448 gd:1
+ttp: b364/782 bl:2.8067 bb:1.0814 rl:2.7635 rb:1.0708 dl:435-437 gd:1
+ttp: b356/782 bl:2.7678 bb:1.0604 rl:2.7636 rb:1.0707 dl:424-426 gd:1
+ttp: b348/782 bl:2.7578 bb:1.0710 rl:2.7635 rb:1.0707 dl:414-415 gd:1
+ttp: b339/782 bl:2.8285 bb:1.0909 rl:2.7639 rb:1.0708 dl:402-403 gd:1
+ttp: b331/782 bl:2.8922 bb:1.1219 rl:2.7646 rb:1.0711 dl:391-393 gd:1
+ttp: b323/782 bl:2.8254 bb:1.1008 rl:2.7649 rb:1.0713 dl:381-382 gd:1
+ttp: b318/782 bl:2.7746 bb:1.0598 rl:2.7649 rb:1.0712 dl:374-376 gd:1
+ttp: b310/782 bl:2.7748 bb:1.0938 rl:2.7650 rb:1.0713 dl:364-365 gd:1
+ttp: b302/782 bl:2.7916 bb:1.0457 rl:2.7651 rb:1.0712 dl:354-355 gd:1
+ttp: b294/782 bl:2.8696 bb:1.1059 rl:2.7656 rb:1.0714 dl:344-345 gd:1
+ttp: b286/782 bl:2.8664 bb:1.1183 rl:2.7660 rb:1.0716 dl:335-336 gd:1
+ttp: b281/782 bl:2.8864 bb:1.1649 rl:2.7666 rb:1.0720 dl:329-330 gd:1
+ttp: b273/782 bl:2.9206 bb:1.1144 rl:2.7672 rb:1.0721 dl:320-321 gd:1
+ttp: b264/782 bl:2.9141 bb:1.0937 rl:2.7678 rb:1.0722 dl:311-312 gd:1
+ttp: b255/782 bl:2.8662 bb:1.1437 rl:2.7682 rb:1.0725 dl:300-301 gd:1
+ttp: b247/782 bl:2.8954 bb:1.1623 rl:2.7687 rb:1.0728 dl:292-293 gd:1
+ttp: b237/782 bl:2.7893 bb:1.1189 rl:2.7688 rb:1.0730 dl:282-283 gd:1
+ttp: b229/782 bl:2.8862 bb:1.1080 rl:2.7692 rb:1.0731 dl:274-275 gd:1
+ttp: b221/782 bl:2.8905 bb:1.1331 rl:2.7696 rb:1.0733 dl:266-267 gd:1
+ttp: b213/782 bl:2.8957 bb:1.1217 rl:2.7700 rb:1.0735 dl:258-259 gd:1
+ttp: b205/782 bl:2.9018 bb:1.1286 rl:2.7704 rb:1.0737 dl:251-252 gd:1
+ttp: b196/782 bl:2.9605 bb:1.1520 rl:2.7710 rb:1.0739 dl:243-244 gd:1
+ttp: b188/782 bl:2.8934 bb:1.1332 rl:2.7714 rb:1.0741 dl:236-237 gd:1
+ttp: b181/782 bl:2.8645 bb:1.1188 rl:2.7717 rb:1.0742 dl:230-230 gd:1
+ttp: b172/782 bl:3.0114 bb:1.1750 rl:2.7723 rb:1.0745 dl:222-223 gd:1
+ttp: b164/782 bl:2.9786 bb:1.1599 rl:2.7729 rb:1.0747 dl:215-216 gd:1
+ttp: b157/782 bl:2.9393 bb:1.1064 rl:2.7733 rb:1.0748 dl:209-210 gd:1
+ttp: b150/782 bl:2.8998 bb:1.1343 rl:2.7737 rb:1.0750 dl:204-204 gd:1
+ttp: b140/782 bl:3.0067 bb:1.1865 rl:2.7742 rb:1.0752 dl:195-196 gd:1
+ttp: b133/782 bl:3.0668 bb:1.2087 rl:2.7749 rb:1.0755 dl:190-190 gd:1
+ttp: b124/782 bl:2.9367 bb:1.1691 rl:2.7753 rb:1.0757 dl:183-184 gd:1
+ttp: b117/782 bl:3.0126 bb:1.2046 rl:2.7758 rb:1.0760 dl:178-178 gd:1
+ttp: b108/782 bl:2.9793 bb:1.1984 rl:2.7763 rb:1.0763 dl:171-172 gd:1
+ttp: b100/782 bl:2.9660 bb:1.1648 rl:2.7766 rb:1.0764 dl:165-166 gd:1
+ttp: b93/782 bl:3.0245 bb:1.2401 rl:2.7771 rb:1.0768 dl:160-160 gd:1
+ttp: b84/782 bl:3.0667 bb:1.2488 rl:2.7777 rb:1.0771 dl:153-154 gd:1
+ttp: b77/782 bl:3.0298 bb:1.1721 rl:2.7781 rb:1.0772 dl:148-148 gd:1
+ttp: b66/782 bl:3.1107 bb:1.2331 rl:2.7787 rb:1.0775 dl:139-140 gd:1
+ttp: b59/782 bl:2.9846 bb:1.2028 rl:2.7790 rb:1.0777 dl:134-134 gd:1
+ttp: b47/782 bl:3.0066 bb:1.1836 rl:2.7794 rb:1.0778 dl:124-125 gd:1
+ttp: b39/782 bl:3.0712 bb:1.2178 rl:2.7798 rb:1.0780 dl:118-119 gd:1
+ttp: b30/782 bl:3.2387 bb:1.2997 rl:2.7804 rb:1.0783 dl:110-111 gd:1
+ttp: b25/782 bl:3.2637 bb:1.3229 rl:2.7810 rb:1.0786 dl:106-106 gd:1
+ttp: b16/782 bl:3.0200 bb:1.1847 rl:2.7813 rb:1.0788 dl:96-98 gd:1
+ttp: b6/782 bl:3.2615 bb:1.2430 rl:2.7818 rb:1.0789 dl:82-84 gd:1
+quantized_ttt_phased val_loss:2.78881493 val_bpb:1.07982643 eval_time:428731ms
+total_eval_time:428.7s
