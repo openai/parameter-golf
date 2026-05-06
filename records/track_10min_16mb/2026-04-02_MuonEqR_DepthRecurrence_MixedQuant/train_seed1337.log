@@ -1,0 +1,155 @@
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: /home/dex/parameter-golf-with-cc/data
+  datasets_dir: /home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp4096
+  disable_layer0_attn: False
+  distributed: True
+  ema_decay: 0.997
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_enabled: True
+  gptq_reserve_seconds: 10.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/b34b702a-fbc4-4da8-8414-f2dcd633f2db.txt
+  logit_softcap: 30.0
+  matrix_lr: 0.02
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mixed_quant: True
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_wd: 0.085
+  n_int6_layers: 60
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  parallel_residual: False
+  parallel_start_layer: 7
+  parallel_start_layer_is_physical: True
+  qk_gain_init: 4.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  recur_layers_str: 4,5
+  recur_start_step: 3000
+  recur_warmup_steps: 20
+  repeat_untie_mlp: none
+  repeat_untie_mlp_layers: 
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: b34b702a-fbc4-4da8-8414-f2dcd633f2db
+  scalar_lr: 0.02
+  seed: 1337
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /home/dex/parameter-golf-with-cc/data/tokenizers/fineweb_4096_bpe.model
+  train_batch_tokens: 786432
+  train_files: /home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp4096/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  val_batch_tokens: 524288
+  val_files: /home/dex/parameter-golf-with-cc/data/datasets/fineweb10B_sp4096/fineweb_val_*.bin
+  val_loss_every: 4000
+  ve_dim: 128
+  ve_enabled: True
+  ve_layers: 9,10
+  vocab_size: 4096
+  warmdown_frac: 0.667
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 143
+val_tokens: 45514752
+model_params:34401371
+parallel_residual: active=0 start_layer=7 start_mode=physical params=0
+recurrence: layers=[4, 5] start_step=3000 active=0
+repeat_untie_mlp: mode=none layers=[] params=0
+gptq:reserving 10s, effective=590000ms
+[rank6]:[W402 12:09:30.189206185 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank4]:[W402 12:09:30.673266528 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank5]:[W402 12:09:31.732280295 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W402 12:09:31.736911013 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank2]:[W402 12:09:31.736988905 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank3]:[W402 12:09:31.739788901 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank0]:[W402 12:09:31.774399559 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank7]:[W402 12:09:31.991820395 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+recurrence:prewarm active=1 virtual_layers:13
+recur_warmup_step: 1/20
+recur_warmup_step: 2/20
+recur_warmup_step: 3/20
+recur_warmup_step: 4/20
+recur_warmup_step: 5/20
+recur_warmup_step: 6/20
+recur_warmup_step: 10/20
+recur_warmup_step: 20/20
+0/20000 val_loss: 8.3178 val_bpb: 3.6153
+1/20000 train_loss: 8.3199 train_time: 0.0m tok/s: 8435779
+2/20000 train_loss: 12.4107 train_time: 0.0m tok/s: 8331252
+3/20000 train_loss: 10.8800 train_time: 0.0m tok/s: 8240801
+4/20000 train_loss: 9.1260 train_time: 0.0m tok/s: 8196826
+5/20000 train_loss: 7.9464 train_time: 0.0m tok/s: 8168900
+500/20000 train_loss: 3.0028 train_time: 0.8m tok/s: 7927608
+1000/20000 train_loss: 2.9402 train_time: 1.7m tok/s: 7926588
+1500/20000 train_loss: 2.9047 train_time: 2.5m tok/s: 7925482
+2000/20000 train_loss: 2.8353 train_time: 3.3m tok/s: 7923144
+2500/20000 train_loss: 2.7111 train_time: 4.1m tok/s: 7921458
+3000/20000 train_loss: 2.8184 train_time: 5.0m tok/s: 7920483
+recurrence:activated step:3000 layers:[4, 5] virtual_layers:13
+3500/20000 train_loss: 2.6956 train_time: 5.9m tok/s: 7744900
+4000/20000 train_loss: 2.6225 train_time: 6.9m tok/s: 7618742
+4000/20000 val_loss: 2.6482 val_bpb: 1.1510
+4500/20000 train_loss: 2.5770 train_time: 7.8m tok/s: 7523362
+5000/20000 train_loss: 2.6310 train_time: 8.8m tok/s: 7449341
+5500/20000 train_loss: 2.5781 train_time: 9.8m tok/s: 7389856
+5541/20000 val_loss: 2.5307 val_bpb: 1.1000
+stopping_early: wallclock_cap train_time: 590033ms step: 5541/20000
+peak memory allocated: 30215 MiB reserved: 30244 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.52821759 val_bpb:1.09887624 eval_time:1999ms
+Serialized model: 132405891 bytes
+Code size: 21084 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 66 Hessians in 9.7s
+mixed_quant: sensitivity ranking -- 60 int6 (top), 6 int5 (bottom)
+mixed_quant: most sensitive=blocks.0.mlp.proj.weight (7491677184.0), least sensitive=blocks.9.attn.proj.weight (1747386.1)
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+mixed_quant: 60 int6, 6 int5
+Serialized model mixed_int5_int6+brotli: 15912373 bytes
+Total submission size mixed_int5_int6+brotli: 15933457 bytes
+final_int6_roundtrip val_loss:2.55897871 val_bpb:1.11224640 eval_time:6860ms
+final_int6_sliding_window val_loss:2.51666785 val_bpb:1.09385621 eval_time:75894ms
