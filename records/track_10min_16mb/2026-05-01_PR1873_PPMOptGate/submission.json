@@ -1,0 +1,17 @@
+{
+  "name": "joshuaswanson",
+  "github_id": "joshuaswanson",
+  "val_bpb": 0.80050966,
+  "val_bpb_seeds": [0.80076582, 0.80023955, 0.8005236],
+  "val_bpb_std": 0.00026321,
+  "seeds": [42, 314, 999],
+  "lineage": [
+    "PR #1873 (@schattenjuwel / Liva, originally nothingLiva PR1707) — SP10240 Casefold + TTT + GPTQ + Byte-PPM-D Mixture (val_bpb 0.82006). The neural network, training pipeline, GPTQ quantization, TTT phase, and PPM-D order-5 byte mixer code are byte-identical to that submission. This submission's contribution is exclusively the gate-hyperparameter discovery via offline sweep."
+  ],
+  "key_innovation": "Offline sweep of PPM-D byte-mixer gate hyperparameters (T, H, L) on a dumped (tga, lpa) from PR #1873's actual NN distribution. Found T=0.7, H=0.99, L=0.3 dominates PR #1873's hand-picked T=0.9, H=0.9, L=0.05 by ~20 mBPB on the 3-seed mean. Code is byte-identical to PR #1873; only env-var hyperparameters changed at run time.",
+  "hyperparameters_changed": {
+    "PPM_C": "0.9 -> 0.7 (lower confidence threshold for switching to PPM)",
+    "PPM_LHI": "0.9 -> 0.99 (higher NN weight at low PPM confidence)",
+    "PPM_LLO": "0.05 -> 0.3 (more PPM weight at high confidence)"
+  }
+}

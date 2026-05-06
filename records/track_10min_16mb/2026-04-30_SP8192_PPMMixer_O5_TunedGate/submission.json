@@ -1,0 +1,57 @@
+{
+  "submission_name": "SP8192 + Byte-PPM Mixer with Tuned Order/Gate (O=5, T=0.80, H=0.99, L=0.20)",
+  "author": "Joshua Swanson",
+  "github_id": "joshuaswanson",
+  "track": "10min_16mb",
+  "val_bpb_3seed_mean": 0.942903,
+  "val_bpb_3seed_std": 0.000698,
+  "seeds": [
+    42,
+    314,
+    999
+  ],
+  "per_seed_results": {
+    "42": {
+      "ppm_mixer_val_bpb": 0.94289082,
+      "sliding_window_val_bpb": 1.10048047,
+      "model_bytes": 15974299,
+      "ppm_eval_time_ms": 480934
+    },
+    "314": {
+      "ppm_mixer_val_bpb": 0.94221188,
+      "sliding_window_val_bpb": 1.09973194,
+      "model_bytes": 15971826,
+      "ppm_eval_time_ms": 473297
+    },
+    "999": {
+      "ppm_mixer_val_bpb": 0.94360712,
+      "sliding_window_val_bpb": 1.10135485,
+      "model_bytes": 15973459,
+      "ppm_eval_time_ms": 471632
+    }
+  },
+  "ppm_hyperparameters": {
+    "PPM_ORDER": 5,
+    "PPM_T": 0.8,
+    "PPM_H": 0.99,
+    "PPM_L": 0.2,
+    "rationale": "Found via offline sweep on the (tga, lpa) dump from a real seed-42 PR #1959 model. PR #1959 used PR #1795's hand-picked defaults (O=4, T=0.9, H=0.9, L=0.05), tuned for SP4096 NN distribution. This submission swept (O, T, H, L) on the actual SP8192 NN's per-byte distribution and finds a substantially different optimum."
+  },
+  "lineage": [
+    "PR #1959 (@remg1997) - Combined PR #1493 bigbag stack + PR #1795 PPM mixer; hand-tuned PPM defaults inherited from PR #1795",
+    "PR #1795 (@OE-GOD) - Byte-PPM-D mixer + strict-legal causal gate; PPM defaults hand-picked on SP4096 stack",
+    "PR #1493 - Bigbag NN stack: 3-layer recurrence + parallel residuals + score-first TTT",
+    "PR #1394 (@clarkkev) - SP8192 + GPTQ embeddings + SDClip"
+  ],
+  "key_innovation": "Systematic offline sweep of byte-PPM-D mixer hyperparameters (order \u2208 {3, 4, 5, 6}, T/H/L grid) on a dumped (tga, lpa) from PR #1959's actual NN distribution. Finds O=5 dominates O=4 (~50 mBPB on the dump) when paired with a sharper T (0.80) and heavier high-confidence-NN gate (H=0.99). The neural network and training pipeline are byte-identical to PR #1959.",
+  "compliance": {
+    "track": "B (legal eval-time adaptation)",
+    "ppm_causality": "score-before-update on every byte; gate cf computed from PPM tables BEFORE looking up observed byte's count (prefix-only)",
+    "no_slot": true,
+    "no_two_pass": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "tokenizer_change": false,
+    "training_unchanged_from_PR1493": true
+  }
+}
