@@ -1,0 +1,59 @@
+{
+  "author": "Benjamin Hadad",
+  "github_id": "codemath3000",
+  "name": "Improved Parallel Residuals + Systems Optimization",
+  "date": "2026-04-13",
+  "track": "10min_16mb",
+  "val_loss": 2.77730717,
+  "val_bpb": 1.07518215,
+  "val_bpb_std": 0.00058614,
+  "seeds": [1337, 2024, 42],
+  "seed_results": {
+    "1337": {
+      "steps": 4745,
+      "step_avg_ms": 123.8,
+      "val_loss": 2.77555969,
+      "val_bpb": 1.07450565,
+      "post_ema_val_bpb": 1.08225270,
+      "sliding_val_bpb": 1.07564236,
+      "artifact_bytes": 15983819
+    },
+    "2024": {
+      "steps": 4724,
+      "step_avg_ms": 124.3,
+      "val_loss": 2.77822748,
+      "val_bpb": 1.07553843,
+      "post_ema_val_bpb": 1.08329084,
+      "sliding_val_bpb": 1.07686704,
+      "artifact_bytes": 15982374
+    },
+    "42": {
+      "steps": 4744,
+      "step_avg_ms": 123.8,
+      "val_loss": 2.77813433,
+      "val_bpb": 1.07550237,
+      "post_ema_val_bpb": 1.08321330,
+      "sliding_val_bpb": 1.07732492,
+      "artifact_bytes": 15979637
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR #1529 dual-lane parallel residuals + systems optimization (fused Muon transform, EMA foreach, numpy prealloc loader). Identical ML; faster step time yields ~20 extra training steps.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "parallel_residuals_architecture": "@msisovic (PR #1529)",
+    "base_stack": "@clarkkev (PR #1394), @dexhunter (PR #1413), @X-Abhishek-X (PR #1445)",
+    "systems_optimization": "@codemath3000 (fused Muon, EMA foreach, loader prealloc)"
+  }
+}
