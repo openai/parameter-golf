@@ -1,0 +1,11 @@
+{
+  "author": "TevBenji",
+  "github_id": "TevBenji",
+  "model_name": "v38_TightSWA_RetroCache",
+  "description": "Frontier rebase on PR #374 with eval-only RetroCache retrieval. Metrics pending rerun.",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "track": "10min_16mb",
+  "seed": null
+}

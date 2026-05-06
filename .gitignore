@@ -8,6 +8,9 @@ data/manifest.json
 data/docs_selected.jsonl
 .mypy_cache/
 .venv
+logs/
+
+.hypothesis/
 logs/*.pt
 *.ptz
 logs/
