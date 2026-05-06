@@ -1,0 +1,9 @@
+{
+    "name": "Chinmay Patwardhan",
+    "github_id": "chinmaypatwardhan-ops",
+    "val_bpb": 1.3193,
+    "model_size_bytes": 11918924,
+    "code_size_bytes": 40607,
+    "total_artifact_bytes": 11959531,
+    "approach": "Matrix Product Operator Tensor Train Decomposition (r=16)"
+}
