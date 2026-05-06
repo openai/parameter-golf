@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-28",
+  "name": "Hybrid RWKV Token-Shift + Short Window Attention",
+  "author": "Dillon Blake",
+  "github_id": "dillonblake",
+  "val_bpb": 1.2252,
+  "val_loss": 2.0687,
+  "bytes_total": 15863546
+}
