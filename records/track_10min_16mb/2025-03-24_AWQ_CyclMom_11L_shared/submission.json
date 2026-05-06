@@ -1,0 +1,11 @@
+{
+  "author": "SPThole",
+  "github_id": "SPThole",
+  "name": "AWQ + Cyclic Momentum + ReLU² + 11L Shared",
+  "blurb": "Activation-Aware Weight Quantization (AWQ) closes the int5/int6 quant gap from 0.027 to 0.010 bpb. Cyclic Muon momentum (0.85-0.95 triangle wave) escapes sharp minima. ReLU² for sparser MLPs. 11 layers with 10 unique weights. Emerged from 21+ systematic experiments on 1×H100/A40 before scaling to 8×H100.",
+  "date": "2026-03-25T00:00:00Z",
+  "val_loss": 1.94293025,
+  "val_bpb": 1.15071578,
+  "bytes_total": 15465308,
+  "bytes_code": 58616
+}
