@@ -1,0 +1,26 @@
+{
+  "yahya_quoted_ratio": 1.1746,
+  "results": {
+    "seq_len_2048_stride_64": {
+      "canonical_lut_ratio": 1.1671396679701476,
+      "yahya_lut_ratio": 1.1655008718532518,
+      "scored_tokens": 40542786,
+      "yahya_minus_quoted_pct": -0.7746575980545114
+    },
+    "seq_len_1024_stride_64": {
+      "canonical_lut_ratio": 1.1671405119003189,
+      "yahya_lut_ratio": 1.1655016581882027,
+      "scored_tokens": 40541762,
+      "yahya_minus_quoted_pct": -0.7745906531412703
+    },
+    "seq_len_1024_stride_1024": {
+      "canonical_lut_ratio": 1.1671413031314464,
+      "yahya_lut_ratio": 1.1655023954202057,
+      "scored_tokens": 40540802,
+      "yahya_minus_quoted_pct": -0.7745278886254351
+    }
+  },
+  "tokenizer_path": "/workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model",
+  "val_path": "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin",
+  "timestamp_utc": "2026-04-29T10:03:30.197528+00:00"
+}

@@ -1,0 +1,18 @@
+{
+  "total_predecessor_tokens": 40540802,
+  "vocab_size": 8192,
+  "vocab_n_control": 3,
+  "vocab_n_unknown": 1,
+  "vocab_n_unused": 0,
+  "predecessor_n_control": 50000,
+  "predecessor_n_unknown": 0,
+  "predecessor_n_unused": 0,
+  "predecessor_n_any_boundary": 50000,
+  "boundary_mask_is_no_op": false,
+  "tokenizer_path": "/workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model",
+  "val_data_glob": "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin",
+  "n_val_shards_loaded": 1,
+  "val_token_id_min": 1,
+  "val_token_id_max": 8191,
+  "timestamp_utc": "2026-04-27T10:15:27.214260+00:00"
+}

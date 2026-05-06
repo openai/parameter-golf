@@ -1,0 +1,31 @@
+{
+  "modes": {
+    "sliding-window-boundary-masked": {
+      "canonical_bytes": 151080878,
+      "buggy_bytes": 176332734,
+      "ratio": 1.1671413108944204,
+      "scored_tokens": 40540799
+    },
+    "all-tokens-boundary-masked": {
+      "canonical_bytes": 151080891,
+      "buggy_bytes": 176332748,
+      "ratio": 1.1671413031314464,
+      "scored_tokens": 40540802
+    },
+    "all-tokens-no-mask": {
+      "canonical_bytes": 151080891,
+      "buggy_bytes": 176332748,
+      "ratio": 1.1671413031314464,
+      "scored_tokens": 40540802
+    }
+  },
+  "all_three_equal_at_4dp": true,
+  "all_three_equal_at_6dp": true,
+  "all_three_equal_at_10dp": false,
+  "n_boundary_predecessors": 50000,
+  "tokenizer_path": "/workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model",
+  "val_path": "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin",
+  "seq_len": 2048,
+  "stride": 64,
+  "timestamp_utc": "2026-04-27T10:18:11.402349+00:00"
+}

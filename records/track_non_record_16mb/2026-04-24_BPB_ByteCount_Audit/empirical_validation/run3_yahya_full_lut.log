@@ -1,0 +1,21 @@
+[run3] val: 40,540,803 tokens, vocab: 8192
+
+[run3] yahya LUT base_bytes vocab sum: 45,674
+[run3] canonical LUT base_bytes vocab sum: 38,918
+[run3] vocab-level delta (yahya - canonical): 6,756
+
+[run3] canonical_lut__canonical_formula__sliding-window-boundary-masked: ratio = 1.1671413109, c=151,080,878, b=176,332,734
+[run3] canonical_lut__canonical_formula__all-tokens-boundary-masked: ratio = 1.1671413031, c=151,080,891, b=176,332,748
+
+[run3] yahya_lut__yahya_formula__sliding-window-boundary-masked: ratio = 1.1655024030, c=152,576,975, b=177,828,831
+[run3] yahya_lut__yahya_formula__all-tokens-boundary-masked: ratio = 1.1655023954, c=152,576,988, b=177,828,845
+
+[run3] === COMPARISON ===
+[run3] yahya quoted ratio:        1.1746
+[run3] yahya actual (his LUT):    1.1655024030
+[run3]   diff:                    -0.0090975970 (-0.7745%)
+[run3] canonical (PR #1727 LUT):  1.1671413109
+[run3]   audit tool reports:      1.1671413
+[run3]   match:                   True
+[run3] Wrote /workspace/agent-pgolf/audit/empirical_validation/run3_yahya_full_lut.json
+[run3] DONE

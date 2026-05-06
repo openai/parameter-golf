@@ -1,0 +1,25 @@
+[run2] vocab: 8192
+[run2] byte tokens in vocab: 256
+[run2] sample byte token assignments:
+  tid=   4 piece='<0x00>'   yahya=6 canonical=1
+  tid=   5 piece='<0x01>'   yahya=6 canonical=1
+  tid=   6 piece='<0x02>'   yahya=6 canonical=1
+  tid=   7 piece='<0x03>'   yahya=6 canonical=1
+  tid=   8 piece='<0x04>'   yahya=6 canonical=1
+  tid=   9 piece='<0x05>'   yahya=6 canonical=1
+  tid=  10 piece='<0x06>'   yahya=6 canonical=1
+  tid=  11 piece='<0x07>'   yahya=6 canonical=1
+  tid=  12 piece='<0x08>'   yahya=6 canonical=1
+  tid=  13 piece='<0x09>'   yahya=6 canonical=1
+[run2] sum over byte tokens (per-vocab-id): yahya=1536 canonical=256
+[run2] yahya byte-count distribution (over byte tokens): {6: 256}
+[run2] canonical byte-count distribution (over byte tokens): {1: 256}
+[run2] val tokens: 40,540,803
+[run2] byte tokens in val: 269,220
+[run2] yahya byte-token contribution to byte sum (val): 1,615,320
+[run2] canonical byte-token contribution to byte sum (val): 269,220
+[run2] delta (yahya - canonical): 1,346,100
+[run2] VERDICT: BUG_PRESENT
+[run2] Yahya's code lacks an sp.is_byte branch. Byte tokens fall through to base_bytes[i] = len(piece.encode('utf-8')). For byte pieces of form '<0xNN>', that gives 6 (or similar). Canonical assigns 1. Across 256 byte tokens in vocab, yahya assigns 1536 bytes vs canonical 256. In val, byte tokens contribute 1,346,100 extra bytes to the canonical numerator.
+[run2] Wrote /workspace/agent-pgolf/audit/empirical_validation/run2_yahya_byte_token_check.json
+[run2] DONE

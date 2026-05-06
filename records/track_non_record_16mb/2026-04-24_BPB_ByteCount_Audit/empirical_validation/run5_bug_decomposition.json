@@ -1,0 +1,92 @@
+{
+  "results": {
+    "canonical": {
+      "bug_a_leading_space_plus_one": false,
+      "bug_b_byte_token_wrong_size": false,
+      "bug_c_missing_is_unused": false,
+      "canonical_bytes": 151080878,
+      "buggy_bytes": 176332734,
+      "eval_add": 25251856,
+      "ratio": 1.1671413108944204,
+      "scored_tokens": 40540799
+    },
+    "only_bug_a": {
+      "bug_a_leading_space_plus_one": true,
+      "bug_b_byte_token_wrong_size": false,
+      "bug_c_missing_is_unused": false,
+      "canonical_bytes": 151080878,
+      "buggy_bytes": 176332734,
+      "eval_add": 25251856,
+      "ratio": 1.1671413108944204,
+      "scored_tokens": 40540799
+    },
+    "only_bug_b": {
+      "bug_a_leading_space_plus_one": false,
+      "bug_b_byte_token_wrong_size": true,
+      "bug_c_missing_is_unused": false,
+      "canonical_bytes": 152426978,
+      "buggy_bytes": 177678834,
+      "eval_add": 25251856,
+      "ratio": 1.165665266945068,
+      "scored_tokens": 40540799
+    },
+    "only_bug_c": {
+      "bug_a_leading_space_plus_one": false,
+      "bug_b_byte_token_wrong_size": false,
+      "bug_c_missing_is_unused": true,
+      "canonical_bytes": 151080878,
+      "buggy_bytes": 176332734,
+      "eval_add": 25251856,
+      "ratio": 1.1671413108944204,
+      "scored_tokens": 40540799
+    },
+    "bugs_a_b": {
+      "bug_a_leading_space_plus_one": true,
+      "bug_b_byte_token_wrong_size": true,
+      "bug_c_missing_is_unused": false,
+      "canonical_bytes": 152426978,
+      "buggy_bytes": 177678834,
+      "eval_add": 25251856,
+      "ratio": 1.165665266945068,
+      "scored_tokens": 40540799
+    },
+    "bugs_a_c": {
+      "bug_a_leading_space_plus_one": true,
+      "bug_b_byte_token_wrong_size": false,
+      "bug_c_missing_is_unused": true,
+      "canonical_bytes": 151080878,
+      "buggy_bytes": 176332734,
+      "eval_add": 25251856,
+      "ratio": 1.1671413108944204,
+      "scored_tokens": 40540799
+    },
+    "bugs_b_c": {
+      "bug_a_leading_space_plus_one": false,
+      "bug_b_byte_token_wrong_size": true,
+      "bug_c_missing_is_unused": true,
+      "canonical_bytes": 152426978,
+      "buggy_bytes": 177678834,
+      "eval_add": 25251856,
+      "ratio": 1.165665266945068,
+      "scored_tokens": 40540799
+    },
+    "all_three": {
+      "bug_a_leading_space_plus_one": true,
+      "bug_b_byte_token_wrong_size": true,
+      "bug_c_missing_is_unused": true,
+      "canonical_bytes": 152426978,
+      "buggy_bytes": 177678834,
+      "eval_add": 25251856,
+      "ratio": 1.165665266945068,
+      "scored_tokens": 40540799
+    }
+  },
+  "vocab_stats": {
+    "n_byte_tokens": 256,
+    "n_unused_tokens": 0,
+    "n_leading_space": 5459
+  },
+  "tokenizer_path": "/workspace/parameter-golf/data/tokenizers/fineweb_8192_bpe.model",
+  "val_path": "/workspace/parameter-golf/data/datasets/fineweb10B_sp8192/fineweb_val_000000.bin",
+  "timestamp_utc": "2026-04-29T10:16:33.277471+00:00"
+}

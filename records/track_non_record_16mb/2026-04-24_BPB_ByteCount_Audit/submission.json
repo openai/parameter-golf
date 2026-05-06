@@ -1,0 +1,18 @@
+{
+  "track": "non_record_16mb",
+  "type": "audit_tool_contribution",
+  "title": "Measurement Integrity: BPB Byte-Count Audit Tool for the #1698 Lineage",
+  "date": "2026-04-24",
+  "author": "abi2024",
+  "description": "Static LUT inspection tool detecting three byte-count bug variants (leading_space_plus_one, byte_token_wrong_size, missing_is_unused) in the #1698 lineage. Applied to current top-10 open PRs: 6 CORRECT, 4 OBFUSCATED, 0 BUGGY. Systematizes the byte-count discrepancy that yahya010 discovered and self-reported in PR #1734 closure.",
+  "acknowledgement": "This work systematizes the bug discovered and self-disclosed by @yahya010 in PR #1734 closure (2026-04-19).",
+  "links": {
+    "agent_pgolf_repo": "https://github.com/abi2024/agent-pgolf",
+    "tool": "scripts/canonical_rescore.py",
+    "writeup": "audit/writeup.md",
+    "methodology": "audit/methodology.md"
+  },
+  "artifact_size_bytes": 0,
+  "training_time_seconds": 0,
+  "val_bpb": null
+}
