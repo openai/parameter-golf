@@ -1,0 +1,13 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-30",
+  "name": "MirrorLoop HRC + LexLoRE",
+  "author": "Corben Sorenson",
+  "github_id": "corbensorenson",
+  "val_bpb": 1.35496419,
+  "val_loss": null,
+  "bytes_total": 15989749,
+  "hardware": "8xH100 RunPod one-hour self-funded follow-up",
+  "status": "non-record art submission; not claimed as official leaderboard record",
+  "notes": "Best preserved under-cap result for the MirrorLoop HRC + LexLoRE family came from a limited self-funded 8xH100 RunPod window after no grant response had arrived. See README and logs for 1xH100 scouts, 8xH100 over-cap row, and caveats."
+}

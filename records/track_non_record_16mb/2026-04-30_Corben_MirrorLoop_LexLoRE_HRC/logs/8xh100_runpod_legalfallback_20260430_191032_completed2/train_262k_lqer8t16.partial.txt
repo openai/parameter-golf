@@ -1,0 +1,65 @@
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+logs/final8x_legal_262k_r2_d704e768_w2500_wd02_lqer8t16_vocabmoe_qk55_20260430_193211.txt
+val_bpb:byte_sidecar tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf-novel-8x-ready/upstream_records/records/track_10min_16mb/2026-04-18_PR1626_CaseOps_Taper/tokenizers/fineweb_8192_bpe_lossless_caps_caseops_v1_reserved.model
+train_loader:dataset:fineweb10B_sp8192_lossless_caps_caseops_v1_reserved train_shards:1
+val_loader:shards pattern=/workspace/parameter-golf-novel-8x-ready/upstream_records/records/track_10min_16mb/2026-04-18_PR1626_CaseOps_Taper/datasets/fineweb10B_sp8192_lossless_caps_caseops_v1_reserved/fineweb_val_*.bin tokens:131072
+WARNING: using VAL_TOKENS_LIMIT=131072 (effective_tokens:131072) for local proxy evaluation
+model_params:27789368
+model_family:hrc
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False policy=auto capability=9.0 fallback=none
+compute_dtypes:autocast=bfloat16 params=float32 muon=float32 grad_scaler:0 cudnn_benchmark:True compile_enabled:0 compile_disabled_reason:env_disabled
+train_nonfinite_debug:0 train_abort_on_nonfinite:0 post_step_zero_grad:0
+host_io:pin_host_memory:1 prefetch_host_to_device:1 persistent_batch_buffers:1
+optimizer_preset:hybrid optimizer_count:3 adamw_weight_decay:0 sgd_momentum:0.9
+muon_config:backend_steps:5 momentum:0.95 ns_variant:polar_express weight_decay:0.02 wd_mode:huber huber_delta_scale:3 row_normalize:0
+attention_mode:gqa num_heads:11 num_kv_heads:1
+layer_kv_heads_schedule:1,1,1,1,1,1,1,1 strong_kv_sharing:False
+layer_width_schedule:704,704,704,704,704,704,704,704 width_ladder_enabled:0
+layer_mlp_mult_schedule:2.000,2.000,2.000,2.000,2.000,2.000,2.000,2.000 nonuniform_allocation:False
+xsa_last_n:0 xsa_gate_mode:none xsa_layers:0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+qsparse_enabled:0 qsparse_topk:0 qsparse_last_n:0 qsparse_gate_init:-1.5 qsparse_layers:0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+smear_gate_enabled:1 smear_gate_width:12 smear_gate_mode:vector bos_token_id:1 attn_out_gate_enabled:1 attn_out_gate_width:24 sparse_attn_gate_enabled:0 sparse_attn_gate_init_std:0 sparse_attn_gate_scale:1
+activation_kind:relu2 activation_negative_slope:0.5
+bigram_vocab_size:0 bigram_dim:96 bigram_init_std:0.0 bigram_scale_init:0.05
+ve_enabled:0 ve_dim:128 ve_layers:none
+vocab_moe_enabled:1 experts:16 rank:2 mode:hybrid layers:input,loop_first resolved_input:1 resolved_layers:3 scale_init:0.05 site_bias:1 site_scale:1 site_scale_init:1 temperature:1 activation:relu2 train_quant_bits:8 spike_top_k:0 spike_ste:1 spike_normalize:1
+dual_stream_enabled:0 left_dim:0 right_dim:0 rank:16 sites:input,loop_first resolved_input:None resolved_layers:none resolved_pre_output:None scale_init:0.02 activation:silu
+basis_xsa_enabled:False basis_rank:128 basis_share_group_size:3 basis_factorize_up:True basis_factorize_down:True
+parallel_residual_last_n:2 residual_mixer_enabled:False block_norm_enabled:1 attn_qk_norm_enabled:1 resid_mix_enabled:1 branch_scale_enabled:1 branch_scale_kind:vector depth_scale_init_enabled:False
+quant_train_mode:none quant_train_start_fraction:0.800 quant_train_every:1
+ttt_score_first_enabled:0 ttt_param_mode:control ttt_optimizer:sgd ttt_lr:0.0005 ttt_prefix_tokens:0 ttt_max_updates:0 ttt_phase_spec:none
+unique_blocks:8 effective_depth:16 depth_lora_rank:0
+hrc_depth_schedule_mode:transition_recursive_cycle hrc_route_repeats:2 hrc_recursive_core_start:3 hrc_superloop_skip_schedule:default hrc_council_mode:none hrc_council_train_mode:always hrc_council_depth_offsets:default hrc_council_conf_scale_init:1.0 hrc_council_hard_gate:0 hrc_council_entropy_threshold:6.0 hrc_council_entropy_sharpness:8.0 hrc_council_sanitize:0 hrc_council_logit_clamp:0.0 hrc_council_debug_nonfinite:0 hrc_dynamic_council_enabled:0 hrc_dynamic_council_threshold:6.0 hrc_dynamic_council_sharpness:8.0 hrc_dynamic_council_min_gate:0.01 rlm_memory_enabled:0 rlm_memory_train_enabled:1 rlm_memory_decay:0.9 rlm_memory_scale_init:0.02 rlm_memory_inject:input rlm_memory_update:hidden_mean rlm_memory_reset_each_eval:1 hrc_base_peer_mode:none hrc_pass_embed_enabled:1 hrc_pass_embed_mode:block_peer hrc_pass_role_mode:phase5 hrc_route_phase_enabled:0 hrc_mirror_mode:signperm hrc_depth_adapter_tie_mode:block hrc_recur_inject_enabled:1 hrc_recur_inject_log_a_init:0.0 hrc_recur_inject_log_b_init:-2.0 hrc_frozen_carry_enabled:0 hrc_frozen_carry_blocks:none hrc_frozen_carry_detach:1 hrc_cycle_fuse_enabled:0 hrc_cycle_fuse_inject_mode:repeat_phase hrc_cycle_fuse_taps:auto hrc_cycle_fuse_init_std:0.02 hrc_attn_only_blocks:none hrc_mlp_only_blocks:4,5,6,7
+virtual_block_schedule:0,1,2,3,4,5,6,7,3,4,5,6,7,2,1,0 virtual_block_repeats:0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1 virtual_mirror_layers:0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1
+shared_parallel_flags:0,0,0,0,0,0,1,1
+shared_branch_modes:full,full,full,full,mlp_only,mlp_only,mlp_only,mlp_only
+peer_modes:none peer_depth_limits:16
+pass_role_schedule:0,1,1,1,1,1,1,2,2,3,3,3,3,3,3,4 pass_embed_schedule:0,1,2,3,4,5,6,7,3,4,5,6,7,2,1,0
+hrc_loop_index_enabled:1 hrc_loop_index_dim_requested:0 hrc_loop_index_dim_effective:88 hrc_loop_index_scale_init:0.03
+mtp_enabled:False t2(start=4000,ramp=2000,w=0.1) t3(start=7000,ramp=2500,w=0.05)
+tie_embeddings:True embed_lr:0.002 factored_embed_dim:768 head_lr:0.0 matrix_lr:0.0016 scalar_lr:0.0016
+logit_softcap:12 asym_logit_rescale:0
+train_ternary_blocks:0 train_ternary_group_size:64 train_ternary_scale_stat:mean train_ternary_param_dtype:fp32 train_casted_linear_param_dtype:fp32 train_quant_forward:1 train_quant_embeddings:1 train_quant_linear_count:26 train_quant_ternary_count:0 train_quant_skipped_small:6 train_ternary_packed_kernel:0 train_ternary_dense_kernel:0 keep_control_params_fp32:1 train_ternary_forward_cache:1 train_fused_qkv:1 bitnet_v2_hadamard:0 ternary_linear_count:0 fused_qkv_count:4
+train_batch_tokens:262144 train_seq_len:1024 iterations:1000000 warmup_steps:0 max_wallclock_seconds:600.000
+bpb_weighted_loss:0
+loss_fp32:1 loss_token_stride:1 loss_token_random_offset:1 loss_vocab_sample_size:0 loss_vocab_sample_correction:1
+lr_warmup_iters:0 lr_warmdown_style:cosine warmdown_iters:2500 lr_min_scale:0.1
+microbatch_tokens:32768 microbatch_seqs:32
+quant_policy:default_bits=8 bits_overrides=none int8_promote=tok_emb.weight,lm_head.weight,embed_proj force_quant=vocab_moe.token_prior.weight,vocab_moe.down,vocab_moe.up ternary=none ternary_exclude=tok_emb.weight,lm_head.weight,embed_proj ternary_group=64 ternary_scale_stat=mean ternary_threshold=0.7 ternary_shrinkage_fix=1 lqer=1:8:16:4:asym1g64 lqer_include=blocks.,embed_proj lqer_exclude=tok_emb.weight,lm_head.weight,token_smear,attn_gate_w,attn_out_gate,vocab_moe,dual_stream codec=lzma codec_level=9 submission_cap=16000000
+seed:1337
+step:1/1000000 train_loss:9.0097 train_time:911ms step_avg:910.51ms
+step:2/1000000 train_loss:8.6902 train_time:1039ms step_avg:519.61ms
+step:3/1000000 train_loss:8.6205 train_time:1135ms step_avg:378.40ms
+step:4/1000000 train_loss:8.4427 train_time:1249ms step_avg:312.34ms
+step:5/1000000 train_loss:8.0963 train_time:1365ms step_avg:273.02ms
+step:6/1000000 train_loss:7.6945 train_time:1478ms step_avg:246.32ms
+step:7/1000000 train_loss:7.1651 train_time:1591ms step_avg:227.31ms
+step:8/1000000 train_loss:6.7523 train_time:1704ms step_avg:212.99ms
+step:9/1000000 train_loss:6.3541 train_time:1818ms step_avg:201.98ms
+step:10/1000000 train_loss:6.0608 train_time:1931ms step_avg:193.07ms
+step:250/1000000 train_loss:3.8483 train_time:29035ms step_avg:116.14ms
+step:500/1000000 train_loss:3.3644 train_time:57292ms step_avg:114.58ms

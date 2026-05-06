@@ -1,0 +1,120 @@
+python 3.12.3
+torch 2.9.1+cu128
+cuda 12.8 available True gpus 8
+0 NVIDIA H100 80GB HBM3
+1 NVIDIA H100 80GB HBM3
+2 NVIDIA H100 80GB HBM3
+3 NVIDIA H100 80GB HBM3
+4 NVIDIA H100 80GB HBM3
+5 NVIDIA H100 80GB HBM3
+6 NVIDIA H100 80GB HBM3
+7 NVIDIA H100 80GB HBM3
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55
+final8x_262k_r2_d704e832_w2200_lqer10t20_vocabmoe_qk55
+final8x_524k_r2_d704e832_w3500_lqer10t20_vocabmoe_qk55
+final8x_196k_r3_d704e768_w3000_wd02_lqer8t16_lidx_vocabmoe_qk55
+Thu Apr 30 18:56:23 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:19:00.0 Off |                    0 |
+| N/A   32C    P0             70W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:3B:00.0 Off |                    0 |
+| N/A   30C    P0             71W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   29C    P0             71W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   31C    P0             70W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9B:00.0 Off |                    0 |
+| N/A   33C    P0             69W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:BB:00.0 Off |                    0 |
+| N/A   30C    P0             71W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   31C    P0             72W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   29C    P0             72W /  700W |       0MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+required_gpus 8 actual_gpus 8
+[2026-04-30T18:56:28+00:00] starting focused no-fetch 8xH100 final matrix out=records/runpod-final8x-20260430-185628
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1/1000000 train_loss:9.0143 train_time:906ms step_avg:905.93ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2/1000000 train_loss:8.6752 train_time:1010ms step_avg:504.95ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3/1000000 train_loss:8.6021 train_time:1086ms step_avg:362.06ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4/1000000 train_loss:8.3365 train_time:1176ms step_avg:294.06ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5/1000000 train_loss:7.9402 train_time:1267ms step_avg:253.31ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6/1000000 train_loss:7.3825 train_time:1357ms step_avg:226.13ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:7/1000000 train_loss:6.8505 train_time:1447ms step_avg:206.74ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:8/1000000 train_loss:6.4197 train_time:1538ms step_avg:192.21ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:9/1000000 train_loss:6.1461 train_time:1628ms step_avg:180.90ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:10/1000000 train_loss:5.8882 train_time:1718ms step_avg:171.85ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:250/1000000 train_loss:3.8040 train_time:23412ms step_avg:93.65ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:500/1000000 train_loss:2.9061 train_time:45956ms step_avg:91.91ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:750/1000000 train_loss:3.5512 train_time:68597ms step_avg:91.46ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1000/1000000 train_loss:3.0806 train_time:91195ms step_avg:91.19ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1250/1000000 train_loss:2.7752 train_time:113864ms step_avg:91.09ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1500/1000000 train_loss:2.9347 train_time:136446ms step_avg:90.96ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:1750/1000000 train_loss:2.9098 train_time:159105ms step_avg:90.92ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2000/1000000 train_loss:2.9573 train_time:181659ms step_avg:90.83ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2250/1000000 train_loss:3.0192 train_time:204405ms step_avg:90.85ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2500/1000000 train_loss:3.0090 train_time:226953ms step_avg:90.78ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:2750/1000000 train_loss:2.9709 train_time:249571ms step_avg:90.75ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3000/1000000 train_loss:2.9758 train_time:272112ms step_avg:90.70ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3250/1000000 train_loss:2.7769 train_time:294736ms step_avg:90.69ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3500/1000000 train_loss:2.5274 train_time:317304ms step_avg:90.66ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:3750/1000000 train_loss:2.8276 train_time:339926ms step_avg:90.65ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4000/1000000 train_loss:2.7090 train_time:362488ms step_avg:90.62ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4250/1000000 train_loss:2.6919 train_time:385119ms step_avg:90.62ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4500/1000000 train_loss:2.8562 train_time:407672ms step_avg:90.59ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:4750/1000000 train_loss:2.6256 train_time:430300ms step_avg:90.59ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5000/1000000 train_loss:2.5618 train_time:452873ms step_avg:90.57ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5250/1000000 train_loss:2.7944 train_time:475500ms step_avg:90.57ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5500/1000000 train_loss:2.5809 train_time:498059ms step_avg:90.56ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:5750/1000000 train_loss:2.5796 train_time:520686ms step_avg:90.55ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6000/1000000 train_loss:2.5838 train_time:543248ms step_avg:90.54ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6250/1000000 train_loss:2.7421 train_time:565883ms step_avg:90.54ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6500/1000000 train_loss:2.4190 train_time:588440ms step_avg:90.53ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: step:6628/1000000 val_loss:2.8684 val_bpb:1.3174 train_time:600081ms step_avg:90.54ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: final_export_roundtrip val_loss:2.9547 val_bpb:1.3570 eval_time:26ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: final_export_roundtrip_exact val_loss:2.95470136 val_bpb:1.35704747
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: final_int8_zlib_roundtrip val_loss:2.9547 val_bpb:1.3570 legacy_alias:final_export_roundtrip codec:lzma
+final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55: final_int8_zlib_roundtrip_exact val_loss:2.95470136 val_bpb:1.35704747 legacy_alias:final_export_roundtrip_exact
+train final8x_196k_r2_d704e832_w2200_wd02_lqer8t16_vocabmoe_qk55 rc=0
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:1/1000000 train_loss:9.0143 train_time:890ms step_avg:889.95ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:2/1000000 train_loss:8.6752 train_time:994ms step_avg:496.86ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:3/1000000 train_loss:8.5994 train_time:1069ms step_avg:356.48ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:4/1000000 train_loss:8.3252 train_time:1160ms step_avg:289.94ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:5/1000000 train_loss:7.9231 train_time:1250ms step_avg:250.01ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:6/1000000 train_loss:7.3636 train_time:1341ms step_avg:223.44ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:7/1000000 train_loss:6.8329 train_time:1432ms step_avg:204.62ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:8/1000000 train_loss:6.4057 train_time:1523ms step_avg:190.33ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:9/1000000 train_loss:6.1370 train_time:1613ms step_avg:179.22ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:10/1000000 train_loss:5.8810 train_time:1704ms step_avg:170.38ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:250/1000000 train_loss:3.8039 train_time:23460ms step_avg:93.84ms
+final8x_196k_r2_d704e832_w2200_wd02_lqer9t18_vocabmoe_qk55: step:500/1000000 train_loss:2.9078 train_time:46089ms step_avg:92.18ms

@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${DATA_PATH:?Set DATA_PATH to the CaseOps/SP8192 dataset directory}"
+: "${TOKENIZER_PATH:?Set TOKENIZER_PATH to the CaseOps/SP8192 SentencePiece model}"
+
+export RUN_ID="${RUN_ID:-mirrorloop_lexlore_1xh100}"
+export VOCAB_SIZE=8192
+
+export MODEL_FAMILY=hrc
+export MODEL_DIM=704
+export NUM_HEADS=11
+export NUM_KV_HEADS=1
+export MLP_MULT=2.0
+export NUM_UNIQUE_BLOCKS=8
+export EFFECTIVE_DEPTH=16
+export FACTORED_EMBED_DIM=832
+
+export HRC_DEPTH_SCHEDULE_MODE=transition_recursive_cycle
+export HRC_RECURSIVE_CORE_START=3
+export HRC_ROUTE_REPEATS=2
+export HRC_MLP_ONLY_BLOCKS=4,5,6,7
+export HRC_LOOP_INDEX_ENABLED=1
+export HRC_PASS_EMBED_ENABLED=1
+export HRC_PASS_EMBED_MODE=block_peer
+export HRC_PASS_ROLE_MODE=phase5
+export HRC_DEPTH_ADAPTER_TIE_MODE=block
+export HRC_RECUR_INJECT_ENABLED=1
+export HRC_FROZEN_CARRY_ENABLED=0
+export HRC_ROUTE_PHASE_ENABLED=0
+
+export VOCAB_MOE_ENABLED=1
+export VOCAB_MOE_EXPERTS=16
+export VOCAB_MOE_RANK=2
+export VOCAB_MOE_MODE=hybrid
+export VOCAB_MOE_LAYERS=input,loop_first
+export VOCAB_MOE_SCALE_INIT=0.05
+export VOCAB_MOE_PRIOR_INIT_STD=0
+export VOCAB_MOE_DOWN_INIT_STD=0.02
+export VOCAB_MOE_UP_INIT_STD=0.001
+export VOCAB_MOE_TEMPERATURE=1
+export VOCAB_MOE_ACTIVATION=relu2
+export VOCAB_MOE_TRAIN_QUANT_BITS=8
+export VOCAB_MOE_SITE_BIAS_ENABLED=1
+export VOCAB_MOE_SITE_SCALE_ENABLED=1
+export VOCAB_MOE_SITE_SCALE_INIT=1.0
+
+export TRAIN_QUANT_FORWARD=1
+export TRAIN_QUANT_EMBEDDINGS=1
+export TRAIN_FUSED_QKV=1
+export QUANT_TRAIN_MODE=none
+export QUANT_WEIGHT_BITS=8
+export QUANT_FORCE_PATTERNS=vocab_moe.token_prior.weight,vocab_moe.down,vocab_moe.up
+export QUANT_INT8_PROMOTE_PATTERNS=tok_emb.weight,lm_head.weight,embed_proj
+
+export LQER_ENABLED=1
+export LQER_RANK=10
+export LQER_TOP_K=20
+export LQER_ASYM_ENABLED=1
+export LQER_ASYM_GROUP=64
+export LQER_INCLUDE_PATTERNS=blocks.,embed_proj
+export LQER_EXCLUDE_PATTERNS=tok_emb.weight,lm_head.weight,token_smear,attn_gate_w,attn_out_gate,vocab_moe,dual_stream
+
+export QK_GAIN_INIT=5.5
+export SMEAR_GATE_ENABLED=1
+export SMEAR_GATE_WIDTH=12
+export ATTN_OUT_GATE_ENABLED=1
+export ATTN_OUT_GATE_WIDTH=24
+export PARALLEL_RESIDUAL_LAST_N=2
+export LOGIT_SOFTCAP=12
+
+export TRAIN_BATCH_TOKENS=32768
+export TRAIN_SEQ_LEN=1024
+export GRAD_ACCUM_STEPS=1
+export VAL_BATCH_SIZE=32768
+export VAL_TOKENS_LIMIT="${VAL_TOKENS_LIMIT:-131072}"
+export MAX_WALLCLOCK_SECONDS=600
+export ITERATIONS=1000000
+export WARMDOWN_ITERS=2200
+export WARMUP_STEPS=0
+export VAL_LOSS_EVERY=0
+export TRAIN_LOG_EVERY=250
+export SKIP_INITIAL_VAL=1
+
+export MATRIX_LR=0.0016
+export SCALAR_LR=0.0016
+export TIED_EMBED_LR=0.002
+export LR_WARMDOWN_STYLE=cosine
+export LR_MIN_SCALE=0.1
+export MUON_NS_VARIANT=polar_express
+export MUON_BACKEND_STEPS=5
+export MUON_WEIGHT_DECAY=0.0
+export MUON_WEIGHT_DECAY_MODE=huber
+export MUON_WEIGHT_DECAY_HUBER_DELTA_SCALE=3.0
+export GRAD_CLIP_NORM=1.0
+
+export DISABLE_COMPILE=1
+export SDP_BACKEND=auto
+export PARAM_DTYPE=fp32
+export MUON_DTYPE=fp32
+export USE_GRAD_SCALER=1
+export LOSS_FP32=1
+export TRAIN_DEBUG_NONFINITE=0
+export TRAIN_ABORT_ON_NONFINITE=0
+export POST_STEP_ZERO_GRAD=0
+
+export MODEL_CODEC=lzma
+export MODEL_CODEC_LEVEL=9
+export SUBMISSION_SIZE_CAP_BYTES=16000000
+export SAVE_RAW_MODEL=0
+export FAIL_ON_ARTIFACT_CAP=0
+
+torchrun --standalone --nproc_per_node=1 train_gpt.py
