@@ -1,0 +1,18 @@
+{
+    "author": "ntwari-bruce",
+    "github_id": "ntwari-bruce",
+    "name": "9L SwiGLU MLP2 (8xH100)",
+    "blurb": "Non-record 8xH100 submission: replaced ReLU² MLP activation with SwiGLU (as in Llama/PaLM), with hidden dim scaled to 2/3 to preserve parameter count. Also fixed GQA compatibility for older PyTorch via repeat_interleave. Post-quant val_bpb 1.23697794 under the 16MB artifact cap.",
+    "date": "2026-04-06T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 2.08858544,
+    "val_bpb": 1.23697794,
+    "pre_quant_val_loss": null,
+    "pre_quant_val_bpb": 1.2302,
+    "step_stop": 12075,
+    "wallclock_seconds": 600,
+    "bytes_total": 15900595,
+    "bytes_model_int8_zlib": 15852180,
+    "bytes_code": 48415,
+    "gpu": "8xH100 SXM"
+}

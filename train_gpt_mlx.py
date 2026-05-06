@@ -74,6 +74,7 @@ class Hyperparameters:
     num_heads: int = int(os.environ.get("NUM_HEADS", 8))
     num_kv_heads: int = int(os.environ.get("NUM_KV_HEADS", 4))
     mlp_mult: int = int(os.environ.get("MLP_MULT", 2))
+    use_swiglu: bool = bool(int(os.environ.get("USE_SWIGLU", "0")))
     tie_embeddings: bool = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
     tied_embed_init_std: float = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
     logit_chunk_tokens: int = int(os.environ.get("LOGIT_CHUNK_TOKENS", 0))
@@ -339,14 +340,25 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    # Baseline MLP uses relu^2 instead of GELU/SiLU. It is cheap and works well in this setup.
-    def __init__(self, dim: int, mlp_mult: int):
+    # Baseline MLP uses relu^2. Set USE_SWIGLU=1 to use SwiGLU (as in Llama/PaLM).
+    # SwiGLU: silu(gate(x)) * up(x) — better signal-to-noise per parameter.
+    # Hidden dim is scaled to 2/3 when SwiGLU is on so total params stay the same.
+    def __init__(self, dim: int, mlp_mult: int, use_swiglu: bool = False):
         super().__init__()
-        hidden = dim * mlp_mult
-        self.fc = CastedLinear(dim, hidden)
+        self.use_swiglu = use_swiglu
+        if use_swiglu:
+            # Two input projections: gate + up. Scale hidden by 2/3 to match param count.
+            hidden = int(dim * mlp_mult * 2 / 3)
+            self.gate = CastedLinear(dim, hidden)
+            self.up   = CastedLinear(dim, hidden)
+        else:
+            hidden = dim * mlp_mult
+            self.fc = CastedLinear(dim, hidden)
         self.proj = CastedLinear(hidden, dim)
 
     def __call__(self, x: mx.array) -> mx.array:
+        if self.use_swiglu:
+            return self.proj(nn.silu(self.gate(x)) * self.up(x))
         x = nn.relu(self.fc(x))
         return self.proj(x * x)
 
@@ -365,7 +377,7 @@ class Block(nn.Module):
         self.attn_norm = RMSNormNoWeight()
         self.mlp_norm = RMSNormNoWeight()
         self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
-        self.mlp = MLP(dim, mlp_mult)
+        self.mlp = MLP(dim, mlp_mult, use_swiglu=bool(int(os.environ.get("USE_SWIGLU", "0"))))
         self.attn_scale = mx.ones((dim,), dtype=mx.float32)
         self.mlp_scale = mx.ones((dim,), dtype=mx.float32)
         self.resid_mix = mx.array(np.stack((np.ones((dim,), dtype=np.float32), np.zeros((dim,), dtype=np.float32))))
