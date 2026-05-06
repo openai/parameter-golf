@@ -1,0 +1,26 @@
+{
+  "author": "Roman Mondello",
+  "github_id": "integrate-your-mind",
+  "name": "SmearGate + BigramHash + Int6 + SWA + U-Net Skips + Sliding Window",
+  "blurb": "11 layers with per-row int6 quantization (MLP+attention) + zstd-22 compression, 3x MLP expansion (hidden=1536, relu^2 activation). SmearGate blends adjacent token embeddings. BigramHash embedding (2048 buckets, dim=128). U-Net skip connections between encoder/decoder halves. Orthogonal init with muP output scaling. Muon optimizer (WD=0.04, momentum warmup 0.92->0.99). SWA every 200 steps over last ~1300 steps (7 snapshots). Trained at seq_len=1024 with batch=524288. Sliding window eval at stride=64. Includes TTT LoRA eval (1.1535 BPB).",
+  "date": "2026-03-20",
+  "val_loss": 1.94477351,
+  "val_bpb": 1.15180589,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.94477351,
+      "val_bpb": 1.15180589,
+      "eval_method": "int6_sliding_stride64"
+    }
+  },
+  "pre_quant_val_loss": 1.9841,
+  "pre_quant_val_bpb": 1.1751,
+  "step_stop": 9906,
+  "wallclock_seconds": 599.996,
+  "eval_time_seconds": 96.599,
+  "bytes_total": 15202515,
+  "bytes_model_int6_zstd": 15144475,
+  "bytes_code": 58040,
+  "note": "Single seed. Additional seeds available on request."
+}
