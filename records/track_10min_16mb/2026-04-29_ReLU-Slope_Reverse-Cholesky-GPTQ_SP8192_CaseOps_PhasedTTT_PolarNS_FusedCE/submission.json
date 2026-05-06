@@ -1,0 +1,37 @@
+{
+  "author": "Tim Shen (@TimS-ml) & Billy Li (@lijuncheng16)",
+  "github_id": "TimS-ml",
+  "name": "Record: Leaky ReLU Slope + GPTQ Reverse-Cholesky Speedup + PR #1938 (val_bpb = 1.06242)",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_bpb": 1.06242,
+  "val_bpb_std": 0.00013,
+  "seeds": [1334, 42, 999],
+  "seed_results": {
+    "1334": {"val_bpb": 1.06257073, "artifact_bytes": 15947664},
+    "42":   {"val_bpb": 1.06232455, "artifact_bytes": 15945920},
+    "999":  {"val_bpb": 1.06236517, "artifact_bytes": 15946532}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192/CaseOps + 11L GQA + LeakyReLU(0.3)\u00b2 + Depth Recurrence (L3-5 \u00d72) + Parallel Residuals (L8+) + SmearGate + SparseAttnGate + GPTQ int6 Reverse-Cholesky + LQER asym (top-1) + Int8 Attn Gate + Phased TTT (3ph) + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "three_seeds": true,
+    "score_first_ttt": true,
+    "smeargate_bos_fix": true
+  },
+  "attribution": {
+    "pr1938": "@lijuncheng16; @TimS-ml (PR #1938)",
+    "pr1867": "@lijuncheng16; @TimS-ml (PR #1867)",
+    "pr1851": "@aquariouseworkman (PR #1851)",
+    "smeargate_bos_audit": "@cocohearts (PR #1797)",
+    "lqer_asym": "@dexhunter (PR #1797)",
+    "caseops_tokenizer": "@romeerp (PR #1729, #1736); shards from romeerp/parameter-golf-caseops-v1",
+    "sparse_attn_gate": "@nprime06 (PR #1787)",
+    "phased_ttt": "@dexhunter (PR #1736), @abaybektursun (PR #549)",
+    "gptq_sdclip": "@clarkkev (PR #1394)"
+  }
+}
