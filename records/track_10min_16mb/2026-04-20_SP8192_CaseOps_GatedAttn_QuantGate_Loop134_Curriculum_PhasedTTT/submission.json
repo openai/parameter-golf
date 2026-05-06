@@ -1,0 +1,23 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "CaseOps Tokenizer + Recurrence Depth Curriculum + Base Arch Stack",
+  "blurb": "Combines the inherited SP8192 base architecture stack with the CaseOps tokenizer / original-byte sidecar path, and adds a deterministic 1->3->4 recurrence-depth curriculum after loop activation. Eval and phased TTT run at fixed depth 4; BPB is still scored on original pre-transform UTF-8 bytes.",
+  "date": "2026-04-20",
+  "track": "10min_16mb",
+  "val_loss": 2.33073,
+  "val_bpb": 1.06505,
+  "val_bpb_std": 0.00081,
+  "val_loss_std": 0.00178,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42":   {"val_loss": 2.33108, "val_bpb": 1.06521, "artifact_bytes": 15986579, "steps": 4603},
+    "0":    {"val_loss": 2.32880, "val_bpb": 1.06417, "artifact_bytes": 15984426, "steps": 4599},
+    "1234": {"val_loss": 2.33231, "val_bpb": 1.06578, "artifact_bytes": 15982914, "steps": 4604}
+  },
+  "artifact_bytes_mean": 15984640,
+  "train_time_s_mean": 596.13,
+  "eval_time_s_mean": 484.98,
+  "hardware": "8xH100 80GB SXM",
+  "reproducibility_notes": "Run prepare_caseops_data.py once to tokenize the CaseOps-transformed FineWeb into the expected shards and validation byte sidecar, then run train_gpt.py per seed as documented in README.md with TRAIN_LOOP_PHASE_DEPTHS=1,3,4, TRAIN_LOOP_PREWARM_DEPTHS=3,4, and EVAL_LOOP_DEPTH=4."
+}
