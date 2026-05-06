@@ -1,0 +1,13 @@
+{
+    "author": "Rana Usman",
+    "github_id": "ranausmanai",
+    "name": "Asymmetric 1/10 Encoder-Decoder Split: 1.1492 pre-quant BPB on 8xH100",
+    "blurb": "One-line change (num_encoder_layers=1 instead of num_layers//2) gives monotonic improvement: -0.016 BPB on baseline, -0.004 on SOTA. 8xH100 run hit 1.1492 pre-quant BPB at step 5666/9000 before FA2 speed bottleneck and pod crash prevented completion. With FA3 and full 9000 steps, estimated top-10 finish. See PR #1073 for 27 background experiments on M4 MacBook.",
+    "date": "2026-04-03T00:00:00Z",
+    "track": "non-record-16mb",
+    "h100_pre_quant_val_bpb": 1.1492,
+    "h100_steps_completed": 5666,
+    "h100_steps_target": 9000,
+    "h100_step_avg_ms": 105.9,
+    "gpu": "8xH100 SXM 80GB (PyTorch 2.5.1, FA2), RTX 5090 (validation), M4 MacBook (exploration)"
+}
