@@ -1,0 +1,11 @@
+{
+  "author": "Ryan Estes",
+  "github_id": "estesryan",
+  "name": "LocalGlobal_SwiGLU_SeqPack_MixedQuant",
+  "blurb": "Transformer language model using depth-scheduled local/global attention, SwiGLU feedforward blocks, randomized sequence packing, and selective mixed-bit quantization. Trained on the SP-1536 FineWeb10B tokenizer variant and evaluated using the final mixed-quantized roundtrip artifact under the 16MB submission limit.",
+  "date": "2026-04-29T15:40:00Z",
+  "val_loss": 2.26092576,
+  "val_bpb": 1.20584802,
+  "bytes_total": 15538222,
+  "bytes_code": 56301
+}
