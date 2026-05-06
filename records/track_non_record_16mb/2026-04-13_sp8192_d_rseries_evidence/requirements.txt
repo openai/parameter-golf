@@ -1,0 +1,13 @@
+# Minimal Python dependencies for the packaged SP8192 script.
+numpy
+sentencepiece
+torch
+brotli
+
+# Runtime notes:
+# - `train_gpt.py` imports `flash_attn_interface`, which was provided by the
+#   Hopper-targeted FlashAttention runtime in the official challenge / RunPod
+#   environment used for the measured runs.
+# - The package-local `train_gpt.py` inlines the archived n-gram helper chain
+#   and writes `fused_expert_kernel.cpp` at runtime if `libfused_ngram.so` is
+#   not already present.
