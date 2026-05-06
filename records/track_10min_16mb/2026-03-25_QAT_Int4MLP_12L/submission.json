@@ -1,0 +1,10 @@
+{
+    "author": "Meirzhan05",
+    "github_id": "Meirzhan05",
+    "val_bpb": null,
+    "date": "2026-03-25",
+    "hardware": "8xH100 SXM",
+    "train_time_seconds": 600,
+    "artifact_bytes": null,
+    "summary": "12L QAT Int4-MLP + Int6-Attn on PR #549 stack: LeakyReLU² + TTT + Parallel Muon + XSA + Partial RoPE"
+}
