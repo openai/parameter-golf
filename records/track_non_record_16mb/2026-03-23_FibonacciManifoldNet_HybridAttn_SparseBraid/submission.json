@@ -1,0 +1,17 @@
+{
+  "author": "Jared",
+  "github_id": "Jaredcastorena",
+  "name": "FMN v11b — Hybrid Fibonacci Manifold Network + XSA",
+  "blurb": "Hybrid FMN+XSA: shared W0 constrained to W0²=W0+I (eigenvalues {φ,ψ}), 9 pure FMN layers + top-3 layers with 4-head causal attention and sparse entity memory (K=7 d_b=128). 50k steps, TRAIN_BATCH_TOKENS=131072, 2×GPU. Best pre-quant 1.4137 BPB at step 47k; final int8+zlib roundtrip 1.4233 at +0.0001 quant penalty.",
+  "date": "2026-04-15T00:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.40324839,
+  "val_bpb": 1.42333906,
+  "pre_quant_val_loss": 2.3870,
+  "pre_quant_val_bpb": 1.4137,
+  "step_stop": 50000,
+  "wallclock_seconds": 112331.547,
+  "bytes_total": 14785394,
+  "bytes_model_int8_zlib": 14716657,
+  "bytes_code": 68737
+}
