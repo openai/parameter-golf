@@ -1,0 +1,12 @@
+sentencepiece
+brotli
+huggingface_hub
+hf_transfer
+numpy
+python-minifier
+
+# FlashAttention 3 is required separately, matching the challenge H100 setup:
+# pip install --no-deps flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291/
+#
+# The per-group compressor also requires the system binary:
+# apt-get install -y lrzip
