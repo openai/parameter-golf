@@ -1,0 +1,13 @@
+{
+  "author": "stukenov",
+  "github": "stukenov",
+  "val_bpb": 0.7094,
+  "val_bpb_exact": [0.70636100, 0.70928310, 0.71264962],
+  "num_seeds": 3,
+  "seeds": [1337, 42, 2025],
+  "training_time_seconds": 600,
+  "eval_time_seconds": 580,
+  "gpu": "8xH100 SXM 80GB",
+  "artifact_bytes_max": 15930472,
+  "description": "SLOT-24 per-sample delta+logit_bias (stride=96) + Pre-quant AdamW TTT (6ep) + QK-Gain 4.0 + XSA-all + Full Hessian GPTQ + lzma"
+}
