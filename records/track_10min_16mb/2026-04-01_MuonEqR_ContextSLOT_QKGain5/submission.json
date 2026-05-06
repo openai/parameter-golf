@@ -1,0 +1,19 @@
+{
+  "author": "bigbag",
+  "name": "MuonEq-R + Context-Only SLOT + QK_GAIN=5.0",
+  "date": "2026-04-01",
+  "track": "10min_16mb",
+  "val_bpb": 1.10271599,
+  "val_bpb_std": 0.00105969,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": {"val_bpb": 1.10165738, "artifact_bytes": 15795518, "steps": 6660, "step_avg_ms": 88.75},
+    "42": {"val_bpb": 1.10377675, "artifact_bytes": 15793163, "steps": 6650, "step_avg_ms": 88.90},
+    "2024": {"val_bpb": 1.10271384, "artifact_bytes": 15796779, "steps": 6653, "step_avg_ms": 88.85}
+  },
+  "bytes_total": 15796779,
+  "code_bytes": 22718,
+  "hardware": "8xH100 80GB SXM",
+  "base_pr": 1179,
+  "technique_summary": "MuonEq-R optimizer + Context-Only SLOT + QK_GAIN=5.0 + Brotli compression"
+}
