@@ -1,0 +1,58 @@
+{
+  "authors": [
+    {
+      "name": "Renqian Luo",
+      "github_id": "renqianluo"
+    }
+  ],
+  "description": "GatedAttn (per-head sigmoid gate on attention output, ported from @dexhunter PR #1736) stacked on our LoRA-TTT stack (alpha/rank scaling, warm-start A, WD=1.0, alpha=144). Two novel additions this submission: (a) matching gate application in the LoRA-TTT forward path (without it TTT diverges since scoring sees a different model than training), (b) per-row int8 quantization of the gate matrix to keep the artifact under 16MB while preserving gate precision. 3-seed mean 1.07081 BPB.",
+  "val_bpb": 1.07080923,
+  "seed_results": {
+    "1337": 1.07146084,
+    "42": 1.07013846,
+    "314": 1.07081910
+  },
+  "eval_time_seconds": {
+    "1337": 466.3,
+    "42": 470.2,
+    "314": 474.0
+  },
+  "train_time_seconds": {
+    "1337": 596.0,
+    "42": 596.0,
+    "314": 596.0
+  },
+  "artifact_size_bytes": {
+    "1337": 15976807,
+    "42": 15975906,
+    "314": 15978037
+  },
+  "methods": [
+    "LoRA-TTT stack (PR #1767 / this author): alpha/rank scaling, warm-start A across batches, TTT WD=1.0, alpha=144 on rank 128",
+    "GatedAttn ported from @dexhunter PR #1736 — per-head sigmoid gate on SDPA output before out_proj",
+    "NEW in this submission: mirror the gate application inside _block_with_lora and _parallel_block_with_lora (the TTT forward path reimplements attention inline; without the mirror, the scored distribution diverges from the training distribution and TTT collapses to ~1.40 BPB)",
+    "NEW in this submission: per-row int8 quantization for attn_gate_w weights (each of 11 gates is (num_heads, dim)=(8, 512); fp16 passthrough pushed artifact over 16MB). Per-row scale = one fp16 scalar per head, preserves precision — per-tensor int8 lost 0.00112 BPB, per-row int8 is back within 0.00024 of fp16.",
+    "Phased score-first TTT (3 phases, 2000 prefix docs) — dexhunter/romeerp",
+    "SP8192 + triple depth recurrence + parallel residuals + SD-clip GPTQ + VarLen + Fused MLP (unchanged)"
+  ],
+  "attribution": {
+    "lora_ttt_stack_alpha_warm_wd": "Renqian Luo (PR #1767)",
+    "gated_attention": "@dexhunter (PR #1736)",
+    "gate_in_lora_ttt_path__per_row_int8_gate_quant": "Renqian Luo (this submission)",
+    "phased_ttt_multi_phase_global_sgd": "@romeerp (PR #1610), @dexhunter",
+    "varlen_attention_fused_mlp_doc_ttt": "@samacqua (PR #1530)",
+    "triple_recurrence_parallel_residuals": "@bigbag (PR #1493), @EthanYangTW (PR #1523)",
+    "legal_ttt_framework": "@abaybektursun (PR #549)"
+  },
+  "legal_ttt": true,
+  "compliance": {
+    "train_under_600s": true,
+    "eval_under_600s": true,
+    "artifact_under_16mb": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  }
+}
