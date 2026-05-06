@@ -1,0 +1,11 @@
+{
+  "author": "Daniel Wahnich",
+  "github_id": "manfromnowhere143",
+  "name": "Aweb BitNet 1.58-bit Moonshot",
+  "blurb": "1.58-bit ternary weights {-1,0,+1} with 2-bit packing: ~50M params in 16MB (vs baseline 17M). 6 unique blocks × 8 repeats = 48 effective depth at 1024 dim. Stacks 7 techniques: BitNet + Depth Recurrence + DiffAttn + SwiGLU + MoE (4 experts) + QAT (native) + TTT. Absmean quantization with straight-through estimator. 3× more depth, 2× wider, 3× more parameters than any competitor.",
+  "date": "2026-03-18T23:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
