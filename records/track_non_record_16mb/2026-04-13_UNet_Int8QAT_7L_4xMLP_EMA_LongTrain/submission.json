@@ -1,0 +1,22 @@
+{
+  "author": "AlirezaAlampour",
+  "description": "V2: 7-layer UNet transformer, MLP\u00d74, Muon+EMA, Int8 QAT. 4-hour training on DGX Spark. 0.27 BPB improvement over v1 submission (1.6656 \u2192 1.3969).",
+  "hardware": "DGX Spark (1x GB10 Blackwell, 128GB unified)",
+  "track": "non_record_16mb",
+  "results": {
+    "seed_1337": {"bpb": 1.39982649, "steps": 1033},
+    "seed_42":   {"bpb": 1.39564112, "steps": 1041},
+    "seed_314":  {"bpb": 1.39532841, "steps": 1040}
+  },
+  "mean_bpb": 1.39693,
+  "artifact_size_bytes": 15547461,
+  "techniques": [
+    "unet_skip_connections",
+    "7_layers_4x_mlp",
+    "int8_qat",
+    "leaky_relu_squared",
+    "ema_decay_0997",
+    "muon_optimizer",
+    "long_training_4hr"
+  ]
+}
