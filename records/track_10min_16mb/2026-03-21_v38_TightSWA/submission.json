@@ -1,0 +1,11 @@
+{
+  "author": "vadim borisov (tabularis.ai)",
+  "github_id": "unnir",
+  "model_name": "v38_TightSWA_VE128",
+  "description": "Record: 11L + Tight SWA + Shared VE128 + Partial RoPE + LN Scale + XSA4 + Late QAT (val_bpb: 1.1246)",
+  "val_loss": 1.89886818,
+  "val_bpb": 1.12461967,
+  "bytes_total": 15706024,
+  "track": "10min_16mb",
+  "seed": 1337
+}
