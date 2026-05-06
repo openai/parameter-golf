@@ -1,0 +1,19 @@
+{
+  "author": "Jeneeshkumar Surani",
+  "github_id": "Jeneesh1014",
+  "name": "Knowledge distillation: 12L teacher → 6L student (non-record)",
+  "blurb": "Non-record submission: teacher–student distillation for Parameter Golf. A larger teacher (12L 768d, tied embeddings, not submitted) trains on CE while a smaller student (6L 384d) trains with alpha*CE + (1-alpha)*KL on softened teacher logits (TEMPERATURE=4, ALPHA=0.5). Best reported val_bpb from a partial RunPod run is 1.7195 (~step 600); full 20k-step 8xH100 run not completed due to billing. Mac/MLX medium runs and baseline table documented in README.",
+  "date": "2026-03-28T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": null,
+  "val_bpb": 1.7195,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": 1.7195,
+  "step_stop": 600,
+  "wallclock_seconds": null,
+  "bytes_total": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": null,
+  "gpu": "RunPod partial H100 multi-step; MLX Mac for medium experiments",
+  "notes": "submission.json val_bpb reflects partial cloud run only; see README for full experiment table and limitations."
+}
