@@ -1,0 +1,10 @@
+{
+  "author": "amay",
+  "github_id": "amrayach",
+  "name": "07c1 Base Reproduction of PR #1212 with Strict RunPod Proof",
+  "blurb": "Faithful PR #1212 base reproduction plus 07c1 eval/export hygiene fixes, validated on 4 strict RunPod H100 SXM seeds under 600s. Submitted artifact is the best strict base seed (2025): 1.10894203 BPB / 1.87233216 nats / 15,728,840 bytes.",
+  "date": "2026-04-03",
+  "val_loss": 1.87233216,
+  "val_bpb": 1.10894203,
+  "bytes_total": 15728840
+}
