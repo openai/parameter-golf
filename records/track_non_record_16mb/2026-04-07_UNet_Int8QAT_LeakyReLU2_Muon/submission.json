@@ -1,0 +1,19 @@
+{
+  "author": "AlirezaAlampour",
+  "description": "U-Net transformer with int8 QAT, leaky ReLU squared MLP, Muon optimizer, and EMA. Developed on NVIDIA DGX Spark (GB10, 128GB unified memory) using AI-assisted development (Claude, GPT, Gemini).",
+  "hardware": "DGX Spark (1x GB10 Blackwell, 128GB unified)",
+  "track": "non_record_16mb",
+  "results": {
+    "seed_42": {"bpb": 1.6642, "steps": 319},
+    "seed_314": {"bpb": 1.6694, "steps": 321},
+    "seed_999": {"bpb": 1.6632, "steps": 319}
+  },
+  "artifact_size_bytes": 8777249,
+  "techniques": [
+    "shared_transformer",
+    "unet_skip_connections",
+    "int8_qat",
+    "leaky_relu_squared",
+    "ema"
+  ]
+}
