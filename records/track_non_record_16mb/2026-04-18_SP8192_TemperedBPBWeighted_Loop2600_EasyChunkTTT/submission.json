@@ -1,0 +1,38 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-18",
+  "name": "SP8192 Tempered BPB-Weighted Loss + Easy-Chunk TTT + Late Loop Onset",
+  "author": "Artem Buldin",
+  "github_id": "Buld1n",
+  "val_bpb": 1.10290623,
+  "val_bpb_std": 0.0,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.10290623,
+      "artifact_bytes": 15967346
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + late loop onset at step 2600 + pass-gated recurrence + easy-chunk legal TTT + tempered byte-weighted train loss + control-int8 packing",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": false,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false,
+    "record_claim": false
+  },
+  "notes": "Negative single-seed experiment. Tempering improved the raw BPB-weighted direction materially, but the best completed final metric was still quantized_sliding_window val_bpb 1.10290623 and the total submission size remained invalid at 16,065,507 bytes.",
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev",
+    "recurrent_sp8192_stack": "@dexhunter",
+    "legal_ttt_framework": "@abaybektursun",
+    "submission_variant": "@Buld1n"
+  }
+}
