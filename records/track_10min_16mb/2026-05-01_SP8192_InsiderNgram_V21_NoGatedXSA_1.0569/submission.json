@@ -1,0 +1,11 @@
+{
+  "author": "Jorge Asenjo",
+  "github_id": "jorge-asenjo",
+  "name": "SP8192 V21 + Inside-timer N-gram TTT (no Gated XSA)",
+  "blurb": "PR #1967 V21+LeakyReLU 0.3 training base + PR #2018 eval-time recipe (Phased TTT 1 phase / 1000 prefix, NGRAM_HINT_PRECOMPUTE_OUTSIDE=0 inside timer, LQER_TOP_K=1, GPTQ_RESERVE_SECONDS=4.0) without Gated XSA. Inherits PR #1923 AsymLogit + PR #1908 AWQ-lite. Validates that the inside-timer N-gram + cheap-Phased-TTT eval recipe from PR #2018 reproduces on the PR #1967 training stack across 3 seeds. 3-seed mean val_bpb 1.05692 (population std 0.000580), full validation partition (47,851,520 tokens). All 3 seeds: train ≤596.094s, eval ≤592.2s, max artifact 15,977,032 bytes. N-gram precompute (~150-160s) measured INSIDE the eval timer per the merged A2 record convention.",
+  "date": "2026-05-01T00:20:00Z",
+  "val_loss": 2.31294,
+  "val_bpb": 1.05692,
+  "bytes_total": 15977032,
+  "bytes_code": 35707
+}
