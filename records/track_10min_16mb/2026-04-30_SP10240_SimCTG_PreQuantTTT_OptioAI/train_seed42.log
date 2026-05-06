@@ -1,0 +1,183 @@
+W0430 05:48:28.614000 2230473 torch/distributed/run.py:803] 
+W0430 05:48:28.614000 2230473 torch/distributed/run.py:803] *****************************************
+W0430 05:48:28.614000 2230473 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0430 05:48:28.614000 2230473 torch/distributed/run.py:803] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  beta1: 0.9
+  beta2: 0.95
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: ./data/datasets/fineweb10B_sp10240_casefold
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 7
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_seq_len: 2048
+  eval_stride: 64
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/f8e7e8fc-2181-44ce-aad0-b50f50864351.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.022
+  max_wallclock_seconds: 600.0
+  min_lr: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  ppm_conf: 0.9
+  ppm_enabled: False
+  ppm_lhi: 0.9
+  ppm_llo: 0.05
+  ppm_order: 5
+  prequant_ttt_batch_seqs: 32
+  prequant_ttt_chunk_tokens: 32768
+  prequant_ttt_enabled: True
+  prequant_ttt_epochs: 21
+  prequant_ttt_freeze_blocks: 2
+  prequant_ttt_grad_clip: 1.0
+  prequant_ttt_lr: 0.0005
+  prequant_ttt_wd: 0.0
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_id: f8e7e8fc-2181-44ce-aad0-b50f50864351
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  sliding_window_enabled: True
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_10240_casefold_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp10240_casefold/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  ttt_chunk_tokens: 32768
+  ttt_enabled: False
+  ttt_epochs: 3
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_files: ./data/datasets/fineweb10B_sp10240_casefold/fineweb_val_*.bin
+  val_loss_every: 4000
+  vocab_size: 10240
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 101
+val_tokens: 49999872
+model_params:36993112
+gptq:reserving 12s, effective=588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 9.2331 val_bpb: 3.3647
+1/20000 train_loss: 9.2325 train_time: 0.0m tok/s: 8162146
+2/20000 train_loss: 12.2056 train_time: 0.0m tok/s: 7875658
+3/20000 train_loss: 10.7709 train_time: 0.0m tok/s: 7710300
+4/20000 train_loss: 9.3267 train_time: 0.0m tok/s: 7647555
+5/20000 train_loss: 8.6375 train_time: 0.0m tok/s: 7595109
+500/20000 train_loss: 3.4689 train_time: 0.9m tok/s: 7664768
+1000/20000 train_loss: 3.3561 train_time: 1.7m tok/s: 7659439
+1500/20000 train_loss: 3.3434 train_time: 2.6m tok/s: 7660889
+2000/20000 train_loss: 3.2935 train_time: 3.4m tok/s: 7653087
+layer_loop:enabled step:2003 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+2500/20000 train_loss: 3.0816 train_time: 4.7m tok/s: 7003644
+3000/20000 train_loss: 3.0990 train_time: 5.9m tok/s: 6626178
+3500/20000 train_loss: 3.0157 train_time: 7.2m tok/s: 6382505
+4000/20000 train_loss: 2.8968 train_time: 8.5m tok/s: 6192464
+4000/20000 val_loss: 3.0141 val_bpb: 1.0984
+4500/20000 train_loss: 2.9932 train_time: 9.7m tok/s: 6071452
+4534/20000 val_loss: 2.9539 val_bpb: 1.0765
+stopping_early: wallclock_cap train_time: 587993ms step: 4534/20000
+peak memory allocated: 39441 MiB reserved: 39552 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.95096612 val_bpb:1.07538523 eval_time:9484ms
+prequant_ttt:start epochs=21 lr=0.0005 freeze_blocks=2 wd=0.0 parallel=8gpus
+prequant_ttt:epoch 1/21 time=25.0s lr=0.000497
+prequant_ttt:epoch 2/21 time=24.8s lr=0.000490
+prequant_ttt:epoch 3/21 time=24.9s lr=0.000478
+prequant_ttt:epoch 4/21 time=24.9s lr=0.000461
+prequant_ttt:epoch 5/21 time=24.9s lr=0.000440
+prequant_ttt:epoch 6/21 time=24.9s lr=0.000415
+prequant_ttt:epoch 7/21 time=24.9s lr=0.000387
+prequant_ttt:epoch 8/21 time=24.9s lr=0.000357
+prequant_ttt:epoch 9/21 time=24.9s lr=0.000325
+prequant_ttt:epoch 10/21 time=24.9s lr=0.000292
+prequant_ttt:epoch 11/21 time=25.2s lr=0.000258
+prequant_ttt:epoch 12/21 time=24.9s lr=0.000225
+prequant_ttt:epoch 13/21 time=24.9s lr=0.000193
+prequant_ttt:epoch 14/21 time=24.9s lr=0.000163
+prequant_ttt:epoch 15/21 time=24.9s lr=0.000135
+prequant_ttt:epoch 16/21 time=24.9s lr=0.000110
+prequant_ttt:epoch 17/21 time=24.9s lr=0.000089
+prequant_ttt:epoch 18/21 time=24.9s lr=0.000072
+prequant_ttt:epoch 19/21 time=24.9s lr=0.000060
+prequant_ttt:epoch 20/21 time=24.9s lr=0.000053
+prequant_ttt:epoch 21/21 time=24.9s lr=0.000050
+prequant_ttt:done total_time=523.0s
+post-prequant-ttt val_loss:2.82344677 val_bpb:1.02891488 eval_time:9686ms
+Serialized model: 137528185 bytes
+Code size: 72046 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 12.8s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int7): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 15931980 bytes
+Total submission size quantized+brotli: 16004026 bytes
+quantized val_loss:2.88614968 val_bpb:1.05176495 eval_time:10902ms
+quantized_sliding_window val_loss:2.85300876 val_bpb:1.03968781 eval_time:115343ms
