@@ -1,0 +1,110 @@
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+struct_anchor_lut:loaded anchors:60 rate:0.0586
+bigram_prior:loaded full path=/workspace/parameter-golf/bigram_logprior.pt range=[-10.893,18.739]
+trigram_prior:loaded path=/workspace/parameter-golf/trigram_cp.pt rank=64
+model_params:27260906
+world_size:1 grad_accum_steps:4
+brrlm_paths: shared_dim:768 local_dim:384 local_layers:8 local_heads:4 global_dim:768 global_physical_layers:1 global_recur_steps:1 global_effective_layers:1 global_heads:12 global_kv_heads:6 pool_ratio:4
+tie_embeddings:True embed_lr:0.033 matrix_lr:0.025 scalar_lr:0.023
+muon_geometry: variant:standard4 steps:4 aol:False aol_eps:1.00e-06 aol_scale_cap:1.000
+poseidon_scope: muon_geometry=yes brlm=yes router_cache=no triton_ns=no grouped_gemm=no sparton_logits=no
+route_stability: lr:0.006000 wd:0.0000 grad_clip:0.050 fwd_clamp:False prenorm:True brlm_gates=yes
+route_optimizer: params:20 lr:0.006000 wd:0.0000 full_route_clip:0.050
+nonfinite_guard:True max_consecutive_skips:8
+train_batch_tokens:688128 local_batch_tokens:172032 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+brrlm_local: layers:8 dim:384 heads:4 window:128 mlp_mult:2.500 mlp_layers:8 inject_after:7
+sage_bus: enabled:True chunk:4 after_block:3 ent_threshold:0.700 ent_scale:4.000 anchor_scale:2.500 route_bias:-2.500 bus_gate_init:-4.000 resid_scale:0.250
+brrlm_global: physical_layers:1 recur_steps:1 effective_layers:1 dim:768 heads:12 kv_heads:6 pool_ratio:4 mlp_mult:2.500 causal_pool:shifted_mean parallel_residual:True continue_probe_weight:0.0500 xsa:True xsa_start_frac:0.50
+brrlm_macro: interval:8 xattn_dim:128 distill_weight:0.1000 pyramid:True interval_coarse:16 phi_dim:48 phi_once_per_pass:True replaces_lowrank:True
+brrlm_merge: upsample_gate_init:-2.00 inject_gate_init:-1.00 cached_seq_len:2048
+brrlm_topology: shared_stem -> localwide_c2_stack + deterministic_sage_bus -> local_logits -> pointer_generator_merge
+seed:42
+orthogonal_temporal_router: obf_weight=0.0000 obf_start_step=300 adaptive_depth=False u_net_skips=none bigram_prior=True smear_gate=True entropy_loss_weights=[0.30,3.00] mtp_heads=1 mtp_loss_weight=0.000 mtp_kind=future_embed
+bigram_prior_paths: full=/workspace/parameter-golf/bigram_logprior.pt lowrank=/workspace/parameter-golf/bigram_lowrank.pt export=int8_perrow permanent=True centered_rows=True
+optimizer_path:parallel_muon_brlm_backbone manual_allreduce_nonbank=True ddp=False
+copy_path:pointer_generator_logmix_v2 cross_diff_expected_next=rms_normed local_mix_bias=0.75 copy_bias=-1.0 macro_phi=replaces_lowrank_once_per_pass
+branch_h_c2_hotgate: position=inside_local_attention_pre_qkv lags=0,1,2,4 pairwise=sumdiff bottleneck=local_dim/4 gate_init=-3.000 up_zero_init=True
+branch_l_localheavy8_lean: local_only_rescue=True local_layers=8 global_compute=off logits=local_only_when_rescue
+branch_o_localwide_ffn: local_dim=384 local_layers=8 mlp_layers=8 mlp_mult=2.500 goal=exploit_l9_full_ffn_signal
+branch_s_sage_o: deterministic_entropy_anchor_bus=True global_logits=off learned_router=off causal_shifted_chunks=True
+branch_u_sage_r_accum4: grad_accum_steps:4 local_batch_tokens:172032 same_global_batch_as_o_on_1gpu=True conservative_sage=True
+grad_path:global_clip=torch_clip route_clip=torch_clip grad_name_scan=failure_only
+loss_guard:mode=deferred_step_sync local_check=tensor_only skip_before_clip=True
+curriculum:entropy_sorted shards:80 entropy_range=[0.6077,0.6082]
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:4.3694 val_bpb:2.5878 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:4.5011 train_time:646ms step_avg:646.24ms tok/s:1064811 ce_scale:1.000 planner:none transformer_gate:0.200
+step:2/20000 train_loss:4.5313 train_time:1272ms step_avg:636.19ms tok/s:1081642 ce_scale:1.000 planner:none transformer_gate:0.206
+step:3/20000 train_loss:4.3554 train_time:1895ms step_avg:631.65ms tok/s:1089406 ce_scale:1.000 planner:none transformer_gate:0.212
+step:4/20000 train_loss:4.3032 train_time:2504ms step_avg:626.06ms tok/s:1099149 ce_scale:1.000 planner:none transformer_gate:0.217
+step:5/20000 train_loss:4.3279 train_time:3137ms step_avg:627.35ms tok/s:1096883 ce_scale:1.000 planner:none transformer_gate:0.223
+step:6/20000 train_loss:4.2712 train_time:3734ms step_avg:622.33ms tok/s:1105733 ce_scale:1.000 planner:none transformer_gate:0.228
+step:7/20000 train_loss:4.2150 train_time:4357ms step_avg:622.44ms tok/s:1105526 ce_scale:1.000 planner:none transformer_gate:0.233
+step:8/20000 train_loss:4.1819 train_time:4969ms step_avg:621.14ms tok/s:1107842 ce_scale:1.000 planner:none transformer_gate:0.239
+step:9/20000 train_loss:4.1744 train_time:5579ms step_avg:619.87ms tok/s:1110108 ce_scale:1.000 planner:none transformer_gate:0.244
+step:10/20000 train_loss:4.1636 train_time:6204ms step_avg:620.38ms tok/s:1109202 ce_scale:1.000 planner:none transformer_gate:0.250
+step:50/20000 train_loss:3.2251 train_time:29831ms step_avg:596.62ms tok/s:1153372 ce_scale:1.000 planner:none transformer_gate:0.459
+step:100/20000 train_loss:2.8934 train_time:59329ms step_avg:593.29ms tok/s:1159853 ce_scale:1.000 planner:none transformer_gate:0.723
+step:150/20000 train_loss:2.7643 train_time:88861ms step_avg:592.40ms tok/s:1161585 ce_scale:1.000 planner:none transformer_gate:0.984
+step:200/20000 train_loss:2.7469 train_time:118036ms step_avg:590.18ms tok/s:1165958 ce_scale:1.000 planner:none transformer_gate:1.000
+step:250/20000 train_loss:2.6617 train_time:147273ms step_avg:589.09ms tok/s:1168117 ce_scale:1.000 planner:none transformer_gate:1.000
+brlm_gate_stats: step:250 cross_diff:0.0359 upsample:0.1192 inject:0.2689 interferometer:0.0689 sage_bus:0.0337 macro:0.1824 macro_phi:0.1192 macro2:0.0759 continue_bias:0.8808
+route_telemetry: step:250 smear_mean:0.4656 smear_std:0.0793 cross_diff:0.0359 upsample_gate:0.1192 inject_gate:0.0000 local_norm:46.7073 global_norm:0.0000 alpha_mean:1.0000 alpha_std:0.0000 interferometer_gate:0.0689 interferometer_norm:44.2638 sage_bus_gate:0.0337 sage_token_gate:0.0825 sage_p90:0.0879 sage_chunk_gate:0.1650 sage_anchor:0.0703 sage_entropy:0.6076 sage_bus_norm:112.7995 local_pre_sage:41.0138 local_post_sage:41.0220 macro_gate:0.1824 macro_phi_gate:0.1192 macro_gate2:0.0759 ce_scale:1.000 planner:none transformer_gate:1.000
+step:250/20000 val_loss:2.6286 val_bpb:1.5568 train_time:147349ms step_avg:589.39ms
+step:300/20000 train_loss:2.6286 train_time:177495ms step_avg:591.65ms tok/s:1163068 ce_scale:1.000 planner:none transformer_gate:1.000
+step:350/20000 train_loss:2.6701 train_time:206715ms step_avg:590.61ms tok/s:1165105 ce_scale:1.000 planner:none transformer_gate:1.000
+step:400/20000 train_loss:2.6184 train_time:235906ms step_avg:589.76ms tok/s:1166784 ce_scale:1.000 planner:none transformer_gate:1.000
+step:450/20000 train_loss:2.4912 train_time:265195ms step_avg:589.32ms tok/s:1167658 ce_scale:1.000 planner:none transformer_gate:1.000
+step:500/20000 train_loss:2.5791 train_time:294349ms step_avg:588.70ms tok/s:1168897 ce_scale:1.000 planner:none transformer_gate:1.000
+brlm_gate_stats: step:500 cross_diff:0.0333 upsample:0.1192 inject:0.2689 interferometer:0.0810 sage_bus:0.0518 macro:0.1824 macro_phi:0.1192 macro2:0.0759 continue_bias:0.8808
+route_telemetry: step:500 smear_mean:0.4551 smear_std:0.1092 cross_diff:0.0333 upsample_gate:0.1192 inject_gate:0.0000 local_norm:38.6366 global_norm:0.0000 alpha_mean:1.0000 alpha_std:0.0000 interferometer_gate:0.0810 interferometer_norm:55.2660 sage_bus_gate:0.0518 sage_token_gate:0.0792 sage_p90:0.0879 sage_chunk_gate:0.1572 sage_anchor:0.0579 sage_entropy:0.6070 sage_bus_norm:199.0050 local_pre_sage:30.4314 local_post_sage:30.4517 macro_gate:0.1824 macro_phi_gate:0.1192 macro_gate2:0.0759 ce_scale:1.000 planner:none transformer_gate:1.000
+step:500/20000 val_loss:2.4531 val_bpb:1.4528 train_time:294408ms step_avg:588.82ms
+step:550/20000 train_loss:2.4826 train_time:323622ms step_avg:588.40ms tok/s:1169484 ce_scale:1.000 planner:none transformer_gate:1.000
+step:600/20000 train_loss:2.4875 train_time:353009ms step_avg:588.35ms tok/s:1169593 ce_scale:1.000 planner:none transformer_gate:1.000
+step:650/20000 train_loss:2.4455 train_time:382195ms step_avg:587.99ms tok/s:1170302 ce_scale:1.000 planner:none transformer_gate:1.000
+step:700/20000 train_loss:2.4565 train_time:411443ms step_avg:587.78ms tok/s:1170733 ce_scale:1.000 planner:none transformer_gate:1.000
+step:750/20000 train_loss:2.4129 train_time:440725ms step_avg:587.63ms tok/s:1171016 ce_scale:1.000 planner:none transformer_gate:1.000
+brlm_gate_stats: step:750 cross_diff:0.0328 upsample:0.1192 inject:0.2689 interferometer:0.0891 sage_bus:0.0593 macro:0.1824 macro_phi:0.1192 macro2:0.0759 continue_bias:0.8808
+route_telemetry: step:750 smear_mean:0.4447 smear_std:0.1223 cross_diff:0.0328 upsample_gate:0.1192 inject_gate:0.0000 local_norm:35.8872 global_norm:0.0000 alpha_mean:1.0000 alpha_std:0.0000 interferometer_gate:0.0891 interferometer_norm:57.7773 sage_bus_gate:0.0593 sage_token_gate:0.0820 sage_p90:0.0879 sage_chunk_gate:0.1636 sage_anchor:0.0654 sage_entropy:0.6101 sage_bus_norm:253.5821 local_pre_sage:25.0633 local_post_sage:25.1118 macro_gate:0.1824 macro_phi_gate:0.1192 macro_gate2:0.0759 ce_scale:1.000 planner:none transformer_gate:1.000
+step:750/20000 val_loss:2.3074 val_bpb:1.3666 train_time:441034ms step_avg:588.04ms
+step:800/20000 train_loss:2.3630 train_time:470301ms step_avg:587.88ms tok/s:1170532 ce_scale:1.000 planner:none transformer_gate:1.000
+step:850/20000 train_loss:2.2553 train_time:499475ms step_avg:587.62ms tok/s:1171048 ce_scale:1.000 planner:none transformer_gate:1.000
+step:900/20000 train_loss:2.2457 train_time:529424ms step_avg:588.25ms tok/s:1169792 ce_scale:1.000 planner:none transformer_gate:1.000
+step:950/20000 train_loss:2.1710 train_time:558590ms step_avg:587.99ms tok/s:1170307 ce_scale:1.000 planner:none transformer_gate:1.000
+step:1000/20000 train_loss:2.1436 train_time:587773ms step_avg:587.77ms tok/s:1170737 ce_scale:1.000 planner:none transformer_gate:1.000
+brlm_gate_stats: step:1000 cross_diff:0.0332 upsample:0.1192 inject:0.2689 interferometer:0.0923 sage_bus:0.0644 macro:0.1824 macro_phi:0.1192 macro2:0.0759 continue_bias:0.8808
+route_telemetry: step:1000 smear_mean:0.4378 smear_std:0.1231 cross_diff:0.0332 upsample_gate:0.1192 inject_gate:0.0000 local_norm:33.9894 global_norm:0.0000 alpha_mean:1.0000 alpha_std:0.0000 interferometer_gate:0.0922 interferometer_norm:57.1787 sage_bus_gate:0.0644 sage_token_gate:0.0844 sage_p90:0.0889 sage_chunk_gate:0.1729 sage_anchor:0.0796 sage_entropy:0.6022 sage_bus_norm:271.1160 local_pre_sage:20.7442 local_post_sage:20.8384 macro_gate:0.1824 macro_phi_gate:0.1192 macro_gate2:0.0759 ce_scale:1.000 planner:none transformer_gate:1.000
+step:1000/20000 val_loss:2.1374 val_bpb:1.2659 train_time:588014ms step_avg:588.01ms
+step:1021/20000 val_loss:2.1347 val_bpb:1.2643 train_time:600396ms step_avg:588.05ms
+stopping_early: wallclock_cap train_time:600396ms step:1021/20000
+peak memory allocated: 44755 MiB reserved: 47438 MiB
+total_tokens_seen:702578688
+Serialized model (raw): 110539875 bytes
+Code size: 214396 bytes
+Serialized model int4+zlib: 12967465 bytes (int4:13648338 passthrough:2246712)
+Total submission size int4+zlib: 13181861 bytes
+final_eval_mode:standard
+final_int4_zlib_roundtrip val_loss:2.1352 val_bpb:1.2646 eval_time:55015ms
+final_int4_zlib_roundtrip_exact val_loss:2.13523289 val_bpb:1.26460519

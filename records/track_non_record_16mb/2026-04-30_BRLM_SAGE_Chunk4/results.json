@@ -1,0 +1,14 @@
+{
+  "package": "2026-04-30_BRLM_SAGE_Chunk4",
+  "track": "non-record-10min-16mb",
+  "tokenizer": "sentencepiece_sp1024",
+  "vocab_size": 1024,
+  "gpu": "1xH100",
+  "wallclock_seconds": 600.396,
+  "total_tokens_seen": 702578688,
+  "final_int4_zlib_roundtrip_exact_val_bpb": 1.26460519,
+  "submission_size_bytes": 13181861,
+  "submission_size_mb": 13.182,
+  "artifact_under_16mb": true,
+  "mechanism": "SAGE-bus chunk-causal gating with cummax within-chunk gate"
+}
