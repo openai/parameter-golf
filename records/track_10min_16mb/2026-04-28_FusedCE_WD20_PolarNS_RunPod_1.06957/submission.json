@@ -1,0 +1,64 @@
+{
+  "authors": [
+    {
+      "name": "Renqian Luo",
+      "github_id": "renqianluo"
+    }
+  ],
+  "description": "Fused softcap CE Triton kernel + warm-start LoRA with TTT weight-decay raised to 2.0 (the key combination — at WD=1.0 fused CE causes TTT divergence on seeds 314/1337). Stacks on PR #1771 base + our PR #1767/#1768 LoRA changes + Polar Express NS (PR #1344) + MIN_LR (PR #1787). 3-seed mean 1.06957 BPB.",
+  "val_bpb": 1.06957227,
+  "seed_results": {
+    "1337": 1.07009653,
+    "42": 1.06919893,
+    "314": 1.06942136
+  },
+  "eval_time_seconds": {
+    "1337": 393.0,
+    "42": 478.4,
+    "314": 397.5
+  },
+  "train_time_seconds": {
+    "1337": 599.6,
+    "42": 599.4,
+    "314": 599.7
+  },
+  "artifact_size_bytes": {
+    "1337": 15975995,
+    "42": 15978915,
+    "314": 15979029
+  },
+  "methods": [
+    "Novel (this submission): TTT_WEIGHT_DECAY raised 1.0 -> 2.0. Fused CE introduces tiny numerical differences in training that, combined with warm-start A, push seeds 314/1337 into divergence at WD=1.0 (TTT collapse to ~1.121). WD=2.0 regularizes enough to keep all 3 seeds stable while preserving the warm-start gain.",
+    "Fused softcap CE Triton kernel (ported from PR #1787 @nprime06): single streaming kernel computes softcap*tanh + log-sum-exp + per-row CE in fp32, with a backward kernel mirroring the forward symbolically.",
+    "Polar Express NS coefficients (ported from PR #1344): 5 per-iteration minimax-optimal Newton-Schulz tuples replace Muon's single fixed (3.4445,-4.775,2.0315) tuple.",
+    "MIN_LR=0.10 + GPTQ_RESERVE_SECONDS=0.5 + VAL_LOSS_EVERY=0 (PR #1787): LR floor + reclaim 15s of training budget.",
+    "PR #1768 (this author): per-head GatedAttn + gate mirror in LoRA-TTT path + per-row int8 gate quant.",
+    "PR #1767 (this author): alpha/rank LoRA scaling, warm-start LoRA A, alpha=144 on rank 128.",
+    "Base: dexhunter PR #1626 (Multi-Phase Global SGD + trimmed GPTQ + MATRIX_LR=0.026), samacqua PR #1530 (VarLen + Fused MLP + doc LoRA TTT), bigbag PR #1493 (triple recurrence + parallel residuals)."
+  ],
+  "attribution": {
+    "wd_2.0_for_fused_ce_warm_start_stability": "Renqian Luo (this submission)",
+    "fused_softcap_ce_kernel": "@nprime06 (PR #1787)",
+    "polar_express_ns_coefficients": "PR #1344",
+    "min_lr_floor__tight_gptq_reserve__disabled_val": "@nprime06 (PR #1787)",
+    "gate_mirror_ttt_path__per_row_int8_gate_quant": "Renqian Luo (PR #1768)",
+    "alpha_scaled_lora__warm_start_A__alpha_144": "Renqian Luo (PR #1767)",
+    "gated_attention": "@dexhunter (PR #1736)",
+    "varlen_attention_fused_mlp_doc_ttt": "@samacqua (PR #1530)",
+    "phased_ttt": "@romeerp (PR #1610), @dexhunter",
+    "triple_recurrence_parallel_residuals": "@bigbag (PR #1493), @EthanYangTW (PR #1523)",
+    "legal_ttt_framework": "@abaybektursun (PR #549)"
+  },
+  "legal_ttt": true,
+  "compliance": {
+    "train_under_600s": true,
+    "eval_under_600s": true,
+    "artifact_under_16mb": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "hardware_note": "Trained on RunPod 8xH100 80GB SXM, PyTorch 2.9.1+cu128, FA3, Triton 3.5.1. Identical SP8192 tokenizer and FineWeb docs as upstream HF willdepueoai/parameter-golf."
+}
