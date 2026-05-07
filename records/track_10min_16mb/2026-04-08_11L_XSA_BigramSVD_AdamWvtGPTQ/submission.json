@@ -1,0 +1,66 @@
+{
+  "author": "Subramanyam6",
+  "github_id": "Subramanyam6",
+  "name": "11L XSA + SVD-BigramSystem + AdamW v_t Saliency-Weighted GPTQ",
+  "blurb": "Non-record submission demonstrating AdamW v_t Saliency-Weighted GPTQ: uses optimizer second moments (EMA of grad²) to boost Hessian diagonal for high-saliency weights during int6 quantization. Also: SVD-initialized BigramSystem with GPU-native index_add_. Does not beat SOTA due to bytes_per_token bug (hardcoded 3.5 vs actual 2.436) and 10× training-speed gap (no Flash Attention 3, ~700 steps vs SOTA's 6922). Corrected post-GPTQ BPB: 1.488 (seed=314). Architecture is sound; see README for fix plan.",
+  "date": "2026-04-08",
+  "track": "10min_16mb",
+  "record_type": "non_record",
+  "val_loss": 2.5127,
+  "val_loss_note": "Seed=314 post-GPTQ: mean cross-entropy nats/token from eval (equivalently val_bpb * bytes_per_token * ln(2) with bytes_per_token=2.436).",
+  "val_bpb": 1.4882,
+  "val_bpb_mean_corrected": 1.4303,
+  "val_bpb_std_corrected": 0.0499,
+  "val_loss_mean_corrected": 2.4157,
+  "val_loss_std_corrected": 0.0845,
+  "val_bpb_note": "Corrected using bytes_per_token=2.436 (measured from sp1024 on FineWeb). Raw bits/token=3.6251, BPB=3.6251/2.436=1.488.",
+  "val_bpb_raw_bits_per_token": 3.6251,
+  "bytes_per_token_assumed": 3.5,
+  "bytes_per_token_correct": 2.436,
+  "val_bpb_inflated_wrong": 1.0357,
+  "val_bpb_inflated_note": "Our training script reported 1.036 BPB using wrong bytes_per_token=3.5. All in-training checkpoints are similarly inflated.",
+  "seeds": [1337, 42, 314],
+  "seed_results": {
+    "1337": {
+      "val_bpb_inflated": 0.9756,
+      "val_bpb_corrected": 1.402,
+      "steps": 780,
+      "step_avg_ms": 857,
+      "artifact_bytes": null,
+      "note": "model.bin unavailable (pod terminated)"
+    },
+    "42": {
+      "val_bpb_inflated": 0.9750,
+      "val_bpb_corrected": 1.401,
+      "steps": 778,
+      "step_avg_ms": 857,
+      "artifact_bytes": null,
+      "note": "model.bin unavailable (pod terminated)"
+    },
+    "314": {
+      "val_bpb_inflated": 1.0357,
+      "val_bpb_corrected": 1.488,
+      "steps": 698,
+      "step_avg_ms": 857,
+      "artifact_bytes": 8158321,
+      "note": "Official post-GPTQ eval: bits_per_token=3.6251, bytes_per_token=2.436, BPB=1.488"
+    }
+  },
+  "novel_contributions": [
+    "AdamW v_t (exp_avg_sq) saliency boosting of GPTQ Hessian diagonal — uses optimizer state to identify high-gradient-pressure weights",
+    "SVD-initialized BigramSystem — initializes bigram embeddings via truncated SVD of empirical co-occurrence matrix",
+    "GPU-native BigramSystem population via CUDA index_add_ (avoids numpy bottleneck)"
+  ],
+  "known_issues": [
+    "bytes_per_token hardcoded to 3.5 instead of measuring from tokenizer (actual: 2.436 for sp1024 on FineWeb)",
+    "No Flash Attention 3: only ~700 gradient steps in 600s vs SOTA's 6922 steps",
+    "fp32 softmax for XSA numerical stability adds significant compute overhead",
+    "grad_accum=4 adds overhead vs grad_accum=1 in SOTA"
+  ],
+  "comparison_baseline_pr": 1019,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "calibration": "AR self-generated (32 seqs x 1024 tokens, fixed seed)",
+  "technique_summary": "AdamW v_t Saliency-Weighted GPTQ int6 + SVD-BigramSystem + XSA all-layers + EMA(0.997) + Parallel Muon + zstd-22"
+}

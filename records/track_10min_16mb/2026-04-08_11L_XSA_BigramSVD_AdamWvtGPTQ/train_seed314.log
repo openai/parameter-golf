@@ -1,0 +1,105 @@
+nohup: ignoring input
+W0408 21:30:27.792000 137766946739328 torch/distributed/run.py:779] 
+W0408 21:30:27.792000 137766946739328 torch/distributed/run.py:779] *****************************************
+W0408 21:30:27.792000 137766946739328 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0408 21:30:27.792000 137766946739328 torch/distributed/run.py:779] *****************************************
+[W408 21:30:34.834359778 CUDAAllocatorConfig.h:28] Warning: expandable_segments not supported on this platform (function operator())
+[W408 21:30:34.980455706 CUDAAllocatorConfig.h:28] Warning: expandable_segments not supported on this platform (function operator())
+[W408 21:30:34.181289234 CUDAAllocatorConfig.h:28] Warning: expandable_segments not supported on this platform (function operator())
+[W408 21:30:34.196152905 CUDAAllocatorConfig.h:28] Warning: expandable_segments not supported on this platform (function operator())
+[W408 21:30:34.488357942 CUDAAllocatorConfig.h:28] Warning: expandable_segments not supported on this platform (function operator())
+[W408 21:30:34.514151586 CUDAAllocatorConfig.h:28] Warning: expandable_segments not supported on this platform (function operator())
+[W408 21:30:34.540182933 CUDAAllocatorConfig.h:28] Warning: expandable_segments not supported on this platform (function operator())
+[W408 21:30:34.546875940 CUDAAllocatorConfig.h:28] Warning: expandable_segments not supported on this platform (function operator())
+[19e6c86d] device=cuda:0  world_size=8
+Params (deduplicated): 29,765,720  |  FP32: 119.1 MB
+WARNING: model exceeds ~15.8 MB fp32 — check post-GPTQ artifact size.
+Random-baseline BPB: 2.857  |  Competition SOTA ~1.115  |  bytes_per_token=3.5
+Populating BigramSystem ...
+BigramSystem: SVD-initialised (rank 128).
+grad_accum=4  effective_batch=786,432 tokens
+step     0 | loss 11.0668 | lr 0.00000 | 4s
+  ↳ BPB (EMA, stride=64): 4.5534  [random baseline 2.857  target <1.115]
+step    10 | loss 9.7863 | lr 0.00027 | 25s
+step    20 | loss 6.0928 | lr 0.00053 | 33s
+step    30 | loss 5.5076 | lr 0.00080 | 40s
+step    40 | loss 4.8002 | lr 0.00107 | 48s
+step    50 | loss 4.5423 | lr 0.00133 | 55s
+step    60 | loss 4.3747 | lr 0.00160 | 63s
+step    70 | loss 4.1903 | lr 0.00187 | 70s
+step    80 | loss 4.0397 | lr 0.00213 | 78s
+step    90 | loss 3.8593 | lr 0.00240 | 85s
+step   100 | loss 3.7273 | lr 0.00267 | 92s
+  ↳ BPB (EMA, stride=64): 2.3079  [random baseline 2.857  target <1.115]
+step   110 | loss 3.6350 | lr 0.00293 | 107s
+step   120 | loss 3.4961 | lr 0.00320 | 114s
+step   130 | loss 3.3839 | lr 0.00347 | 125s
+step   140 | loss 3.3403 | lr 0.00373 | 133s
+step   150 | loss 3.2980 | lr 0.00400 | 140s
+step   160 | loss 3.1461 | lr 0.00427 | 148s
+step   170 | loss 3.0896 | lr 0.00453 | 155s
+step   180 | loss 3.0005 | lr 0.00480 | 163s
+step   190 | loss 3.0033 | lr 0.00507 | 170s
+step   200 | loss 2.9315 | lr 0.00533 | 178s
+  ↳ BPB (EMA, stride=64): 1.7730  [random baseline 2.857  target <1.115]
+step   210 | loss 2.8733 | lr 0.00560 | 192s
+step   220 | loss 2.7527 | lr 0.00587 | 200s
+step   230 | loss 2.7500 | lr 0.00613 | 207s
+step   240 | loss 2.7890 | lr 0.00640 | 214s
+step   250 | loss 2.7440 | lr 0.00667 | 222s
+step   260 | loss 2.6829 | lr 0.00693 | 234s
+step   270 | loss 2.7918 | lr 0.00720 | 241s
+step   280 | loss 2.6334 | lr 0.00747 | 249s
+step   290 | loss 2.5132 | lr 0.00773 | 256s
+step   300 | loss 2.6081 | lr 0.00800 | 264s
+  ↳ BPB (EMA, stride=64): 1.5236  [random baseline 2.857  target <1.115]
+step   310 | loss 2.7322 | lr 0.00827 | 278s
+step   320 | loss 2.6259 | lr 0.00853 | 285s
+step   330 | loss 2.7710 | lr 0.00880 | 293s
+step   340 | loss 2.5433 | lr 0.00907 | 300s
+step   350 | loss 2.6871 | lr 0.00933 | 308s
+step   360 | loss 2.5479 | lr 0.00960 | 315s
+step   370 | loss 2.5804 | lr 0.00987 | 323s
+step   380 | loss 2.5882 | lr 0.01013 | 335s
+step   390 | loss 2.5165 | lr 0.01040 | 342s
+step   400 | loss 2.6923 | lr 0.01067 | 350s
+  ↳ BPB (EMA, stride=64): 1.2600  [random baseline 2.857  target <1.115]
+step   410 | loss 2.5468 | lr 0.01093 | 364s
+step   420 | loss 2.5192 | lr 0.01120 | 371s
+step   430 | loss 2.4792 | lr 0.01147 | 379s
+step   440 | loss 2.6668 | lr 0.01173 | 386s
+step   450 | loss 2.4694 | lr 0.01200 | 394s
+step   460 | loss 2.4561 | lr 0.01227 | 401s
+step   470 | loss 2.4538 | lr 0.01253 | 409s
+step   480 | loss 2.5129 | lr 0.01280 | 416s
+step   490 | loss 2.4304 | lr 0.01307 | 424s
+step   500 | loss 2.4288 | lr 0.01333 | 431s
+  ↳ BPB (EMA, stride=64): 1.0934  [random baseline 2.857  target <1.115]
+step   510 | loss 2.5167 | lr 0.01360 | 449s
+step   520 | loss 2.4518 | lr 0.01387 | 457s
+step   530 | loss 2.3929 | lr 0.01413 | 464s
+step   540 | loss 2.4308 | lr 0.01440 | 472s
+step   550 | loss 2.5622 | lr 0.01467 | 479s
+step   560 | loss 2.3823 | lr 0.01493 | 487s
+step   570 | loss 2.4133 | lr 0.01520 | 494s
+step   580 | loss 2.3274 | lr 0.01547 | 502s
+step   590 | loss 2.4066 | lr 0.01573 | 509s
+step   600 | loss 2.4170 | lr 0.01600 | 517s
+  ↳ BPB (EMA, stride=64): 1.0284  [random baseline 2.857  target <1.115]
+step   610 | loss 2.4869 | lr 0.01627 | 531s
+step   620 | loss 2.4515 | lr 0.01653 | 538s
+step   630 | loss 2.4121 | lr 0.01680 | 546s
+step   640 | loss 2.3846 | lr 0.01707 | 557s
+step   650 | loss 2.4082 | lr 0.01733 | 565s
+step   660 | loss 2.4309 | lr 0.01760 | 573s
+step   670 | loss 2.3907 | lr 0.01787 | 580s
+step   680 | loss 2.4582 | lr 0.01813 | 587s
+step   690 | loss 2.3397 | lr 0.01840 | 595s
+Wall-clock limit reached at step 698.
+Collecting optimizer saliency for GPTQ ...
+  [saliency] collected for 42 parameters.
+Saving quantized model.bin ...
+  [quant] generating AR calibration sequences ...
+  [quant] collecting Hessians ...
+  [quant] quantizing to int6 (AdamW-v_t saliency boost) ...
+  [quant] Saved model.bin  8.15 MB  [zstd-22]  saliency-boosted layers: 6  (OK ✓)  total elapsed 684s
