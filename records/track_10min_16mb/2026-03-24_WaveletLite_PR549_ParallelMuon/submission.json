@@ -1,0 +1,9 @@
+{
+  "name": "Wavelet-Lite PR549 Parallel Muon",
+  "val_bpb": 1.1482555,
+  "bytes_total": 15859711,
+  "blurb": "PR549-derived Parallel Muon frontier stack plus a tiny causal wavelet-lite activation mixer, with BIGRAM_VOCAB_SIZE=1024 and no TTT in the final budgeted run. Exact saved int6 artifact roundtrip: val_bpb=1.1483 at 15.86 MB total.",
+  "author": "Omar Habra",
+  "github_id": "bro4all",
+  "date": "2026-03-24"
+}
