@@ -1,0 +1,15 @@
+{
+  "author": "Sanjay Patnala",
+  "github_id": "spatnala18",
+  "name": "Auto Precision Budget 10L (1xH100 exploratory)",
+  "blurb": "Non-record 1xH100 exploratory run built on the 2026-03-20 10L recipe. Replaces hand-authored mixed-precision exceptions with a calibration-driven precision allocator that greedily promotes quantization-sensitive tensors under the 16MB cap. This submitted run is a short smoke experiment intended to validate the method and motivate longer follow-up experiments.",
+  "date": "2026-03-22",
+  "track": "non-record-16mb",
+  "val_loss": 5.53668879,
+  "val_bpb": 3.08435975,
+  "step_stop": 87,
+  "wallclock_seconds": 60.025,
+  "bytes_total": 15836818,
+  "bytes_model_int8_zlib": 15771560,
+  "bytes_code": 65258
+}
