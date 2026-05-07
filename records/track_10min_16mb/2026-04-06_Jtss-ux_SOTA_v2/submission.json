@@ -1,0 +1,43 @@
+{
+  "author": "Jtss-ux",
+  "github_id": "Jtss-ux",
+  "val_bpb": 1.1151,
+  "technique": "AR Self-Gen GPTQ + XSA-all + BigramHash 3072x112",
+  "blurb": "11L XSA-all + Full Hessian GPTQ with autoregressive self-generated calibration + BigramHash 3072x112. 3-seed mean: 1.115094 BPB.",
+  "date": "2026-04-06",
+  "track": "10min_16mb",
+  "val_loss": 1.8828,
+  "val_bpb_std": 0.0002,
+  "seeds": [314, 42, 999],
+  "seed_results": {
+    "314": {
+      "val_loss": 1.8825,
+      "val_bpb": 1.11491902,
+      "artifact_bytes": 15847950,
+      "steps": 6854,
+      "step_avg_ms": 87.6
+    },
+    "42": {
+      "val_loss": 1.8827,
+      "val_bpb": 1.11502119,
+      "artifact_bytes": 15860098,
+      "steps": 6851,
+      "step_avg_ms": 87.6
+    },
+    "999": {
+      "val_loss": 1.8832,
+      "val_bpb": 1.11534079,
+      "steps": 6856,
+      "step_avg_ms": 87.5
+    }
+  },
+  "comparison_baseline_pr": 1019,
+  "delta_vs_sota_bpb": 0.0004,
+  "artifact_bytes_mean": 15854024,
+  "bytes_total": 15860098,
+  "train_steps_mean": 6854,
+  "step_avg_ms_mean": 87.5,
+  "hardware": "8xH100 80GB SXM",
+  "calibration": "AR self-generated (64 seqs x 2048 tokens, temp=0.8)",
+  "technique_summary": "AR self-gen GPTQ calibration + XSA-all + BigramHash 3072x112 + Parallel Muon + LZMA9"
+}

@@ -1,6 +1,6 @@
 {
-  "author": "abaybektursun",
-  "github_id": "abaybektursun",
+  "author": "Jtss-ux",
+  "github_id": "Jtss-ux",
   "name": "AR Self-Gen GPTQ + XSA-all + BigramHash 3072x112",
   "blurb": "11L XSA-all + Full Hessian GPTQ with autoregressive self-generated calibration (no val/train data accessed during quantization) + selective-pruning stack. BigramHash(3072,112), warmdown=4000, lzma preset=9. 3-seed exact mean: 1.11473509 BPB / 1.88217853 nats, beating PR549's exact 3-seed mean 1.11937967 BPB / 1.89002068 nats by 0.00784215 nats (Welch t=-11.83, df=3.31).",
   "date": "2026-03-25",

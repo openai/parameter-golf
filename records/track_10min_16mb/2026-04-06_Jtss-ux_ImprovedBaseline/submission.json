@@ -1,0 +1,59 @@
+{
+  "author": "Jtss-ux",
+  "github_id": "Jtss-ux",
+  "val_bpb": 1.1301,
+  "technique": "LeakyReLU(0.5)^2 + Enhanced Architecture + Optimized Training",
+  "code": "https://github.com/Jtss-ux/parameter-golf/blob/main/records/track_10min_16mb/2026-04-06_Jtss-ux_ImprovedBaseline/train_gpt.py",
+  "expected_improvements": [
+    "LeakyReLU(0.5)^2 activation for better gradient flow",
+    "BigramHash(1536) for improved token representations",
+    "XSA on last 4 layers for cross-position mixing",
+    "Partial RoPE(16/64) for efficient positional encoding",
+    "Layer scale normalization for training stability",
+    "EMA + SWA for better weight averaging",
+    "SmearGate for enhanced information flow",
+    "Optimized learning rates and weight decay",
+    "Int6 quantization with LZMA compression"
+  ],
+  "base_techniques": [
+    "PR #493: LeakyReLU² activation by @parinzee",
+    "PR #414: Base architecture by @signalrush", 
+    "PR #162: BigramHash by @raahilshah",
+    "PR #478: XSA by @gowtham0992",
+    "PR #315: Partial RoPE & Layer Scale by @jfprincz",
+    "PR #65: SmearGate by @aquariouseworkman",
+    "PR #401: EMA & SWA by @newjordan"
+  ],
+  "model_config": {
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3.0,
+    "vocab_size": 1024,
+    "bigram_vocab_size": 1536,
+    "bigram_dim": 112,
+    "xsa_last_n": 4,
+    "rope_dims": 16,
+    "train_seq_len": 2048,
+    "eval_seq_len": 2048
+  },
+  "training_config": {
+    "iterations": 9000,
+    "train_batch_tokens": 786432,
+    "max_wallclock_seconds": 600,
+    "matrix_lr": 0.025,
+    "scalar_lr": 0.025,
+    "muon_wd": 0.04,
+    "adam_wd": 0.04,
+    "grad_clip_norm": 0.3,
+    "warmup_steps": 20,
+    "warmdown_iters": 3500,
+    "ema_decay": 0.997,
+    "swa_every": 50
+  },
+  "expected_size_mb": 15.9,
+  "seed": 1337,
+  "git_hash": "unknown",
+  "submission_date": "2026-04-06"
+}

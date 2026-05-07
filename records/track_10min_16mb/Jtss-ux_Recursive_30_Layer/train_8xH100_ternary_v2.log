@@ -1,0 +1,148 @@
+
+W0406 04:48:27.574000 163031 torch/distributed/run.py:803] 
+W0406 04:48:27.574000 163031 torch/distributed/run.py:803] *****************************************
+W0406 04:48:27.574000 163031 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0406 04:48:27.574000 163031 torch/distributed/run.py:803] *****************************************
+logs/cuda/run_314.txt
+params:39883904 L:16 d:512 h:8 kv:4 ws:8 ga:1 s:314
+[rank2]:[W406 04:49:26.728080869 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank0]:[W406 04:49:26.936552955 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank4]:[W406 04:49:26.011741661 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank3]:[W406 04:49:26.111699389 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank5]:[W406 04:49:26.118028940 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank7]:[W406 04:49:26.327399159 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank6]:[W406 04:49:26.332133893 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W406 04:49:26.457674762 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+warmup:1/20
+warmup:2/20
+warmup:3/20
+warmup:4/20
+warmup:5/20
+warmup:6/20
+warmup:7/20
+warmup:8/20
+warmup:9/20
+warmup:10/20
+warmup:11/20
+warmup:12/20
+warmup:13/20
+warmup:14/20
+warmup:15/20
+warmup:16/20
+warmup:17/20
+warmup:18/20
+warmup:19/20
+warmup:20/20
+step:0/10000 val_loss:6.9408 val_bpb:4.1783 train_time:0ms zero_frac:0.198
+step:500/10000 loss:3.2233 t:122104ms avg:244.2ms
+step:500 churn:0.0000 zero:0.353
+step:1000/10000 loss:3.0075 t:247490ms avg:247.5ms
+step:1000 churn:0.4210 zero:0.358
+step:1500/10000 loss:2.9200 t:368535ms avg:245.7ms
+step:1500 churn:0.3073 zero:0.359
+step:2000/10000 loss:2.7416 t:489547ms avg:244.8ms
+step:2000 churn:0.2492 zero:0.361
+step:2460/10000 val_loss:2.1920 val_bpb:1.3195 train_time:600807ms zero_frac:0.364
+stopping_early: wallclock_cap train_time:600807ms step:2460/10000
+artifact:9.96MB ternary:37748736(8867922B) fp:1086592(2173184B) code:70859
+budget:10031215/16000000 (10.03/16.00MB) FITS
+eval_depth_recurrence:2
+final_ternary_roundtrip val_loss:2.1931 val_bpb:1.3202
+W0406 05:02:47.421000 174081 torch/distributed/run.py:803] 
+W0406 05:02:47.421000 174081 torch/distributed/run.py:803] *****************************************
+W0406 05:02:47.421000 174081 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0406 05:02:47.421000 174081 torch/distributed/run.py:803] *****************************************
+logs/cuda/run_42.txt
+params:39883904 L:16 d:512 h:8 kv:4 ws:8 ga:1 s:42
+[rank4]:[W406 05:03:24.930334329 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank6]:[W406 05:03:24.002121383 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank7]:[W406 05:03:24.020772681 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank3]:[W406 05:03:24.293890538 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank2]:[W406 05:03:24.301751423 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank5]:[W406 05:03:24.303718127 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank0]:[W406 05:03:25.857304374 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W406 05:03:25.920785110 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+warmup:1/20
+warmup:2/20
+warmup:3/20
+warmup:4/20
+warmup:5/20
+warmup:6/20
+warmup:7/20
+warmup:8/20
+warmup:9/20
+warmup:10/20
+warmup:11/20
+warmup:12/20
+warmup:13/20
+warmup:14/20
+warmup:15/20
+warmup:16/20
+warmup:17/20
+warmup:18/20
+warmup:19/20
+warmup:20/20
+step:0/10000 val_loss:6.9413 val_bpb:4.1786 train_time:0ms zero_frac:0.198
+step:500/10000 loss:3.2187 t:120689ms avg:241.4ms
+step:500 churn:0.0000 zero:0.352
+step:1000/10000 loss:2.9962 t:243566ms avg:243.6ms
+step:1000 churn:0.4207 zero:0.357
+step:1500/10000 loss:2.9082 t:364473ms avg:243.0ms
+step:1500 churn:0.3062 zero:0.358
+step:2000/10000 loss:2.7410 t:485348ms avg:242.7ms
+step:2000 churn:0.2497 zero:0.360
+step:2480/10000 val_loss:2.1835 val_bpb:1.3144 train_time:601220ms zero_frac:0.363
+stopping_early: wallclock_cap train_time:601220ms step:2480/10000
+artifact:9.96MB ternary:37748736(8869534B) fp:1086592(2173184B) code:70859
+budget:10035179/16000000 (10.04/16.00MB) FITS
+eval_depth_recurrence:2
+final_ternary_roundtrip val_loss:2.1844 val_bpb:1.3150
+W0406 05:14:26.107000 175004 torch/distributed/run.py:803] 
+W0406 05:14:26.107000 175004 torch/distributed/run.py:803] *****************************************
+W0406 05:14:26.107000 175004 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0406 05:14:26.107000 175004 torch/distributed/run.py:803] *****************************************
+logs/cuda/run_999.txt
+params:39883904 L:16 d:512 h:8 kv:4 ws:8 ga:1 s:999
+[rank7]:[W406 05:15:02.558459809 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank0]:[W406 05:15:03.079136874 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank6]:[W406 05:15:03.157396554 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank5]:[W406 05:15:03.215454636 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W406 05:15:03.262110752 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank2]:[W406 05:15:03.289878831 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank3]:[W406 05:15:03.315431440 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank4]:[W406 05:15:03.566601948 reducer.cpp:1431] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+warmup:1/20
+warmup:2/20
+warmup:3/20
+warmup:4/20
+warmup:5/20
+warmup:6/20
+warmup:7/20
+warmup:8/20
+warmup:9/20
+warmup:10/20
+warmup:11/20
+warmup:12/20
+warmup:13/20
+warmup:14/20
+warmup:15/20
+warmup:16/20
+warmup:17/20
+warmup:18/20
+warmup:19/20
+warmup:20/20
+step:0/10000 val_loss:6.9406 val_bpb:4.1781 train_time:0ms zero_frac:0.198
+step:500/10000 loss:3.2234 t:120709ms avg:241.4ms
+step:500 churn:0.0000 zero:0.352
+step:1000/10000 loss:2.9965 t:243121ms avg:243.1ms
+step:1000 churn:0.4200 zero:0.356
+step:1500/10000 loss:2.9063 t:364054ms avg:242.7ms
+step:1500 churn:0.3066 zero:0.357
+step:2000/10000 loss:2.7425 t:484893ms avg:242.4ms
+step:2000 churn:0.2492 zero:0.360
+step:2480/10000 val_loss:2.1834 val_bpb:1.3144 train_time:600861ms zero_frac:0.363
+stopping_early: wallclock_cap train_time:600861ms step:2480/10000
+artifact:9.96MB ternary:37748736(8872493B) fp:1086592(2173184B) code:70859
+budget:10035463/16000000 (10.04/16.00MB) FITS
+eval_depth_recurrence:2
+final_ternary_roundtrip val_loss:2.1843 val_bpb:1.3149
