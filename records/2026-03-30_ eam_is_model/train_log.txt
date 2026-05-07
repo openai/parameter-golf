@@ -1,0 +1,69 @@
+EAM-IS-THE-MODEL | ranks=1 device=cuda
+Train: 100,000,000 tokens, Val: 62,021,846 tokens
+
+============================================================
+STEP 1: Train teacher (D=512 L=8)
+============================================================
+Teacher params: 21,495,808
+  Epoch 1: loss=5.1164 (14s)
+  Epoch 2: loss=4.3612 (27s)
+  Epoch 3: loss=4.1960 (41s)
+  Epoch 4: loss=3.9860 (54s)
+  Epoch 5: loss=3.6890 (68s)
+
+============================================================
+STEP 2: Distill into EAM (max 12000 locations)
+============================================================
+  EAM: L=11999 writes=4,096,000 (22.0s)
+  EAM compressed: 10772KB
+
+============================================================
+STEP 3: Train encoder
+============================================================
+  Encoder params: 425,984
+  Epoch 1/10: key_loss=0.3708
+  Epoch 2/10: key_loss=0.2072
+  Epoch 3/10: key_loss=0.1880
+  Epoch 4/10: key_loss=0.1805
+  Epoch 5/10: key_loss=0.1762
+  Epoch 6/10: key_loss=0.1736
+  Epoch 7/10: key_loss=0.1716
+  Epoch 8/10: key_loss=0.1701
+  Epoch 9/10: key_loss=0.1688
+  Epoch 10/10: key_loss=0.1679
+
+============================================================
+STEP 4: Train decoder
+============================================================
+  Decoder params: 1,574,912
+  Epoch 1/10: loss=5.1608
+  Epoch 2/10: loss=4.7126
+  Epoch 3/10: loss=4.5953
+  Epoch 4/10: loss=4.5322
+  Epoch 5/10: loss=4.4909
+  Epoch 6/10: loss=4.4606
+  Epoch 7/10: loss=4.4374
+  Epoch 8/10: loss=4.4183
+  Epoch 9/10: loss=4.4023
+  Epoch 10/10: loss=4.3889
+
+Training complete. Total: 177s
+
+============================================================
+Saving artifact
+============================================================
+  Code: 1900 bytes
+  Model: 14825760 bytes (14478KB)
+  Total: 14827660 bytes (14.1MB)
+  Budget: 16,000,000 bytes
+  Status: FITS
+
+============================================================
+Evaluation: encoder → EAM → decoder + kNN
+============================================================
+  Loaded EAM: 11999 locations
+  eval_time: 844s
+  val_loss: 4.16145492
+  val_bpb:  2.46464931
+
+  eam_is_model val_loss:4.16145492 val_bpb:2.46464931
