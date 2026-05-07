@@ -1,0 +1,68 @@
+================================================================
+== TRAIN: 11L_w03_s1337  (L=11 d=512 w=0.3 seed=1337)
+================================================================
+  done -> FINAL val_bpb: 1.4387
+-rw-r--r-- 1 root root 109459269 Apr  9 10:41 /workspace/ckpt/11L_w03_s1337/step_final.pt
+-rw-r--r-- 1 root root 113643028 Apr  9 10:41 /workspace/out/11L_w03_s1337.npz
+================================================================
+== TRAIN: 11L_w03_s42  (L=11 d=512 w=0.3 seed=42)
+================================================================
+  done -> FINAL val_bpb: 1.4393
+-rw-r--r-- 1 root root 109459269 Apr  9 10:51 /workspace/ckpt/11L_w03_s42/step_final.pt
+-rw-r--r-- 1 root root 113643028 Apr  9 10:51 /workspace/out/11L_w03_s42.npz
+================================================================
+== TRAIN: 11L_w03_s2024  (L=11 d=512 w=0.3 seed=2024)
+================================================================
+  done -> FINAL val_bpb: 1.4430
+-rw-r--r-- 1 root root 109459269 Apr  9 11:00 /workspace/ckpt/11L_w03_s2024/step_final.pt
+-rw-r--r-- 1 root root 113643028 Apr  9 11:00 /workspace/out/11L_w03_s2024.npz
+================================================================
+== TRAIN: 11L_w03_s7  (L=11 d=512 w=0.3 seed=7)
+================================================================
+  done -> FINAL val_bpb: 1.4416
+-rw-r--r-- 1 root root 109459269 Apr  9 11:09 /workspace/ckpt/11L_w03_s7/step_final.pt
+-rw-r--r-- 1 root root 113643028 Apr  9 11:09 /workspace/out/11L_w03_s7.npz
+================================================================
+== TRAIN: 11L_w03_s100  (L=11 d=512 w=0.3 seed=100)
+================================================================
+  done -> FINAL val_bpb: 1.4422
+-rw-r--r-- 1 root root 109459269 Apr  9 11:19 /workspace/ckpt/11L_w03_s100/step_final.pt
+-rw-r--r-- 1 root root 113643028 Apr  9 11:19 /workspace/out/11L_w03_s100.npz
+
+================================================================
+== ALL 5 TRAININGS DONE — STARTING EVALS
+================================================================
+== EVAL: 11L_w03_s1337
+  cf ->   "cf_total": 1.2923543097576307,
+== EVAL: 11L_w03_s42
+  cf ->   "cf_total": 1.302720034432593,
+== EVAL: 11L_w03_s2024
+  cf ->   "cf_total": 1.3060134958387764,
+== EVAL: 11L_w03_s7
+  cf ->   "cf_total": 1.302476738479631,
+== EVAL: 11L_w03_s100
+  cf ->   "cf_total": 1.3007377814901728,
+
+================================================================
+== ALL DONE
+================================================================
+-rw-r--r-- 1 root root 109459269 Apr  9 11:19 /workspace/ckpt/11L_w03_s100/step_final.pt
+-rw-r--r-- 1 root root 109459269 Apr  9 10:41 /workspace/ckpt/11L_w03_s1337/step_final.pt
+-rw-r--r-- 1 root root 109459269 Apr  9 11:00 /workspace/ckpt/11L_w03_s2024/step_final.pt
+-rw-r--r-- 1 root root 109459269 Apr  9 10:51 /workspace/ckpt/11L_w03_s42/step_final.pt
+-rw-r--r-- 1 root root 109459269 Apr  9 11:09 /workspace/ckpt/11L_w03_s7/step_final.pt
+
+/workspace/out/:
+total 646292
+drwxr-xr-x 2 root root      4096 Apr  9 11:19 .
+drwxr-xr-x 1 root root       157 Apr  9 10:32 ..
+-rw-r--r-- 1 root root 113643028 Apr  9 11:19 11L_w03_s100.npz
+-rw-r--r-- 1 root root  18695388 Apr  9 11:19 11L_w03_s100_int6.lzma
+-rw-r--r-- 1 root root 113643028 Apr  9 10:41 11L_w03_s1337.npz
+-rw-r--r-- 1 root root  18755168 Apr  9 10:41 11L_w03_s1337_int6.lzma
+-rw-r--r-- 1 root root 113643028 Apr  9 11:00 11L_w03_s2024.npz
+-rw-r--r-- 1 root root  18679732 Apr  9 11:00 11L_w03_s2024_int6.lzma
+-rw-r--r-- 1 root root 113643028 Apr  9 10:51 11L_w03_s42.npz
+-rw-r--r-- 1 root root  18766988 Apr  9 10:51 11L_w03_s42_int6.lzma
+-rw-r--r-- 1 root root 113643028 Apr  9 11:09 11L_w03_s7.npz
+-rw-r--r-- 1 root root  18676280 Apr  9 11:10 11L_w03_s7_int6.lzma

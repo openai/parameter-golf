@@ -1,0 +1,11 @@
+================================================================
+== TRAIN: 11L_w0_s1337 (control, seed 1337, w=0.0)
+================================================================
+  done -> FINAL val_bpb: 1.3146
+-rw-r--r-- 1 root root 109459269 Apr  9 11:37 /workspace/ckpt/11L_w0_s1337/step_final.pt
+-rw-r--r-- 1 root root 113643028 Apr  9 11:37 /workspace/out/11L_w0_s1337.npz
+
+== EVAL: 11L_w0_s1337
+  cf ->   "cf_total": 2.4538075030330733,
+  pure_ar ->   "pure_ar_bpb": 1.3213800191879272,
+PHASE_B_DONE

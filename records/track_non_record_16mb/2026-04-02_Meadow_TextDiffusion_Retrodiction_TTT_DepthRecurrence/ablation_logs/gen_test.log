@@ -1,0 +1,222 @@
+Val tokens: 45,122,403
+
+============================================================================
+  5L_w0
+============================================================================
+  model: 5L d=256 vocab=4096
+
+  [seq 1/4]
+  PREFIX:    your little Johnny G. like a porter who'd just seen a ghost. Crystal had fire in her eyes--this skirt was served over
+  ORIGINAL:  [-easy, just the way like I like 'em. "S]
+  BIDIR:     [ufactata� call Su pay UKtainks reviewsirif Octecutoolay]  EM 0/16
+  CAUSAL:    [.ure.�ingzment.....i ives]  EM 0/16
+  SUFFIX:    ay, Crystal, you're a choice piece of calico. What say we split some chopped tuber chips and get to know each other,
+
+  [seq 2/4]
+  PREFIX:    X Tyres services over 60,000 of the Australian motoring public each month through a network of 80 stores along the Eastern Seaboard. JAX Tyres
+  ORIGINAL:  [Sutherland is conveniently located at 686-6]
+  BIDIR:     [ton 1 purp digitalthing flowitespre9 Inter players Billustom 1 during9]  EM 0/16
+  CAUSAL:    [out,01ose c toers,ne2view canysM the]  EM 0/16
+  SUFFIX:    90 Old Princes Highway and is open from 8am to 5pm Monday to Friday and 8am to 1pm on Saturdays. Phone 9521 73
+
+  [seq 3/4]
+  PREFIX:    ’s the carrot dangling in front of me, that’s the pressure I am putting on this year. So, Dad, Happy Birthday!
+  ORIGINAL:  [Enjoy your day! And here’s to hoping things will be a]
+  BIDIR:     [rem Rem  of yadaients interestingphempt larger Facebook system starting whole]  EM 0/16
+  CAUSAL:    [meindember� theester, to toonesygest,,, with]  EM 0/16
+  SUFFIX:    whole lot different when your birthday rolls around again. Dad also loves peanut butter, so with this recipe comes the conclusion of my week of pe
+
+  [seq 4/4]
+  PREFIX:    financial info (bank account, social security, paypal account, etc). You will find beautiful wine barrel furniture to accent your wine decor.
+  ORIGINAL:  [Even used wine barrels are given a second chance. Wine bar]
+  BIDIR:     [pro Dem perfect rece purp,foreode Qu er Day Trump eng Am Ire]  EM 0/16
+  CAUSAL:    [,vonlyipose a you.icka 1,agementazon to]  EM 0/16
+  SUFFIX:    rel furniture is built, for home or garden, with the old craftsman style in mind that enhances the wonderful wood grain of the oak barre
+
+  TOTAL EM: bidir=0/64 = 0.0%, causal=0/64 = 0.0%
+
+============================================================================
+  5L_w03
+============================================================================
+  model: 5L d=256 vocab=4096
+
+  [seq 1/4]
+  PREFIX:    your little Johnny G. like a porter who'd just seen a ghost. Crystal had fire in her eyes--this skirt was served over
+  ORIGINAL:  [-easy, just the way like I like 'em. "S]
+  BIDIR:     [.,o calls pay C for L, Cir Oct Ex Fool]  EM 0/16
+  CAUSAL:    [asuring.�ingzment for.. forai.as]  EM 1/16
+  SUFFIX:    ay, Crystal, you're a choice piece of calico. What say we split some chopped tuber chips and get to know each other,
+
+  [seq 2/4]
+  PREFIX:    X Tyres services over 60,000 of the Australian motoring public each month through a network of 80 stores along the Eastern Seaboard. JAX Tyres
+  ORIGINAL:  [Sutherland is conveniently located at 686-6]
+  BIDIR:     [out a andoseose flowers of 2 Inter players Bill Cs is 2]  EM 0/16
+  CAUSAL:    [the,000ose c ofers,ne0view andysT the]  EM 0/16
+  SUFFIX:    90 Old Princes Highway and is open from 8am to 5pm Monday to Friday and 8am to 1pm on Saturdays. Phone 9521 73
+
+  [seq 3/4]
+  PREFIX:    ’s the carrot dangling in front of me, that’s the pressure I am putting on this year. So, Dad, Happy Birthday!
+  ORIGINAL:  [Enjoy your day! And here’s to hoping things will be a]
+  BIDIR:     [Iainsoveing your peell,, toygerger system is a]  EM 2/16
+  CAUSAL:    [meindemberon theester,, toyygero,, to]  EM 0/16
+  SUFFIX:    whole lot different when your birthday rolls around again. Dad also loves peanut butter, so with this recipe comes the conclusion of my week of pe
+
+  [seq 4/4]
+  PREFIX:    financial info (bank account, social security, paypal account, etc). You will find beautiful wine barrel furniture to accent your wine decor.
+  ORIGINAL:  [Even used wine barrels are given a second chance. Wine bar]
+  BIDIR:     [im Dem way rece theiveros qu Qu er Dayan eng Amass I]  EM 0/16
+  CAUSAL:    [,ofocr foripose ast andesta,'agesazing a]  EM 0/16
+  SUFFIX:    rel furniture is built, for home or garden, with the old craftsman style in mind that enhances the wonderful wood grain of the oak barre
+
+  TOTAL EM: bidir=2/64 = 3.1%, causal=1/64 = 1.6%
+
+============================================================================
+  5L_w1
+============================================================================
+  model: 5L d=256 vocab=4096
+
+  [seq 1/4]
+  PREFIX:    your little Johnny G. like a porter who'd just seen a ghost. Crystal had fire in her eyes--this skirt was served over
+  ORIGINAL:  [-easy, just the way like I like 'em. "S]
+  BIDIR:     [ufactataata call call pay forta wwwiririf Octecut_ay]  EM 0/16
+  CAUSAL:    [.ure.�szment... .i.ives]  EM 1/16
+  SUFFIX:    ay, Crystal, you're a choice piece of calico. What say we split some chopped tuber chips and get to know each other,
+
+  [seq 2/4]
+  PREFIX:    X Tyres services over 60,000 of the Australian motoring public each month through a network of 80 stores along the Eastern Seaboard. JAX Tyres
+  ORIGINAL:  [Sutherland is conveniently located at 686-6]
+  BIDIR:     [mitmit of digitalthingthingites Inter 18 Inter playersiorustom\,9]  EM 0/16
+  CAUSAL:    [the,,000ose,,ers,vers andview,ysU the]  EM 0/16
+  SUFFIX:    90 Old Princes Highway and is open from 8am to 5pm Monday to Friday and 8am to 1pm on Saturdays. Phone 9521 73
+
+  [seq 3/4]
+  PREFIX:    ’s the carrot dangling in front of me, that’s the pressure I am putting on this year. So, Dad, Happy Birthday!
+  ORIGINAL:  [Enjoy your day! And here’s to hoping things will be a]
+  BIDIR:     [toindember all yadaada isph exsgergest is is a]  EM 1/16
+  CAUSAL:    [youindember to theester. to tootiveger... to]  EM 0/16
+  SUFFIX:    whole lot different when your birthday rolls around again. Dad also loves peanut butter, so with this recipe comes the conclusion of my week of pe
+
+  [seq 4/4]
+  PREFIX:    financial info (bank account, social security, paypal account, etc). You will find beautiful wine barrel furniture to accent your wine decor.
+  ORIGINAL:  [Even used wine barrels are given a second chance. Wine bar]
+  BIDIR:     [pro Dem islyiveiving aodebe er Day Trump Day Am thingre]  EM 0/16
+  CAUSAL:    [,folyipose ast,esta 1,lishazon.]  EM 0/16
+  SUFFIX:    rel furniture is built, for home or garden, with the old craftsman style in mind that enhances the wonderful wood grain of the oak barre
+
+  TOTAL EM: bidir=1/64 = 1.6%, causal=1/64 = 1.6%
+
+============================================================================
+  11L_w0
+============================================================================
+  model: 11L d=512 vocab=4096
+
+  [seq 1/4]
+  PREFIX:    your little Johnny G. like a porter who'd just seen a ghost. Crystal had fire in her eyes--this skirt was served over
+  ORIGINAL:  [-easy, just the way like I like 'em. "S]
+  BIDIR:     [ufactata� call Su pay UKtainks reviewsirif Octecutoolay]  EM 0/16
+  CAUSAL:    [.ured.�szment ...si 2ives]  EM 0/16
+  SUFFIX:    ay, Crystal, you're a choice piece of calico. What say we split some chopped tuber chips and get to know each other,
+
+  [seq 2/4]
+  PREFIX:    X Tyres services over 60,000 of the Australian motoring public each month through a network of 80 stores along the Eastern Seaboard. JAX Tyres
+  ORIGINAL:  [Sutherland is conveniently located at 686-6]
+  BIDIR:     [mit 1 purp digitalthing flowitespre9 Inter players Billustom\ during9]  EM 0/16
+  CAUSAL:    [out,000ose c isers thefer8act canyss the]  EM 0/16
+  SUFFIX:    90 Old Princes Highway and is open from 8am to 5pm Monday to Friday and 8am to 1pm on Saturdays. Phone 9521 73
+
+  [seq 3/4]
+  PREFIX:    ’s the carrot dangling in front of me, that’s the pressure I am putting on this year. So, Dad, Happy Birthday!
+  ORIGINAL:  [Enjoy your day! And here’s to hoping things will be a]
+  BIDIR:     [removember of yadaients interestingphempt larger Facebook system starting whole]  EM 0/16
+  CAUSAL:    [youoteemberу theester, to.rygerо.. at]  EM 0/16
+  SUFFIX:    whole lot different when your birthday rolls around again. Dad also loves peanut butter, so with this recipe comes the conclusion of my week of pe
+
+  [seq 4/4]
+  PREFIX:    financial info (bank account, social security, paypal account, etc). You will find beautiful wine barrel furniture to accent your wine decor.
+  ORIGINAL:  [Even used wine barrels are given a second chance. Wine bar]
+  BIDIR:     [pro Dem perfect rece purp isforeode Qu er Day Trump eng Am thingre]  EM 0/16
+  CAUSAL:    [Ifolyipose ast.estutonetagementy I]  EM 0/16
+  SUFFIX:    rel furniture is built, for home or garden, with the old craftsman style in mind that enhances the wonderful wood grain of the oak barre
+
+  TOTAL EM: bidir=0/64 = 0.0%, causal=0/64 = 0.0%
+
+============================================================================
+  11L_w03
+============================================================================
+  model: 11L d=512 vocab=4096
+
+  [seq 1/4]
+  PREFIX:    your little Johnny G. like a porter who'd just seen a ghost. Crystal had fire in her eyes--this skirt was served over
+  ORIGINAL:  [-easy, just the way like I like 'em. "S]
+  BIDIR:     [a... Su,, for l, Airif, Wk]  EM 0/16
+  CAUSAL:    [.uring.�szing....si.ives]  EM 1/16
+  SUFFIX:    ay, Crystal, you're a choice piece of calico. What say we split some chopped tuber chips and get to know each other,
+
+  [seq 2/4]
+  PREFIX:    X Tyres services over 60,000 of the Australian motoring public each month through a network of 80 stores along the Eastern Seaboard. JAX Tyres
+  ORIGINAL:  [Sutherland is conveniently located at 686-6]
+  BIDIR:     [Com 1- digital digitalthings to 900act Custom\ 9]  EM 0/16
+  CAUSAL:    [thete-ose mot,ing andvious0ior,yss the]  EM 0/16
+  SUFFIX:    90 Old Princes Highway and is open from 8am to 5pm Monday to Friday and 8am to 1pm on Saturdays. Phone 9521 73
+
+  [seq 3/4]
+  PREFIX:    ’s the carrot dangling in front of me, that’s the pressure I am putting on this year. So, Dad, Happy Birthday!
+  ORIGINAL:  [Enjoy your day! And here’s to hoping things will be a]
+  BIDIR:     [rem remind of the yog and (.ygergery is a]  EM 1/16
+  CAUSAL:    [meind to to thees’,,otygeren., with]  EM 0/16
+  SUFFIX:    whole lot different when your birthday rolls around again. Dad also loves peanut butter, so with this recipe comes the conclusion of my week of pe
+
+  [seq 4/4]
+  PREFIX:    financial info (bank account, social security, paypal account, etc). You will find beautiful wine barrel furniture to accent your wine decor.
+  ORIGINAL:  [Even used wine barrels are given a second chance. Wine bar]
+  BIDIR:     [ProThe the the forivingose c. Questa..lish bar]  EM 2/16
+  CAUSAL:    [.focrlyivingose astcestua,agementazon to]  EM 0/16
+  SUFFIX:    rel furniture is built, for home or garden, with the old craftsman style in mind that enhances the wonderful wood grain of the oak barre
+
+  TOTAL EM: bidir=3/64 = 4.7%, causal=1/64 = 1.6%
+
+============================================================================
+  11L_w1
+============================================================================
+  model: 11L d=512 vocab=4096
+
+  [seq 1/4]
+  PREFIX:    your little Johnny G. like a porter who'd just seen a ghost. Crystal had fire in her eyes--this skirt was served over
+  ORIGINAL:  [-easy, just the way like I like 'em. "S]
+  BIDIR:     [..if,.s.. l, iri,.ay]  EM 0/16
+  CAUSAL:    [.ure.�sppment....lty.ives]  EM 1/16
+  SUFFIX:    ay, Crystal, you're a choice piece of calico. What say we split some chopped tuber chips and get to know each other,
+
+  [seq 2/4]
+  PREFIX:    X Tyres services over 60,000 of the Australian motoring public each month through a network of 80 stores along the Eastern Seaboard. JAX Tyres
+  ORIGINAL:  [Sutherland is conveniently located at 686-6]
+  BIDIR:     [Without 1000 thingll from 9 the0ior Bill\\$]  EM 0/16
+  CAUSAL:    [a is000oseity,ers,p0ior andyerT the]  EM 0/16
+  SUFFIX:    90 Old Princes Highway and is open from 8am to 5pm Monday to Friday and 8am to 1pm on Saturdays. Phone 9521 73
+
+  [seq 3/4]
+  PREFIX:    ’s the carrot dangling in front of me, that’s the pressure I am putting on this year. So, Dad, Happy Birthday!
+  ORIGINAL:  [Enjoy your day! And here’s to hoping things will be a]
+  BIDIR:     [I theind all of yred- emphantsger Facebook is a]  EM 1/16
+  CAUSAL:    [meindaint thees, to,iayger... at]  EM 0/16
+  SUFFIX:    whole lot different when your birthday rolls around again. Dad also loves peanut butter, so with this recipe comes the conclusion of my week of pe
+
+  [seq 4/4]
+  PREFIX:    financial info (bank account, social security, paypal account, etc). You will find beautiful wine barrel furniture to accent your wine decor.
+  ORIGINAL:  [Even used wine barrels are given a second chance. Wine bar]
+  BIDIR:     [Al.verolyivingos C. Quer. The Theine bar]  EM 2/16
+  CAUSAL:    [,vocrlyivesose ase.esta.,agementazon about]  EM 0/16
+  SUFFIX:    rel furniture is built, for home or garden, with the old craftsman style in mind that enhances the wonderful wood grain of the oak barre
+
+  TOTAL EM: bidir=3/64 = 4.7%, causal=1/64 = 1.6%
+
+============================================================================
+  SUMMARY
+============================================================================
+tag          bidir EM     causal EM   
+  5L_w0      0/64 (0.0%)   0/64 (0.0%)
+  5L_w03     2/64 (3.1%)   1/64 (1.6%)
+  5L_w1      1/64 (1.6%)   1/64 (1.6%)
+  11L_w0     0/64 (0.0%)   0/64 (0.0%)
+  11L_w03    3/64 (4.7%)   1/64 (1.6%)
+  11L_w1     3/64 (4.7%)   1/64 (1.6%)
