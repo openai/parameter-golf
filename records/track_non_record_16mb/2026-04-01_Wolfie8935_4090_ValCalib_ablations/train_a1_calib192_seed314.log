@@ -1,0 +1,70 @@
+logs/a1_calib192_seed314.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27067484
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:196608 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:314
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9300 train_time:528ms step_avg:528.48ms
+step:2/20000 train_loss:8.7825 train_time:1001ms step_avg:500.65ms
+step:3/20000 train_loss:8.3371 train_time:1517ms step_avg:505.63ms
+step:4/20000 train_loss:7.6582 train_time:2035ms step_avg:508.75ms
+step:5/20000 train_loss:7.0457 train_time:2553ms step_avg:510.67ms
+step:6/20000 train_loss:6.5797 train_time:3083ms step_avg:513.81ms
+step:7/20000 train_loss:6.3267 train_time:3602ms step_avg:514.51ms
+step:8/20000 train_loss:6.0421 train_time:4120ms step_avg:515.04ms
+step:9/20000 train_loss:5.9837 train_time:5124ms step_avg:569.34ms
+step:10/20000 train_loss:5.9126 train_time:5644ms step_avg:564.39ms
+swa:start step:400
+step:500/20000 train_loss:2.5951 train_time:256286ms step_avg:512.57ms
+late_qat:enabled step:567 scale:0.1500
+step:1000/20000 train_loss:2.3988 train_time:513261ms step_avg:513.26ms
+step:1168/20000 val_loss:2.3636 val_bpb:1.3999 train_time:600409ms step_avg:514.05ms
+stopping_early: wallclock_cap train_time:600409ms step:1168/20000
+peak memory allocated: 6168 MiB reserved: 6190 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.4290 val_bpb:1.4386 eval_time:48197ms
+Serialized model: 106289590 bytes
+Code size: 101850 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 64 sequences in 197.4s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+selective_prune: 10619991 ±1 candidates, unpruned=7.62MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 7891708 bytes
+Total submission size int6+lzma: 7993558 bytes
+final_int6_roundtrip val_loss:2.6833 val_bpb:1.5892 eval_time:50353ms
+final_int6_roundtrip_exact val_loss:2.68325752 val_bpb:1.58917624
+final_int6_sliding_window val_loss:2.6484 val_bpb:1.5685 stride:64 eval_time:1614131ms
+final_int6_sliding_window_exact val_loss:2.64841024 val_bpb:1.56854187
+final_int8_zlib_roundtrip_exact val_loss:2.64841024 val_bpb:1.56854187
+[W401 17:20:05.212673150 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())
+[W401 17:20:05.626244199 AllocatorConfig.cpp:28] Warning: PYTORCH_CUDA_ALLOC_CONF is deprecated, use PYTORCH_ALLOC_CONF instead (function operator())

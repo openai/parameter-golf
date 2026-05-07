@@ -5,7 +5,7 @@
 ## Run Command
 
 ```bash
-# Setup (once)
+# Setup (once): downloads tokenizer + training/val shards (default 80 train shards)
 bash prepare.sh
 
 # Train + evaluate (default seed=42)
@@ -13,9 +13,14 @@ bash eval/eval.sh
 
 # With specific seed
 SEED=42 bash eval/eval.sh
+
+# Quick smoke test (few steps, small batch; set SWA_ENABLED=0) — not a leaderboard score
+bash eval/smoke.sh
 ```
 
-All parameters are set as defaults in `train_gpt.py`. No env vars needed.
+All parameters are set as defaults in `train_gpt.py`. No env vars needed for a full run.
+
+For a smaller download while iterating locally, run `TRAIN_SHARDS=1 bash prepare.sh` from this directory (or pass `--train-shards 1` to `data/cached_challenge_fineweb.py` from the repo root).
 
 ## 3-Seed Results
 
