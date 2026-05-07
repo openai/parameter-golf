@@ -1,0 +1,85 @@
+output/run_sweep_final_verify_hi075_v1/verify_hi075_repeat_20260430_174240/20260430_174244.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/fineweb_multi/tokenizers/fineweb_8192_bpe.model
+train_loader:dataset:fineweb10B_sp8192 train_shards:128
+val_loader:shards pattern=./data/fineweb_multi/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40541184
+Architecture: Discrete N-Gram Hash (Max N=2)
+lora_params:0
+model_params:36072045
+world_size:1 grad_accum_steps:4
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True matrix_lr:0.04 scalar_lr:0.04
+ttt_enabled:False ttt_mode:lora lora_ttt_enabled:False
+parallel_v2_enabled:0 mode:dual_add second_lane:mlp active_layers:[] second_lane_params:0
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+EMA Enabled: decay=0.997
+Scheduled Late QAT to start at step 2550 (last 15.0%)
+step:0/3000 val_loss:9.0104 val_bpb:3.4882 train_time:4ms step_avg:4.47ms
+step:1/3000 train_loss:9.0104 train_time:1907ms step_avg:1906.69ms
+step:2/3000 train_loss:8.8420 train_time:3356ms step_avg:1678.15ms
+step:3/3000 train_loss:8.3869 train_time:4819ms step_avg:1606.49ms
+step:4/3000 train_loss:7.9243 train_time:6309ms step_avg:1577.21ms
+step:5/3000 train_loss:7.4828 train_time:7777ms step_avg:1555.48ms
+step:6/3000 train_loss:7.1932 train_time:9239ms step_avg:1539.77ms
+step:7/3000 train_loss:7.0314 train_time:10699ms step_avg:1528.37ms
+step:8/3000 train_loss:6.8973 train_time:12158ms step_avg:1519.69ms
+step:9/3000 train_loss:6.6882 train_time:13619ms step_avg:1513.27ms
+step:10/3000 train_loss:6.6433 train_time:15079ms step_avg:1507.94ms
+step:200/3000 train_loss:3.7348 train_time:293462ms step_avg:1467.31ms
+step:400/3000 train_loss:3.4740 train_time:585623ms step_avg:1464.06ms
+step:600/3000 train_loss:3.3361 train_time:877863ms step_avg:1463.11ms
+step:800/3000 train_loss:3.3155 train_time:1170127ms step_avg:1462.66ms
+step:1000/3000 train_loss:3.1813 train_time:1462346ms step_avg:1462.35ms
+step:1000/3000 val_loss:3.2105 val_bpb:1.2429 train_time:1462351ms step_avg:1462.35ms
+step:1200/3000 train_loss:3.1663 train_time:1754397ms step_avg:1462.00ms
+step:1400/3000 train_loss:3.1046 train_time:2046459ms step_avg:1461.76ms
+step:1600/3000 train_loss:3.1987 train_time:2338480ms step_avg:1461.55ms
+step:1800/3000 train_loss:3.1749 train_time:2630562ms step_avg:1461.42ms
+step:2000/3000 train_loss:3.1123 train_time:2922623ms step_avg:1461.31ms
+step:2000/3000 val_loss:3.0863 val_bpb:1.1948 train_time:2922627ms step_avg:1461.31ms
+step:2200/3000 train_loss:3.0783 train_time:3214662ms step_avg:1461.21ms
+step:2400/3000 train_loss:3.0946 train_time:3506663ms step_avg:1461.11ms
+[Step 2550] Activating Late QAT — enabling branchless STE quantization.
+step:2600/3000 train_loss:2.9791 train_time:3798704ms step_avg:1461.04ms
+step:2800/3000 train_loss:3.0690 train_time:4090728ms step_avg:1460.97ms
+step:3000/3000 train_loss:2.9329 train_time:4382728ms step_avg:1460.91ms
+step:3000/3000 val_loss:2.9904 val_bpb:1.1577 train_time:4382736ms step_avg:1460.91ms
+peak memory allocated: 49017 MiB reserved: 54226 MiB
+Applying EMA weights for final evaluation...
+final_int8_zlib_roundtrip val_loss:2.9929 val_bpb:1.1586
+final_int8_zlib_roundtrip_exact val_loss:2.99287347 val_bpb:1.15864608
+Starting PPM byte mixture evaluation...
+ppm_mix_progress seq:500/39591 tokens:513024 bytes:1884087 contexts:420910 skipped_ctx:0 mix_bpb:0.780810
+ppm_mix_progress seq:1000/39591 tokens:1025024 bytes:3749771 contexts:627451 skipped_ctx:0 mix_bpb:0.797350
+ppm_mix_progress seq:1500/39591 tokens:1537024 bytes:5612262 contexts:794233 skipped_ctx:0 mix_bpb:0.806758
+ppm_mix_progress seq:2000/39591 tokens:2049024 bytes:7463332 contexts:939360 skipped_ctx:0 mix_bpb:0.810462
+ppm_mix_progress seq:2500/39591 tokens:2561024 bytes:9321552 contexts:1074000 skipped_ctx:0 mix_bpb:0.814928
+ppm_mix_progress seq:3000/39591 tokens:3073024 bytes:11211930 contexts:1184575 skipped_ctx:0 mix_bpb:0.818434
+ppm_mix_progress seq:3500/39591 tokens:3585024 bytes:13070368 contexts:1299746 skipped_ctx:0 mix_bpb:0.821272
+ppm_mix_progress seq:4000/39591 tokens:4097024 bytes:14918758 contexts:1414474 skipped_ctx:0 mix_bpb:0.823674
+ppm_mix_progress seq:4500/39591 tokens:4609024 bytes:16791448 contexts:1509685 skipped_ctx:0 mix_bpb:0.825507
+ppm_mix_progress seq:5000/39591 tokens:5121024 bytes:18644054 contexts:1606254 skipped_ctx:0 mix_bpb:0.827103
+ppm_mix_progress seq:5500/39591 tokens:5633024 bytes:20513194 contexts:1693750 skipped_ctx:0 mix_bpb:0.828218
+ppm_mix_progress seq:6000/39591 tokens:6145024 bytes:22391128 contexts:1772025 skipped_ctx:0 mix_bpb:0.829799
+ppm_mix_progress seq:6500/39591 tokens:6657024 bytes:24298727 contexts:1849517 skipped_ctx:0 mix_bpb:0.830862
+ppm_mix_progress seq:7000/39591 tokens:7169024 bytes:26194772 contexts:1923257 skipped_ctx:0 mix_bpb:0.831779
+ppm_mix_progress seq:7500/39591 tokens:7681024 bytes:28109278 contexts:1994347 skipped_ctx:0 mix_bpb:0.832708
+ppm_mix_bpb:0.832925

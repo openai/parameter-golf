@@ -1,0 +1,31 @@
+{
+  "title": "SP8192 + Value Residual + PPM Mixture",
+  "author": "Kaikai Liu",
+  "github_id": "lkk688",
+  "track": "non-record",
+  "compute_track": "unlimited",
+  "artifact_limit_mb": 16,
+  "record_eligible": false,
+  "val_bpb": 0.832925,
+  "neural_roundtrip_val_bpb": 1.15864608,
+  "tokenizer": "SentencePiece 8192",
+  "model_summary": {
+    "num_layers": 9,
+    "model_dim": 608,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 3,
+    "qk_gain_init": 4.0,
+    "value_residual_enabled": true,
+    "value_residual_last_n_layers": 2
+  },
+  "mixture_summary": {
+    "ppm_enabled": true,
+    "ppm_order": 5,
+    "ppm_conf_threshold": 0.9,
+    "lambda_lo": 0.10,
+    "lambda_hi": 0.75,
+    "nn_byte_projection": "spread_root"
+  },
+  "notes": "Non-record unlimited-compute submission. Best reproduced mixture result on SP8192 backbone with value residual and byte-level PPM mixture."
+}
