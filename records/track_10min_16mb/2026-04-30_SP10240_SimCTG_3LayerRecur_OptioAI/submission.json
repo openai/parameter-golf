@@ -1,0 +1,30 @@
+{
+  "name": "N9 SimCTG + 3-Layer Recurrence (sliding-window baseline)",
+  "blurb": "PR #1855 lineage SOTA stack (11L \u00d7 512d \u00d7 8H, 3-Layer Recurrence loops 3-5, Parallel Residuals, LeakyReLU(0.5)^2, Partial RoPE 16/64, XSA all-layers, SP10240) plus SimCTG contrastive regularizer (lambda=0.3, margin=0.4) plus lzma-compressed code packaging. 3-seed mean 1.07502 BPB sliding-window stride 64. Beats SOTA sliding 1.0827 by 7.7 mBPB.",
+  "date": "2026-04-30",
+  "val_bpb": 1.07502,
+  "val_bpb_std": 0.0023,
+  "seeds": {
+    "42": {
+      "sliding_window_bpb": 1.07765798,
+      "post_ema_bpb": 1.07947595,
+      "bytes_total": 15975529
+    },
+    "1337": {
+      "sliding_window_bpb": 1.07400401,
+      "post_ema_bpb": 1.07534546,
+      "bytes_total_with_lzma_code": 15947227
+    },
+    "2025": {
+      "sliding_window_bpb": 1.07340087,
+      "post_ema_bpb": 1.0749721,
+      "bytes_total": 15999989
+    }
+  },
+  "novel_contributions": {
+    "simctg_tuning": "lambda=0.3 margin=0.4 contrastive regularizer; 3-seed std 0.00230 confirms reproducibility on SP10240"
+  },
+  "credits": "PR #1855 (Kevin Clark et al.) - architecture; PR #1413 (dexhunter) - sliding-window line; PR #1493 (bigbag) - stride-64 sliding eval; PR #1394 (clarkkev), PR #287 (jfprincz), PR #1412 (Robby955), PR #549 (abaybektursun)",
+  "bytes_total": 15956059,
+  "bytes_train_gpt_self_extracting": 19785
+}
