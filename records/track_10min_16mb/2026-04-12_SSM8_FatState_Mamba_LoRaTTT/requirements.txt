@@ -1,0 +1,12 @@
+numpy
+tqdm
+huggingface-hub
+kernels
+typing-extensions==4.15.0
+datasets
+tiktoken
+sentencepiece
+safetensors
+zstandard
+causal-conv1d==1.4.0
+mamba-ssm

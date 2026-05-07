@@ -1,0 +1,18 @@
+SSM8 "Fat State" Mamba — Setup
+
+Tested on: 8×H100 SXM, CUDA 12.4, Python 3.11, Ubuntu 22.04
+Training time: 10 minutes
+Final BPB: 1.3587
+
+REQUIREMENTS
+Software
+  - Python 3.11
+  - CUDA 12.4
+  - PyTorch 2.4.0+cu124
+  - causal-conv1d 1.4.0   (requires CUDA compilation on first install)
+  - mamba-ssm             (requires CUDA compilation on first install)
+  - All other dependencies listed in requirements.txt
+
+Important: causal-conv1d and mamba-ssm build CUDA extensions from source.
+Set MAX_JOBS=$(nproc) before installing to parallelise compilation across all
+available CPU cores.

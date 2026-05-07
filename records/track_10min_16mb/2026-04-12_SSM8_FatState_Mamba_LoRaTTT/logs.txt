@@ -1,0 +1,52 @@
+Found 80 training shards.
+[TIMING] Budget: 600s | Safe buffer: 5s | Effective training: 595s
+[MODEL] Params: 22,305,952 | BF16: 44.6MB | d_state=34 head_r=16 | Use checkpoint: True
+[OPT] ws_scale=2.071 (power=0.35) BASE_LR=0.02071 EMBED_LR=0.06000 SCALAR_LR=0.04000 GRAD_CLIP=0.15 MU_START=0.920 MU_END=0.950
+Warmup + compile: 16.7s
+[TIMING] Training budget: 595s (TOTAL_SECONDS - buffer).
+[STEP 00079] t=30s/595s loss=4.7655 lr_scale=0.505 mu=0.930 qat=False yield=100%
+[STEP 00160] t=60s/595s loss=3.4535 lr_scale=1.000 mu=0.940 qat=False yield=100%
+[STEP 00241] t=91s/595s loss=3.0230 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00322] t=121s/595s loss=2.7633 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00403] t=151s/595s loss=2.8291 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00484] t=182s/595s loss=2.6593 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00564] t=212s/595s loss=2.6611 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00645] t=242s/595s loss=2.5549 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00726] t=272s/595s loss=2.4971 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00807] t=303s/595s loss=2.4238 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00888] t=333s/595s loss=2.4217 lr_scale=1.000 mu=0.950 qat=False yield=100%
+[STEP 00969] t=363s/595s loss=2.2922 lr_scale=1.000 mu=0.950 qat=False yield=99%
+[STEP 01050] t=393s/595s loss=2.4268 lr_scale=1.000 mu=0.950 qat=False yield=99%
+[STEP 01131] t=424s/595s loss=2.3745 lr_scale=1.000 mu=0.950 qat=False yield=99%
+[STEP 01212] t=454s/595s loss=2.3872 lr_scale=1.000 mu=0.950 qat=False yield=99%
+[STEP 01293] t=484s/595s loss=2.3830 lr_scale=0.988 mu=0.950 qat=False yield=96%
+[STEP 01374] t=515s/595s loss=2.3410 lr_scale=0.764 mu=0.950 qat=False yield=78%
+[STEP 01455] t=545s/595s loss=2.2634 lr_scale=0.383 mu=0.950 qat=False yield=65%
+[STEP 01536] t=575s/595s loss=2.2313 lr_scale=0.076 mu=0.950 qat=True yield=58%
+[TIMING] Time limit reached, saving artifact.
+[SAVE] Quantising EMA model with GPTQ-lite + zstd-22...
+[ARTIFACT] zstd-22 | code=0.04MB model=15.89MB total=15.93MB/16.00MB (15931279 / 16000000 bytes)
+
+[EVAL] Running on 8 GPU(s)
+[EVAL] Loaded artifact from ./ssm8_artifact.bin
+[TTT] LoRA r=8 -> 16 projections.
+[TTT] LoRA r=8 -> 16 projections.
+[TTT] LoRA r=8 -> 16 projections.
+[TTT] LoRA r=8 -> 16 projections.
+[TTT] LoRA r=8 -> 16 projections.
+[TTT] LoRA r=8 -> 16 projections.
+[TTT] LoRA r=8 -> 16 projections.
+[TTT] LoRA r=8 -> 16 projections.
+[EVAL] Validation tokens: 62,022,358
+[EVAL] tokens_processed=314945
+[EVAL] tokens_processed=692832
+[EVAL] tokens_processed=1138216
+[EVAL] tokens_processed=1467440
+[EVAL] tokens_processed=1798080
+[EVAL] tokens_processed=2108625
+[EVAL] tokens_processed=2421130
+[EVAL] tokens_processed=2735027
+[EVAL] tokens_processed=3048698
+[EVAL] tokens_processed=3364847
+
+[EVAL RESULT] BPB: 1.3587 | tokens_processed=6487339

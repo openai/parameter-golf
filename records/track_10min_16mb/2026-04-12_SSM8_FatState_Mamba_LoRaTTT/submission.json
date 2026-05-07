@@ -1,0 +1,16 @@
+{
+  "author": "Kajetan R. Gułaj",
+  "github_id": "KRGulaj",
+  "val_bpb": 1.3587,
+  "val_tokens_processed": 6487339,
+  "submission_type": "non_record",
+  "track": "10min_16mb",
+  "date": "2026-04-12",
+  "architecture": "Mamba SSM",
+  "artifact_bytes": 15931279,
+  "total_params": 22305952,
+  "training_hardware": "8xH100 SXM",
+  "training_time_seconds": 600,
+  "vocab_size": 1056,
+  "quantisation": "int6_gptq_lite_zstd22"
+}
