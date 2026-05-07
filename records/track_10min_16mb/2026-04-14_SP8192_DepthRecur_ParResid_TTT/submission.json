@@ -1,0 +1,11 @@
+{
+  "author": "yu314-coder",
+  "github_id": "yu314-coder",
+  "name": "SP8192 Depth Recurrence + Parallel Residuals + TTT",
+  "blurb": "SP8192 tokenizer, 11-layer transformer with depth recurrence (layers 3-5 looped 3x = 17 virtual layers), parallel residuals for layers 7+, partial RoPE (16/64 dims), LeakyReLU(0.5)^2, EMA averaging, score-first test-time training, Muon optimizer, cosine warmdown, int8+zlib quantization. Preliminary BPB ~1.19 on 8xH100 (artifact size needs final validation run with mlp_mult=2).",
+  "date": "2026-04-14T11:00:00Z",
+  "val_loss": 3.0794,
+  "val_bpb": 1.1921,
+  "bytes_total": 15794551,
+  "bytes_code": 40870
+}
