@@ -1,0 +1,10 @@
+{
+  "author": "suchihype",
+  "github_id": "suchihype",
+  "name": "Record: 10L LeakyReLU + Gated Attention + Value Residual",
+  "blurb": "Three orthogonal changes on top of PR #583's 10L baseline, each validated individually before combining: (1) LeakyReLU(0.5)² MLP activation, (2) Gated Attention output gate (sigmoid, bias init +2), (3) Value Residual Learning (α init 0.9 blends per-block V with first-block V). 9-feature ablation kept only the 3 winners. No XSA, no EMA, no TTT, no n-gram cache.",
+  "date": "2026-04-27T00:00:00Z",
+  "val_loss": 1.93195313,
+  "val_bpb": 1.14421449,
+  "bytes_total": 15628706
+}
