@@ -1,0 +1,8 @@
+# Match the base record's runtime deps.
+# (torch + flash-attn-3 are assumed to be installed separately)
+brotli
+huggingface-hub
+numpy
+sentencepiece
+tqdm
+

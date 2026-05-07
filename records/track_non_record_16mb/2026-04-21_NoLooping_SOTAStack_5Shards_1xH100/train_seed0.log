@@ -1,0 +1,14 @@
+train_shards: 5
+val_tokens: 40540160
+model_params:35941464
+gptq:reserving 12s, effective=588000ms
+0/20000 val_loss: 9.0072 val_bpb: 3.4870
+500/20000 train_loss: 3.2386 train_time: 7.7m tok/s: 854791
+658/20000 val_loss: 3.1480 val_bpb: 1.2187
+stopping_early: wallclock_cap train_time: 588681ms step: 658/20000
+ema:applying EMA weights
+pre-quantization post-ema val_loss:3.42950098 val_bpb:1.32766670 eval_time:15858ms
+Total submission size quantized+brotli: 16033831 bytes
+quantized val_loss:3.44292430 val_bpb:1.33286329 eval_time:17376ms
+quantized_sliding_window val_loss:3.40309696 val_bpb:1.31744488 eval_time:554037ms
+
