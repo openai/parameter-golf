@@ -1,0 +1,97 @@
+W0411 07:36:39.938000 3971 torch/distributed/run.py:803] 
+W0411 07:36:39.938000 3971 torch/distributed/run.py:803] *****************************************
+W0411 07:36:39.938000 3971 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0411 07:36:39.938000 3971 torch/distributed/run.py:803] *****************************************
+logs/066c786e-7fe0-499f-904c-cfae3002b1e5.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_8192_bpe.model
+train_loader:dataset:fineweb10B_sp8192 train_shards:128
+val_loader:shards pattern=./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin tokens:40540160
+model_params:36311132
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_11 active_layers:[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.022 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.0000 val_bpb:3.4842 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:9.0010 train_time:132ms step_avg:131.87ms
+step:2/20000 train_loss:9.1281 train_time:161ms step_avg:80.48ms
+step:3/20000 train_loss:9.5563 train_time:257ms step_avg:85.76ms
+step:4/20000 train_loss:9.1507 train_time:354ms step_avg:88.59ms
+step:5/20000 train_loss:8.6754 train_time:451ms step_avg:90.27ms
+step:6/20000 train_loss:8.5371 train_time:548ms step_avg:91.36ms
+step:7/20000 train_loss:8.3210 train_time:647ms step_avg:92.40ms
+step:8/20000 train_loss:7.8855 train_time:744ms step_avg:93.04ms
+step:9/20000 train_loss:7.8673 train_time:842ms step_avg:93.50ms
+step:10/20000 train_loss:7.6615 train_time:939ms step_avg:93.87ms
+step:500/20000 train_loss:3.3724 train_time:49779ms step_avg:99.56ms
+step:1000/20000 train_loss:3.0971 train_time:100060ms step_avg:100.06ms
+step:1500/20000 train_loss:3.2994 train_time:150263ms step_avg:100.18ms
+step:2000/20000 train_loss:3.1179 train_time:200422ms step_avg:100.21ms
+step:2500/20000 train_loss:3.2631 train_time:250581ms step_avg:100.23ms
+recurrence:activated at step 3000, virtual_layers=[0, 1, 2, 3, 4, 5, 3, 4, 5, 6, 7, 8, 9, 10]
+step:3000/20000 train_loss:2.9732 train_time:300706ms step_avg:100.24ms
+step:3500/20000 train_loss:3.0807 train_time:394448ms step_avg:112.70ms
+step:4000/20000 train_loss:2.9819 train_time:456100ms step_avg:114.03ms
+step:4000/20000 val_loss:2.9667 val_bpb:1.1485 train_time:456170ms step_avg:114.04ms
+swa:start step:4500
+step:4500/20000 train_loss:2.9897 train_time:517605ms step_avg:115.02ms
+late_qat:enabled step:4640 scale:0.1499
+step:5000/20000 train_loss:2.8100 train_time:580166ms step_avg:116.03ms
+step:5159/20000 val_loss:2.8491 val_bpb:1.1030 train_time:600185ms step_avg:116.34ms
+stopping_early: wallclock_cap train_time:600185ms step:5159/20000
+peak memory allocated: 32963 MiB reserved: 32968 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:2.8463 val_bpb:1.1019 eval_time:2001ms
+Serialized model: 136152884 bytes
+Code size: 137532 bytes
+ttt:starting epochs=6 lr=0.0005 freeze_blocks=2 batch_seqs=32
+ttt:trainable=36307020 frozen=4112
+ttt:compiled model for speedup
+ttt:epoch 1/6 loss=2.9077 lr=0.000470 time=156.7s
+ttt:epoch 2/6 loss=2.8459 lr=0.000388 time=210.2s
+ttt:epoch 3/6 loss=2.7979 lr=0.000275 time=264.0s
+ttt:epoch 4/6 loss=2.7459 lr=0.000163 time=317.6s
+ttt:epoch 5/6 loss=2.6946 lr=0.000080 time=371.0s
+ttt:epoch 6/6 loss=2.6536 lr=0.000050 time=424.5s
+ttt:done time=424.8s
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (32 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 32 sequences in 128.2s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 67 layers (AR self-gen)
+research:skipped (SAVE_RESEARCH_DATA=0)
+selective_prune: 9943000 ±1 candidates, unpruned=14.72MB target=15.22MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+BROT: 15301838 bytes
+Total submission size int6+BROT: 15439370 bytes
+final_int6_roundtrip val_loss:2.7614 val_bpb:1.0690 eval_time:23333ms
+final_int6_roundtrip_exact val_loss:2.76144893 val_bpb:1.06904293
+final_int6_sliding_window val_loss:2.7343 val_bpb:1.0586 stride:64 eval_time:109787ms
+final_int6_sliding_window_exact val_loss:2.73434671 val_bpb:1.05855527
+final_int8_zlib_roundtrip_exact val_loss:2.73434671 val_bpb:1.05855527
+cleanup:skipping dist.destroy_process_group (NCCL hang risk)
+RUN_COMPLETE
+[rank0]:[W411 08:04:00.874237743 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
