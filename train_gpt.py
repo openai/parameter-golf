@@ -306,6 +306,24 @@ INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
 INT8_PER_ROW_SCALE_DTYPE = torch.float16
 INT8_CLIP_PERCENTILE = 99.99984
 INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+MIXED_PRECISION = bool(int(os.environ.get("MIXED_PRECISION", "0")))
+INT6_ROUND_TO = max(int(os.environ.get("INT6_ROUND_TO", "4")), 1)
+INT6_ENABLED_FOR = tuple(
+    part.strip()
+    for part in os.environ.get("INT6_ENABLED_FOR", "attn,mlp").split(",")
+    if part.strip()
+)
+
+def parse_int_set_env(name: str) -> frozenset[int]:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return frozenset()
+    try:
+        return frozenset(int(part.strip()) for part in raw.split(",") if part.strip())
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a comma-separated list of integers, got {raw!r}") from exc
+
+INT6_LAYER_INDICES = parse_int_set_env("INT6_LAYER_INDICES")
 
 def tensor_nbytes(t: Tensor) -> int:
     return int(t.numel()) * int(t.element_size())
@@ -318,7 +336,37 @@ def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, s
         return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
     return t
 
-def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+def block_index_from_tensor_name(name: str) -> int | None:
+    parts = name.split(".")
+    if len(parts) >= 2 and parts[0] == "blocks" and parts[1].isdigit():
+        return int(parts[1])
+    return None
+
+def tensor_matches_int6_target(name: str) -> bool:
+    if not INT6_ENABLED_FOR or "all" in INT6_ENABLED_FOR:
+        return True
+    parts = set(name.split("."))
+    return any(part in parts for part in INT6_ENABLED_FOR)
+
+def export_quant_scheme(name: str, t: Tensor) -> tuple[str, int]:
+    if not MIXED_PRECISION:
+        return "int8", 1
+    block_idx = block_index_from_tensor_name(name)
+    if block_idx is None or block_idx not in INT6_LAYER_INDICES or t.ndim == 0:
+        return "int8", 1
+    if not tensor_matches_int6_target(name):
+        return "int8", 1
+    return "int6_like", INT6_ROUND_TO
+
+def round_quantized_values(q: Tensor, round_to: int) -> Tensor:
+    if round_to <= 1:
+        return torch.clamp(q, -127, 127)
+    q = torch.round(q / round_to) * round_to
+    qmax = (127 // round_to) * round_to
+    qmin = -128 if 128 % round_to == 0 else -qmax
+    return torch.clamp(q, qmin, qmax)
+
+def quantize_float_tensor(t: Tensor, *, round_to: int = 1) -> tuple[Tensor, Tensor]:
     t32 = t.float()
     if t32.ndim == 2:
         # Matrices get one scale per row, which usually tracks output-channel
@@ -330,13 +378,20 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
         scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        if round_to <= 1:
+            q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        else:
+            q = round_quantized_values(torch.round(clipped / scale[:, None]), round_to).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    q_raw = torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale)
+    if round_to <= 1:
+        q = torch.clamp(q_raw, -127, 127).to(torch.int8).contiguous()
+    else:
+        q = round_quantized_values(q_raw, round_to).to(torch.int8).contiguous()
     return q, scale
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
@@ -345,6 +400,7 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
     # - per-tensor int8 for other float tensors
     # - exact passthrough for non-floats
     # - passthrough for small float tensors, stored as fp16 to save bytes
+    # - optional int6-like coarse rounding for selected block tensors, still stored as int8
     quantized: dict[str, Tensor] = {}
     scales: dict[str, Tensor] = {}
     dtypes: dict[str, str] = {}
@@ -377,9 +433,17 @@ def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
             continue
 
         stats["num_float_tensors"] += 1
-        q, s = quantize_float_tensor(t)
+        quant_kind, round_to = export_quant_scheme(name, t)
+        q, s = quantize_float_tensor(t, round_to=round_to)
+        meta = qmeta.setdefault(name, {}) if s.ndim > 0 or quant_kind != "int8" else None
         if s.ndim > 0:
-            qmeta[name] = {"scheme": "per_row", "axis": 0}
+            assert meta is not None
+            meta["scheme"] = "per_row"
+            meta["axis"] = 0
+        if quant_kind != "int8":
+            assert meta is not None
+            meta["quant"] = quant_kind
+            meta["round_to"] = round_to
         quantized[name] = q
         scales[name] = s
         dtypes[name] = str(t.dtype).removeprefix("torch.")
