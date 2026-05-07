@@ -1,0 +1,160 @@
+/home/ubuntu/train_ttt_e2e.py:95: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:203.)
+  return torch.from_numpy(_MMAP_CACHE[key])
+val tokens: 62021632
+model params: 27780188 (prime MLP: 786432)
+loading checkpoint: /home/ubuntu/final_model.pt
+loaded 59/59 keys from checkpoint
+
+=== Baseline eval (no TTT, no meta-training) ===
+baseline: val_loss=2.699844 val_bpb=1.599000
+
+=== Phase 2: FOMAML (1500 steps, inner_lr=0.01, K=1) ===
+train tokens: 100000000
+  phase2 [1/1500] loss=1.9945 ms/step=190 elapsed=0s
+  phase2 [101/1500] loss=2.2489 ms/step=47 elapsed=5s
+  phase2 [201/1500] loss=2.6450 ms/step=46 elapsed=9s
+  phase2 [301/1500] loss=2.5137 ms/step=46 elapsed=14s
+  phase2 [401/1500] loss=2.5856 ms/step=45 elapsed=18s
+  phase2 [501/1500] loss=2.6340 ms/step=45 elapsed=23s
+  phase2 [601/1500] loss=2.6774 ms/step=45 elapsed=27s
+  phase2 [701/1500] loss=2.6484 ms/step=45 elapsed=32s
+  phase2 [801/1500] loss=2.5496 ms/step=45 elapsed=36s
+  phase2 [901/1500] loss=2.8474 ms/step=45 elapsed=41s
+  phase2 [1001/1500] loss=2.7154 ms/step=45 elapsed=45s
+  phase2 [1101/1500] loss=2.7001 ms/step=45 elapsed=50s
+  phase2 [1201/1500] loss=2.5825 ms/step=45 elapsed=54s
+  phase2 [1301/1500] loss=2.7054 ms/step=45 elapsed=59s
+  phase2 [1401/1500] loss=2.3929 ms/step=45 elapsed=63s
+  phase2 [1500/1500] loss=1.9166 ms/step=45 elapsed=68s
+Phase 2 done in 68s
+saved ttt_e2e_model.pt
+
+=== Post-Phase2 eval (no TTT) ===
+baseline: val_loss=2.611219 val_bpb=1.546511
+
+=== TTT eval (lr=0.01, chunk=1024) ===
+reset prime MLPs from ttt_e2e_model.pt (6 keys)
+  ttt [1/60568] bpb=1.400787 time=0.1s
+  ttt [501/60568] bpb=1.479652 time=18.5s
+  ttt [1001/60568] bpb=1.484571 time=36.9s
+  ttt [1501/60568] bpb=1.482906 time=55.2s
+  ttt [2001/60568] bpb=1.488933 time=73.6s
+  ttt [2501/60568] bpb=1.485056 time=91.9s
+  ttt [3001/60568] bpb=1.483965 time=110.2s
+  ttt [3501/60568] bpb=1.488015 time=128.4s
+  ttt [4001/60568] bpb=1.484903 time=146.6s
+  ttt [4501/60568] bpb=1.482016 time=165.0s
+  ttt [5001/60568] bpb=1.482938 time=183.4s
+  ttt [5501/60568] bpb=1.485910 time=201.9s
+  ttt [6001/60568] bpb=1.485679 time=220.2s
+  ttt [6501/60568] bpb=1.487647 time=238.3s
+  ttt [7001/60568] bpb=1.487206 time=256.3s
+  ttt [7501/60568] bpb=1.488280 time=274.3s
+  ttt [8001/60568] bpb=1.488116 time=292.3s
+  ttt [8501/60568] bpb=1.486278 time=310.4s
+  ttt [9001/60568] bpb=1.487728 time=328.8s
+  ttt [9501/60568] bpb=1.486043 time=347.2s
+  ttt [10001/60568] bpb=1.486985 time=365.6s
+  ttt [10501/60568] bpb=1.486139 time=384.1s
+  ttt [11001/60568] bpb=1.484978 time=402.6s
+  ttt [11501/60568] bpb=1.487428 time=421.0s
+  ttt [12001/60568] bpb=1.486804 time=439.1s
+  ttt [12501/60568] bpb=1.486051 time=457.4s
+  ttt [13001/60568] bpb=1.484755 time=475.8s
+  ttt [13501/60568] bpb=1.484359 time=494.2s
+  ttt [14001/60568] bpb=1.483905 time=512.5s
+  ttt [14501/60568] bpb=1.482690 time=530.5s
+  ttt [15001/60568] bpb=1.481789 time=548.7s
+  ttt [15501/60568] bpb=1.480637 time=566.7s
+  ttt [16001/60568] bpb=1.480513 time=585.1s
+  ttt [16501/60568] bpb=1.479575 time=603.3s
+  ttt [17001/60568] bpb=1.479992 time=621.3s
+  ttt [17501/60568] bpb=1.479206 time=639.3s
+  ttt [18001/60568] bpb=1.478437 time=657.3s
+  ttt [18501/60568] bpb=1.477704 time=675.4s
+  ttt [19001/60568] bpb=1.476920 time=693.5s
+  ttt [19501/60568] bpb=1.476370 time=711.7s
+  ttt [20001/60568] bpb=1.475760 time=730.1s
+  ttt [20501/60568] bpb=1.474824 time=748.1s
+  ttt [21001/60568] bpb=1.474055 time=766.1s
+  ttt [21501/60568] bpb=1.473375 time=784.5s
+  ttt [22001/60568] bpb=1.472605 time=802.8s
+  ttt [22501/60568] bpb=1.471725 time=820.8s
+  ttt [23001/60568] bpb=1.471725 time=838.8s
+  ttt [23501/60568] bpb=1.471970 time=856.8s
+  ttt [24001/60568] bpb=1.471476 time=874.8s
+  ttt [24501/60568] bpb=1.471546 time=893.0s
+  ttt [25001/60568] bpb=1.471702 time=911.4s
+  ttt [25501/60568] bpb=1.471549 time=929.8s
+  ttt [26001/60568] bpb=1.471657 time=948.1s
+  ttt [26501/60568] bpb=1.471550 time=966.5s
+  ttt [27001/60568] bpb=1.471560 time=984.5s
+  ttt [27501/60568] bpb=1.471891 time=1002.8s
+  ttt [28001/60568] bpb=1.472331 time=1020.8s
+  ttt [28501/60568] bpb=1.472454 time=1038.8s
+  ttt [29001/60568] bpb=1.472433 time=1056.9s
+  ttt [29501/60568] bpb=1.472641 time=1075.4s
+  ttt [30001/60568] bpb=1.473175 time=1093.8s
+  ttt [30501/60568] bpb=1.473353 time=1112.2s
+  ttt [31001/60568] bpb=1.473902 time=1130.5s
+  ttt [31501/60568] bpb=1.473933 time=1148.9s
+  ttt [32001/60568] bpb=1.473936 time=1167.2s
+  ttt [32501/60568] bpb=1.474149 time=1185.4s
+  ttt [33001/60568] bpb=1.474524 time=1203.8s
+  ttt [33501/60568] bpb=1.474580 time=1222.2s
+  ttt [34001/60568] bpb=1.474532 time=1240.6s
+  ttt [34501/60568] bpb=1.474774 time=1259.0s
+  ttt [35001/60568] bpb=1.474980 time=1277.5s
+  ttt [35501/60568] bpb=1.474768 time=1295.9s
+  ttt [36001/60568] bpb=1.474192 time=1314.3s
+  ttt [36501/60568] bpb=1.473826 time=1332.5s
+  ttt [37001/60568] bpb=1.473592 time=1350.6s
+  ttt [37501/60568] bpb=1.473123 time=1368.7s
+  ttt [38001/60568] bpb=1.472814 time=1387.1s
+  ttt [38501/60568] bpb=1.472883 time=1405.5s
+  ttt [39001/60568] bpb=1.473004 time=1424.0s
+  ttt [39501/60568] bpb=1.472470 time=1442.5s
+  ttt [40001/60568] bpb=1.471931 time=1460.7s
+  ttt [40501/60568] bpb=1.471554 time=1478.8s
+  ttt [41001/60568] bpb=1.470840 time=1496.8s
+  ttt [41501/60568] bpb=1.470540 time=1514.8s
+  ttt [42001/60568] bpb=1.469868 time=1532.9s
+  ttt [42501/60568] bpb=1.469243 time=1550.9s
+  ttt [43001/60568] bpb=1.469013 time=1569.0s
+  ttt [43501/60568] bpb=1.469058 time=1587.1s
+  ttt [44001/60568] bpb=1.469500 time=1605.1s
+  ttt [44501/60568] bpb=1.469448 time=1623.2s
+  ttt [45001/60568] bpb=1.469583 time=1641.3s
+  ttt [45501/60568] bpb=1.469803 time=1659.4s
+  ttt [46001/60568] bpb=1.470151 time=1677.6s
+  ttt [46501/60568] bpb=1.470406 time=1695.6s
+  ttt [47001/60568] bpb=1.470926 time=1714.0s
+  ttt [47501/60568] bpb=1.471323 time=1732.3s
+  ttt [48001/60568] bpb=1.471525 time=1750.8s
+  ttt [48501/60568] bpb=1.471697 time=1769.2s
+  ttt [49001/60568] bpb=1.472167 time=1787.6s
+  ttt [49501/60568] bpb=1.472353 time=1805.7s
+  ttt [50001/60568] bpb=1.472636 time=1824.1s
+  ttt [50501/60568] bpb=1.472917 time=1842.5s
+  ttt [51001/60568] bpb=1.472961 time=1860.8s
+  ttt [51501/60568] bpb=1.473071 time=1879.1s
+  ttt [52001/60568] bpb=1.473007 time=1897.6s
+  ttt [52501/60568] bpb=1.472950 time=1916.1s
+  ttt [53001/60568] bpb=1.473088 time=1934.6s
+  ttt [53501/60568] bpb=1.473183 time=1952.6s
+  ttt [54001/60568] bpb=1.473265 time=1970.7s
+  ttt [54501/60568] bpb=1.473371 time=1989.0s
+  ttt [55001/60568] bpb=1.473099 time=2007.4s
+  ttt [55501/60568] bpb=1.473038 time=2025.9s
+  ttt [56001/60568] bpb=1.472553 time=2044.1s
+  ttt [56501/60568] bpb=1.472496 time=2062.2s
+  ttt [57001/60568] bpb=1.472307 time=2080.6s
+  ttt [57501/60568] bpb=1.471865 time=2099.0s
+  ttt [58001/60568] bpb=1.471713 time=2117.2s
+  ttt [58501/60568] bpb=1.471454 time=2135.3s
+  ttt [59001/60568] bpb=1.471276 time=2153.4s
+  ttt [59501/60568] bpb=1.471003 time=2171.6s
+  ttt [60001/60568] bpb=1.470875 time=2189.6s
+  ttt [60501/60568] bpb=1.470663 time=2207.8s
+  ttt [60568/60568] bpb=1.470713 time=2210.2s
+ttt:done val_loss=2.483238 val_bpb=1.470713 elapsed=2210.2s
