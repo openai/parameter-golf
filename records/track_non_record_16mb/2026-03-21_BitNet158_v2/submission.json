@@ -1,0 +1,15 @@
+{
+  "track": "non-record-16mb",
+  "date": "2026-03-21",
+  "name": "BitNet b1.58 Ternary v2 — 68M params, Wider MLP, Sliding Window",
+  "author": "Etai Zilberman",
+  "github_id": "ksang123",
+  "blurb": "BitNet b1.58 ternary quantization with full-training STE. 68M params in 15.88MB via base-3 packing (1.6 bits/param). Near-lossless roundtrip (0.0016 BPB gap) from fp16 scale simulation. Systematic analysis of why the standard competition stack (SmearGate, XSA, WD, EMA, OrthoInit) breaks for ternary.",
+  "val_loss": 1.98723407,
+  "val_bpb": 1.17695507,
+  "pre_quant_val_bpb": 1.1983,
+  "bytes_total": 15882274,
+  "bytes_code": 63242,
+  "wallclock_seconds": 600,
+  "step_stop": 4591
+}
