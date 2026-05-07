@@ -1,0 +1,29 @@
+Partial training log — seed 42, wallclock-capped at 2564/20000 steps.
+
+Hyperparameters printed at startup (abridged):
+  dim=512  num_layers=11  num_heads=8  num_kv_heads=4
+  mlp_mult=16.0  lora_rank=16  random_basis_enabled=True
+  random_basis_seed=219540062 (= 0xD15EA5E XOR'd with SEED=42)
+  vocab_size=4096  train_seq_len=2048  train_batch_tokens=786432
+  max_wallclock_seconds=600.0  iterations=20000  val_loss_every=4000
+  tokenizer: ./data/tokenizers/fineweb_4096_bpe.model
+  dataset:   ./data/datasets/fineweb10B_sp4096/  (143 train shards)
+  model_params: 14486619
+  gptq:reserving 10s, effective=590000ms
+
+Training trajectory (every 500 steps):
+warmup_step: 1/20
+warmup_step: 20/20
+0/20000    val_loss: 8.3144  val_bpb: 3.6134
+1/20000    train_loss: 8.3138   train_time: 0.0m  tok/s: 3478262
+5/20000    train_loss: 7.4786   train_time: 0.0m  tok/s: 3453432
+500/20000  train_loss: 3.2548   train_time: 1.9m  tok/s: 3412483
+1000/20000 train_loss: 3.2531   train_time: 3.8m  tok/s: 3414309
+1500/20000 train_loss: 3.1327   train_time: 5.8m  tok/s: 3414864
+2000/20000 train_loss: 2.9457   train_time: 7.7m  tok/s: 3416132
+2500/20000 train_loss: 2.9067   train_time: 9.6m  tok/s: 3417153
+2564/20000 val_loss: 2.8816  val_bpb: 1.2523
+stopping_early: wallclock_cap  train_time: 590061ms  step: 2564/20000
+pre-quantization post-ema  val_loss: 2.88861509  val_bpb: 1.25535884  eval_time: 4857ms
+
+Post-run: serialize(...) raised ModuleNotFoundError: No module named 'brotli'
