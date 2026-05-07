@@ -1,0 +1,7 @@
+{
+  "short_description": "AETHER block-sparse attention with Lean4-verified Lyapunov governor (12L, int5/int6, BigramHash, SmearGate, SWA)",
+  "interesting": true,
+  "record_on_date": false,
+  "val_bpb": null,
+  "notes": "Uses Cauchy-Schwarz block pruning + Lyapunov-stable PD controller to enable 12 layers in the 10-min budget. All safety guarantees formally verified in Lean 4."
+}
