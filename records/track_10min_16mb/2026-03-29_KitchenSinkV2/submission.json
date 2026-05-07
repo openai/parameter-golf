@@ -1,0 +1,11 @@
+{
+  "author": "alejandro",
+  "github_id": "Gusanidas",
+  "name": "Kitchen Sink V2 Improved: ResidLambdas + BigBigram + BigVE + FA3",
+  "blurb": "PR #549 base with split early/late LR banks, MiLe margin loss, cache+backout residual, LeakyReLU(0.5), XSA on last 7 layers, coprime-stride data loader, residual lambdas (learnable per-sublayer scaling), bigger bigram hash (6144 buckets), bigger value embeddings (dim=196, layers 5,9,10), Flash Attention 3, train-data GPTQ int6 calibration within training budget, and sliding window eval (stride=64). Hyperparameters tuned via Optuna.",
+  "date": "2026-03-29",
+  "val_loss": 1.8809,
+  "val_bpb": 1.1140,
+  "bytes_total": 15884408,
+  "bytes_code": 126292
+}
