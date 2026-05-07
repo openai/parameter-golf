@@ -1,0 +1,10 @@
+{
+  "author": "Nandhu Rajeev Kumar",
+  "github_id": "NandhuRajRK",
+  "name": "11L EMA + GPTQ-lite + LeakyReLU(0.5)^2 + QAT@0.15",
+  "blurb": "An 11-layer EMA/GPTQ-lite/QAT submission based on the public 2026-03-22 family, with LeakyReLU(0.5)^2 in the MLP path and compatibility fallbacks for non-FA3 environments.",
+  "date": "2026-03-27T00:00:00Z",
+  "val_loss": 1.9771814,
+  "val_bpb": 0.87762377,
+  "bytes_total": 15825448
+}
