@@ -1,0 +1,10 @@
+{
+  "author": "Dhruba Saha",
+  "github_id": "Dhruba531",
+  "name": "Record: 11L Enhanced GPTQ-lite Per-Row (1.1218)",
+  "blurb": "Enhanced GPTQ-lite with per-row optimal clip percentile search (13 candidates vs 5, per-row selection vs global). Built on SOTA stack: 11L, EMA(0.997), XSA4, Partial RoPE 16/64, SmearGate, BigramHash, VE128, Late QAT@0.15, int6+zstd.",
+  "date": "2026-04-04T00:00:00Z",
+  "val_loss": 1.89316654,
+  "val_bpb": 1.12124283,
+  "bytes_total": 15924799
+}
