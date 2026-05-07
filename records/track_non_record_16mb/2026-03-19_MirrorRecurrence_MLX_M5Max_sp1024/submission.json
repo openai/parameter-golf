@@ -1,0 +1,11 @@
+{
+  "author": "Clay Schubiner",
+  "github_id": "cschubiner",
+  "name": "Mirror Recurrence (18 logical / 9 unique)",
+  "blurb": "Non-record Apple Silicon MLX run that mirrors 9 unique transformer blocks across 18 logical layers, keeping the int8+zlib artifact under 16 MB while testing recurrent depth under the challenge parameter cap.",
+  "date": "2026-03-19T06:39:53Z",
+  "val_loss": 3.77618886,
+  "val_bpb": 2.23647175,
+  "bytes_total": 8040848,
+  "bytes_code": 50818
+}
