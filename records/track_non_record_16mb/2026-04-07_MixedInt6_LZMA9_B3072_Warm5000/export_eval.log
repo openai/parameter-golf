@@ -1,0 +1,46 @@
+Starting run at 2026-04-07 07:12:18 UTC
+Run: exp8855_mi6_mae_k32_pr_lz9e_9336
+NPROC: 1
+MLP activation: leaky_relu2
+MLP leaky slope: 0.5
+MLP prelu init: 0.25
+MLP softplus beta: 1.0
+TTT optimizer: sgd
+TTT epoch schedule: fixed
+TTT chunk schedule: fixed
+TTT batch seqs: 32
+logs/exp8855_mi6_mae_k32_pr_lz9e_9336.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:8
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:131072 limited=1
+attention_backend:requested=sdpa flash_attn_available=0 compile_enabled=0 cuda_dtype=float16
+eval_only_checkpoint:<raw_checkpoint>/long16h_ema_b3072_warm5000_8855.final_model_raw.pt
+averaging_config ema_enabled=0 ema_decay=0.997 swa_enabled=0 swa_every=50 lawa_enabled=0 save_raw_checkpoint=0
+activation_config mlp_activation=leaky_relu2 mlp_leaky_slope=0.5 mlp_prelu_init=0.25 mlp_softplus_beta=1.0
+quant_config scheme=mixed_int6 int6_cats=mlp;attn;embed keep_float_max_numel=32768 keep_float16=none force_float16=none lzma_preset=9 extreme=1 selective_prune=1 target_total_bytes=16000000
+model_params:27124828
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:262144 train_seq_len:2048 iterations:300 warmup_steps:0 max_wallclock_seconds:1800.000
+seed:42
+step:300/300 val_loss:2.0278 val_bpb:1.2163 train_time:0ms step_avg:0.00ms
+peak memory allocated: 170 MiB reserved: 192 MiB
+DIAGNOSTIC pre_avg val_loss:2.0278 val_bpb:1.2163 eval_time:1912ms
+averaging:using raw training weights
+DIAGNOSTIC post_ema val_loss:2.0278 val_bpb:1.2163 eval_time:1914ms
+Serialized model: 106420662 bytes
+Code size: 110016 bytes
+selective_prune: 3894003 ±1 candidates unpruned=15991188 target=16000000
+selective_prune: already fits target
+Serialized model int6+lzma: 15881172 bytes
+Total submission size int6+lzma: 15991188 bytes
+final_int6_roundtrip val_loss:2.0361 val_bpb:1.2213 eval_time:1923ms
+final_int6_roundtrip_exact val_loss:2.03610863 val_bpb:1.22128751
+final_int6_sliding_window val_loss:1.9996 val_bpb:1.2029 stride:64 eval_time:52209ms
+final_int6_sliding_window_exact val_loss:1.99963255 val_bpb:1.20289664
+final_int8_zlib_roundtrip_exact val_loss:1.99963255 val_bpb:1.20289664
+Finished run at 2026-04-07 07:14:15 UTC

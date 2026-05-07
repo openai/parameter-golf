@@ -1,0 +1,22 @@
+{
+  "author": "Ayman Abdul-Majid",
+  "github_id": "sabdulmajid",
+  "name": "Mixed-Int6 LZMA9 B3072 Warm5000",
+  "blurb": "Unlimited-compute non-record submission: a 16k-step EMA + XSA(last-4) + BigramHash3072 SP1024 run with longer warmdown, exported legally with mixed-int6 over mlp/attn/embed plus LZMA9 extreme compression. Pre-quant sliding BPB 1.1662, final legal artifact 1.20289664 at 15,991,188 bytes.",
+  "date": "2026-04-07T07:14:15Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.99963255,
+  "val_bpb": 1.20289664,
+  "pre_quant_val_loss": 1.93861159,
+  "pre_quant_val_bpb": 1.16618894,
+  "step_stop": 16000,
+  "wallclock_seconds": 57979.039,
+  "bytes_total": 15991188,
+  "bytes_model_int6_lzma": 15881172,
+  "bytes_code": 110016,
+  "hardware": "single-GPU training and single-GPU export/eval",
+  "quant_scheme": "mixed_int6",
+  "quant_int6_cats": "mlp;attn;embed",
+  "quant_lzma_preset": 9,
+  "quant_lzma_extreme": true
+}
