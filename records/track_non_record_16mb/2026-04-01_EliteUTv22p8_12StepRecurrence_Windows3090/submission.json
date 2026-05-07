@@ -1,0 +1,17 @@
+{
+  "author": "Ribin",
+  "github_id": "Ribin545",
+  "name": "Windows Elite Launcher (non-record)",
+  "blurb": "Non-record submission focused on Windows helper scripts (venv setup + 10-minute run bat files + Windows launcher wrapper). Update metrics/bytes/log links after final run.",
+  "date": "2026-04-01T00:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "pre_quant_val_loss": null,
+  "pre_quant_val_bpb": null,
+  "step_stop": null,
+  "wallclock_seconds": null,
+  "bytes_total": null,
+  "bytes_model_int8_zlib": null,
+  "bytes_code": null
+}
