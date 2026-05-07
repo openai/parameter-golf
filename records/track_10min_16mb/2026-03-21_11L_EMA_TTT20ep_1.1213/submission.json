@@ -1,0 +1,25 @@
+{
+  "author": "Felipe Parodi",
+  "github_id": "felipe-parodi",
+  "name": "11L EMA + Aggressive TTT (20ep, lr=0.008, freeze=0)",
+  "blurb": "EMA(0.997) weight averaging with aggressive test-time training: 20 epochs full-weight SGD at lr=0.008 with all blocks unfrozen. No XSA, no Late QAT — both found to be counterproductive with aggressive TTT. Systematic ablation of 15 configurations over 8xH100 SXM.",
+  "date": "2026-03-21",
+  "val_loss": 1.89320586,
+  "val_bpb": 1.12126612,
+  "val_bpb_mean": 1.1221,
+  "val_bpb_std": 0.0008,
+  "num_seeds": 3,
+  "seeds": {
+    "1337": {"val_loss": 1.89320586, "val_bpb": 1.12126612, "steps": 7386, "artifact_bytes": 15532949},
+    "42": {"val_loss": 1.89463433, "val_bpb": 1.12211214, "steps": 7411, "artifact_bytes": 15512790},
+    "2025": {"val_loss": 1.89584328, "val_bpb": 1.12282815, "steps": 7386, "artifact_bytes": 15532949}
+  },
+  "bytes_total": 15532949,
+  "bytes_code": 71770,
+  "bytes_model_int6_zstd": 15461179,
+  "track": "10min_16mb",
+  "seed": 1337,
+  "training_time_seconds": 600,
+  "step_avg_ms": 81.24,
+  "gpu": "8xH100 SXM"
+}
