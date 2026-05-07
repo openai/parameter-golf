@@ -1,0 +1,9 @@
+{
+  "name": "LeakyReLU² + EMA + QAT + PartialRoPE + LNScale + BigramHash(20480) + MLP3.5x",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Our own codebase upgraded with top techniques: LeakyReLU(0.5)² activation, EMA(0.997) weight averaging, late QAT at 15% warmdown, Partial RoPE (16/64 dims), LN Scale (1/sqrt(layer+1)), BigramHash(20480), MLP 3.5x. 11L x 512d, int5/int6 mixed quantization + zstd-22.",
+  "author": "deepchand",
+  "github_id": "deepchand",
+  "date": "2026-03-27"
+}
