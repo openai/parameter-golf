@@ -1,0 +1,11 @@
+{
+  "author": "adityam2",
+  "github_id": "adityam2",
+  "name": "Competitive 8xH100 Run17 TTT 1.1187",
+  "blurb": "11-layer parameter-banking competitive run on 8xH100 with LeakyReLU^2, XSA4, Bigram+Trigram hash embeddings, ValueResidual, int6+lzma compression, and legal score-first TTT; final metric uses legal_ttt_exact under the 16,000,000-byte cap.",
+  "date": "2026-03-29T21:33:36Z",
+  "val_loss": 1.88884778,
+  "val_bpb": 1.11868501,
+  "bytes_total": 15985833,
+  "bytes_code": 91881
+}
