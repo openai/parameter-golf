@@ -1,0 +1,11 @@
+{
+  "author": "kshitiz",
+  "github_id": "kshitizz36",
+  "name": "SP4096 Int6+zstd 10L496 Overtone+Phase Sliding64",
+  "blurb": "8xH100 10-minute run on fineweb10B_sp4096 using int6-style quantization (QUANT_LEVELS=31 stored in int8), zstd-22 compression, fp16 embedding passthrough, overtone embedding init, phase-transition residual mix init, and sliding-window eval (stride=64).",
+  "date": "2026-03-20T14:20:47Z",
+  "val_loss": 2.70393625,
+  "val_bpb": 1.17528238,
+  "bytes_total": 14672752,
+  "bytes_code": 65752
+}
