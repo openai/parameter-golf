@@ -1,0 +1,9 @@
+run	seed	schedule	lambda	lambda_final	tau	decay_steps	wallclock_seconds	steps	checkpoint_bpb	final_int8_zlib_bpb	total_bytes	notes
+baseline_seed42	42	fixed	0	0	3	0	14400.620	11102	1.2247	1.23166876	15875162	matched baseline
+tweo_cosdecay_seed42	42	cosine	0.0002	0	5	3000	14400.259	11050	1.2235	1.22994812	15888223	early cosine to zero; winning setting
+baseline_seed314	314	fixed	0	0	3	0	14400.406	11100	1.2238	1.23088231	15875856	matched baseline
+tweo_cosdecay_seed314	314	cosine	0.0002	0	5	3000	14400.649	11041	1.2233	1.22991567	15892526	early cosine to zero; winning setting
+tweo_fixed_seed42	42	fixed	0.00005	0	5	0	14400.320	10966	1.2345	1.25002811	15855151	negative control: fixed TWEO hurts BPB
+tweo_tail_seed42_step4000	42	cosine	0.0002	0.000002	5	3000	5260.059	4000	1.3030			negative in-progress control: tiny tail already too strong at step 4000
+h100_80m_baseline_seed999	999	fixed	0	0	3	0	4800.342	9088	1.2298	1.23612313	15867948	1×H100 80-minute directional baseline
+h100_80m_tweo_cosdecay_seed999	999	cosine	0.0002	0	5	3000	4800.486	9066	1.2263	1.23184948	15884729	1×H100 80-minute directional confirmation; delta -0.00427365 BPB
