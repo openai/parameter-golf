@@ -1,0 +1,115 @@
+=== 2026-03-20T16:29:21+00:00 starting warmdown800 ===
+started leadercore10l_screen_warmdown800 data_root_mode=tmp nproc_per_node=1 screen_seconds=180 pid=8063 log=/workspace/parameter-golf/records/track_10min_16mb/2026-03-20_LeaderCore10L_ValidEval_TempOnly_Int8Search/screen_tmp_warmdown800/train.log
+=== 2026-03-20T16:33:22+00:00 finished warmdown800 ===
+step:8/20000 train_loss:6.0850 train_time:4720ms step_avg:590.04ms
+step:9/20000 train_loss:6.1977 train_time:5260ms step_avg:584.43ms
+step:10/20000 train_loss:6.2945 train_time:5867ms step_avg:586.67ms
+step:25/20000 train_loss:5.7394 train_time:13972ms step_avg:558.89ms
+step:50/20000 train_loss:4.5933 train_time:26490ms step_avg:529.80ms
+step:75/20000 train_loss:4.1527 train_time:39698ms step_avg:529.31ms
+step:100/20000 train_loss:3.6883 train_time:52964ms step_avg:529.64ms
+step:125/20000 train_loss:3.4315 train_time:66696ms step_avg:533.57ms
+step:150/20000 train_loss:3.2955 train_time:79660ms step_avg:531.06ms
+step:175/20000 train_loss:3.0852 train_time:92074ms step_avg:526.14ms
+step:200/20000 train_loss:2.9517 train_time:105404ms step_avg:527.02ms
+step:225/20000 train_loss:2.9200 train_time:118789ms step_avg:527.95ms
+step:250/20000 train_loss:2.8466 train_time:131352ms step_avg:525.41ms
+step:275/20000 train_loss:2.7482 train_time:143991ms step_avg:523.60ms
+step:300/20000 train_loss:2.7056 train_time:157070ms step_avg:523.57ms
+step:325/20000 train_loss:2.7185 train_time:170370ms step_avg:524.22ms
+step:344/20000 val_loss:2.6989 val_bpb:1.5984 train_time:180091ms step_avg:523.52ms
+stopping_early: wallclock_cap train_time:180091ms step:344/20000
+peak memory allocated: 11398 MiB reserved: 11760 MiB
+proxy_mode:skip_serialization_and_roundtrip_eval
+=== 2026-03-20T16:33:22+00:00 starting muon099 ===
+started leadercore10l_screen_muon099 data_root_mode=tmp nproc_per_node=1 screen_seconds=180 pid=10154 log=/workspace/parameter-golf/records/track_10min_16mb/2026-03-20_LeaderCore10L_ValidEval_TempOnly_Int8Search/screen_tmp_muon099/train.log
+=== 2026-03-20T16:34:02+00:00 finished muon099 ===
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 284, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/metrics/api.py", line 138, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/agent/server/api.py", line 717, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/agent/server/api.py", line 881, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/api.py", line 85, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 10154 got signal: 15
+=== 2026-03-20T16:34:02+00:00 starting gradclip03 ===
+started leadercore10l_screen_gradclip03 data_root_mode=tmp nproc_per_node=1 screen_seconds=180 pid=11151 log=/workspace/parameter-golf/records/track_10min_16mb/2026-03-20_LeaderCore10L_ValidEval_TempOnly_Int8Search/screen_tmp_gradclip03/train.log
+=== 2026-03-20T16:37:57+00:00 finished gradclip03 ===
+step:10/20000 train_loss:8.8367 train_time:5150ms step_avg:514.96ms
+step:25/20000 train_loss:5.5308 train_time:12728ms step_avg:509.10ms
+step:50/20000 train_loss:4.8507 train_time:24929ms step_avg:498.58ms
+step:75/20000 train_loss:4.4544 train_time:36779ms step_avg:490.39ms
+step:100/20000 train_loss:4.2221 train_time:47802ms step_avg:478.02ms
+step:125/20000 train_loss:4.0530 train_time:60098ms step_avg:480.78ms
+step:150/20000 train_loss:3.8084 train_time:72103ms step_avg:480.69ms
+step:175/20000 train_loss:3.5278 train_time:84408ms step_avg:482.33ms
+step:200/20000 train_loss:3.3552 train_time:96432ms step_avg:482.16ms
+step:225/20000 train_loss:3.3047 train_time:107716ms step_avg:478.74ms
+step:250/20000 train_loss:3.1962 train_time:119689ms step_avg:478.76ms
+step:275/20000 train_loss:3.0782 train_time:131488ms step_avg:478.14ms
+step:300/20000 train_loss:3.0115 train_time:143484ms step_avg:478.28ms
+step:325/20000 train_loss:3.0014 train_time:155797ms step_avg:479.38ms
+step:350/20000 train_loss:2.9793 train_time:166989ms step_avg:477.11ms
+step:375/20000 train_loss:3.0041 train_time:179102ms step_avg:477.61ms
+step:377/20000 val_loss:2.9488 val_bpb:1.7464 train_time:180136ms step_avg:477.81ms
+stopping_early: wallclock_cap train_time:180136ms step:377/20000
+peak memory allocated: 11397 MiB reserved: 11760 MiB
+proxy_mode:skip_serialization_and_roundtrip_eval
+=== 2026-03-20T16:37:57+00:00 starting matrixlr006 ===
+started leadercore10l_screen_matrixlr006 data_root_mode=tmp nproc_per_node=1 screen_seconds=180 pid=13156 log=/workspace/parameter-golf/records/track_10min_16mb/2026-03-20_LeaderCore10L_ValidEval_TempOnly_Int8Search/screen_tmp_matrixlr006/train.log
+=== 2026-03-20T16:41:53+00:00 finished matrixlr006 ===
+step:10/20000 train_loss:6.7316 train_time:5668ms step_avg:566.75ms
+step:25/20000 train_loss:5.9085 train_time:12938ms step_avg:517.54ms
+step:50/20000 train_loss:5.0580 train_time:24763ms step_avg:495.26ms
+step:75/20000 train_loss:4.5001 train_time:37066ms step_avg:494.21ms
+step:100/20000 train_loss:4.1957 train_time:48459ms step_avg:484.59ms
+step:125/20000 train_loss:3.9334 train_time:60094ms step_avg:480.75ms
+step:150/20000 train_loss:3.6464 train_time:71965ms step_avg:479.77ms
+step:175/20000 train_loss:3.3970 train_time:83689ms step_avg:478.22ms
+step:200/20000 train_loss:3.2289 train_time:95390ms step_avg:476.95ms
+step:225/20000 train_loss:3.1594 train_time:106685ms step_avg:474.15ms
+step:250/20000 train_loss:3.0588 train_time:117884ms step_avg:471.54ms
+step:275/20000 train_loss:2.9408 train_time:130096ms step_avg:473.08ms
+step:300/20000 train_loss:2.8829 train_time:141556ms step_avg:471.85ms
+step:325/20000 train_loss:2.8828 train_time:153475ms step_avg:472.23ms
+step:350/20000 train_loss:2.8588 train_time:165394ms step_avg:472.55ms
+step:375/20000 train_loss:2.8798 train_time:176695ms step_avg:471.19ms
+step:382/20000 val_loss:2.8284 val_bpb:1.6751 train_time:180132ms step_avg:471.55ms
+stopping_early: wallclock_cap train_time:180132ms step:382/20000
+peak memory allocated: 11397 MiB reserved: 11760 MiB
+proxy_mode:skip_serialization_and_roundtrip_eval
+=== 2026-03-20T16:41:53+00:00 starting embedlr08 ===
+started leadercore10l_screen_embedlr08 data_root_mode=tmp nproc_per_node=1 screen_seconds=180 pid=15118 log=/workspace/parameter-golf/records/track_10min_16mb/2026-03-20_LeaderCore10L_ValidEval_TempOnly_Int8Search/screen_tmp_embedlr08/train.log
+=== 2026-03-20T16:45:48+00:00 finished embedlr08 ===
+step:10/20000 train_loss:7.1500 train_time:5359ms step_avg:535.89ms
+step:25/20000 train_loss:5.8306 train_time:12584ms step_avg:503.36ms
+step:50/20000 train_loss:5.2623 train_time:24283ms step_avg:485.66ms
+step:75/20000 train_loss:4.7269 train_time:36251ms step_avg:483.35ms
+step:100/20000 train_loss:4.3589 train_time:47980ms step_avg:479.80ms
+step:125/20000 train_loss:4.1810 train_time:58981ms step_avg:471.85ms
+step:150/20000 train_loss:3.9782 train_time:70683ms step_avg:471.22ms
+step:175/20000 train_loss:3.6893 train_time:82947ms step_avg:473.98ms
+step:200/20000 train_loss:3.4928 train_time:94881ms step_avg:474.41ms
+step:225/20000 train_loss:3.4269 train_time:106567ms step_avg:473.63ms
+step:250/20000 train_loss:3.3102 train_time:117656ms step_avg:470.62ms
+step:275/20000 train_loss:3.1939 train_time:129244ms step_avg:469.98ms
+step:300/20000 train_loss:3.1182 train_time:141179ms step_avg:470.60ms
+step:325/20000 train_loss:3.1049 train_time:153087ms step_avg:471.04ms
+step:350/20000 train_loss:3.0768 train_time:165041ms step_avg:471.55ms
+step:375/20000 train_loss:3.1011 train_time:175986ms step_avg:469.30ms
+step:384/20000 val_loss:3.0392 val_bpb:1.8000 train_time:180154ms step_avg:469.15ms
+stopping_early: wallclock_cap train_time:180154ms step:384/20000
+peak memory allocated: 11397 MiB reserved: 11760 MiB
+proxy_mode:skip_serialization_and_roundtrip_eval

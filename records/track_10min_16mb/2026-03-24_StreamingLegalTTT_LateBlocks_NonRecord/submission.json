@@ -1,0 +1,11 @@
+{
+  "author": "Simon Marcus",
+  "github_id": "simon-marcus",
+  "name": "Streaming Legal TTT + Late-Block Adaptation (Non-Record)",
+  "blurb": "Non-record submission built from the March 23 LeakyReLU^2 + Legal TTT + Parallel Muon leader. Keeps the same trained model stack and activation, but switches eval-time adaptation to streaming legal TTT with last-4-block updates only. Final result is slightly behind the leader, but provides a useful community data point on how streaming suffix-only TTT compares to chunked all-block legal TTT.",
+  "date": "2026-03-24",
+  "val_loss": 1.89245802,
+  "val_bpb": 1.12082320,
+  "bytes_total": 15867004,
+  "bytes_code": 101140
+}
