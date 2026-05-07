@@ -1,0 +1,10 @@
+{
+  "author": "Pasha",
+  "github_id": "ReNothingg",
+  "name": "Non-record: 10L Int5-MLP on 4xH100 for 1200s",
+  "blurb": "4xH100 non-record run for 1200s with sliding-window eval stride=64 and int5/int6+zstd compression.",
+  "date": "2026-03-24T00:00:00Z",
+  "val_loss": 1.92858953,
+  "val_bpb": 1.14222237,
+  "bytes_total": 15803072
+}
