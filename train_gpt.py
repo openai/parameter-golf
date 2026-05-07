@@ -231,40 +231,79 @@ def eval_val(
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
-    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
-    if local_batch_tokens < args.train_seq_len:
+    eval_stride = getattr(args, "eval_stride", None)
+    if eval_stride is None:
+        eval_stride = int(os.environ.get("EVAL_STRIDE", args.train_seq_len))
+        args.eval_stride = eval_stride
+    if eval_stride <= 0 or eval_stride > args.train_seq_len:
         raise ValueError(
-            "VAL_BATCH_SIZE must provide at least one sequence per rank; "
-            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
-            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+            f"EVAL_STRIDE must be in (0, TRAIN_SEQ_LEN]; got EVAL_STRIDE={eval_stride}, "
+            f"TRAIN_SEQ_LEN={args.train_seq_len}"
         )
-    local_batch_seqs = local_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
-    seq_start = (total_seqs * rank) // world_size
-    seq_end = (total_seqs * (rank + 1)) // world_size
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    if local_batch_tokens < eval_stride:
+        raise ValueError(
+            "VAL_BATCH_SIZE must produce at least one evaluation stride per rank; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, EVAL_STRIDE={eval_stride}"
+        )
+    total_targets = val_tokens.numel() - 1
+    if total_targets <= 0:
+        raise ValueError("Validation split is too short for evaluation")
+    target_start = (total_targets * rank) // world_size
+    target_end = (total_targets * (rank + 1)) // world_size
+    if target_end <= target_start:
+        raise ValueError(
+            f"VAL_FILES do not provide enough tokens for WORLD_SIZE={world_size}; "
+            f"rank {rank} received an empty slice"
+        )
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     val_token_count = torch.zeros((), device=device, dtype=torch.float64)
     val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
 
     model.eval()
     with torch.inference_mode():
-        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
-            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
-            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
+        # Overlap-aware evaluation keeps maximal left context for each window and
+        # only scores the newly advanced tail so every validation token counts once.
+        target_cursor = target_start
+        first_window = True
+        while target_cursor < target_end:
+            remaining = target_end - target_cursor
+            tail_len = min(args.train_seq_len if first_window else eval_stride, remaining)
+            first_window = False
+            target_end_pos = target_cursor + tail_len
+            window_start_pos = max(target_end_pos - args.train_seq_len, 0)
+            window_tokens = val_tokens[window_start_pos : target_end_pos + 1].to(
+                device=device, dtype=torch.int64, non_blocking=True
+            )
+            x_full = window_tokens[:-1].unsqueeze(0)
+            y_full = window_tokens[1:].unsqueeze(0)
+            window_len = y_full.shape[1]
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
-                batch_loss = model(x, y).detach()
-            batch_token_count = float(y.numel())
-            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
-            val_token_count += batch_token_count
-            prev_ids = x.reshape(-1)
-            tgt_ids = y.reshape(-1)
+                window_loss = model(x_full, y_full).detach()
+            tail_loss_sum = window_loss.to(torch.float64) * window_len
+            prefix_len = window_len - tail_len
+            if prefix_len > 0:
+                # The prefix only provides left context. Subtracting its loss ensures
+                # the overlapping tokens aren't double-counted in the aggregate.
+                # Recomputing this prefix loss keeps the method clear/correct; a
+                # future optimization could reuse per-token losses or masking to
+                # avoid the second forward pass.
+                prefix = window_tokens[: prefix_len + 1]
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    prefix_loss = model(prefix[:-1].unsqueeze(0), prefix[1:].unsqueeze(0)).detach()
+                tail_loss_sum -= prefix_loss.to(torch.float64) * prefix_len
+            val_loss_sum += tail_loss_sum
+            val_token_count += float(tail_len)
+            # Only this tail contributes to the compression metric. Earlier overlap
+            # tokens act purely as context, giving richer histories without "cheating"
+            # by counting their bytes twice.
+            prev_ids = window_tokens[:-1][-tail_len:]
+            tgt_ids = window_tokens[1:][-tail_len:]
             token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
             token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
             val_byte_count += token_bytes.to(torch.float64).sum()
+            target_cursor = target_end_pos
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
