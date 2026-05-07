@@ -1,0 +1,20 @@
+{
+  "name": "QAT x SWA Ablation: Antagonistic Interaction in Quantization-Aware Training",
+  "author": "Alexander Perry",
+  "github_id": "alexanderaperry-arch",
+  "date": "2026-03-28",
+  "track": "10min-16mb",
+  "val_bpb": 1.14018,
+  "val_loss": 1.9250,
+  "bytes_total": 15787003,
+  "blurb": "2x2 factorial ablation of QAT x SWA interaction on PR #180 stack. Key finding: SWA and QAT are antagonistic — QAT alone (1.14018, 3-seed mean) beats SWA alone (1.14382) by 3.64 mBPB, but combining them (1.14468) is worse than either. Explains why prior QAT entries underperformed non-QAT submissions.",
+  "submission_type": "non-record-research",
+  "seeds": [42, 1337, 2024],
+  "seed_results": {
+    "no_swa_qat": {"seed_42": 1.13969, "seed_1337": 1.14010, "seed_2024": 1.14074, "mean": 1.14018, "std": 0.00044},
+    "control": {"seed_42": 1.14335, "seed_1337": 1.14350, "seed_2024": 1.14462, "mean": 1.14382, "std": 0.00056}
+  },
+  "hardware": "8xH100 SXM (RunPod)",
+  "wallclock_seconds": 600,
+  "based_on": "PR #180 (10L Int5-MLP + BigramHash + SWA + WD=0.04)"
+}
