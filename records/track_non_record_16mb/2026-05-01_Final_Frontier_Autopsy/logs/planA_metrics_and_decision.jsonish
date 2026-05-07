@@ -1,0 +1,10 @@
+{
+  "artifact_bytes": 15972854,
+  "final_bpb": 1.06057508,
+  "log": "/workspace/move39_outputs/move39_planA_2018_qaware_gate32_seed1337_20260501_051956/move39_planA_2018_qaware_gate32_seed1337_20260501_051956.txt",
+  "prequant_bpb": 1.06385301,
+  "quant_bpb": 1.07199665,
+  "train_ms": 595974,
+  "ttt_eval_ms": 515283
+}
+DECISION=NO_GO
