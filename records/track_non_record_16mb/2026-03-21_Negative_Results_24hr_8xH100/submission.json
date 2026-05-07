@@ -1,0 +1,18 @@
+{
+    "author": "charmquark1984",
+    "github_id": "charmquark1984",
+    "name": "Negative Results: 24hrs of 8xH100 Experimentation",
+    "blurb": "Non-record 8xH100 submission: 13 techniques tested that did not work on PR #315 base (causal TTT, MTP, INT4, Canon layers, memory tokens, etc.) plus 4 positive findings (EMA>SWA by 0.003, WD controls artifact size, 786K>524K batch, FA3 Hopper speed). Best verified: 1.1257 BPB.",
+    "date": "2026-03-21T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 1.90058621,
+    "val_bpb": 1.1257,
+    "pre_quant_val_loss": null,
+    "pre_quant_val_bpb": 1.1427,
+    "step_stop": 6952,
+    "wallclock_seconds": 600,
+    "bytes_total": 15533063,
+    "bytes_model_int8_zlib": null,
+    "bytes_code": null,
+    "gpu": "8xH100_SXM"
+}
