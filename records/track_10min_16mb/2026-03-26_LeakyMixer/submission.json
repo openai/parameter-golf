@@ -1,0 +1,12 @@
+{
+  "author": "zlxi",
+  "github_id": "zlxi",
+  "name": "LeakyMixer",
+  "blurb": "11-layer leaky_relu(0.5)^2 with warmdown 3500, eval-time backoff n-gram mixer for BPB boost. trained on 4xA100 SXM (849 steps in 600s), should get more steps on 8xH100.",
+  "date": "2026-03-26T07:18:00Z",
+  "val_loss": 2.37999319,
+  "val_bpb": 1.40956603,
+  "bytes_total": 13489817,
+  "bytes_code": 47635,
+  "notes": "4xA100 run (849 steps). 8xH100 should reach ~1700 steps and ~1.20 BPB neural-only. n-gram mixer at eval drops BPB by ~0.45-0.50 on top of that."
+}
