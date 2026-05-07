@@ -1,0 +1,9 @@
+{
+  "name": "Record: 11L Depth Recurrence + Discriminative Pre-Quant TTT",
+  "val_bpb": 1.0887,
+  "bytes_total": 15926365,
+  "blurb": "Two innovations on PR #1351 base: (1) Depth Recurrence — blocks 4 and 5 run twice in the forward pass, giving 13 effective layers from 11 physical with zero parameter overhead; (2) Discriminative Pre-Quant TTT — AdamW adaptation on val chunks before GPTQ quantization with per-block LR scaling (0.3x early blocks to 1.0x late blocks, 10 epochs). Both baked into the artifact; model frozen at eval. 3-seed mean: 1.0887 (std 0.0014). All artifacts under 16MB, all eval under 10 min.",
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "date": "2026-04-06"
+}

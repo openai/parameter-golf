@@ -1,0 +1,37 @@
+{
+  "author": "Aamod Bhatt",
+  "github_id": "aamodbhatt",
+  "name": "AR Self-Gen GPTQ + XSA-11 + BigramHash 3072x112",
+  "blurb": "Strict legal single-pass causal submission with AR self-generated GPTQ calibration, XSA across all 11 layers, and BigramHash 3072x112. 3-seed mean val_bpb=1.11555015.",
+  "date": "2026-04-03",
+  "track": "10min_16mb",
+  "record_claim": false,
+  "val_bpb": 1.11555015,
+  "val_bpb_std": 0.00044346,
+  "val_loss": 1.88355470,
+  "seeds": [42, 1337, 2025],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.11505464,
+      "val_loss": 1.88271806,
+      "artifact_bytes": 15852402,
+      "steps": 6759
+    },
+    "1337": {
+      "val_bpb": 1.11613083,
+      "val_loss": 1.88453516,
+      "artifact_bytes": 15856186,
+      "steps": 6765
+    },
+    "2025": {
+      "val_bpb": 1.11546497,
+      "val_loss": 1.88341089,
+      "artifact_bytes": 15847666,
+      "steps": 6767
+    }
+  },
+  "bytes_total": 15856186,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "AR self-generated GPTQ calibration + XSA-11 + BigramHash 3072x112 + int6/lzma",
+  "legal_notes": "Single-pass causal evaluation only; no two-pass/full-rescore, no tokenizer/dataset modifications, no TTT/SLOT/ngram scoring path"
+}
