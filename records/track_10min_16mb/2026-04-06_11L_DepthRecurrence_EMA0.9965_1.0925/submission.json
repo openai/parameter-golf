@@ -1,0 +1,10 @@
+{
+  "author": "Abhishek Leji",
+  "github_id": "X-Abhishek-X",
+  "name": "Record: 11L Depth Recurrence + EMA Tuning (0.9965)",
+  "blurb": "EMA decay tuned to 0.9965 for stabilized post-quantization performance, built on PR #1334 (aryanbhosale) depth recurrence architecture (11L, skip gates, VE128, GPTQ int6+brotli, sliding window eval).",
+  "date": "2026-04-06T00:00:00Z",
+  "val_loss": 2.51370050,
+  "val_bpb": 1.09247668,
+  "bytes_total": 15954433
+}
