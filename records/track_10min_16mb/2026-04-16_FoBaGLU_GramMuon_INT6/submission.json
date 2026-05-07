@@ -1,0 +1,14 @@
+{
+  "run_id": "foba_glu_h100",
+  "val_bpb": 2.63600050,
+  "artifact_size_bytes": 9161900,
+  "code_bytes": 29024,
+  "model_bytes": 9132876,
+  "hardware": "1x H100 (Colab Pro+)",
+  "iterations": 10000,
+  "train_seq_len": 4096,
+  "vocab": "sp1024",
+  "track": "non_record_unlimited_compute",
+  "techniques": ["FoBa-GLU", "GramMuon", "INT6-QAT", "tied-embeddings", "seq4096"],
+  "final_int8_zlib_roundtrip_exact_val_bpb": "2.63600050"
+}
