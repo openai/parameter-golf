@@ -1,0 +1,16 @@
+{
+  "author": "JayCheng113",
+  "github_id": "JayCheng113",
+  "name": "11L Low-Rank Q192",
+  "blurb": "11-layer transformer with factored Q projection (rank 192). Low-rank Q structure improves int6 quantization friendliness. Mean sliding val_bpb=1.1558 across 3 seeds.",
+  "date": "2026-03-20",
+  "val_loss": 1.9498,
+  "val_bpb": 1.1548,
+  "pre_quant_val_loss": 1.9913,
+  "pre_quant_val_bpb": 1.1793,
+  "step_stop": 7732,
+  "wallclock_seconds": 600,
+  "bytes_total": 14747213,
+  "bytes_model_int6_zstd": 14688652,
+  "bytes_code": 58561
+}
