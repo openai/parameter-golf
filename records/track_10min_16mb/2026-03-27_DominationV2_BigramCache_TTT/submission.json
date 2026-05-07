@@ -1,0 +1,17 @@
+{
+  "author": "Shouryamaan Jain",
+  "github_id": "shouryamaanjain",
+  "name": "DominationV2 + BOS-Reset Bigram Cache + TTT",
+  "blurb": "DominationV2 (11L, 3x relu², XSA-4, EMA, SmearGate, BigramHash, OrthoInit, mixed int6/int8 + zstd-22) with eval-time BOS-reset bigram cache after TTT. Cache builds document-local bigram counts from already-scored tokens, blended with model probabilities gated by entropy. 3-seed mean: 1.1382 (std 0.0010).",
+  "date": "2026-03-27",
+  "val_loss": 1.91991417,
+  "val_bpb": 1.13708132,
+  "bytes_total": 15504722,
+  "seeds": {
+    "1337": {"val_loss": 1.91991417, "val_bpb": 1.13708132, "bytes": 15504722},
+    "42": {"val_loss": 1.92231620, "val_bpb": 1.13850394, "bytes": 15579418},
+    "2025": {"val_loss": 1.92302940, "val_bpb": 1.13892633, "bytes": 15505762}
+  },
+  "mean_bpb": 1.1382,
+  "std_bpb": 0.0010
+}
