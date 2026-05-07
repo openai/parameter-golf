@@ -1,0 +1,8 @@
+{
+  "title": "Non-record submission: exp05_sliding",
+  "author": "Orbilux Labs",
+  "track": "track_non_record_16mb",
+  "date": "2026-03-30",
+  "val_bpb": 1.34398504,
+  "summary": "Sliding eval + int8 zlib compression."
+}
