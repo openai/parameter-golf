@@ -1,0 +1,16 @@
+{
+  "naive_bpb": 1.1243,
+  "gptq_bpb": 1.12141431200775,
+  "delta_bpb": 0.0028856879922500855,
+  "calibration_time_s": 3.268371084937826,
+  "gptq_time_s": 18.803556157043204,
+  "baseline_eval_time_s": 0.0,
+  "gptq_eval_time_s": 164.32694887195248,
+  "gptq_nsamples": 256,
+  "gptq_block_size": 128,
+  "gptq_percdamp": 0.01,
+  "gptq_clip_range": 31,
+  "gptq_file_bytes": 16319735,
+  "peak_gpu_mib": 1150,
+  "kill_criterion_met": false
+}
