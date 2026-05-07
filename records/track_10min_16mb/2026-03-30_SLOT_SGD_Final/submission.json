@@ -1,0 +1,11 @@
+{
+  "val_bpb": 1.11512,
+  "val_loss": 1.88283,
+  "seeds": [42, 1337, 2025],
+  "seed_bpbs": [1.11514996, 1.11501287, 1.11520712],
+  "seed_losses": [1.88287900, 1.88264755, 1.88297553],
+  "artifact_bytes": 15959700,
+  "eval_times_ms": [571773, 568529, 571287],
+  "eval_stride": 64,
+  "techniques": "SLOT+TTT+LeakyReLU2+ParallelMuon+XSA4+EMA+GPTQ-lite"
+}
