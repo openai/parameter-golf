@@ -1,0 +1,18 @@
+{
+  "author": "guily",
+  "github_id": "guilhhotina",
+  "name": "brelt wip 2xh100 20min package",
+  "blurb": "non-record 2xh100 scaling package for brelt, a byte-level recurrent latent architecture. this run reached 1.9228 raw val_bpb and 1.9761 int8+zlib val_bpb in 20 minutes, while exposing a clear scaling pathology: segmentation opens too far and the latent stream becomes too cheap. included alongside a same-budget run of the original challenge baseline for direct comparison.",
+  "date": "2026-03-29T12:20:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.36969504,
+  "val_bpb": 1.97605225,
+  "pre_quant_val_loss": 1.3328,
+  "pre_quant_val_bpb": 1.9228,
+  "step_stop": 504,
+  "wallclock_seconds": 1200.232,
+  "bytes_total": 13924361,
+  "bytes_model_int8_zlib": 13825009,
+  "bytes_code": 99352,
+  "gpu": "2xh100"
+}
