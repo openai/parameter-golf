@@ -1,0 +1,19 @@
+{
+  "name": "George Teifel",
+  "github_id": "george11642",
+  "val_bpb": null,
+  "track": "non_record_16mb",
+  "metadata": {
+    "description": "Phase 1: Legal score-first TTT + XSA-all + per-layer TTT LR + GPTQ-lite clip search. Building toward meta-TTT (MAML). Based on PR #462 architecture.",
+    "techniques": [
+      "Star-ReLU + U-Net + BigramHash + SmearGate (from PR #462)",
+      "XSA on all 11 layers (extended from XSA-4)",
+      "Cosine TTT 30 epochs with per-layer LR groups",
+      "GPTQ-lite optimal clip percentile search",
+      "Legal score-first TTT protocol",
+      "Meta-TTT (FOMAML) - in development"
+    ],
+    "base": "PR #462 (1.0672 BPB)",
+    "status": "awaiting_compute_for_validation"
+  }
+}
