@@ -1,0 +1,10 @@
+{
+    "author": "yizha",
+    "val_bpb": 1.1219,
+    "description": "Full-training QAT (int6 fake quantization from step 1) on top of LeakyReLU_LegalTTT_ParallelMuon architecture",
+    "seed": 1337,
+    "runs": [
+        {"seed": 1337, "val_bpb": 1.1222},
+        {"seed": 1337, "val_bpb": 1.1219}
+    ]
+}
