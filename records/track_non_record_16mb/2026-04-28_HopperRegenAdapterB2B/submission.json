@@ -1,0 +1,122 @@
+{
+  "track": "non_record_16mb",
+  "status": "draft_non_record_documented_negative_result",
+  "date": "2026-04-28",
+  "name": "HopperRegenAdapterB2B",
+  "author": "Sacmaj",
+  "github_id": "Sacmaj",
+  "blurb": "Documented negative result for Rule-30 regenerated ternary low-rank adapters. The best filtered regen-adapter ablation is substantially worse than matched base-only at 297 one-H100 steps.",
+  "val_loss": 3.41630214,
+  "val_bpb": 2.05623253,
+  "bytes_total": 8099240,
+  "claim_scope": "1xH100 capped-validation non-record evidence; not an 8xH100 leaderboard claim",
+  "primary_result": {
+    "log_path": "train_runpod_1h100_smart_roles_ablation_297step.log",
+    "hardware": "1x NVIDIA H100 80GB HBM3",
+    "seed": 1337,
+    "stop_step": 297,
+    "train_time_ms": 299239,
+    "train_batch_tokens": 524288,
+    "validation_tokens": 524288,
+    "use_regen_adapter": true,
+    "use_hopper_regen_gemm": "off",
+    "regen_rank": 16,
+    "regen_include_roles": [
+      "attn_c_v",
+      "attn_proj",
+      "mlp_fc",
+      "mlp_proj"
+    ],
+    "regen_layers": 36,
+    "strict_roundtrip_val_loss": 3.41630214,
+    "strict_roundtrip_val_bpb": 2.05623253,
+    "bytes_total": 8099240
+  },
+  "comparison_runs": [
+    {
+      "name": "all_role_native_bridge",
+      "log_path": "train_runpod_1h100_native_10m.log",
+      "hardware": "1x NVIDIA H100 80GB HBM3",
+      "seed": 1337,
+      "stop_step": 297,
+      "train_time_ms": 601473,
+      "use_regen_adapter": true,
+      "use_hopper_regen_gemm": "native",
+      "regen_layers": 54,
+      "strict_roundtrip_val_loss": 3.78946736,
+      "strict_roundtrip_val_bpb": 2.28083634,
+      "bytes_total": 7439076
+    },
+    {
+      "name": "matched_base_only",
+      "log_path": "train_runpod_1h100_base_ablation_297step.log",
+      "hardware": "1x NVIDIA H100 80GB HBM3",
+      "seed": 1337,
+      "stop_step": 297,
+      "train_time_ms": 261165,
+      "use_regen_adapter": false,
+      "use_hopper_regen_gemm": "off",
+      "regen_layers": 0,
+      "strict_roundtrip_val_loss": 2.79997504,
+      "strict_roundtrip_val_bpb": 1.68527241,
+      "bytes_total": 8323872
+    }
+  ],
+  "comparison_summary": {
+    "smart_roles_improvement_vs_all_role_regen_bpb": 0.22460381,
+    "smart_roles_regression_vs_base_only_bpb": 0.37096012,
+    "interpretation": "Skipping Q/K helps, but the current regenerated-adapter design remains much worse than base-only at matched updates."
+  },
+  "lineage": {
+    "parent_record": "records/track_non_record_16mb/2026-04-18_HopperPersistentSeededLowRankGEMM",
+    "parent_val_bpb": 1.42375499,
+    "parent_summary": "Validated seeded Rademacher LoRA at rank 8 with base seed 1729; reached val_bpb 1.42375499 on full WSL Ubuntu 24.04 + RTX 4090 validation. This submission swaps to Rule-30 + Achlioptas {1/4, 1/2, 1/4} ternary regen at rank 16, restructures the adapter as a B2B (back-to-back) micro-GEMM Y = X@W^T + alpha*(X@A^T)@B^T, and adds a CUTLASS WGMMA / WMMA bridge kernel prototype on H100. The composite went backwards at matched 297-step 1xH100 ablations."
+  },
+  "artifact_limit_bytes": 16000000,
+  "line_count_train_gpt_py": 1440,
+  "included_files": [
+    "README.md",
+    "submission.json",
+    "train_gpt.py",
+    "requirements.txt",
+    "python/__init__.py",
+    "python/gemm_hopper.py",
+    "python/gemm_hopper_native.cpp",
+    "python/gemm_hopper_native_kernel.cu",
+    "src/reference.cpp",
+    "include/gemm_hopper/reference.hpp",
+    "include/gemm_hopper/generator.hpp",
+    "include/gemm_hopper/ternary.hpp",
+    "train_runpod_1h100_smart_roles_ablation_297step.log",
+    "train_runpod_1h100_native_10m.log",
+    "train_runpod_1h100_base_ablation_297step.log"
+  ],
+  "not_claimed": [
+    "new SOTA record",
+    "8xH100 leaderboard-compliant result",
+    "full-validation statistical win",
+    "final fused CUTLASS WGMMA/TMA trainer backend",
+    "native adapter performance win"
+  ],
+  "compliance": {
+    "artifact_under_16m_decimal": true,
+    "validation_not_accessed_during_training": true,
+    "no_paid_prefix": true,
+    "tokenizer_or_dataset_changed": false,
+    "train_gpt_under_1500_lines": true,
+    "non_record_submission": true
+  },
+  "compute_request": {
+    "needed_for": "8xH100 SXM5 production gate plus targeted rank/alpha/placement ablations to confirm-or-refute the 297-step 1xH100 negative result at production batch and step counts.",
+    "specific_runs": [
+      "Rank sweep at smart-role placement: REGEN_RANK in {4, 8, 16, 32} x 3 seeds = 12 runs",
+      "Alpha sweep at best rank: REGEN_ALPHA_INIT in {0.0625, 0.125, 0.25} x 3 seeds = 9 runs",
+      "Placement sweep at best rank/alpha: all / smart-role / mlp-only / attn-only x 3 seeds = 12 runs",
+      "Best-config 8xH100 600s production gate x 3 seeds = 3 runs"
+    ],
+    "estimated_cost": "~36 runs at ~10 min each = ~6 8xH100-hours = ~$120 of compute at Runpod 8xH100 SXM rates.",
+    "rationale": "Local hardware is one RTX 4090 (24 GB) and hourly Runpod 1xH100 rentals; the leaderboard validation gate needs 8xH100 SXM that I cannot self-fund. The 297-step 1xH100 ablation is a convergence signal at partial-batch step count, not the production regime.",
+    "channel": "Any formal compute-credit request would go through OpenAI's grant form. This PR is the technical justification."
+  }
+}
+
