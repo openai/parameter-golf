@@ -1,0 +1,20 @@
+# Dependencies for this non-record package. The reproduction pins to PR #1610
+# at commit ca1919539dc6e328ea890cb03ad3ca1c5a84da55; the record-track
+# submission upstream is the authoritative source for exact versions.
+#
+# FlashAttention 3 must be installed separately; see README.md.
+# PyTorch 2.9.1+cu128 required; install via:
+#   uv pip install torch==2.9.1+cu128 --extra-index-url https://download.pytorch.org/whl/cu128
+numpy
+tqdm
+torch
+huggingface-hub
+kernels
+setuptools
+typing-extensions==4.15.0
+datasets
+tiktoken
+sentencepiece
+zstandard
+brotli
+python-minifier

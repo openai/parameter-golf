@@ -1,0 +1,4 @@
+torch                 2.9.1+cu128
+cuda (torch-reported) 12.8
+flash_attn_interface  unknown
+python                3.10.12
