@@ -1,0 +1,9 @@
+{
+  "author": "austinluk",
+  "github_id": "austinluk",
+  "date": "2026-04-03",
+  "val_bpb": null,
+  "description": "Random Linear Maps + Learned LoRA Adapters: freeze most weights as pseudo-random (from seed = 0 bytes in artifact), train only low-rank adapters. Enables a much larger backbone (12L, 768d, 3x MLP) under 16MB since frozen weights cost nothing in the artifact.",
+  "track": "10min_16mb",
+  "tags": ["random-linear-maps", "lora", "adapters", "creative"]
+}
