@@ -1,0 +1,27 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "CLASE-Quant: Adaptive Layer-Sensitive Quantization + Extended Context",
+  "author": "NewyorkDev",
+  "github_id": "NewyorkDev",
+  "seed_results": {
+    "1337": {"val_loss": 2.01365024, "val_bpb": 1.19259709, "steps": 10854, "ms_per_step": 55.27},
+    "42":   {"val_loss": 2.00861784, "val_bpb": 1.18961663, "steps": 12761, "ms_per_step": 47.01},
+    "7":    {"val_loss": 2.01283680, "val_bpb": 1.19211533, "steps": 13205, "ms_per_step": 45.43}
+  },
+  "mean_val_loss": 2.01170163,
+  "mean_val_bpb": 1.19144302,
+  "artifact_bytes": 11500497,
+  "code_bytes": 57144,
+  "techniques": [
+    "CLASE-inspired adaptive per-layer quantization (int8 boundary, int6 middle)",
+    "Ramping weight decay during warmdown (0.02 -> 0.08)",
+    "2048 training sequence length",
+    "Sliding window evaluation (stride=64, seq_len=2048)",
+    "10 layers with FP16 tied embeddings",
+    "Overtone spectral embedding init",
+    "Phase-transition residual mixing",
+    "Muon optimizer with decoupled weight decay"
+  ],
+  "notes": "Inspired by the CLASE Technique (HDXspeed, March 2026) which proved non-uniform layer treatment outperforms uniform approaches. Built with Claude (Anthropic)."
+}
