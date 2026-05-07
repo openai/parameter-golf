@@ -1,0 +1,9 @@
+{
+  "name": "Fused LeakyReLU² + Online GPTQ + Parallel Muon",
+  "val_bpb": 1.117,
+  "bytes_total": 15948723,
+  "blurb": "11L/512d with fused Triton LeakyReLU(0.5)² MLP kernel (70ms/step → 33% more training steps), online Hessian GPTQ during training, Parallel Muon with parameter banking, XSA on all layers, INT6+LZMA with selective ±1 pruning. No TTT.",
+  "author": "Vilhelm Toivonen",
+  "github_id": "vimeto",
+  "date": "2026-03-29"
+}
