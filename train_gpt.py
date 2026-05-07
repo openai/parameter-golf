@@ -27,6 +27,21 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+
+def _sdpa_supports_enable_gqa() -> bool:
+    # Some torch builds expose SDPA but do not accept the enable_gqa keyword.
+    q = torch.zeros(1, 2, 2, 4, dtype=torch.float32)
+    k = torch.zeros(1, 1, 2, 4, dtype=torch.float32)
+    v = torch.zeros(1, 1, 2, 4, dtype=torch.float32)
+    try:
+        F.scaled_dot_product_attention(q, k, v, is_causal=True, enable_gqa=True)
+        return True
+    except TypeError:
+        return False
+
+
+_SDPA_ENABLE_GQA_SUPPORTED = _sdpa_supports_enable_gqa()
+
 # -----------------------------
 # HYPERPARAMETERS
 # -----------------------------
@@ -591,14 +606,28 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
         q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
-        y = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-            attn_mask=None,
-            is_causal=True,
-            enable_gqa=(self.num_kv_heads != self.num_heads),
-        )
+        use_gqa = self.num_kv_heads != self.num_heads
+        if _SDPA_ENABLE_GQA_SUPPORTED:
+            y = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=None,
+                is_causal=True,
+                enable_gqa=use_gqa,
+            )
+        else:
+            if use_gqa:
+                kv_repeat = self.num_heads // self.num_kv_heads
+                k = k.repeat_interleave(kv_repeat, dim=1)
+                v = v.repeat_interleave(kv_repeat, dim=1)
+            y = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                attn_mask=None,
+                is_causal=True,
+            )
         y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
         return self.proj(y)
 
