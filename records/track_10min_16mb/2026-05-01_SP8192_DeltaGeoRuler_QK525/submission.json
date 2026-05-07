@@ -1,0 +1,47 @@
+{
+  "author": "Arnav Salkade",
+  "github_id": "Arnie016",
+  "name": "SP8192 Past-only Delta Geo Ruler + QK-Gain 5.25",
+  "blurb": "A strictly causal late-layer delta ruler reads only past hidden states at geometric offsets on top of the SP8192 recurrence/parallel-residual/QK-Gain stack. No TTT, no cache, no future-token anchor.",
+  "date": "2026-05-01T05:53:45+08:00",
+  "track": "10min_16mb",
+  "non_record": true,
+  "val_loss": 2.81504162,
+  "val_bpb": 1.08979034,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "exact_val_loss": 2.85799878,
+      "exact_val_bpb": 1.10642039,
+      "sliding_val_loss": 2.81504162,
+      "sliding_val_bpb": 1.08979034,
+      "pre_quant_post_ema_val_bpb": 1.09597374,
+      "artifact_bytes": 15995193,
+      "train_steps": 3674
+    }
+  },
+  "bytes_total": 15995193,
+  "bytes_model_quantized_brotli": 15977543,
+  "bytes_code": 17650,
+  "hardware": "8xH100 80GB",
+  "pytorch_version": "2.8.0+cu128",
+  "technique_summary": "SP8192 + 3-layer depth recurrence + parallel residuals + QK-Gain 5.25 + past-only delta geo ruler on layers 9,10 + GPTQ SDClip + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "strictly_causal_ruler": true,
+    "no_future_anchor": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "ttt_enabled": false,
+    "single_seed_non_record": true
+  },
+  "modal": {
+    "app_id": "ap-l4QgbtyYvogMDv2ugf98oM",
+    "function_call_id": "fc-01KQG3J8EEKEH81KQ29T6HX8CQ",
+    "run_id": "sp8192_delta_geo_ruler_8x_verify_20260430_210822"
+  }
+}
