@@ -1,0 +1,9 @@
+{
+  "name": "Int6 GPTQ-lite + LeakyReLU(0.5)^2 + EMA + 11L MLP3x",
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "blurb": "11 layers (vs 9 baseline) + MLP 3x expansion + LeakyReLU(0.5)^2 activation + Int6 per-row GPTQ-lite quantization + zstd-22 compression + Late QAT via STE + EMA(0.997) weight averaging + sliding window eval (stride=64).",
+  "author": "zeytx",
+  "github_id": "zeytx",
+  "date": "2026-03-25"
+}
