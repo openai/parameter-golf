@@ -1,0 +1,18 @@
+{
+  "author": "Shasank",
+  "github_id": "shasank0001",
+  "name": "15L Ternary MLP-Only (20k)",
+  "blurb": "Unlimited compute non-record submission: 15-layer pure ternary MLP-only branch trained to 20k with a final roundtrip of 1.30378846 under the 16MB cap.",
+  "date": "2026-03-27T13:12:31Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.20139220,
+  "val_bpb": 1.30378846,
+  "pre_quant_val_loss": 2.20080222,
+  "pre_quant_val_bpb": 1.30343904,
+  "step_stop": 20000,
+  "wallclock_seconds": 23469.558,
+  "bytes_total": 15037372,
+  "bytes_model_int8_zlib": 14957135,
+  "bytes_code": 80237,
+  "gpu": "1xRTX5060"
+}
