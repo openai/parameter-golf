@@ -1,0 +1,18 @@
+{
+    "author": "Shakil281",
+    "github_id": "Shakil281",
+    "name": "Depth Recurrence + SwiGLU + Mixed Quantization",
+    "blurb": "Non-record experimental submission exploring three novel architectural modifications on top of the PR #549 stack: (1) depth recurrence — loop N unique layers K times for K*N effective depth with shared weights, reducing parameter count while increasing representational depth; (2) SwiGLU gated activation replacing LeakyReLU², using gated linear units with SiLU for improved gradient flow and expressivity; (3) mixed int5/int6 per-layer quantization for tighter compression. Built on the LeakyReLU + TTT + Parallel Muon stack. Untested on 8xH100 — submitted as architectural proposal pending compute access.",
+    "date": "2026-03-25",
+    "track": "non-record-16mb",
+    "val_loss": null,
+    "val_bpb": null,
+    "pre_quant_val_loss": null,
+    "pre_quant_val_bpb": null,
+    "step_stop": null,
+    "wallclock_seconds": null,
+    "bytes_total": null,
+    "bytes_model_int8_zlib": null,
+    "bytes_code": null,
+    "gpu": "pending (no GPU access)"
+}
