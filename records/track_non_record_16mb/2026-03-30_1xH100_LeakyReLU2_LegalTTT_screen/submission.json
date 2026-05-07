@@ -1,0 +1,9 @@
+{
+  "submission_name": "1xH100 LeakyReLU2 + Legal TTT screening",
+  "github_username": "schoudhary90210",
+  "author": "Siddhant_Choudhary",
+  "val_bpb": 4.62390226,
+  "track": "track_non_record_16mb",
+  "hardware": "1xH100",
+  "notes": "Low-cost 1xH100 screening run. Interesting negative result: mid-run validation improved, but final compressed artifact evaluation collapsed."
+}
