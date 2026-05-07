@@ -1,0 +1,21 @@
+{
+  "author": "OlesStankevych",
+  "github_id": "OlesStankevych",
+  "name": "FreqGPTQ + GatedDeltaNet + Adaptive Quantization",
+  "date": "2026-04-18",
+  "track": "10min_16mb",
+  "val_bpb": null,
+  "val_bpb_std": null,
+  "seeds": [],
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "GatedDeltaNet (FLA) + FreqGPTQ + PassthroughQuant + Sandwich Quant + Adaptive Embeddings + Int5 GPTQ + LZMA wrapper + Legal Score-First TTT",
+  "status": "WIP - pending GPU validation",
+  "compliance": {
+    "train_under_600s": null,
+    "artifact_under_16mb": null,
+    "eval_under_600s": null,
+    "score_first_ttt": true,
+    "three_seed_validation": null
+  }
+}
