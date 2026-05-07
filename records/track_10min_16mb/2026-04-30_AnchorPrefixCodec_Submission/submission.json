@@ -1,0 +1,23 @@
+﻿{
+  "author": "xu robert",
+  "github_id": "",
+  "name": "2026-04-30_AnchorPrefixCodec_Submission_v1",
+
+  "track": "track_10min_16mb",
+
+  "status": "non_record_exploratory",
+
+  "official_eval_val_bpb": null,
+
+  "codec_proxy_bpb_official_byte_lut": 0.8044310761489103,
+
+  "seeds": [0, 1, 2],
+
+  "notes": [
+    "This is NOT an official eval_val result.",
+    "Uses official byte LUT denominator.",
+    "Bits are computed from codec, not model cross-entropy.",
+    "Train-only constraint, no validation leakage.",
+    "Right-context recovery is disabled or repriced."
+  ]
+}

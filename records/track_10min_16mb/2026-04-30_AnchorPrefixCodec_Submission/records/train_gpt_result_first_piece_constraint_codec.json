@@ -1,0 +1,1449 @@
+{
+  "author": "xu robert",
+  "github_id": "",
+  "name": "AnchorPrefixCodec_first_piece_constraint_codec",
+  "seed": 2,
+  "seeds": [
+    2
+  ],
+  "status": "OK",
+  "mode": "first_piece_constraint_codec",
+  "prefix_keep": 3,
+  "online_weight": 1.0,
+  "constraint_enabled": true,
+  "train_unit_count": 1628982,
+  "eval_unit_count": 198454,
+  "counts": {
+    "unit_count": 198454,
+    "anchor_count": 81197,
+    "recovered_non_anchor": 98486,
+    "recoverable_residual_count": 12395,
+    "fallback_count": 6376,
+    "effective_fallback_rate": 0.032128352162213915,
+    "action_fragment": 6686,
+    "action_subword_split": 5337,
+    "action_subword_single": 304,
+    "action_left_phrase": 59,
+    "action_right_phrase": 9
+  },
+  "causal_legality": {
+    "counts": {
+      "LEGAL_CAUSAL": 12386,
+      "FALLBACK": 6376,
+      "ILLEGAL_FUTURE_CONTEXT": 9
+    },
+    "illegal_or_unclear_count": 9,
+    "illegal_examples": [
+      {
+        "unit": "billion",
+        "action": {
+          "action": "right_phrase",
+          "rank": 1,
+          "candidate_size": 1,
+          "prob": 1.0,
+          "count": 8
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      },
+      {
+        "unit": "plan",
+        "action": {
+          "action": "right_phrase",
+          "rank": 1,
+          "candidate_size": 1,
+          "prob": 1.0,
+          "count": 1
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      },
+      {
+        "unit": "HAVE",
+        "action": {
+          "action": "right_phrase",
+          "rank": 1,
+          "candidate_size": 1,
+          "prob": 1.0,
+          "count": 1
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      },
+      {
+        "unit": "MAK",
+        "action": {
+          "action": "right_phrase",
+          "rank": 1,
+          "candidate_size": 1,
+          "prob": 1.0,
+          "count": 1
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      },
+      {
+        "unit": "schedule",
+        "action": {
+          "action": "right_phrase",
+          "rank": 1,
+          "candidate_size": 1,
+          "prob": 1.0,
+          "count": 1
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      },
+      {
+        "unit": "built",
+        "action": {
+          "action": "right_phrase",
+          "rank": 2,
+          "candidate_size": 2,
+          "prob": 0.5,
+          "count": 3
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      },
+      {
+        "unit": "These",
+        "action": {
+          "action": "right_phrase",
+          "rank": 1,
+          "candidate_size": 1,
+          "prob": 1.0,
+          "count": 1
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      },
+      {
+        "unit": "increase",
+        "action": {
+          "action": "right_phrase",
+          "rank": 1,
+          "candidate_size": 1,
+          "prob": 1.0,
+          "count": 8
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      },
+      {
+        "unit": "Some",
+        "action": {
+          "action": "right_phrase",
+          "rank": 1,
+          "candidate_size": 1,
+          "prob": 1.0,
+          "count": 1
+        },
+        "status": "ILLEGAL_FUTURE_CONTEXT"
+      }
+    ]
+  },
+  "constraint": {
+    "count": 3444,
+    "saved_bits": 5856.690345046668,
+    "avg_saved_bits": 1.7005488806755715,
+    "candidate_size_dist": {
+      "-1": 3444
+    },
+    "ctx_len_dist": {
+      "-1": 3444
+    },
+    "examples": [
+      {
+        "unit": "'08",
+        "type": "WORD",
+        "saved_bits": 0.03485874243275988,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 28,
+              "ctx_total": 1625,
+              "target_count": 986
+            }
+          }
+        }
+      },
+      {
+        "unit": "blearily",
+        "type": "WORD",
+        "saved_bits": 0.158183738516965,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 8,
+              "ctx_total": 1219,
+              "target_count": 1159
+            }
+          }
+        }
+      },
+      {
+        "unit": "team's",
+        "type": "WORD",
+        "saved_bits": 0.438522150236135,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 1,
+              "ctx_total": 15,
+              "target_count": 15
+            }
+          }
+        }
+      },
+      {
+        "unit": "roomates",
+        "type": "WORD",
+        "saved_bits": 2.4631180448694066,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 5,
+              "ctx_total": 1039,
+              "target_count": 1033
+            }
+          }
+        }
+      },
+      {
+        "unit": "rail-beard",
+        "type": "WORD",
+        "saved_bits": 1.6358838560584181,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 4,
+              "ctx_total": 10,
+              "target_count": 1
+            }
+          }
+        }
+      },
+      {
+        "unit": "production-wide",
+        "type": "WORD",
+        "saved_bits": 1.4219199317757494,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 4,
+              "ctx_total": 2104,
+              "target_count": 282
+            }
+          }
+        }
+      },
+      {
+        "unit": "1843",
+        "type": "NUM",
+        "saved_bits": 1.8455166967105507,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 36,
+              "ctx_total": 1867,
+              "target_count": 1410
+            }
+          }
+        }
+      },
+      {
+        "unit": "rapture",
+        "type": "WORD",
+        "saved_bits": 0.4363700705604239,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 28,
+              "ctx_total": 3742,
+              "target_count": 3320
+            }
+          }
+        }
+      },
+      {
+        "unit": "cataclysms",
+        "type": "WORD",
+        "saved_bits": 3.015390653512992,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 2,
+              "ctx_total": 3,
+              "target_count": 2
+            }
+          }
+        }
+      },
+      {
+        "unit": "<0x5B>\"and",
+        "type": "BYTE_NOISE",
+        "saved_bits": 1.7163608208427577,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 10,
+              "ctx_total": 3253,
+              "target_count": 588
+            }
+          }
+        }
+      },
+      {
+        "unit": "edition<0x5D>",
+        "type": "BYTE_NOISE",
+        "saved_bits": 1.461628664932398,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 1,
+              "ctx_total": 622,
+              "target_count": 622
+            }
+          }
+        }
+      },
+      {
+        "unit": "end-of-the-world",
+        "type": "WORD",
+        "saved_bits": 2.5004715099502586,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 7,
+              "ctx_total": 24,
+              "target_count": 9
+            }
+          }
+        }
+      },
+      {
+        "unit": "millennialist",
+        "type": "WORD",
+        "saved_bits": 3.2960972026374824,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 2,
+              "ctx_total": 14,
+              "target_count": 13
+            }
+          }
+        }
+      },
+      {
+        "unit": "APOCOHOLISM",
+        "type": "WORD",
+        "saved_bits": 1.2467300003766608,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 8,
+              "ctx_total": 30,
+              "target_count": 2
+            }
+          }
+        }
+      },
+      {
+        "unit": "predictions—we",
+        "type": "WORD",
+        "saved_bits": 4.003356429486388,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 11,
+              "ctx_total": 130,
+              "target_count": 28
+            }
+          }
+        }
+      },
+      {
+        "unit": "apocaholic",
+        "type": "WORD",
+        "saved_bits": 0.3504690220820299,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 3,
+              "ctx_total": 52,
+              "target_count": 2
+            }
+          }
+        }
+      },
+      {
+        "unit": "epidemics",
+        "type": "WORD",
+        "saved_bits": 0.48514045925416927,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 48,
+              "ctx_total": 1639,
+              "target_count": 469
+            }
+          }
+        }
+      },
+      {
+        "unit": "cell-phone-induced",
+        "type": "WORD",
+        "saved_bits": 3.8621703673976517,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 2,
+              "ctx_total": 3,
+              "target_count": 2
+            }
+          }
+        }
+      },
+      {
+        "unit": "epidemics",
+        "type": "WORD",
+        "saved_bits": 2.654275592053215,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 48,
+              "ctx_total": 1639,
+              "target_count": 469
+            }
+          }
+        }
+      },
+      {
+        "unit": "specters",
+        "type": "WORD",
+        "saved_bits": 0.07459012766899673,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 47,
+              "ctx_total": 3569,
+              "target_count": 3283
+            }
+          }
+        }
+      },
+      {
+        "unit": "(DDT",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 1.6849008978995026,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 59,
+              "ctx_total": 1488,
+              "target_count": 1061
+            }
+          }
+        }
+      },
+      {
+        "unit": "CFCs",
+        "type": "WORD",
+        "saved_bits": 2.4299878407448157,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 7,
+              "ctx_total": 32,
+              "target_count": 24
+            }
+          }
+        }
+      },
+      {
+        "unit": "SARS",
+        "type": "WORD",
+        "saved_bits": 3.8941029929407582,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 2,
+              "ctx_total": 6,
+              "target_count": 5
+            },
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 50,
+              "ctx_total": 1337,
+              "target_count": 650
+            }
+          }
+        }
+      },
+      {
+        "unit": "(oil",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 0.3442787260918133,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 7,
+              "ctx_total": 419,
+              "target_count": 363
+            }
+          }
+        }
+      },
+      {
+        "unit": "50027VD-BB-01W",
+        "type": "NUM_COMPOUND",
+        "saved_bits": 4.629627632526137,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 44,
+              "ctx_total": 2130,
+              "target_count": 67
+            },
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 44,
+              "ctx_total": 2130,
+              "target_count": 142
+            }
+          }
+        }
+      },
+      {
+        "unit": "eleventh",
+        "type": "WORD",
+        "saved_bits": 2.661769761337449,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 19,
+              "ctx_total": 1044,
+              "target_count": 684
+            }
+          }
+        }
+      },
+      {
+        "unit": "encroach",
+        "type": "WORD",
+        "saved_bits": 0.10960352477750362,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 26,
+              "ctx_total": 2178,
+              "target_count": 1958
+            }
+          }
+        }
+      },
+      {
+        "unit": "stewardships",
+        "type": "WORD",
+        "saved_bits": 2.3214071476526756,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 2,
+              "ctx_total": 5,
+              "target_count": 4
+            }
+          }
+        }
+      },
+      {
+        "unit": "25:23More",
+        "type": "NUM_COMPOUND",
+        "saved_bits": 4.882520942015885,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 22,
+              "ctx_total": 375,
+              "target_count": 37
+            },
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 22,
+              "ctx_total": 375,
+              "target_count": 81
+            }
+          }
+        }
+      },
+      {
+        "unit": "balloting",
+        "type": "WORD",
+        "saved_bits": 2.3321266653079658,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 4,
+              "ctx_total": 41,
+              "target_count": 24
+            }
+          }
+        }
+      },
+      {
+        "unit": "third-place",
+        "type": "WORD",
+        "saved_bits": 0.8650237682129096,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 4,
+              "ctx_total": 279,
+              "target_count": 34
+            }
+          }
+        }
+      },
+      {
+        "unit": "balloting",
+        "type": "WORD",
+        "saved_bits": 2.3321266653079658,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 4,
+              "ctx_total": 41,
+              "target_count": 24
+            }
+          }
+        }
+      },
+      {
+        "unit": "RG3",
+        "type": "WORD",
+        "saved_bits": 3.395692149559417,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 1,
+              "ctx_total": 3,
+              "target_count": 3
+            }
+          }
+        }
+      },
+      {
+        "unit": "RG3",
+        "type": "WORD",
+        "saved_bits": 3.395692149559417,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 1,
+              "ctx_total": 3,
+              "target_count": 3
+            }
+          }
+        }
+      },
+      {
+        "unit": "third-round",
+        "type": "WORD",
+        "saved_bits": 1.4839134428723533,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 4,
+              "ctx_total": 279,
+              "target_count": 34
+            }
+          }
+        }
+      },
+      {
+        "unit": "RG3",
+        "type": "WORD",
+        "saved_bits": 3.395692149559417,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 1,
+              "ctx_total": 3,
+              "target_count": 3
+            }
+          }
+        }
+      },
+      {
+        "unit": "RG3",
+        "type": "WORD",
+        "saved_bits": 3.0408062163878857,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 1,
+              "ctx_total": 3,
+              "target_count": 3
+            }
+          }
+        }
+      },
+      {
+        "unit": "sixth-round",
+        "type": "WORD",
+        "saved_bits": 0.13542287100175976,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 2,
+              "ctx_total": 39,
+              "target_count": 2
+            }
+          }
+        }
+      },
+      {
+        "unit": "wild-card",
+        "type": "WORD",
+        "saved_bits": 1.6493024850189353,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 6,
+              "ctx_total": 9,
+              "target_count": 1
+            }
+          }
+        }
+      },
+      {
+        "unit": "'Hawks",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 1.6186353390223904,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 30,
+              "ctx_total": 999,
+              "target_count": 813
+            }
+          }
+        }
+      },
+      {
+        "unit": "'Hawks",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 1.7580508707912026,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 30,
+              "ctx_total": 999,
+              "target_count": 813
+            }
+          }
+        }
+      },
+      {
+        "unit": "K.J",
+        "type": "WORD",
+        "saved_bits": 1.0666707776673099,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 26,
+              "ctx_total": 443,
+              "target_count": 395
+            }
+          }
+        }
+      },
+      {
+        "unit": "slights",
+        "type": "WORD",
+        "saved_bits": 1.2949145473055679,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 29,
+              "ctx_total": 4696,
+              "target_count": 4203
+            }
+          }
+        }
+      },
+      {
+        "unit": "plagiarized",
+        "type": "WORD",
+        "saved_bits": 2.7720119590071857,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 1,
+              "ctx_total": 4,
+              "target_count": 4
+            }
+          }
+        }
+      },
+      {
+        "unit": "polynesian<0x5F>metal<0x5C>",
+        "type": "BYTE_NOISE",
+        "saved_bits": 2.014617973594529,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 3,
+              "candidate_size": 15,
+              "ctx_total": 47,
+              "target_count": 10
+            }
+          }
+        }
+      },
+      {
+        "unit": "<0x5B>Reply",
+        "type": "BYTE_NOISE",
+        "saved_bits": 0.22017323148049206,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 10,
+              "ctx_total": 3253,
+              "target_count": 588
+            }
+          }
+        }
+      },
+      {
+        "unit": "this<0x5C><0x5D>",
+        "type": "BYTE_NOISE",
+        "saved_bits": 1.4393653792423706,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 1,
+              "ctx_total": 622,
+              "target_count": 622
+            }
+          }
+        }
+      },
+      {
+        "unit": "polynesian<0x5F>metal<0x5C>",
+        "type": "BYTE_NOISE",
+        "saved_bits": 2.014617973594529,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 3,
+              "candidate_size": 15,
+              "ctx_total": 47,
+              "target_count": 10
+            }
+          }
+        }
+      },
+      {
+        "unit": "trail",
+        "type": "WORD",
+        "saved_bits": 0.3048718487462182,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 10,
+              "ctx_total": 266,
+              "target_count": 154
+            }
+          }
+        }
+      },
+      {
+        "unit": "polynesian<0x5F>metal's",
+        "type": "BYTE_NOISE",
+        "saved_bits": 1.3226765748216032,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 3,
+              "candidate_size": 15,
+              "ctx_total": 47,
+              "target_count": 10
+            }
+          }
+        }
+      },
+      {
+        "unit": "on-the-set",
+        "type": "WORD",
+        "saved_bits": 4.307428525192248,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 2,
+              "ctx_total": 10,
+              "target_count": 9
+            }
+          }
+        }
+      },
+      {
+        "unit": "restrictor",
+        "type": "WORD",
+        "saved_bits": 3.222052646027022,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 1,
+              "ctx_total": 93,
+              "target_count": 93
+            }
+          }
+        }
+      },
+      {
+        "unit": "cut-through",
+        "type": "WORD",
+        "saved_bits": 1.3896933172521282,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 3,
+              "ctx_total": 3,
+              "target_count": 1
+            }
+          }
+        }
+      },
+      {
+        "unit": "tempers",
+        "type": "WORD",
+        "saved_bits": 1.2895066171949847,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 8,
+              "ctx_total": 153,
+              "target_count": 17
+            }
+          }
+        }
+      },
+      {
+        "unit": "|Viewing",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 2.7472706025579448,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 2,
+              "ctx_total": 62,
+              "target_count": 60
+            }
+          }
+        }
+      },
+      {
+        "unit": "STEFANO",
+        "type": "WORD",
+        "saved_bits": 5.712842263070794,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 3,
+              "ctx_total": 5,
+              "target_count": 2
+            },
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 51,
+              "ctx_total": 1193,
+              "target_count": 61
+            }
+          }
+        }
+      },
+      {
+        "unit": "STEFANO",
+        "type": "WORD",
+        "saved_bits": 3.3072941522548907,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 3,
+              "ctx_total": 5,
+              "target_count": 2
+            },
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 51,
+              "ctx_total": 1193,
+              "target_count": 61
+            }
+          }
+        }
+      },
+      {
+        "unit": "STEFANO",
+        "type": "WORD",
+        "saved_bits": 2.233409236724516,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 3,
+              "ctx_total": 5,
+              "target_count": 2
+            }
+          }
+        }
+      },
+      {
+        "unit": "STEFANO",
+        "type": "WORD",
+        "saved_bits": 1.7188781215005235,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 3,
+              "ctx_total": 5,
+              "target_count": 2
+            }
+          }
+        }
+      },
+      {
+        "unit": "4/1/2012",
+        "type": "NUM_COMPOUND",
+        "saved_bits": 0.28698054847248855,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 4,
+              "ctx_total": 5,
+              "target_count": 1
+            }
+          }
+        }
+      },
+      {
+        "unit": "atheistic",
+        "type": "WORD",
+        "saved_bits": 2.4868178410232376,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 1,
+              "ctx_total": 5,
+              "target_count": 5
+            }
+          }
+        }
+      },
+      {
+        "unit": "\"Im",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 3.6174023423073103,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 6,
+              "ctx_total": 29,
+              "target_count": 15
+            }
+          }
+        }
+      },
+      {
+        "unit": "shouldnt",
+        "type": "WORD",
+        "saved_bits": 2.029075678507877,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 8,
+              "ctx_total": 5078,
+              "target_count": 4940
+            }
+          }
+        }
+      },
+      {
+        "unit": "'Inner",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 2.043554475599223,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 13,
+              "ctx_total": 2423,
+              "target_count": 2392
+            }
+          }
+        }
+      },
+      {
+        "unit": "capitalizations",
+        "type": "WORD",
+        "saved_bits": 3.0337559437185777,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 5,
+              "ctx_total": 138,
+              "target_count": 125
+            }
+          }
+        }
+      },
+      {
+        "unit": "rewrites",
+        "type": "WORD",
+        "saved_bits": 1.5812327560126584,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 2,
+              "ctx_total": 6,
+              "target_count": 4
+            }
+          }
+        }
+      },
+      {
+        "unit": "'press",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 1.0925707109036666,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 1,
+              "candidate_size": 19,
+              "ctx_total": 1550,
+              "target_count": 874
+            }
+          }
+        }
+      },
+      {
+        "unit": "*before",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 2.0114643625549884,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 19,
+              "ctx_total": 8757,
+              "target_count": 8684
+            }
+          }
+        }
+      },
+      {
+        "unit": "cre8id",
+        "type": "WORD",
+        "saved_bits": 1.2966929009855521,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 28,
+              "ctx_total": 1625,
+              "target_count": 986
+            }
+          }
+        }
+      },
+      {
+        "unit": "PBS/NOVA",
+        "type": "WORD",
+        "saved_bits": 0.0663506184324989,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 2,
+              "candidate_size": 11,
+              "ctx_total": 73,
+              "target_count": 1
+            }
+          }
+        }
+      },
+      {
+        "unit": "...to",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 0.020900986678023474,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 15,
+              "ctx_total": 45288,
+              "target_count": 45249
+            }
+          }
+        }
+      },
+      {
+        "unit": "(\"WE",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 3.8278966764020823,
+        "meta": {
+          "positions": {
+            "1": {
+              "ctx_len": 1,
+              "candidate_size": 40,
+              "ctx_total": 469,
+              "target_count": 315
+            }
+          }
+        }
+      },
+      {
+        "unit": "DOVER",
+        "type": "WORD",
+        "saved_bits": 0.2512432834389331,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 3,
+              "ctx_total": 68,
+              "target_count": 26
+            }
+          }
+        }
+      },
+      {
+        "unit": "ICR",
+        "type": "WORD",
+        "saved_bits": 1.4553700684489437,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 6,
+              "ctx_total": 30,
+              "target_count": 23
+            }
+          }
+        }
+      },
+      {
+        "unit": "(1866",
+        "type": "WORD",
+        "saved_bits": 0.13871946599795404,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 10,
+              "ctx_total": 31,
+              "target_count": 3
+            },
+            "1": {
+              "ctx_len": 3,
+              "candidate_size": 10,
+              "ctx_total": 31,
+              "target_count": 3
+            }
+          }
+        }
+      },
+      {
+        "unit": "7,803",
+        "type": "NUM_COMPOUND",
+        "saved_bits": 2.563390581771924,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 8,
+              "ctx_total": 13,
+              "target_count": 5
+            }
+          }
+        }
+      },
+      {
+        "unit": "(1866",
+        "type": "WORD",
+        "saved_bits": 0.13871946599795404,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 10,
+              "ctx_total": 31,
+              "target_count": 3
+            },
+            "1": {
+              "ctx_len": 3,
+              "candidate_size": 10,
+              "ctx_total": 31,
+              "target_count": 3
+            }
+          }
+        }
+      },
+      {
+        "unit": "\"Part",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 1.72749646043828,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 7,
+              "ctx_total": 69,
+              "target_count": 58
+            }
+          }
+        }
+      },
+      {
+        "unit": "\"Part",
+        "type": "SYMBOL_PREFIX_WORD",
+        "saved_bits": 2.2880766995099004,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 2,
+              "candidate_size": 7,
+              "ctx_total": 69,
+              "target_count": 58
+            }
+          }
+        }
+      },
+      {
+        "unit": "(1866",
+        "type": "WORD",
+        "saved_bits": 0.13871946599795404,
+        "meta": {
+          "positions": {
+            "0": {
+              "ctx_len": 3,
+              "candidate_size": 10,
+              "ctx_total": 31,
+              "target_count": 3
+            },
+            "1": {
+              "ctx_len": 3,
+              "candidate_size": 10,
+              "ctx_total": 31,
+              "target_count": 3
+            }
+          }
+        }
+      }
+    ],
+    "params": {
+      "MIN_CTX_COUNT": 3,
+      "MAX_CANDIDATES": 64
+    }
+  },
+  "bits": {
+    "anchor_bits": 487182.0,
+    "structure_bits": 196972.0,
+    "original_recoverable_bits": 44435.61019643873,
+    "legal_recoverable_bits": 44403.345533922155,
+    "fallback_bits": 75831.58242301155,
+    "retained_prefix_bits_empirical": 159374.1059446164,
+    "illegal_or_unclear_repriced_fallback_bits": 7.675181684976892,
+    "illegal_or_unclear_repriced_prefix_bits": 191.60169101850002,
+    "causal_total_with_empirical_prefix": 963962.3107742537
+  },
+  "fallback": {
+    "fallback_avg_bits_per_word": 11.893284570735815,
+    "fallback_avg_bits_per_predicted_piece": 2.77669653690998,
+    "predicted_piece_count": 27310,
+    "source": {
+      "base_avg": 14763,
+      "constraint_pos0": 2465,
+      "safe_online_unigram": 114,
+      "constraint_pos1": 1214,
+      "safe_online_bigram": 1564,
+      "safe_online_trigram": 7204
+    }
+  },
+  "denominators": {
+    "canonical_space_joined_utf8_bytes": 1173043,
+    "official_byte_count_lut": 1198279
+  },
+  "scores": {
+    "previous_best_bpb": 1.2464,
+    "causal_proxy_bpb_space_bytes": 0.8217621270271027,
+    "causal_proxy_bpb_official_byte_lut": 0.8044556491219939,
+    "delta_vs_previous_best_official_like": -0.4419443508780061
+  },
+  "bytes_total": 118013,
+  "bytes_code": 118013,
+  "bytes_model": 0,
+  "wallclock_seconds": 141.175696849823,
+  "eval_time_seconds": 6.899779319763184,
+  "notes": [
+    "V11 applies train-only first-piece candidate constraints from retained prefix pieces.",
+    "Constraint is used only when it lowers score for the first predicted suffix piece.",
+    "Online LM remains score-first: update occurs after scoring each piece.",
+    "No right context is used.",
+    "Still proxy alignment before official eval_val adapter."
+  ]
+}
