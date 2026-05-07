@@ -1,0 +1,8 @@
+{
+  "name": "Depth Recurrence + Widening + QAT + SP4096 + Factorized Embedding",
+  "author": "matthewwright",
+  "github_id": "matt-wright86",
+  "bpb": null,
+  "artifact_bytes": null,
+  "notes": "3 blocks x 3 loops with per-loop LoRA, dim 768, factorized embedding (128 bottleneck), QAT with amax, NTK RoPE long-context eval"
+}
