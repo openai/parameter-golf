@@ -1,0 +1,9 @@
+{
+  "name": "Order-Adaptive Entropy Gating + XSA-All",
+  "val_bpb": 0.9370,
+  "bytes_total": 15828199,
+  "blurb": "Order-adaptive entropy gating for n-gram eval: high-order n-gram matches (7-gram) get a lower entropy threshold (trust them even at moderate model confidence), while low-order matches (2-gram) require high model uncertainty. Combined with XSA extended to all 11 layers and entropy_center=3.0 on the PR #753 stack. 3-seed mean: ngram7 BPB 0.9370 (std 0.0003) vs 0.9618 baseline (-0.0248 improvement). ~15.9 MB artifact, 600s training.",
+  "author": "travispchen",
+  "github_id": "travispchen",
+  "date": "2026-03-25"
+}
