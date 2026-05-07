@@ -1,0 +1,17 @@
+{
+  "author": "Josu",
+  "github_id": "josu",
+  "name": "BigramHash4096 + MLP992 + LR0.08 + Slide64 (Over Cap)",
+  "blurb": "8xH100 run with MLP_HIDDEN=992, MATRIX_LR=0.08, BigramHash(4096,64), sliding-window eval at stride 64, and fp16 embedding passthrough. Strong score, but total int8+zlib artifact exceeds the 16,000,000-byte cap, so it is stored in the non-record track.",
+  "date": "2026-03-21T00:00:00Z",
+  "val_loss": 2.01410605,
+  "val_bpb": 1.19286858,
+  "pre_quant_val_loss": 2.0114,
+  "pre_quant_val_bpb": 1.1913,
+  "step_stop": 13333,
+  "wallclock_seconds": 599.854,
+  "eval_time_seconds": 74.988,
+  "bytes_total": 16179102,
+  "bytes_model_int8_zlib": 16120324,
+  "bytes_code": 58778
+}
