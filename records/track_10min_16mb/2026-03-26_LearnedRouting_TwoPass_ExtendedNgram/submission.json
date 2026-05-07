@@ -1,0 +1,9 @@
+{
+  "name": "Learned Routing + Two-Pass N-gram Rescoring + Extended Orders",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Combines PR #834's learned multi-expert gate (Linear(512->12)) with PR #846's two-pass cold-cache rescoring. Extended n-gram orders 2-12 with 8M bucket hash tables. TTT-adapted model feeds into n-gram eval. Built on PR #834/414 stack.",
+  "author": "pappanick",
+  "github_id": "pappanick",
+  "date": "2026-03-26"
+}
