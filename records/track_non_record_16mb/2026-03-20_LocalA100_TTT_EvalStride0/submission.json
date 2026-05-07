@@ -1,0 +1,19 @@
+{
+  "author": "exouser",
+  "github_id": "exouser",
+  "name": "Local A100 TTT EvalStride0",
+  "blurb": "Non-record 16MB track: local 1xA100 run with standard final eval (EVAL_STRIDE=0) and LoRA TTT enabled, improving local TTT objective to val_bpb 1.3510 under a 600s train cap.",
+  "date": "2026-03-20T21:33:00Z",
+  "track": "non-record-16mb",
+  "objective_name": "final_int8_ttt_lora",
+  "val_loss": 2.2812,
+  "val_bpb": 1.3510,
+  "roundtrip_val_loss": 2.32715134,
+  "roundtrip_val_bpb": 1.37827010,
+  "step_stop": 856,
+  "wallclock_seconds": 600.328,
+  "ttt_eval_seconds": 515.653,
+  "bytes_total": 11876675,
+  "bytes_model_int8_zlib": 11812821,
+  "bytes_code": 63854
+}
