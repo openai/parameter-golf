@@ -1,0 +1,30 @@
+{
+  "name": "11L XSA4 + EMA + Partial RoPE + Rank-8 TTT Hooks",
+  "author": "Divyesh Thirukonda",
+  "github_id": "Divyesh-Thirukonda",
+  "date": "2026-03-23",
+  "val_bpb": 1.15910316,
+  "val_loss": 1.95709714,
+  "eval_method": "roundtrip_exact",
+  "quantization": "mixed_int6_int8",
+  "compression": "zstd",
+  "artifact_size_bytes": 15528215,
+  "model_params": 26829913,
+  "train_steps": 5248,
+  "train_time_seconds": 600,
+  "hardware": "8xH100-80GB-SXM",
+  "seed": 42,
+  "techniques": [
+    "11 Layers",
+    "XSA Last 4 Layers",
+    "EMA",
+    "Partial RoPE",
+    "Layerwise LN Scale",
+    "SmearGate",
+    "BigramHash Embedding",
+    "Mixed Int6/Int8 Quantization",
+    "zstd Compression",
+    "Long-Document LoRA TTT Hooks"
+  ],
+  "blurb": "PR315-derived 11-layer XSA4/EMA/Partial-RoPE stack with mixed int6/int8 export and zstd compression. The submitted score is the exact roundtrip metric from the completed seed-42 8xH100 run: 1.15910316 bpb at 15,528,215 total bytes."
+}
