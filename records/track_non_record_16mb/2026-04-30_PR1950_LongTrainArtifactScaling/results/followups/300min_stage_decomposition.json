@@ -1,0 +1,14 @@
+{
+  "control_id": "300min_stage_decomposition",
+  "description": "Matched stage decomposition on the same 300-minute checkpoint",
+  "live_bpb": 1.08215117,
+  "ema_prequant_bpb": 1.04945326,
+  "quantized_bpb": 1.05603004,
+  "post_ttt_bpb": 1.04210727,
+  "delta_live_to_ema_bpb": -0.03269791,
+  "quantization_tax_bpb": 0.00657678,
+  "ttt_gain_bpb": 0.01392277,
+  "post_ttt_minus_ema_bpb": -0.00734599,
+  "status": "success",
+  "note": "Derived from the completed follow-up pod stdout because the pod returned 5xx during final JSON download."
+}

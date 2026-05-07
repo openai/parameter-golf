@@ -1,0 +1,7 @@
+torch>=2.9
+triton
+sentencepiece
+huggingface_hub
+datasets
+tqdm
+numpy

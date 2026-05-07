@@ -1,0 +1,44 @@
+variant_id,description,quantized_bpb_fixed,post_ttt_bpb,ttt_gain_bpb,eval_seconds,total_wallclock_seconds,docs_evaluated,tokens_evaluated,prefix_docs,phases,peak_memory_mib,status,error
+v0_control_pr1979,PR #1950/1979 baseline control,,1.03471322,,813.28,1054.9,,,2000,3,47768,success,
+v1_rank128_alpha192,Higher LoRA rank and alpha,,1.038773,,840.24,1065.3,,,2000,3,52166,success,
+v2_rank128_lr3e4,Rank 128 + higher LR,,1.09048907,,710.58,876.4,,,2000,3,52168,success,
+v3_local_batch_chunk,Rank 128 + LR 3e-4 + larger local batch/chunk,,,,,343.7,,,2000,3,,error,"exit code 1 | tail: ------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-05-01_15:25:49
+  host      : 1c0494ef967f
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 12146)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================"
+v4_global2_largechunk,Full sweep: rank128 + lr3e-4 + batch128 + 2 global epochs + large global chunks,,,,,211.1,,,2000,3,,error,"exit code 1 | tail: ------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-05-01_15:29:20
+  host      : 1c0494ef967f
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 14724)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================"
+v5_prefix3000,v4 + more prefix documents,,,,,206.7,,,3000,3,,error,"exit code 1 | tail: ------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-05-01_15:32:47
+  host      : 1c0494ef967f
+  rank      : 3 (local_rank: 3)
+  exitcode  : 1 (pid: 15910)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================"
+v6_prefix3000_phase4_optional,v5 + 4 phases (exploratory),,,,,208.2,,,3000,4,,error,"exit code 1 | tail: ------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-05-01_15:36:15
+  host      : 1c0494ef967f
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 17081)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================"

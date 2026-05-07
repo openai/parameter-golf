@@ -1,0 +1,165 @@
+{
+  "artifact_path": "/root/rehearsal_src/artifact/final_model.int6.ptz",
+  "output_dir": "/root/rehearsal_out/ttt_sweep",
+  "generated_at": "2026-05-01T14:30:10Z",
+  "fixed_env": {
+    "TTT_WEIGHT_DECAY": "1.0",
+    "TTT_BETA1": "0",
+    "TTT_BETA2": "0.999",
+    "TTT_K_LORA": "1",
+    "TTT_MLP_LORA": "1",
+    "TTT_O_LORA": "1",
+    "TTT_OPTIMIZER": "adam",
+    "TTT_WARM_START_A": "1",
+    "FUSED_CE_ENABLED": "1",
+    "GLOBAL_TTT_LR": "0.001",
+    "TTT_ENABLED": "1",
+    "TTT_EVAL_ONLY": "1",
+    "CASEOPS_ENABLED": "1",
+    "SMEAR_GATE_ENABLED": "1",
+    "SPARSE_ATTN_GATE_ENABLED": "1",
+    "COMPRESSOR": "pergroup",
+    "LQER_ENABLED": "1",
+    "LQER_RANK": "4",
+    "LQER_TOP_K": "3",
+    "LQER_FACTOR_BITS": "4",
+    "LQER_ASYM_ENABLED": "1",
+    "LQER_ASYM_GROUP": "64",
+    "EMBED_BITS": "7"
+  },
+  "variants": {
+    "v0_control_pr1979": {
+      "description": "PR #1950/1979 baseline control",
+      "optional": false,
+      "env_overrides": {
+        "TTT_LORA_RANK": "96",
+        "TTT_LORA_ALPHA": "144",
+        "TTT_LORA_LR": "0.0001",
+        "TTT_BATCH_SIZE": "64",
+        "TTT_CHUNK_SIZE": "48",
+        "GLOBAL_TTT_EPOCHS": "1",
+        "GLOBAL_TTT_CHUNK_TOKENS": "32768",
+        "GLOBAL_TTT_BATCH_SEQS": "32",
+        "GLOBAL_TTT_WARMUP_START_LR": "0.0",
+        "GLOBAL_TTT_WARMUP_CHUNKS": "0",
+        "PHASED_TTT_PREFIX_DOCS": "2000",
+        "PHASED_TTT_NUM_PHASES": "3",
+        "TTT_WARM_START_A": "1"
+      }
+    },
+    "v1_rank128_alpha192": {
+      "description": "Higher LoRA rank and alpha",
+      "optional": false,
+      "env_overrides": {
+        "TTT_LORA_RANK": "128",
+        "TTT_LORA_ALPHA": "192",
+        "TTT_LORA_LR": "0.0001",
+        "TTT_BATCH_SIZE": "64",
+        "TTT_CHUNK_SIZE": "48",
+        "GLOBAL_TTT_EPOCHS": "1",
+        "GLOBAL_TTT_CHUNK_TOKENS": "32768",
+        "GLOBAL_TTT_BATCH_SEQS": "32",
+        "GLOBAL_TTT_WARMUP_START_LR": "0.0",
+        "GLOBAL_TTT_WARMUP_CHUNKS": "0",
+        "PHASED_TTT_PREFIX_DOCS": "2000",
+        "PHASED_TTT_NUM_PHASES": "3",
+        "TTT_WARM_START_A": "1"
+      }
+    },
+    "v2_rank128_lr3e4": {
+      "description": "Rank 128 + higher LR",
+      "optional": false,
+      "env_overrides": {
+        "TTT_LORA_RANK": "128",
+        "TTT_LORA_ALPHA": "192",
+        "TTT_LORA_LR": "0.0003",
+        "TTT_BATCH_SIZE": "64",
+        "TTT_CHUNK_SIZE": "48",
+        "GLOBAL_TTT_EPOCHS": "1",
+        "GLOBAL_TTT_CHUNK_TOKENS": "32768",
+        "GLOBAL_TTT_BATCH_SEQS": "32",
+        "GLOBAL_TTT_WARMUP_START_LR": "0.0",
+        "GLOBAL_TTT_WARMUP_CHUNKS": "0",
+        "PHASED_TTT_PREFIX_DOCS": "2000",
+        "PHASED_TTT_NUM_PHASES": "3",
+        "TTT_WARM_START_A": "1"
+      }
+    },
+    "v3_local_batch_chunk": {
+      "description": "Rank 128 + LR 3e-4 + larger local batch/chunk",
+      "optional": false,
+      "env_overrides": {
+        "TTT_LORA_RANK": "128",
+        "TTT_LORA_ALPHA": "192",
+        "TTT_LORA_LR": "0.0003",
+        "TTT_BATCH_SIZE": "128",
+        "TTT_CHUNK_SIZE": "64",
+        "GLOBAL_TTT_EPOCHS": "1",
+        "GLOBAL_TTT_CHUNK_TOKENS": "32768",
+        "GLOBAL_TTT_BATCH_SEQS": "32",
+        "GLOBAL_TTT_WARMUP_START_LR": "0.0",
+        "GLOBAL_TTT_WARMUP_CHUNKS": "0",
+        "PHASED_TTT_PREFIX_DOCS": "2000",
+        "PHASED_TTT_NUM_PHASES": "3",
+        "TTT_WARM_START_A": "1"
+      }
+    },
+    "v4_global2_largechunk": {
+      "description": "Full sweep: rank128 + lr3e-4 + batch128 + 2 global epochs + large global chunks",
+      "optional": false,
+      "env_overrides": {
+        "TTT_LORA_RANK": "128",
+        "TTT_LORA_ALPHA": "192",
+        "TTT_LORA_LR": "0.0003",
+        "TTT_BATCH_SIZE": "128",
+        "TTT_CHUNK_SIZE": "64",
+        "GLOBAL_TTT_EPOCHS": "2",
+        "GLOBAL_TTT_CHUNK_TOKENS": "65536",
+        "GLOBAL_TTT_BATCH_SEQS": "64",
+        "GLOBAL_TTT_WARMUP_START_LR": "0.0001",
+        "GLOBAL_TTT_WARMUP_CHUNKS": "2",
+        "PHASED_TTT_PREFIX_DOCS": "2000",
+        "PHASED_TTT_NUM_PHASES": "3",
+        "TTT_WARM_START_A": "1"
+      }
+    },
+    "v5_prefix3000": {
+      "description": "v4 + more prefix documents",
+      "optional": false,
+      "env_overrides": {
+        "TTT_LORA_RANK": "128",
+        "TTT_LORA_ALPHA": "192",
+        "TTT_LORA_LR": "0.0003",
+        "TTT_BATCH_SIZE": "128",
+        "TTT_CHUNK_SIZE": "64",
+        "GLOBAL_TTT_EPOCHS": "2",
+        "GLOBAL_TTT_CHUNK_TOKENS": "65536",
+        "GLOBAL_TTT_BATCH_SEQS": "64",
+        "GLOBAL_TTT_WARMUP_START_LR": "0.0001",
+        "GLOBAL_TTT_WARMUP_CHUNKS": "2",
+        "PHASED_TTT_PREFIX_DOCS": "3000",
+        "PHASED_TTT_NUM_PHASES": "3",
+        "TTT_WARM_START_A": "1"
+      }
+    },
+    "v6_prefix3000_phase4_optional": {
+      "description": "v5 + 4 phases (exploratory)",
+      "optional": true,
+      "env_overrides": {
+        "TTT_LORA_RANK": "128",
+        "TTT_LORA_ALPHA": "192",
+        "TTT_LORA_LR": "0.0003",
+        "TTT_BATCH_SIZE": "128",
+        "TTT_CHUNK_SIZE": "64",
+        "GLOBAL_TTT_EPOCHS": "2",
+        "GLOBAL_TTT_CHUNK_TOKENS": "65536",
+        "GLOBAL_TTT_BATCH_SEQS": "64",
+        "GLOBAL_TTT_WARMUP_START_LR": "0.0001",
+        "GLOBAL_TTT_WARMUP_CHUNKS": "2",
+        "PHASED_TTT_PREFIX_DOCS": "3000",
+        "PHASED_TTT_NUM_PHASES": "4",
+        "TTT_WARM_START_A": "1"
+      }
+    }
+  }
+}

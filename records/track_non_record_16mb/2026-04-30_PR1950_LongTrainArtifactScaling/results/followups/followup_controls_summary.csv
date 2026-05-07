@@ -1,0 +1,4 @@
+control_id,description,pre_quant_bpb,quantized_bpb,post_ttt_bpb,quantization_tax_bpb,ttt_gain_bpb,post_ttt_minus_prequant_bpb,status
+240min_ttt_only_control,TTT-only follow-up on the existing 240-minute quantized artifact,1.03545673,1.04485881,1.03539272,0.00940208,0.00946609,-0.00006401,success
+300min_stage_decomposition,Matched stage decomposition on the same 300-minute checkpoint,1.04945326,1.05603004,1.04210727,0.00657678,0.01392277,-0.00734599,success
+360min_prequant_followup,Matched 360-minute pre-quant EMA follow-up from the resumed 6h continuation,1.03340201,1.04273086,1.03470849,0.00932885,0.00802237,0.00130648,success
