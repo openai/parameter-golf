@@ -1,0 +1,50 @@
+{
+  "name": "Nikolai Dokutovich",
+  "github_id": "ndokutovich",
+  "val_bpb_3seed_mean": 0.902364,
+  "val_bpb_3seed_std": 0.000816,
+  "val_bpb_per_seed": {
+    "42":   0.901871,
+    "1337": 0.903306,
+    "314":  0.901916
+  },
+  "diagnostic_neural_only_3seed_mean": 1.06791,
+  "diagnostic_neural_only_3seed_std": 0.001094,
+  "diagnostic_pre_ema_3seed_mean": 1.07094,
+  "artifact_bytes_max": 15953988,
+  "artifact_bytes_per_seed": {
+    "42":   15953988,
+    "1337": 15943986,
+    "314":  15947840
+  },
+  "training_cap_cleared": "<=600s",
+  "evaluation_cap_cleared": "<=600s",
+  "headline_metric": "mix_bpb",
+  "headline_metric_description": "PPM-D byte mixture BPB on an 8M-token val subset, computed with score-first byte-count updates per Issue #1017. Same protocol as PR #1835 (anmarhindi).",
+  "stack_lineage": [
+    "PR #549 (abaybektursun) - score-first TTT framework",
+    "PR #1019 - byte-level BPB SentencePiece accounting",
+    "PR #1394 (clarkkev) - SP8192 + GPTQ + MuonEq-R baseline",
+    "PR #1530 (samacqua) - Loop4-5 + parallel residuals",
+    "PR #1729 (romeerp) - CaseOps bijective case transform",
+    "PR #1787 (nprime06) - SparseAttnGate + PolarNS + MIN_LR + FusedCE",
+    "PR #1797 (dexhunter) - Smear gate + LQER asym (neural baseline of this submission)",
+    "PR #1835 (anmarhindi) - PPM-D byte mixture (eval-time augmentation of this submission)"
+  ],
+  "compliance": {
+    "C1_causal":            true,
+    "C2_normalized":        true,
+    "C3_score_before_update": true,
+    "C4_single_left_to_right_pass": true,
+    "training_under_600s":  true,
+    "eval_under_600s":      true,
+    "artifact_under_16MB":  true,
+    "no_SLOT":              true,
+    "no_pre_quant_TTT_on_val": true,
+    "no_eval_time_logit_bias":  true,
+    "no_training_data_ngram_cache": true
+  },
+  "hardware": "8xH100 80GB SXM",
+  "python_runtime": "PyTorch 2.9.1+cu128, FlashAttention 3.0.0",
+  "seeds": [42, 1337, 314]
+}
