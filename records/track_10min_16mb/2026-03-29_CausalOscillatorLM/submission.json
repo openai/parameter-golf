@@ -1,0 +1,10 @@
+{
+  "author": "Roland Sharp",
+  "github_id": "rolandnsharp",
+  "name": "Causal Oscillator LM",
+  "blurb": "Physics-native language model using damped harmonic oscillator impulse responses for causal temporal encoding. No transformer blocks in the traditional sense — the transfer function H(ω) = 1/(ω₀² - ω² + 2iγω) creates temporal context through resonance.",
+  "date": "2026-03-29",
+  "val_bpb": 1.3379,
+  "bytes_total": 11209808,
+  "bytes_code": 0
+}
