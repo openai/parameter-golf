@@ -1,0 +1,18 @@
+{
+  "author": "Iker Moel Tacher",
+  "github_id": "ikermoel",
+  "name": "VRS: Void Rescue System for Regression-Based Transformers",
+  "blurb": "Non-record 8xH100 JEPA-style regression submission with a 524,288-parameter rescue decoder. Across 3 ten-minute seeds, VRS averaged 1.8667 val_bpb while the raw regression path averaged 1.9436, and it also beat standalone regression-only baselines. The best included run reached 1.8658 val_bpb under the 16MB artifact cap.",
+  "date": "2026-04-09T21:34:42Z",
+  "track": "non-record-16mb",
+  "val_loss": 3.1503,
+  "val_bpb": 1.8658,
+  "pre_quant_val_loss": 3.1503,
+  "pre_quant_val_bpb": 1.8658,
+  "step_stop": 13432,
+  "wallclock_seconds": 600.051,
+  "bytes_total": 15980840,
+  "bytes_model_int8_zlib": 15939206,
+  "bytes_code": 41634,
+  "gpu": "8xH100 SXM"
+}
