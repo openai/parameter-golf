@@ -1,0 +1,81 @@
+{
+  "author": "copilot-phase1-variant",
+  "github_id": "openai-parameter-golf",
+  "submission_variant": "Phase 1.3 - Aggressive LR Schedule with Cosine Warmup",
+  "date_created": "2026-03-28",
+  "challenge_track": "track_10min_16mb",
+  "val_bpb": "TBD_AFTER_TRAINING",
+  "hyperparameters": {
+    "model_architecture": {
+      "num_layers": 11,
+      "model_dim": 512,
+      "num_heads": 8,
+      "num_kv_heads": 4,
+      "mlp_mult": 3.0,
+      "vocab_size": 1024,
+      "seq_len": 2048,
+      "tie_embeddings": true,
+      "xsa_last_n": 4,
+      "bigram_enabled": true,
+      "smeargate_enabled": true
+    },
+    "quantization": {
+      "type": "int6_ste_qat",
+      "int_bits": 6,
+      "clip_range": 31,
+      "int_levels": 63,
+      "compression": "zstd-22"
+    },
+    "training": {
+      "batch_tokens_per_step": 786432,
+      "iterations": 20000,
+      "warmup_steps_modified": 20,
+      "warmup_steps_new": 2000,
+      "warmdown_iters_new": 2000,
+      "max_wallclock_seconds": 600,
+      "optimizer": "Muon + Adam split (unchanged)",
+      "matrix_lr": 0.04,
+      "scalar_lr": 0.04,
+      "tied_embed_lr": 0.05,
+      "muon_momentum": 0.95,
+      "muon_wd": 0.02,
+      "adam_wd": 0.01,
+      "ema_enabled": true,
+      "ema_decay_modified": 0.997,
+      "ema_decay_new": 0.999,
+      "lr_schedule": "cosine_with_long_warmup_and_cooldown",
+      "end_lr_ratio": 0.05
+    }
+  },
+  "notes": [
+    "Phase 1.3 variant: pure training recipe optimizations (no arch/quant changes)",
+    "Hypothesis: longer warmup + cooler tail + higher EMA decay → faster convergence + stability",
+    "Warmup 100x longer (20→2000 steps), cosine LR with end_lr_ratio 0.05",
+    "EMA decay 0.999 (vs 0.997) for smoother weight averaging",
+    "Target: ≤1.1200 with better reproducibility across runs"
+  ],
+  "expected_performance": {
+    "best_case": "≤1.1170",
+    "target_case": "1.1200-1.1220",
+    "acceptable_case": "1.1220-1.1270",
+    "fallback_baseline": "1.1271 (best record with original LR)"
+  },
+  "artifact_size_budget": {
+    "max_bytes": 16000000,
+    "model_bytes_target": 15400000,
+    "code_bytes_target": 66000,
+    "overhead_bytes": 100000
+  },
+  "changes_from_best_record": [
+    "WARMUP_STEPS: 20 → 2000",
+    "WARMDOWN_ITERS: 1200 → 2000",
+    "EMA_DECAY: 0.997 → 0.999",
+    "END_LR_RATIO: (new) 0.05 (cooler cosine tail)",
+    "lr_mul() function: implement cosine schedule with explicit phases",
+    "All model architecture and quantization identical to 1.1271"
+  ],
+  "files_included": [
+    "train_gpt.py (modified LR schedule, cloned from 1.1271)",
+    "final_model.int6.ptz (int6 quantized weights, same quant approach as 1.1271)"
+  ]
+}
