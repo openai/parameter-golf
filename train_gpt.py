@@ -17,6 +17,7 @@ import sys
 import time
 import uuid
 import zlib
+import zstandard as zstd
 from pathlib import Path
 
 import numpy as np
@@ -239,7 +240,8 @@ def eval_val(
             f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
         )
     local_batch_seqs = local_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    eval_stride = int(os.environ.get("EVAL_STRIDE", args.train_seq_len))
+    total_seqs = (val_tokens.numel() - 1) // eval_stride
     seq_start = (total_seqs * rank) // world_size
     seq_end = (total_seqs * (rank + 1)) // world_size
     val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
@@ -250,11 +252,12 @@ def eval_val(
     with torch.inference_mode():
         for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
             batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
-            raw_start = batch_seq_start * args.train_seq_len
-            raw_end = batch_seq_end * args.train_seq_len + 1
+            raw_start = batch_seq_start * eval_stride
+            raw_end = min(batch_seq_end * eval_stride + args.train_seq_len, val_tokens.numel())
             local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
-            x = local[:-1].reshape(-1, args.train_seq_len)
-            y = local[1:].reshape(-1, args.train_seq_len)
+            n = (local.numel() - 1) // args.train_seq_len * args.train_seq_len
+            x = local[:n].reshape(-1, args.train_seq_len)
+            y = local[1:n+1].reshape(-1, args.train_seq_len)
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
                 batch_loss = model(x, y).detach()
             batch_token_count = float(y.numel())
@@ -336,7 +339,7 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
     # Vectors / scalars use a simpler per-tensor scale.
     clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
     scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
-    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -31, 31).to(torch.int8).contiguous()
     return q, scale
 
 def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
@@ -603,21 +606,33 @@ class CausalSelfAttention(nn.Module):
         return self.proj(y)
 
 
-class MLP(nn.Module):
-    # relu^2 MLP from the original modded-nanogpt setup
-    def __init__(self, dim: int, mlp_mult: int):
+class Expert(nn.Module):
+    def __init__(self, dim, hidden):
         super().__init__()
-        hidden = mlp_mult * dim
         self.fc = CastedLinear(dim, hidden, bias=False)
         self.proj = CastedLinear(hidden, dim, bias=False)
         self.proj._zero_init = True
-
-    def forward(self, x: Tensor) -> Tensor:
-        x = torch.relu(self.fc(x))
+    def forward(self, x):
+        x = torch.nn.functional.leaky_relu(self.fc(x), negative_slope=0.5)
         return self.proj(x.square())
 
-
+class MLP(nn.Module):
+    def __init__(self, dim, mlp_mult, num_experts=2):
+        super().__init__()
+        hidden = mlp_mult * dim
+        self.num_experts = num_experts
+        self.shared = Expert(dim, hidden)
+        self.experts = nn.ModuleList([Expert(dim, hidden // 4) for _ in range(num_experts)])
+        self.router = CastedLinear(dim, num_experts, bias=False)
+    def forward(self, x):
+        shared_out = self.shared(x)
+        rw = torch.softmax(self.router(x), dim=-1)
+        expert_outs = torch.stack([e(x) for e in self.experts], dim=-1)
+        rw_expanded = rw.unsqueeze(-2).expand_as(expert_outs)
+        weighted = (expert_outs * rw_expanded).sum(dim=-1)
+        return shared_out + weighted
 class Block(nn.Module):
+
     def __init__(
         self,
         dim: int,
@@ -960,6 +975,9 @@ def main() -> None:
             model.require_backward_grad_sync = True
         train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
 
+    # EMA model for smoother weights
+    ema_decay = 0.997
+    ema_state = {k: v.clone().float() for k, v in base_model.state_dict().items()}
     # -----------------------------
     # MAIN TRAINING LOOP
     # -----------------------------
@@ -1032,6 +1050,9 @@ def main() -> None:
         for opt in optimizers:
             opt.step()
         zero_grad_all()
+        with torch.no_grad():
+            for k, v in base_model.state_dict().items():
+                ema_state[k].mul_(ema_decay).add_(v.float(), alpha=1 - ema_decay)
 
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
@@ -1065,6 +1086,9 @@ def main() -> None:
     # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
     # the compressed int8+zlib artifact and validate the round-tripped weights.
 
+    # Load EMA weights for final evaluation
+    ema_sd = {k: v.to(dtype=next(base_model.parameters()).dtype) for k, v in ema_state.items()}
+    base_model.load_state_dict(ema_sd, strict=True)
     if master_process:
         torch.save(base_model.state_dict(), "final_model.pt")
         model_bytes = os.path.getsize("final_model.pt")
@@ -1077,7 +1101,8 @@ def main() -> None:
     quant_buf = io.BytesIO()
     torch.save(quant_obj, quant_buf)
     quant_raw = quant_buf.getvalue()
-    quant_blob = zlib.compress(quant_raw, level=9)
+    cctx = zstd.ZstdCompressor(level=22)
+    quant_blob = cctx.compress(quant_raw)
     quant_raw_bytes = len(quant_raw)
     if master_process:
         with open("final_model.int8.ptz", "wb") as f:
@@ -1095,7 +1120,7 @@ def main() -> None:
         dist.barrier()
     with open("final_model.int8.ptz", "rb") as f:
         quant_blob_disk = f.read()
-    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    quant_state = torch.load(io.BytesIO(zstd.ZstdDecompressor().decompress(quant_blob_disk)), map_location="cpu")
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
