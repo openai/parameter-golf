@@ -1,0 +1,24 @@
+{
+  "author": "Anant Goel",
+  "github_id": "anantdgoel",
+  "name": "Novel Eval-Time Adaptation + Meta-TTT + Tokenizer",
+  "blurb": "Non-record research: (1) MAML Meta-TTT negative result (-0.085 BPB, too aggressive), (2) eval-time cache+OGD stacking gives -0.004 additive on TTT, (3) tokenizer optimization null result (-5.7% tokens/byte but no BPB gain).",
+  "date": "2026-03-21",
+  "track": "non-record-16mb",
+  "val_bpb": 1.2882,
+  "val_loss": 2.1750,
+  "pre_quant_val_bpb": 1.3168,
+  "pre_quant_val_loss": 2.2233,
+  "quant_val_bpb": 1.3204,
+  "step_stop": 2000,
+  "wallclock_seconds": 8793,
+  "bytes_total": 13224003,
+  "bytes_model_int6_zstd": 13154180,
+  "bytes_code": 69823,
+  "hardware": "1xA40 (48GB), Secure Cloud",
+  "novel_contributions": [
+    "MAML-style Meta-TTT (negative result: -0.085 BPB, hyperparams too aggressive)",
+    "Eval-time cache mixture + OGD vocab bias stacking (-0.004 BPB additive on TTT)",
+    "Tokenizer optimization (null result: -5.7% tokens/byte, no BPB gain)"
+  ]
+}
