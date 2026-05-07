@@ -1,0 +1,15 @@
+{
+  "source_val_tokens": 62021846,
+  "bundle_val_tokens": 64893341,
+  "source_val_docs": 50000,
+  "bundle_val_docs": 50000,
+  "bos_id": 1253,
+  "source_bytes": 151080891,
+  "meta_bytes": 151080891,
+  "decoded_bytes": 151080891,
+  "bad_docs": 0,
+  "meta_overcount_frac": 0.0,
+  "decoded_drift_frac": 0.0,
+  "normalization": "None",
+  "charset_encoding": "latin-1"
+}
