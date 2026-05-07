@@ -1,0 +1,9 @@
+{
+  "name": "12L + Catalytic Residuals + BigramHash(10240) + SWA + Late QAT",
+  "val_loss": 1.93601,
+  "bytes_total": 14104510,
+  "blurb": "12 layers with Catalytic Residual Connections (learned per-dimension residual gain, -0.024 bpb at zero overhead). BigramHash 10240 buckets. SWA start_frac=0.2. Late QAT (STE int6 in final 4%). Int6+zstd quantization. Sliding window eval stride=64. Mean of 3 seeds: 1.14662 (std 0.00071). Built on PR #180 standard stack.",
+  "author": "zacharygoldfine",
+  "github_id": "zacharygoldfine",
+  "date": "2026-03-22"
+}
