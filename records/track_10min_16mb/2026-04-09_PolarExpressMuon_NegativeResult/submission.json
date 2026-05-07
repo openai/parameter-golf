@@ -1,0 +1,27 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "Polar Express Muon (Negative Result)",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "is_record": false,
+  "val_bpb": 1.08048844,
+  "val_loss_nats": 2.79101385,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.08048844,
+      "val_loss_nats": 2.79101385,
+      "artifact_bytes": 15998547
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "Polar Express NS iteration in Muon optimizer (alternative to standard Newton-Schulz5). Negative result: +0.00043 BPB worse than standard NS5.",
+  "mechanism_tag": "polar_express_muon",
+  "baseline_comparison": {
+    "method": "Standard Muon NS5 (same stack, same seed)",
+    "val_bpb": 1.08005965,
+    "delta_bpb": 0.00043
+  }
+}
