@@ -1,0 +1,17 @@
+{
+  "author": "Serdar Gülbahar",
+  "github_id": "serdardoesml",
+  "name": "UT DoubleAttn 3L-MLP",
+  "blurb": "Non-record 16MB run with a Universal Transformer architecture using two attention sublayers and a 3-layer MLP, trained with a depth schedule 2->6 under a 600s wallclock cap; pre-quant stop reached 1.2542 BPB and the final int8+zlib roundtrip scored 1.2560 under the size limit.",
+  "date": "2026-03-29T19:27:32Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.12062731,
+  "val_bpb": 1.25595494,
+  "pre_quant_val_loss": 2.1177,
+  "pre_quant_val_bpb": 1.2542,
+  "step_stop": 6011,
+  "wallclock_seconds": 600.137,
+  "bytes_total": 15982324,
+  "bytes_model_int8_zlib": 15928510,
+  "bytes_code": 53814
+}
