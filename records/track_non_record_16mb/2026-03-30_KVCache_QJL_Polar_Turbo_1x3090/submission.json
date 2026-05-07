@@ -1,0 +1,18 @@
+{
+  "author": "Lucas Ercolano",
+  "github_id": "LucasErcolano",
+  "name": "Faithful KV-cache Quantization Backends (1x3090)",
+  "blurb": "Non-record local study on 1x RTX 3090 adding a teacher-forced autoregressive KV-cache evaluator plus QJL, PolarQuant, and TurboQuant-inspired backends to a baseline Parameter Golf model. Best quantized local capped result: Polar backend at 1.98346882 val_bpb on a 2048-token evaluation cap, with a 10.46MB compressed artifact.",
+  "date": "2026-03-30T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 3.66264856,
+  "val_bpb": 1.98346882,
+  "pre_quant_val_loss": 2.7872,
+  "pre_quant_val_bpb": 1.6507,
+  "step_stop": 570,
+  "wallclock_seconds": 600,
+  "bytes_total": 10458900,
+  "bytes_model_int8_zlib": 10356213,
+  "bytes_code": 102687,
+  "gpu": "1xRTX3090"
+}
