@@ -1,0 +1,12 @@
+{
+  "author": "Alberto Luengo",
+  "github_id": "albertorkive",
+  "name": "11L Gradient-Guided Quant + EMA + Sliding Eval",
+  "blurb": "11 layers, 512 dim, MLP 3x, gradient-guided adaptive int5/int6/int7 quantization, EMA (alpha=0.997, from init), SmearGate, NTK-RoPE, XSA (last 4 layers), zstd-22 compression, sliding window eval stride=64. Muon optimizer with momentum warmup, orthogonal init, adaptive warmdown.",
+  "date": "2026-03-22T17:17:00Z",
+  "val_loss": 1.92417619,
+  "val_bpb": 1.13960858,
+  "bytes_total": 15913419,
+  "bytes_code": 59010,
+  "bytes_model_int8_zstd": 15854409
+}
