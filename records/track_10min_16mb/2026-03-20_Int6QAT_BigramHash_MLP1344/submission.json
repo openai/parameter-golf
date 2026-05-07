@@ -1,0 +1,11 @@
+{
+  "author": "yahya010",
+  "github_id": "yahya010",
+  "name": "10L Int6 QAT + BigramHash + Zstd MLP2.6x Muon0.99",
+  "blurb": "10-layer 512dim SP-1024, STE int6 QAT, BigramHash bigram embedding (4096 buckets), full int6 [-31,31] + zstd-22, MLP hidden=1344, fp16 tied embedding, Muon 0.99, LR 0.02, grad clip 0.3, sliding window stride=64.",
+  "date": "2026-03-20",
+  "val_loss": 1.95671642,
+  "val_bpb": 1.15887620,
+  "bytes_total": 15504131,
+  "bytes_code": 57047
+}

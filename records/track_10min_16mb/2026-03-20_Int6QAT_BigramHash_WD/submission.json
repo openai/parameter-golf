@@ -1,0 +1,12 @@
+{
+  "author": "yahya010",
+  "github_id": "yahya010",
+  "name": "10L Int6 QAT + BigramHash + Muon WD + Sliding Window",
+  "blurb": "10-layer 512dim SP-1024, STE int6 QAT (zero quant gap), full int6 [-31,31] + zstd-22, MLP hidden=1344, BigramHash 4096 buckets, fp16 tied embedding, Muon 0.99 with WD=0.02, LR 0.02, grad clip 0.3, warmdown 3000, sliding window stride=64.",
+  "track": "track_10min_16mb",
+  "val_bpb_mean": 1.1577,
+  "val_bpb_std": 0.00047,
+  "seeds": [1337, 42, 3],
+  "num_seeds": 3,
+  "p_value": "<0.001"
+}
