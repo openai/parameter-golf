@@ -1,0 +1,18 @@
+{
+  "author": "someone114514",
+  "github_id": "someone114514",
+  "name": "SP4096 + Depth Recurrence + Parallel Residuals + Legal N-Gram",
+  "date": "2026-04-08",
+  "track": "10min_16mb",
+  "val_bpb": 1.08457715,
+  "val_bpb_std": 0.0,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.08457715,
+      "artifact_bytes": 15967527
+    }
+  },
+  "hardware": "2 GPUs, 40-minute wallclock probe",
+  "technique_summary": "Original #1333 SP4096 recurrent base with final evaluator switched to a prefix-only legal n-gram overlay. Token, within-word, and word-start experts produce one-token hints that are applied via logit tilt with full-vocab renormalization."
+}
