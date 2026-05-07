@@ -1,0 +1,117 @@
+[stage] clone 2026-03-20T22:56:24+00:00
+Cloning into 'parameter-golf'...
+Note: switching to '584795f52d409f0cd9a565711877472c18e770c9'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 584795f Fix proxy shard isolation and add looped candidate
+[stage] data 2026-03-20T22:56:25+00:00
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[stage] train 2026-03-20T22:57:57+00:00
+W0320 22:57:58.548000 546 torch/distributed/run.py:803] 
+W0320 22:57:58.548000 546 torch/distributed/run.py:803] *****************************************
+W0320 22:57:58.548000 546 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0320 22:57:58.548000 546 torch/distributed/run.py:803] *****************************************
+logs/runpod-verify-pr114-20260320-seed1337.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:21778504
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 head_lr:0.0 matrix_lr:0.02 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9381 train_time:129ms step_avg:129.33ms
+step:2/20000 train_loss:12.1542 train_time:170ms step_avg:85.11ms
+step:3/20000 train_loss:10.5650 train_time:252ms step_avg:83.93ms
+step:4/20000 train_loss:8.3304 train_time:331ms step_avg:82.70ms
+step:5/20000 train_loss:6.7618 train_time:410ms step_avg:81.90ms
+step:6/20000 train_loss:6.1212 train_time:489ms step_avg:81.48ms
+step:7/20000 train_loss:5.9739 train_time:568ms step_avg:81.18ms
+step:8/20000 train_loss:5.9697 train_time:647ms step_avg:80.86ms
+step:9/20000 train_loss:5.8211 train_time:725ms step_avg:80.61ms
+step:10/20000 train_loss:5.7215 train_time:805ms step_avg:80.45ms
+step:200/20000 train_loss:2.3829 train_time:16086ms step_avg:80.43ms
+step:400/20000 train_loss:2.4238 train_time:32279ms step_avg:80.70ms
+step:600/20000 train_loss:2.3396 train_time:48525ms step_avg:80.88ms
+step:800/20000 train_loss:2.2450 train_time:64906ms step_avg:81.13ms
+step:1000/20000 train_loss:2.2779 train_time:81166ms step_avg:81.17ms
+step:1200/20000 train_loss:2.3577 train_time:97454ms step_avg:81.21ms
+step:1400/20000 train_loss:2.1915 train_time:113747ms step_avg:81.25ms
+step:1600/20000 train_loss:2.0862 train_time:129964ms step_avg:81.23ms
+step:1800/20000 train_loss:2.1730 train_time:146212ms step_avg:81.23ms
+step:2000/20000 train_loss:2.0815 train_time:162410ms step_avg:81.21ms
+step:2200/20000 train_loss:2.1603 train_time:178641ms step_avg:81.20ms
+step:2400/20000 train_loss:2.0745 train_time:194815ms step_avg:81.17ms
+step:2600/20000 train_loss:2.1093 train_time:211022ms step_avg:81.16ms
+step:2800/20000 train_loss:2.1557 train_time:227205ms step_avg:81.14ms
+step:3000/20000 train_loss:2.1579 train_time:243338ms step_avg:81.11ms
+step:3200/20000 train_loss:2.1676 train_time:259507ms step_avg:81.10ms
+step:3400/20000 train_loss:2.0169 train_time:275626ms step_avg:81.07ms
+step:3600/20000 train_loss:2.0928 train_time:291802ms step_avg:81.06ms
+step:3800/20000 train_loss:2.0668 train_time:307923ms step_avg:81.03ms
+step:4000/20000 train_loss:1.9749 train_time:324088ms step_avg:81.02ms
+step:4200/20000 train_loss:2.1527 train_time:340249ms step_avg:81.01ms
+step:4400/20000 train_loss:2.0337 train_time:356366ms step_avg:80.99ms
+step:4600/20000 train_loss:1.8479 train_time:372523ms step_avg:80.98ms
+step:4800/20000 train_loss:2.4427 train_time:388627ms step_avg:80.96ms
+step:5000/20000 train_loss:2.1147 train_time:404768ms step_avg:80.95ms
+step:5200/20000 train_loss:2.0570 train_time:420862ms step_avg:80.93ms
+step:5400/20000 train_loss:2.0670 train_time:437020ms step_avg:80.93ms
+step:5600/20000 train_loss:1.9756 train_time:453153ms step_avg:80.92ms
+step:5800/20000 train_loss:2.0240 train_time:469251ms step_avg:80.91ms
+step:6000/20000 train_loss:1.9688 train_time:485387ms step_avg:80.90ms
+step:6200/20000 train_loss:1.9838 train_time:501482ms step_avg:80.88ms
+step:6400/20000 train_loss:2.0383 train_time:517616ms step_avg:80.88ms
+step:6600/20000 train_loss:1.8870 train_time:533707ms step_avg:80.86ms
+step:6800/20000 train_loss:2.0779 train_time:549832ms step_avg:80.86ms
+step:7000/20000 train_loss:1.8531 train_time:565959ms step_avg:80.85ms
+step:7200/20000 train_loss:1.9426 train_time:582066ms step_avg:80.84ms
+step:7400/20000 train_loss:1.9929 train_time:598170ms step_avg:80.83ms
+step:7423/20000 val_loss:1.9819 val_bpb:1.1738 train_time:600057ms step_avg:80.84ms
+stopping_early: wallclock_cap train_time:600057ms step:7423/20000
+peak memory allocated: 16740 MiB reserved: 16948 MiB
+Serialized model: 86099351 bytes
+Code size: 53572 bytes
+Total submission size: 86152923 bytes
+Serialized model int8+zlib: 15902700 bytes (payload:22690080 raw_torch:22734303 payload_ratio:3.79x)
+Total submission size int8+zlib: 15956272 bytes
+final_int8_zlib_roundtrip val_loss:1.9924 val_bpb:1.1800 eval_time:1774ms eval_seq_len:2048
+final_int8_zlib_roundtrip_exact val_loss:1.99241564 val_bpb:1.18002077
+final_sliding_window val_loss:1.9563 val_bpb:1.1586 eval_time:136131ms stride:256 seq_len:2048
+final_sliding_window_exact val_loss:1.95628166 val_bpb:1.15862019
