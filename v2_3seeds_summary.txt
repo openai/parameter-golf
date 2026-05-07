@@ -1,0 +1,18 @@
+V2 Training Results (3 Seeds)
+=============================
+
+Results by seed:
+  Seed 42: val_loss=9.0526, BPB=13.0601
+  Seed 314: val_loss=9.0566, BPB=13.0659
+  Seed 999: val_loss=9.0585, BPB=13.0686
+
+Statistics:
+  Avg val_loss: 9.0559 ± 0.0025
+  Avg BPB: 13.0649 ± 0.0035
+  Total time: 14.2s
+
+Performance Improvement:
+  V1 Baseline BPB: 13.1102 ± 0.0070
+  V2 Optimized BPB: 13.0649 ± 0.0035
+  Improvement: -0.0453 BPB (-0.35%)
+  Stability Improvement: 50% reduction in std dev
