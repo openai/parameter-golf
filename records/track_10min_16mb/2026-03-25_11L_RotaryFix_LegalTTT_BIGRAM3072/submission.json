@@ -1,0 +1,17 @@
+{
+  "val_bpb": 1.11869,
+  "name": "11L_RotaryFix_LegalTTT_ParallelMuon_BIGRAM3072",
+  "github_id": "dweyh",
+  "description": "Parameter Banking + Parallel Muon, 11L GPT, BigramHash-3072, Partial RoPE (16/64), LeakyReLU(0.5)^2, GQA 8H/4KV, VE128, XSA(last-4), Legal Score-First TTT. Key fix: Rotary NTK-Scaling bug corrected (train_seq_len=2048 propagated correctly to base_model and eval_model). Late QAT threshold 0.57 for ~1700 QAT steps.",
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"post_ema_bpb": 1.1365, "int6_roundtrip_bpb": 1.14472521, "legal_ttt_bpb": 1.11877436},
+    "42":   {"post_ema_bpb": 1.1360, "int6_roundtrip_bpb": 1.14436973, "legal_ttt_bpb": 1.11836483},
+    "2025": {"post_ema_bpb": 1.1367, "int6_roundtrip_bpb": 1.14492543, "legal_ttt_bpb": 1.11892698}
+  },
+  "mean_ttt_bpb": 1.11869,
+  "std_ttt_bpb": 0.00024,
+  "hardware": "8xH100 SXM",
+  "train_wallclock_seconds": 598,
+  "artifact_size_bytes": 16050683
+}
