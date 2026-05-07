@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-29",
+  "name": "Annealed Muon 1.58-bit Ternary (8 KV Heads)",
+  "author": "Dushyant Chetiwal",
+  "github_id": "DushyantChetiwal",
+  "val_bpb": 1.2196,
+  "val_loss": 2.0592,
+  "bytes_total": 15581721,
+  "notes": "8xH100 SXM, 800d/10L/MLP4x, relu^2, 524k batch, 4622 steps at 129ms/step, hold-cosine(0.70). Roundtrip val_bpb=1.2249."
+}
