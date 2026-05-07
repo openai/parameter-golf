@@ -1,0 +1,13 @@
+{
+  "name": "Arth Singh",
+  "github_id": "Arth-Singh",
+  "run_name": "Depth Recurrence 5x3 dim=640",
+  "val_bpb": 1.2716,
+  "val_loss": 2.1471,
+  "model_params": 15006123,
+  "compressed_model_bytes": null,
+  "train_steps": 4500,
+  "train_time_seconds": 888,
+  "hardware": "6x NVIDIA H200 (RunPod)",
+  "notes": "Non-record submission exploring depth recurrence: 5 unique transformer layers looped 3 times = 15 effective depth. Novel loop embeddings and learnable loop gates for per-pass conditioning. Run terminated early due to compute budget — val_bpb was still improving. See README for analysis."
+}
