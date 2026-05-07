@@ -1,0 +1,44 @@
+{
+  "author": "Ambivalence",
+  "github_id": "dd_dent",
+  "name": "TTSM: Typical Ternary State-Space Model",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_loss": 3.38236311,
+  "val_bpb": 2.00323032,
+  "bytes_total": 12039626,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 3.38236311,
+      "val_bpb": 2.00323032,
+      "artifact_bytes": 12039626,
+      "steps": 3889,
+      "step_avg_ms": 154.30
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "comparison_baseline_pr": 1644,
+  "technique_summary": "First ternary SSM submission. Mamba-1 selective SSM with B and C projections quantized to {-1,0,+1} via STE. Hidden state h_t remains fp16 — protected from quantization errors at both write gate (B) and readout selector (C). dt_proj kept fp16 (discretization hazard). Triton chunk-wise parallel scan adapted from fla-org HGRN kernel (MIT). Reversed-scan Triton backward reuses forward kernel on time-reversed inputs (26x speedup, 31s to 1.2s/step). Short conv kernel_size=4 on dt/B/C. B/C L2 normalization. 7 SSM-only blocks, d=576, D_STATE=64. 10% bf16 warmstart then ternary QAT. Muon optimizer MATRIX_LR=0.40, MuonEq-R. Z-loss 1e-4. 11M params (7.8M ternary at 1.6 bits/param, 3.3M fp16/fp32 dynamics). 12 MB artifact.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true
+  },
+  "attribution": {
+    "mamba_architecture": "Albert Gu, Tri Dao (Mamba: Linear-Time Sequence Modeling, 2023)",
+    "triton_scan_kernel": "fla-org/flash-linear-attention HGRN kernel (MIT license, adapted)",
+    "ternary_qat_zloss": "@CiprianFlorin (PR #640) — ternary SOTA + Z-loss technique",
+    "fork_base": "@thwu1 — int5/int6 mixed quantization",
+    "muon_eq_r": "@clarkkev (PR #1394)",
+    "ssm_baseline": "@mradassaad (PR #1644, verified SSM SOTA 1.1473 bpb)",
+    "dynamics_protection": "@mradassaad (PR #1890)",
+    "muon_optimizer": "Kosson et al., Jordan et al.",
+    "steps_depth": "@newjordan"
+  }
+}
