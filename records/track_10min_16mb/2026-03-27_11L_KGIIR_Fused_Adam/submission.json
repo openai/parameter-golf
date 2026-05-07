@@ -1,0 +1,9 @@
+{
+  "name": "KGIIR Trajectory Mixing + Depth-11",
+  "val_bpb": 1.11837,
+  "bytes_total": 15877440,
+  "blurb": "Depth-11 KGIIR trajectory mixing with hardware-fused kernels. Achieved 1.11837 BPB on 8xH100. Note: Single-seed run provided due to compute constraints; submitted for architectural documentation of the KGIIR primitive.",
+  "author": "Adam Jacuch",
+  "github_id": "Adam-Jacuch",
+  "date": "2026-03-27"
+}
