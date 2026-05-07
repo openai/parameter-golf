@@ -1,0 +1,11 @@
+{
+  "author": "kvmukilan",
+  "github_id": "kvmukilan",
+  "name": "Int6 3xMLP cosine warmdown",
+  "blurb": "Wider MLP enabled by int6 quantization, with cosine LR decay during warmdown phase.",
+  "date": "2026-03-20T00:00:00Z",
+  "val_bpb": 1.17043480,
+  "val_loss": 1.97623014,
+  "bytes_total": 13520480,
+  "bytes_code": 56677
+}
