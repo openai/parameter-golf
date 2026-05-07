@@ -1,0 +1,18 @@
+{
+  "val_bpb": 1.1164,
+  "val_loss": 1.885,
+  "bytes_total": 15941860,
+  "bytes_code": 77679,
+  "bytes_model": 15864181,
+  "num_params": 27137223,
+  "training_time_seconds": 600,
+  "num_gpus": 8,
+  "gpu_type": "H100 SXM",
+  "eval_method": "sliding_window_stride64",
+  "quantization": "int6_per_row_zstd21",
+  "author": "Asukabot0",
+  "notes": "Single-GPU 7500-step result. Pending 8xH100 3-seed validation.",
+  "seed": 1337,
+  "single_gpu_steps": 7500,
+  "single_gpu_step_avg_ms": 1064
+}
