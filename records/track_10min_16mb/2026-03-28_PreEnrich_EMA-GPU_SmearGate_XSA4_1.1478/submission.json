@@ -1,0 +1,17 @@
+{
+  "author": "Idanr",
+  "github_id": "idan3011",
+  "name": "Pre-Enrichment + EMA-GPU + SmearGate + XSA4",
+  "blurb": "GELU pre-enrichment (512->768->512), EMA on GPU (64.7ms/step, 37% faster), SmearGate, BigramHash(2048x128), XSA on last 4 layers, U-Net skip connections. 10L 512d, int6 QAT + lzma.",
+  "date": "2026-03-28T00:00:00Z",
+  "val_loss": 1.93793804,
+  "val_bpb": 1.14775606,
+  "pre_quant_val_loss": 1.9663,
+  "pre_quant_val_bpb": 1.1646,
+  "step_stop": 9268,
+  "wallclock_seconds": 600.031,
+  "eval_time_seconds": 120.0,
+  "bytes_total": 14942971,
+  "bytes_model_int6_lzma": 14878748,
+  "bytes_code": 64223
+}
