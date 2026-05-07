@@ -1,0 +1,11 @@
+{
+    "author": "Karen042009",
+    "github_id": "Karen042009",
+    "name": "Karen042009 - DualHashSkip AdaMuon DynSDClip SharedMoE LayerScale (Mean of 3 Seeds)",
+    "blurb": "Mean of 3 seeds (1337, 42, 2025). DualTokenHashSkip(2\u00d72048\u00d716,concat), LayerScale Recurrence (1.0/0.1 init), AdaMuonOptimizer (RMS pre-cond + Riemannian NS), Dynamic MSE SDClip (\u03c3-grid {2.5,3.0,3.5,4.0} at export), SharedMoE (1 shared + top-1/3 specialised), Score-First TTT 2-pass, parallel residuals, QKGain=5.25, PartialRoPE=32, LeakyReLU(0.5)^2 SwiGLU, vocab=8192",
+    "date": "2026-04-28T22:19:00Z",
+    "val_loss": 0.577760,
+    "val_bpb": 0.833533,
+    "bytes_total": 25055000,
+    "bytes_code": 53443
+}
