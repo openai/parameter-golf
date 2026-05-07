@@ -1,0 +1,12 @@
+{
+  "author": "Joyce Yan",
+  "github_id": "joyceyan",
+  "name": "Non-record: Custom serialization replacing torch.save + zstd-22",
+  "blurb": "Custom binary format using K-means clustered ANS entropy coding for int6, per-tensor ANS for int8, brotli-11 for fp16, replacing torch.save + zstd-22. Lossless, -2.34% compressed size. Based on 2026-03-20_11L_XSA4_EMA_Int6_MLP3x_WD04_1.1271.",
+  "date": "2026-04-15T00:00:00Z",
+  "base_submission": "2026-03-20_11L_XSA4_EMA_Int6_MLP3x_WD04_1.1271",
+  "focus": "compression",
+  "compression_baseline_bytes": 15513031,
+  "compression_custom_bytes": 15150085,
+  "compression_savings_pct": 2.34
+}
