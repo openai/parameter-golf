@@ -1,0 +1,20 @@
+{
+  "name": "Bigram-Aware Context Modeling with Mixed-Precision Quantization",
+  "author": "CREVIOS",
+  "github_id": "CREVIOS",
+  "date": "2026-03-22",
+  "val_loss": 1.93003103,
+  "val_bpb": 1.14307611,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 1.93003103,
+      "val_bpb": 1.14307611
+    }
+  },
+  "step_stop": 6658,
+  "wallclock_seconds": 600.034,
+  "eval_time_seconds": 174.865,
+  "bytes_total": 15971094,
+  "blurb": "10-layer transformer with bigram context injection (hash embedding + gated blending), mixed int5/int6 per-row quantization, 3x MLP expansion, orthogonal initialization, Muon optimizer with decoupled weight decay, stochastic weight averaging, and sliding window evaluation."
+}
