@@ -1,0 +1,16 @@
+{
+  "author": "Jack Princz",
+  "github_id": "jfprincz",
+  "name": "11-Layer Int6 + WD=0.04 + SWA + FA3",
+  "blurb": "11 layers with int6 per-row on all MLP+attention weights, int8 tok_emb, zstd-22. Weight decay 0.04 (Muon+AdamW) for quantization-friendly weights. SWA ~8 checkpoint average. OrthoInit + muP scaling. SmearGate + BigramHash(2048x128). FA3. Sliding window eval stride=64, seq=2048.",
+  "date": "2026-03-20T08:45:00Z",
+  "val_loss": 1.91095901,
+  "val_bpb": 1.13178056,
+  "pre_quant_val_loss": 1.9303,
+  "pre_quant_val_bpb": 1.1432,
+  "int6_zstd_val_loss": 1.94903166,
+  "int6_zstd_val_bpb": 1.15432633,
+  "bytes_total": 15689380,
+  "bytes_model_int6_zstd": 15624965,
+  "bytes_code": 64415
+}
