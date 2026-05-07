@@ -1,0 +1,10 @@
+{
+  "author": "Raeli Savitt",
+  "github_id": "rsavitt",
+  "val_bpb": 1.15935818,
+  "artifact_bytes": 15162777,
+  "train_time_seconds": 600,
+  "gpu_config": "8xH100 SXM",
+  "seed": 1337,
+  "date": "2026-03-19"
+}
