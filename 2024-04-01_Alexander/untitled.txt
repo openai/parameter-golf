@@ -1,0 +1,10 @@
+{
+  "name": "Alexander Mummert",
+  "github_id": "Fireworksai26",
+  "val_bpb": 2.1935,
+  "metadata": {
+    "layers": 12,
+    "heads": 8,
+    "notes": "None For the moment."
+  }
+}
