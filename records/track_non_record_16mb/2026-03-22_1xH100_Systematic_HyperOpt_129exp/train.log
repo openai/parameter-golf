@@ -1,0 +1,15 @@
+step:4000/20000 val_loss:2.1748 val_bpb:1.2880 train_time:535076ms step_avg:133.77ms
+step:4200/20000 train_loss:2.1947 train_time:561798ms step_avg:133.76ms
+step:4400/20000 train_loss:2.0603 train_time:588510ms step_avg:133.75ms
+step:4486/20000 val_loss:2.1273 val_bpb:1.2599 train_time:600001ms step_avg:133.75ms
+stopping_early: wallclock_cap train_time:600001ms step:4486/20000
+peak memory allocated: 3259 MiB reserved: 3554 MiB
+Serialized model: 96831995 bytes
+Code size: 60115 bytes
+Total submission size: 96892110 bytes
+Serialized model int8+zlib: 15813611 bytes (payload:25985282 raw_torch:26026022 payload_ratio:3.73x)
+Total submission size int8+zlib: 15873726 bytes
+Compiling forward_logits for sliding window eval (stride=512, seq_len=2048)...
+Compilation done, starting sliding window eval...
+final_int8_zlib_roundtrip val_loss:2.0923 val_bpb:1.2392 eval_time:70845ms
+final_int8_zlib_roundtrip_exact val_loss:2.09230712 val_bpb:1.23918213
