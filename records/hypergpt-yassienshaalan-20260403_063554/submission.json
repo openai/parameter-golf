@@ -1,0 +1,20 @@
+{
+  "name": "HyperGPT: Generative Weight Synthesis",
+  "github_id": "yassienshaalan",
+  "val_bpb": 8.21864,
+  "track": "10min_16mb",
+  "approach": "Shared base weights + per-layer low-rank adapters (inspired by HyperTinyPW / tinyml-gen MLSys 2026). Allows 16 transformer layers in ~8MB artifact vs SOTA 11 layers in ~15MB.",
+  "n_layers": 16,
+  "d_model": 512,
+  "n_heads": 8,
+  "n_kv_heads": 4,
+  "lora_rank": 48,
+  "n_shared_groups": 2,
+  "activation": "LeakyReLU2",
+  "optimizer": "Muon (adapters) + Adam (shared base, embed)",
+  "ema": true,
+  "estimated_artifact_mb": 8.5,
+  "artifact_mb": 10.47,
+  "run_timestamp": "20260403_063554",
+  "n_gpus": 8
+}
