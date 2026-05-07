@@ -1,0 +1,547 @@
+W0404 23:41:07.948000 3229 torch/distributed/run.py:803] 
+W0404 23:41:07.948000 3229 torch/distributed/run.py:803] *****************************************
+W0404 23:41:07.948000 3229 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0404 23:41:07.948000 3229 torch/distributed/run.py:803] *****************************************
+logs/78deefd7-6dd1-4abb-8796-9379a53f7120.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+LN Scale: runtime 1/sqrt(layer+1) on norm outputs (SOTA style)
+model_params:27333833
+ema_decay:0.997 (float32, pause_during_qat=True)
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=True flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+qat_bits:5 (int5 fake quantization during training)
+qat_schedule: start_step=14000/20000 (frac=0.7)
+qat_bits_attn:6 (int6 for attention, int5 for MLP)
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9295 train_time:153ms step_avg:153.07ms
+step:2/20000 train_loss:8.7447 train_time:197ms step_avg:98.54ms
+step:3/20000 train_loss:7.7382 train_time:285ms step_avg:94.92ms
+step:4/20000 train_loss:7.3441 train_time:372ms step_avg:92.98ms
+step:5/20000 train_loss:7.0874 train_time:459ms step_avg:91.82ms
+step:6/20000 train_loss:6.8963 train_time:547ms step_avg:91.16ms
+step:7/20000 train_loss:6.7897 train_time:634ms step_avg:90.60ms
+step:8/20000 train_loss:6.6384 train_time:722ms step_avg:90.24ms
+step:9/20000 train_loss:6.3682 train_time:809ms step_avg:89.91ms
+step:10/20000 train_loss:6.0665 train_time:896ms step_avg:89.64ms
+QAT wallclock estimate: ~6419 total steps, qat_start_step=4493 (step_avg=88.8ms)
+QAT wallclock estimate: ~6389 total steps, qat_start_step=4472 (step_avg=89.2ms)
+step:200/20000 train_loss:2.5933 train_time:17837ms step_avg:89.18ms
+QAT wallclock estimate: ~6377 total steps, qat_start_step=4463 (step_avg=89.4ms)
+QAT wallclock estimate: ~6369 total steps, qat_start_step=4458 (step_avg=89.5ms)
+step:400/20000 train_loss:2.5317 train_time:35794ms step_avg:89.48ms
+step:600/20000 train_loss:2.4098 train_time:53707ms step_avg:89.51ms
+step:800/20000 train_loss:2.2841 train_time:71707ms step_avg:89.63ms
+step:1000/20000 train_loss:2.3081 train_time:89653ms step_avg:89.65ms
+step:1200/20000 train_loss:2.3778 train_time:107658ms step_avg:89.71ms
+step:1400/20000 train_loss:2.1985 train_time:125659ms step_avg:89.76ms
+step:1600/20000 train_loss:2.0880 train_time:143598ms step_avg:89.75ms
+step:1800/20000 train_loss:2.1676 train_time:161595ms step_avg:89.78ms
+step:2000/20000 train_loss:2.0917 train_time:179539ms step_avg:89.77ms
+checkpoint saved: ckpt_step2000.pt
+QAT wallclock estimate: ~6340 total steps, qat_start_step=4438 (step_avg=89.9ms)
+step:2200/20000 train_loss:2.1547 train_time:197755ms step_avg:89.89ms
+step:2400/20000 train_loss:2.0919 train_time:215689ms step_avg:89.87ms
+step:2600/20000 train_loss:2.1296 train_time:233676ms step_avg:89.88ms
+step:2800/20000 train_loss:2.1759 train_time:251669ms step_avg:89.88ms
+step:3000/20000 train_loss:2.1808 train_time:269594ms step_avg:89.86ms
+step:3200/20000 train_loss:2.1949 train_time:287577ms step_avg:89.87ms
+step:3400/20000 train_loss:2.0389 train_time:305503ms step_avg:89.85ms
+step:3600/20000 train_loss:2.1173 train_time:323482ms step_avg:89.86ms
+step:3800/20000 train_loss:2.0934 train_time:341409ms step_avg:89.84ms
+step:4000/20000 train_loss:1.9930 train_time:359383ms step_avg:89.85ms
+checkpoint saved: ckpt_step4000.pt
+step:4200/20000 train_loss:2.1775 train_time:377560ms step_avg:89.90ms
+step:4400/20000 train_loss:2.0614 train_time:395472ms step_avg:89.88ms
+Late QAT enabled at step 4438: bits=5 attn=6 (EMA paused, effective_end=6341)
+QAT wallclock estimate: ~5490 total steps, qat_start_step=3842 (step_avg=103.8ms)
+QAT wallclock estimate: ~5498 total steps, qat_start_step=3848 (step_avg=103.7ms)
+QAT wallclock estimate: ~5506 total steps, qat_start_step=3854 (step_avg=103.5ms)
+step:4600/20000 train_loss:1.9412 train_time:475490ms step_avg:103.37ms
+QAT wallclock estimate: ~5522 total steps, qat_start_step=3865 (step_avg=103.2ms)
+step:4800/20000 train_loss:2.5512 train_time:493435ms step_avg:102.80ms
+QAT wallclock estimate: ~5566 total steps, qat_start_step=3896 (step_avg=102.4ms)
+step:5000/20000 train_loss:2.2651 train_time:511439ms step_avg:102.29ms
+swa:start step:5200 tight=EMA
+step:5200/20000 train_loss:2.2151 train_time:529571ms step_avg:101.84ms
+step:5400/20000 train_loss:2.2571 train_time:548009ms step_avg:101.48ms
+step:5600/20000 train_loss:2.2015 train_time:567479ms step_avg:101.34ms
+step:5800/20000 train_loss:2.3035 train_time:588954ms step_avg:101.54ms
+step:5922/20000 val_loss:2.2876 val_bpb:1.3548 train_time:600132ms step_avg:101.34ms
+stopping_early: wallclock_cap train_time:600132ms step:5922/20000
+peak memory allocated: 22918 MiB reserved: 22944 MiB
+saved final model: final_model.pt
+Serialized model: 106917911 bytes
+Code size: 113484 bytes
+Pre-compression size: 107031395 bytes
+swa:applied averaging count=15
+saved pre-export checkpoint: ckpt_pre_export.pt
+GPTQ: collected Hessians for 69 tensors (16 batches)
+export_bits:5 (train qat_bits:5)
+Applied compression: row_sort + transpose (int5+int6attn) + Full GPTQ (no bitpack, LZMA-friendly)
+artifact: 16,328,917 bytes (model=16,215,433 code=113,484 limit=16,000,000 excess=328,917)
+Size fallback: downgrading 1 layers to int5
+Applied compression: row_sort + transpose (int5+int6attn) + Full GPTQ (no bitpack, LZMA-friendly)
+  size_fallback: 16,241,369 bytes (brotli), saved=87,548, excess=241,369, layers_downgraded=1
+Size fallback: smart batch — downgrading 5 layers at once (excess=241369, ~87548/layer)
+Size fallback: downgrading 5 layers to int5
+Applied compression: row_sort + transpose (int5+int6attn) + Full GPTQ (no bitpack, LZMA-friendly)
+  size_fallback: 15,876,912 bytes (brotli), saved=364,457, excess=-123,088, layers_downgraded=5
+Size fallback succeeded: 15,876,912 bytes with 5 int5 layers
+Serialized model brotli: 15763428 bytes (raw:28169941 payload:28149138)
+Total submission size: 15876912 bytes
+final_int5_zstd_roundtrip val_loss:2.0206 val_bpb:1.1967 eval_time:28650ms gap:-0.1581
+eval_budget: 219s (script_elapsed=971s)
+fused_ttt_sliding:start chunks=1893 chunk_tokens=32768 total_windows=242265 stride=256 ttt_lr=0.002 ttt_epochs=2 mode=lora unfreeze=2 hedge=True
+fused_ttt_sliding:params trainable=65,536 groups=1
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:841: UserWarning: c10d::broadcast_: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:841: UserWarning: c10d::broadcast_: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:841: UserWarning: c10d::broadcast_: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:841: UserWarning: c10d::broadcast_: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:841: UserWarning: c10d::broadcast_: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:841: UserWarning: c10d::broadcast_: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:841: UserWarning: c10d::broadcast_: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:841: UserWarning: c10d::broadcast_: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+  fused_chunk [1/1893] windows=15 bpb=1.2107 elapsed=0.4s
+  fused_chunk [6/1893] windows=95 bpb=1.1704 elapsed=2.5s
+  fused_chunk [11/1893] windows=175 bpb=1.1822 elapsed=6.8s
+  fused_chunk [16/1893] windows=255 bpb=1.1647 elapsed=10.0s
+  fused_chunk [21/1893] windows=335 bpb=1.1624 elapsed=11.4s
+  fused_chunk [26/1893] windows=415 bpb=1.1429 elapsed=14.5s
+  fused_chunk [31/1893] windows=495 bpb=1.1575 elapsed=17.8s
+  fused_chunk [36/1893] windows=575 bpb=1.1451 elapsed=20.1s
+  fused_chunk [41/1893] windows=655 bpb=1.1420 elapsed=21.5s
+  fused_chunk [46/1893] windows=735 bpb=1.1397 elapsed=23.8s
+  fused_chunk [51/1893] windows=815 bpb=1.1364 elapsed=28.2s
+  fused_chunk [56/1893] windows=895 bpb=1.1503 elapsed=31.6s
+  fused_chunk [61/1893] windows=975 bpb=1.1427 elapsed=34.0s
+  fused_chunk [66/1893] windows=1055 bpb=1.1362 elapsed=35.4s
+  fused_chunk [71/1893] windows=1135 bpb=1.1401 elapsed=37.9s
+  fused_chunk [76/1893] windows=1215 bpb=1.1425 elapsed=42.5s
+  fused_chunk [81/1893] windows=1295 bpb=1.1390 elapsed=45.1s
+  fused_chunk [86/1893] windows=1375 bpb=1.1389 elapsed=46.5s
+  fused_chunk [91/1893] windows=1455 bpb=1.1399 elapsed=49.0s
+  fused_chunk [96/1893] windows=1535 bpb=1.1401 elapsed=50.5s
+  fused_chunk [101/1893] windows=1615 bpb=1.1436 elapsed=51.9s
+  fused_chunk [106/1893] windows=1695 bpb=1.1457 elapsed=54.6s
+  fused_chunk [111/1893] windows=1775 bpb=1.1458 elapsed=59.7s
+  fused_chunk [116/1893] windows=1855 bpb=1.1396 elapsed=62.4s
+  fused_chunk [121/1893] windows=1935 bpb=1.1389 elapsed=66.4s
+  fused_chunk [126/1893] windows=2015 bpb=1.1398 elapsed=69.1s
+  fused_chunk [131/1893] windows=2095 bpb=1.1390 elapsed=70.5s
+  fused_chunk [136/1893] windows=2175 bpb=1.1401 elapsed=71.9s
+  fused_chunk [141/1893] windows=2255 bpb=1.1442 elapsed=73.4s
+  fused_chunk [146/1893] windows=2335 bpb=1.1443 elapsed=74.8s
+  fused_chunk [151/1893] windows=2415 bpb=1.1456 elapsed=79.0s
+  fused_chunk [156/1893] windows=2495 bpb=1.1456 elapsed=83.2s
+  fused_chunk [161/1893] windows=2575 bpb=1.1452 elapsed=86.1s
+  fused_chunk [166/1893] windows=2655 bpb=1.1501 elapsed=89.0s
+  fused_chunk [171/1893] windows=2735 bpb=1.1493 elapsed=90.5s
+  fused_chunk [176/1893] windows=2815 bpb=1.1504 elapsed=93.4s
+  fused_chunk [181/1893] windows=2895 bpb=1.1514 elapsed=94.9s
+  fused_chunk [186/1893] windows=2975 bpb=1.1535 elapsed=96.3s
+  fused_chunk [191/1893] windows=3055 bpb=1.1585 elapsed=97.8s
+  fused_chunk [196/1893] windows=3135 bpb=1.1567 elapsed=99.2s
+  fused_chunk [201/1893] windows=3215 bpb=1.1574 elapsed=100.6s
+  fused_chunk [206/1893] windows=3295 bpb=1.1551 elapsed=105.3s
+  fused_chunk [211/1893] windows=3375 bpb=1.1550 elapsed=109.8s
+  fused_chunk [216/1893] windows=3455 bpb=1.1570 elapsed=111.2s
+  fused_chunk [221/1893] windows=3535 bpb=1.1561 elapsed=116.1s
+  fused_chunk [226/1893] windows=3615 bpb=1.1563 elapsed=119.2s
+  fused_chunk [231/1893] windows=3695 bpb=1.1544 elapsed=120.6s
+  fused_chunk [236/1893] windows=3775 bpb=1.1552 elapsed=123.8s
+  fused_chunk [241/1893] windows=3855 bpb=1.1544 elapsed=125.3s
+  fused_chunk [246/1893] windows=3935 bpb=1.1535 elapsed=126.7s
+  fused_chunk [251/1893] windows=4015 bpb=1.1536 elapsed=128.2s
+  fused_chunk [256/1893] windows=4095 bpb=1.1531 elapsed=129.6s
+  fused_chunk [261/1893] windows=4175 bpb=1.1504 elapsed=131.0s
+  fused_chunk [266/1893] windows=4255 bpb=1.1489 elapsed=132.5s
+  fused_chunk [271/1893] windows=4335 bpb=1.1492 elapsed=135.9s
+  fused_chunk [276/1893] windows=4415 bpb=1.1492 elapsed=139.2s
+  fused_chunk [281/1893] windows=4495 bpb=1.1504 elapsed=142.6s
+  fused_chunk [286/1893] windows=4575 bpb=1.1514 elapsed=146.0s
+  fused_chunk [291/1893] windows=4655 bpb=1.1521 elapsed=147.5s
+  fused_chunk [296/1893] windows=4735 bpb=1.1528 elapsed=155.1s
+  fused_chunk [301/1893] windows=4815 bpb=1.1525 elapsed=156.6s
+  fused_chunk [306/1893] windows=4895 bpb=1.1532 elapsed=158.0s
+  fused_chunk [311/1893] windows=4975 bpb=1.1544 elapsed=159.5s
+  fused_chunk [316/1893] windows=5055 bpb=1.1555 elapsed=163.1s
+  fused_chunk [321/1893] windows=5135 bpb=1.1559 elapsed=164.5s
+  fused_chunk [326/1893] windows=5215 bpb=1.1563 elapsed=166.0s
+  fused_chunk [331/1893] windows=5295 bpb=1.1555 elapsed=167.4s
+  fused_chunk [336/1893] windows=5375 bpb=1.1553 elapsed=168.9s
+  fused_chunk [341/1893] windows=5455 bpb=1.1543 elapsed=170.3s
+  fused_chunk [346/1893] windows=5535 bpb=1.1546 elapsed=171.8s
+  fused_chunk [351/1893] windows=5615 bpb=1.1563 elapsed=173.4s
+  fused_chunk [356/1893] windows=5695 bpb=1.1560 elapsed=175.0s
+  fused_chunk [361/1893] windows=5775 bpb=1.1563 elapsed=178.9s
+  fused_chunk [366/1893] windows=5855 bpb=1.1549 elapsed=182.6s
+  fused_chunk [371/1893] windows=5935 bpb=1.1554 elapsed=188.7s
+  fused_chunk [376/1893] windows=6015 bpb=1.1551 elapsed=190.3s
+  fused_chunk [381/1893] windows=6095 bpb=1.1554 elapsed=191.7s
+  fused_chunk [386/1893] windows=6175 bpb=1.1546 elapsed=195.6s
+  fused_chunk [391/1893] windows=6255 bpb=1.1549 elapsed=201.9s
+  fused_chunk [396/1893] windows=6335 bpb=1.1540 elapsed=203.3s
+  fused_chunk [401/1893] windows=6415 bpb=1.1527 elapsed=204.8s
+  fused_chunk [406/1893] windows=6495 bpb=1.1522 elapsed=206.3s
+  fused_chunk [411/1893] windows=6575 bpb=1.1516 elapsed=210.2s
+  fused_chunk [416/1893] windows=6655 bpb=1.1505 elapsed=211.7s
+  fused_chunk [421/1893] windows=6735 bpb=1.1504 elapsed=213.1s
+  fused_chunk [426/1893] windows=6815 bpb=1.1503 elapsed=214.6s
+  fused_chunk [431/1893] windows=6895 bpb=1.1502 elapsed=216.0s
+  fused_chunk [436/1893] windows=6975 bpb=1.1499 elapsed=217.5s
+  fused_chunk [441/1893] windows=7055 bpb=1.1503 elapsed=219.0s
+  fused_chunk [446/1893] windows=7135 bpb=1.1507 elapsed=220.5s
+  fused_chunk [451/1893] windows=7215 bpb=1.1505 elapsed=221.9s
+  fused_chunk [456/1893] windows=7295 bpb=1.1497 elapsed=223.4s
+  fused_chunk [461/1893] windows=7375 bpb=1.1492 elapsed=224.8s
+  fused_chunk [466/1893] windows=7455 bpb=1.1498 elapsed=226.3s
+  fused_chunk [471/1893] windows=7535 bpb=1.1497 elapsed=230.5s
+  fused_chunk [476/1893] windows=7615 bpb=1.1495 elapsed=234.7s
+  fused_chunk [481/1893] windows=7695 bpb=1.1492 elapsed=236.2s
+  fused_chunk [486/1893] windows=7775 bpb=1.1485 elapsed=243.7s
+  fused_chunk [491/1893] windows=7855 bpb=1.1480 elapsed=245.2s
+  fused_chunk [496/1893] windows=7935 bpb=1.1477 elapsed=246.6s
+  fused_chunk [501/1893] windows=8015 bpb=1.1474 elapsed=250.9s
+  fused_chunk [506/1893] windows=8095 bpb=1.1468 elapsed=255.3s
+  fused_chunk [511/1893] windows=8175 bpb=1.1466 elapsed=260.1s
+  fused_chunk [516/1893] windows=8255 bpb=1.1449 elapsed=261.6s
+  fused_chunk [521/1893] windows=8335 bpb=1.1445 elapsed=263.0s
+  fused_chunk [526/1893] windows=8415 bpb=1.1451 elapsed=264.5s
+  fused_chunk [531/1893] windows=8495 bpb=1.1454 elapsed=265.9s
+  fused_chunk [536/1893] windows=8575 bpb=1.1448 elapsed=270.2s
+  fused_chunk [541/1893] windows=8655 bpb=1.1456 elapsed=271.7s
+  fused_chunk [546/1893] windows=8735 bpb=1.1448 elapsed=273.1s
+  fused_chunk [551/1893] windows=8815 bpb=1.1444 elapsed=274.6s
+  fused_chunk [556/1893] windows=8895 bpb=1.1453 elapsed=276.1s
+  fused_chunk [561/1893] windows=8975 bpb=1.1448 elapsed=277.6s
+  fused_chunk [566/1893] windows=9055 bpb=1.1442 elapsed=279.0s
+  fused_chunk [571/1893] windows=9135 bpb=1.1436 elapsed=280.5s
+  fused_chunk [576/1893] windows=9215 bpb=1.1428 elapsed=282.0s
+  fused_chunk [581/1893] windows=9295 bpb=1.1427 elapsed=283.5s
+  fused_chunk [586/1893] windows=9375 bpb=1.1429 elapsed=285.0s
+  fused_chunk [591/1893] windows=9455 bpb=1.1419 elapsed=286.4s
+  fused_chunk [596/1893] windows=9535 bpb=1.1423 elapsed=287.9s
+  fused_chunk [601/1893] windows=9615 bpb=1.1423 elapsed=289.4s
+  fused_chunk [606/1893] windows=9695 bpb=1.1421 elapsed=290.8s
+  fused_chunk [611/1893] windows=9775 bpb=1.1420 elapsed=295.8s
+  fused_chunk [616/1893] windows=9855 bpb=1.1422 elapsed=297.3s
+  fused_chunk [621/1893] windows=9935 bpb=1.1418 elapsed=302.1s
+  fused_chunk [626/1893] windows=10015 bpb=1.1422 elapsed=303.5s
+  fused_chunk [631/1893] windows=10095 bpb=1.1424 elapsed=308.5s
+  fused_chunk [636/1893] windows=10175 bpb=1.1416 elapsed=310.0s
+  fused_chunk [641/1893] windows=10255 bpb=1.1420 elapsed=311.5s
+  fused_chunk [646/1893] windows=10335 bpb=1.1425 elapsed=312.9s
+  fused_chunk [651/1893] windows=10415 bpb=1.1418 elapsed=318.1s
+  fused_chunk [656/1893] windows=10495 bpb=1.1418 elapsed=319.6s
+  fused_chunk [661/1893] windows=10575 bpb=1.1412 elapsed=324.8s
+  fused_chunk [666/1893] windows=10655 bpb=1.1417 elapsed=326.3s
+  fused_chunk [671/1893] windows=10735 bpb=1.1415 elapsed=327.8s
+  fused_chunk [676/1893] windows=10815 bpb=1.1417 elapsed=329.3s
+  fused_chunk [681/1893] windows=10895 bpb=1.1421 elapsed=330.8s
+  fused_chunk [686/1893] windows=10975 bpb=1.1419 elapsed=332.3s
+  fused_chunk [691/1893] windows=11055 bpb=1.1429 elapsed=333.7s
+  fused_chunk [696/1893] windows=11135 bpb=1.1426 elapsed=339.1s
+  fused_chunk [701/1893] windows=11215 bpb=1.1423 elapsed=340.9s
+  fused_chunk [706/1893] windows=11295 bpb=1.1418 elapsed=342.5s
+  fused_chunk [711/1893] windows=11375 bpb=1.1421 elapsed=344.3s
+  fused_chunk [716/1893] windows=11455 bpb=1.1415 elapsed=345.8s
+  fused_chunk [721/1893] windows=11535 bpb=1.1416 elapsed=347.4s
+  fused_chunk [726/1893] windows=11615 bpb=1.1414 elapsed=349.1s
+  fused_chunk [731/1893] windows=11695 bpb=1.1417 elapsed=350.6s
+  fused_chunk [736/1893] windows=11775 bpb=1.1419 elapsed=352.0s
+  fused_chunk [741/1893] windows=11855 bpb=1.1416 elapsed=353.5s
+  fused_chunk [746/1893] windows=11935 bpb=1.1417 elapsed=355.0s
+  fused_chunk [751/1893] windows=12015 bpb=1.1414 elapsed=356.5s
+  fused_chunk [756/1893] windows=12095 bpb=1.1414 elapsed=358.3s
+  fused_chunk [761/1893] windows=12175 bpb=1.1412 elapsed=359.8s
+  fused_chunk [766/1893] windows=12255 bpb=1.1411 elapsed=361.2s
+  fused_chunk [771/1893] windows=12335 bpb=1.1408 elapsed=362.7s
+  fused_chunk [776/1893] windows=12415 bpb=1.1410 elapsed=364.2s
+  fused_chunk [781/1893] windows=12495 bpb=1.1414 elapsed=365.6s
+  fused_chunk [786/1893] windows=12575 bpb=1.1409 elapsed=371.3s
+  fused_chunk [791/1893] windows=12655 bpb=1.1409 elapsed=372.7s
+  fused_chunk [796/1893] windows=12735 bpb=1.1411 elapsed=374.2s
+  fused_chunk [801/1893] windows=12815 bpb=1.1411 elapsed=380.0s
+  fused_chunk [806/1893] windows=12895 bpb=1.1410 elapsed=381.5s
+  fused_chunk [811/1893] windows=12975 bpb=1.1409 elapsed=391.5s
+  fused_chunk [816/1893] windows=13055 bpb=1.1406 elapsed=393.0s
+  fused_chunk [821/1893] windows=13135 bpb=1.1406 elapsed=394.5s
+  fused_chunk [826/1893] windows=13215 bpb=1.1407 elapsed=396.0s
+  fused_chunk [831/1893] windows=13295 bpb=1.1403 elapsed=397.4s
+  fused_chunk [836/1893] windows=13375 bpb=1.1397 elapsed=398.9s
+  fused_chunk [841/1893] windows=13455 bpb=1.1396 elapsed=404.8s
+  fused_chunk [846/1893] windows=13535 bpb=1.1396 elapsed=406.7s
+  fused_chunk [851/1893] windows=13615 bpb=1.1394 elapsed=417.0s
+  fused_chunk [856/1893] windows=13695 bpb=1.1391 elapsed=418.4s
+  fused_chunk [861/1893] windows=13775 bpb=1.1391 elapsed=419.9s
+  fused_chunk [866/1893] windows=13855 bpb=1.1393 elapsed=421.4s
+  fused_chunk [871/1893] windows=13935 bpb=1.1393 elapsed=422.8s
+  fused_chunk [876/1893] windows=14015 bpb=1.1393 elapsed=424.3s
+  fused_chunk [881/1893] windows=14095 bpb=1.1394 elapsed=425.8s
+  fused_chunk [886/1893] windows=14175 bpb=1.1392 elapsed=427.2s
+  fused_chunk [891/1893] windows=14255 bpb=1.1390 elapsed=428.7s
+  fused_chunk [896/1893] windows=14335 bpb=1.1389 elapsed=434.7s
+  fused_chunk [901/1893] windows=14415 bpb=1.1387 elapsed=436.2s
+  fused_chunk [906/1893] windows=14495 bpb=1.1384 elapsed=437.7s
+  fused_chunk [911/1893] windows=14575 bpb=1.1387 elapsed=439.2s
+  fused_chunk [916/1893] windows=14655 bpb=1.1391 elapsed=440.6s
+  fused_chunk [921/1893] windows=14735 bpb=1.1391 elapsed=442.1s
+  fused_chunk [926/1893] windows=14815 bpb=1.1393 elapsed=443.6s
+  fused_chunk [931/1893] windows=14895 bpb=1.1390 elapsed=445.1s
+  fused_chunk [936/1893] windows=14975 bpb=1.1386 elapsed=446.5s
+  fused_chunk [941/1893] windows=15055 bpb=1.1386 elapsed=448.0s
+  fused_chunk [946/1893] windows=15135 bpb=1.1391 elapsed=449.5s
+  fused_chunk [951/1893] windows=15215 bpb=1.1390 elapsed=451.0s
+  fused_chunk [956/1893] windows=15295 bpb=1.1393 elapsed=452.4s
+  fused_chunk [961/1893] windows=15375 bpb=1.1390 elapsed=453.9s
+  fused_chunk [966/1893] windows=15455 bpb=1.1394 elapsed=455.4s
+  fused_chunk [971/1893] windows=15535 bpb=1.1397 elapsed=456.9s
+  fused_chunk [976/1893] windows=15615 bpb=1.1399 elapsed=458.3s
+  fused_chunk [981/1893] windows=15695 bpb=1.1398 elapsed=459.8s
+  fused_chunk [986/1893] windows=15775 bpb=1.1398 elapsed=461.3s
+  fused_chunk [991/1893] windows=15855 bpb=1.1397 elapsed=462.8s
+  fused_chunk [996/1893] windows=15935 bpb=1.1396 elapsed=464.3s
+  fused_chunk [1001/1893] windows=16015 bpb=1.1396 elapsed=465.8s
+  fused_chunk [1006/1893] windows=16095 bpb=1.1393 elapsed=467.3s
+  fused_chunk [1011/1893] windows=16175 bpb=1.1393 elapsed=468.8s
+  fused_chunk [1016/1893] windows=16255 bpb=1.1397 elapsed=475.5s
+  fused_chunk [1021/1893] windows=16335 bpb=1.1396 elapsed=477.0s
+  fused_chunk [1026/1893] windows=16415 bpb=1.1398 elapsed=478.5s
+  fused_chunk [1031/1893] windows=16495 bpb=1.1400 elapsed=485.4s
+  fused_chunk [1036/1893] windows=16575 bpb=1.1398 elapsed=486.9s
+  fused_chunk [1041/1893] windows=16655 bpb=1.1396 elapsed=488.4s
+  fused_chunk [1046/1893] windows=16735 bpb=1.1394 elapsed=500.5s
+  fused_chunk [1051/1893] windows=16815 bpb=1.1393 elapsed=502.0s
+  fused_chunk [1056/1893] windows=16895 bpb=1.1394 elapsed=503.5s
+  fused_chunk [1061/1893] windows=16975 bpb=1.1393 elapsed=505.0s
+  fused_chunk [1066/1893] windows=17055 bpb=1.1395 elapsed=506.5s
+  fused_chunk [1071/1893] windows=17135 bpb=1.1399 elapsed=508.0s
+  fused_chunk [1076/1893] windows=17215 bpb=1.1401 elapsed=509.5s
+  fused_chunk [1081/1893] windows=17295 bpb=1.1400 elapsed=516.7s
+  fused_chunk [1086/1893] windows=17375 bpb=1.1408 elapsed=518.1s
+  fused_chunk [1091/1893] windows=17455 bpb=1.1407 elapsed=525.4s
+  fused_chunk [1096/1893] windows=17535 bpb=1.1407 elapsed=532.9s
+  fused_chunk [1101/1893] windows=17615 bpb=1.1406 elapsed=534.4s
+  fused_chunk [1106/1893] windows=17695 bpb=1.1405 elapsed=536.0s
+  fused_chunk [1111/1893] windows=17775 bpb=1.1404 elapsed=537.5s
+  fused_chunk [1116/1893] windows=17855 bpb=1.1402 elapsed=539.0s
+  fused_chunk [1121/1893] windows=17935 bpb=1.1401 elapsed=540.5s
+  fused_chunk [1126/1893] windows=18015 bpb=1.1397 elapsed=542.0s
+  fused_chunk [1131/1893] windows=18095 bpb=1.1399 elapsed=543.5s
+  fused_chunk [1136/1893] windows=18175 bpb=1.1396 elapsed=545.3s ADAPTIVE: skip 1->5 (est=909s, budget=218.68953067692928s)
+  fused_chunk [1141/1893] windows=18195 bpb=1.1396 elapsed=546.0s
+  fused_chunk [1146/1893] windows=18215 bpb=1.1396 elapsed=546.8s
+  fused_chunk [1151/1893] windows=18235 bpb=1.1396 elapsed=547.4s
+  fused_chunk [1156/1893] windows=18255 bpb=1.1395 elapsed=548.0s
+  fused_chunk [1161/1893] windows=18275 bpb=1.1394 elapsed=548.5s
+  fused_chunk [1166/1893] windows=18295 bpb=1.1395 elapsed=549.1s
+  fused_chunk [1171/1893] windows=18315 bpb=1.1394 elapsed=549.7s
+  fused_chunk [1176/1893] windows=18335 bpb=1.1393 elapsed=556.3s
+  fused_chunk [1181/1893] windows=18355 bpb=1.1392 elapsed=556.9s
+  fused_chunk [1186/1893] windows=18375 bpb=1.1392 elapsed=557.5s
+  fused_chunk [1191/1893] windows=18395 bpb=1.1391 elapsed=558.0s
+  fused_chunk [1196/1893] windows=18415 bpb=1.1392 elapsed=558.6s
+  fused_chunk [1201/1893] windows=18435 bpb=1.1392 elapsed=559.2s
+  fused_chunk [1206/1893] windows=18455 bpb=1.1392 elapsed=559.7s
+  fused_chunk [1211/1893] windows=18475 bpb=1.1391 elapsed=560.3s
+  fused_chunk [1216/1893] windows=18495 bpb=1.1391 elapsed=560.9s
+  fused_chunk [1221/1893] windows=18515 bpb=1.1390 elapsed=561.5s
+  fused_chunk [1226/1893] windows=18535 bpb=1.1390 elapsed=562.0s
+  fused_chunk [1231/1893] windows=18555 bpb=1.1389 elapsed=562.6s
+  fused_chunk [1236/1893] windows=18575 bpb=1.1389 elapsed=563.2s
+  fused_chunk [1241/1893] windows=18595 bpb=1.1388 elapsed=563.7s
+  fused_chunk [1246/1893] windows=18615 bpb=1.1388 elapsed=564.3s
+  fused_chunk [1251/1893] windows=18635 bpb=1.1388 elapsed=564.9s
+  fused_chunk [1256/1893] windows=18655 bpb=1.1387 elapsed=565.5s
+  fused_chunk [1261/1893] windows=18675 bpb=1.1387 elapsed=566.0s
+  fused_chunk [1266/1893] windows=18695 bpb=1.1387 elapsed=566.6s
+  fused_chunk [1271/1893] windows=18715 bpb=1.1385 elapsed=567.2s
+  fused_chunk [1276/1893] windows=18735 bpb=1.1384 elapsed=567.7s
+  fused_chunk [1281/1893] windows=18755 bpb=1.1384 elapsed=568.3s
+  fused_chunk [1286/1893] windows=18775 bpb=1.1384 elapsed=568.9s
+  fused_chunk [1291/1893] windows=18795 bpb=1.1383 elapsed=569.4s
+  fused_chunk [1296/1893] windows=18815 bpb=1.1382 elapsed=570.0s
+  fused_chunk [1301/1893] windows=18835 bpb=1.1381 elapsed=570.6s
+  fused_chunk [1306/1893] windows=18855 bpb=1.1381 elapsed=571.1s
+  fused_chunk [1311/1893] windows=18875 bpb=1.1380 elapsed=571.7s
+  fused_chunk [1316/1893] windows=18895 bpb=1.1380 elapsed=572.3s
+  fused_chunk [1321/1893] windows=18915 bpb=1.1379 elapsed=572.8s
+  fused_chunk [1326/1893] windows=18935 bpb=1.1379 elapsed=573.4s ADAPTIVE: skip 5->4 (est=819s, budget=218.68953067692928s)
+  fused_chunk [1331/1893] windows=18955 bpb=1.1378 elapsed=574.0s
+  fused_chunk [1336/1893] windows=18975 bpb=1.1378 elapsed=574.5s
+  fused_chunk [1341/1893] windows=18995 bpb=1.1378 elapsed=575.1s
+  fused_chunk [1346/1893] windows=19015 bpb=1.1377 elapsed=575.7s
+  fused_chunk [1351/1893] windows=19035 bpb=1.1378 elapsed=576.2s
+  fused_chunk [1356/1893] windows=19055 bpb=1.1378 elapsed=576.8s
+  fused_chunk [1361/1893] windows=19075 bpb=1.1378 elapsed=577.4s
+  fused_chunk [1366/1893] windows=19095 bpb=1.1377 elapsed=577.9s
+  fused_chunk [1371/1893] windows=19115 bpb=1.1377 elapsed=578.5s
+  fused_chunk [1376/1893] windows=19135 bpb=1.1378 elapsed=579.1s
+  fused_chunk [1381/1893] windows=19155 bpb=1.1377 elapsed=579.6s
+  fused_chunk [1386/1893] windows=19175 bpb=1.1376 elapsed=580.2s
+  fused_chunk [1391/1893] windows=19195 bpb=1.1375 elapsed=580.8s
+  fused_chunk [1396/1893] windows=19215 bpb=1.1375 elapsed=581.4s
+  fused_chunk [1401/1893] windows=19235 bpb=1.1374 elapsed=581.9s
+  fused_chunk [1406/1893] windows=19255 bpb=1.1373 elapsed=582.6s
+  fused_chunk [1411/1893] windows=19275 bpb=1.1374 elapsed=583.1s
+  fused_chunk [1416/1893] windows=19295 bpb=1.1374 elapsed=583.8s
+  fused_chunk [1421/1893] windows=19315 bpb=1.1374 elapsed=584.4s
+  fused_chunk [1426/1893] windows=19335 bpb=1.1375 elapsed=585.1s
+  fused_chunk [1431/1893] windows=19355 bpb=1.1374 elapsed=585.7s
+  fused_chunk [1436/1893] windows=19375 bpb=1.1374 elapsed=586.3s
+  fused_chunk [1441/1893] windows=19395 bpb=1.1375 elapsed=586.8s
+  fused_chunk [1446/1893] windows=19415 bpb=1.1375 elapsed=587.4s
+  fused_chunk [1451/1893] windows=19435 bpb=1.1375 elapsed=588.0s
+  fused_chunk [1456/1893] windows=19455 bpb=1.1375 elapsed=588.5s
+  fused_chunk [1461/1893] windows=19475 bpb=1.1374 elapsed=589.1s
+  fused_chunk [1466/1893] windows=19495 bpb=1.1375 elapsed=589.7s
+  fused_chunk [1471/1893] windows=19515 bpb=1.1377 elapsed=590.2s
+  fused_chunk [1476/1893] windows=19535 bpb=1.1377 elapsed=590.8s
+  fused_chunk [1481/1893] windows=19555 bpb=1.1375 elapsed=591.3s
+  fused_chunk [1486/1893] windows=19575 bpb=1.1375 elapsed=591.9s
+  fused_chunk [1491/1893] windows=19595 bpb=1.1375 elapsed=592.5s
+  fused_chunk [1496/1893] windows=19615 bpb=1.1374 elapsed=593.0s
+  fused_chunk [1501/1893] windows=19635 bpb=1.1374 elapsed=593.6s
+  fused_chunk [1506/1893] windows=19655 bpb=1.1374 elapsed=594.1s
+  fused_chunk [1511/1893] windows=19675 bpb=1.1374 elapsed=594.7s
+  fused_chunk [1516/1893] windows=19695 bpb=1.1374 elapsed=595.3s
+  fused_chunk [1521/1893] windows=19715 bpb=1.1374 elapsed=595.8s
+  fused_chunk [1526/1893] windows=19735 bpb=1.1373 elapsed=596.4s
+  fused_chunk [1531/1893] windows=19755 bpb=1.1372 elapsed=597.0s
+  fused_chunk [1536/1893] windows=19775 bpb=1.1372 elapsed=597.5s
+  fused_chunk [1541/1893] windows=19795 bpb=1.1371 elapsed=598.1s
+  fused_chunk [1546/1893] windows=19815 bpb=1.1372 elapsed=598.7s
+  fused_chunk [1551/1893] windows=19835 bpb=1.1372 elapsed=599.2s
+  fused_chunk [1556/1893] windows=19855 bpb=1.1371 elapsed=599.8s
+  fused_chunk [1561/1893] windows=19875 bpb=1.1371 elapsed=600.4s
+  fused_chunk [1566/1893] windows=19895 bpb=1.1371 elapsed=600.9s
+  fused_chunk [1571/1893] windows=19915 bpb=1.1371 elapsed=601.5s
+  fused_chunk [1576/1893] windows=19935 bpb=1.1371 elapsed=602.1s
+  fused_chunk [1581/1893] windows=19955 bpb=1.1371 elapsed=602.7s
+  fused_chunk [1586/1893] windows=19975 bpb=1.1371 elapsed=603.3s
+  fused_chunk [1591/1893] windows=19995 bpb=1.1371 elapsed=603.8s
+  fused_chunk [1596/1893] windows=20015 bpb=1.1371 elapsed=604.4s
+  fused_chunk [1601/1893] windows=20035 bpb=1.1371 elapsed=605.0s
+  fused_chunk [1606/1893] windows=20055 bpb=1.1371 elapsed=605.5s
+  fused_chunk [1611/1893] windows=20075 bpb=1.1370 elapsed=606.1s
+  fused_chunk [1616/1893] windows=20095 bpb=1.1370 elapsed=606.7s
+  fused_chunk [1621/1893] windows=20115 bpb=1.1369 elapsed=607.2s
+  fused_chunk [1626/1893] windows=20135 bpb=1.1369 elapsed=607.8s
+  fused_chunk [1631/1893] windows=20155 bpb=1.1370 elapsed=608.4s
+  fused_chunk [1636/1893] windows=20175 bpb=1.1369 elapsed=608.9s
+  fused_chunk [1641/1893] windows=20195 bpb=1.1369 elapsed=609.5s
+  fused_chunk [1646/1893] windows=20215 bpb=1.1369 elapsed=610.1s
+  fused_chunk [1651/1893] windows=20235 bpb=1.1368 elapsed=610.6s
+  fused_chunk [1656/1893] windows=20255 bpb=1.1368 elapsed=611.2s
+  fused_chunk [1661/1893] windows=20275 bpb=1.1368 elapsed=611.8s
+  fused_chunk [1666/1893] windows=20295 bpb=1.1369 elapsed=612.3s
+  fused_chunk [1671/1893] windows=20315 bpb=1.1369 elapsed=612.9s
+  fused_chunk [1676/1893] windows=20335 bpb=1.1369 elapsed=613.4s
+  fused_chunk [1681/1893] windows=20355 bpb=1.1370 elapsed=614.0s
+  fused_chunk [1686/1893] windows=20375 bpb=1.1368 elapsed=614.6s
+  fused_chunk [1691/1893] windows=20395 bpb=1.1369 elapsed=615.1s
+  fused_chunk [1696/1893] windows=20415 bpb=1.1370 elapsed=615.7s
+  fused_chunk [1701/1893] windows=20435 bpb=1.1369 elapsed=616.3s
+  fused_chunk [1706/1893] windows=20455 bpb=1.1369 elapsed=616.8s
+  fused_chunk [1711/1893] windows=20475 bpb=1.1370 elapsed=617.4s
+  fused_chunk [1716/1893] windows=20495 bpb=1.1369 elapsed=618.0s
+  fused_chunk [1721/1893] windows=20515 bpb=1.1369 elapsed=618.5s
+  fused_chunk [1726/1893] windows=20535 bpb=1.1369 elapsed=619.1s
+  fused_chunk [1731/1893] windows=20555 bpb=1.1369 elapsed=619.6s
+  fused_chunk [1736/1893] windows=20575 bpb=1.1369 elapsed=620.2s
+  fused_chunk [1741/1893] windows=20595 bpb=1.1369 elapsed=620.8s
+  fused_chunk [1746/1893] windows=20615 bpb=1.1368 elapsed=621.4s
+  fused_chunk [1751/1893] windows=20635 bpb=1.1368 elapsed=621.9s
+  fused_chunk [1756/1893] windows=20655 bpb=1.1368 elapsed=622.5s
+  fused_chunk [1761/1893] windows=20675 bpb=1.1369 elapsed=629.8s
+  fused_chunk [1766/1893] windows=20695 bpb=1.1368 elapsed=630.4s
+  fused_chunk [1771/1893] windows=20715 bpb=1.1368 elapsed=631.0s
+  fused_chunk [1776/1893] windows=20735 bpb=1.1368 elapsed=631.5s
+  fused_chunk [1781/1893] windows=20755 bpb=1.1368 elapsed=632.1s
+  fused_chunk [1786/1893] windows=20775 bpb=1.1367 elapsed=632.6s
+  fused_chunk [1791/1893] windows=20795 bpb=1.1366 elapsed=633.2s
+  fused_chunk [1796/1893] windows=20815 bpb=1.1366 elapsed=633.8s
+  fused_chunk [1801/1893] windows=20835 bpb=1.1366 elapsed=634.3s
+  fused_chunk [1806/1893] windows=20855 bpb=1.1365 elapsed=634.9s
+  fused_chunk [1811/1893] windows=20875 bpb=1.1365 elapsed=635.5s
+  fused_chunk [1816/1893] windows=20895 bpb=1.1365 elapsed=636.0s
+  fused_chunk [1821/1893] windows=20915 bpb=1.1364 elapsed=636.6s
+  fused_chunk [1826/1893] windows=20935 bpb=1.1364 elapsed=637.2s
+  fused_chunk [1831/1893] windows=20955 bpb=1.1362 elapsed=637.7s
+  fused_chunk [1836/1893] windows=20975 bpb=1.1363 elapsed=638.3s
+  fused_chunk [1841/1893] windows=20995 bpb=1.1363 elapsed=638.9s
+  fused_chunk [1846/1893] windows=21015 bpb=1.1362 elapsed=645.4s
+  fused_chunk [1851/1893] windows=21035 bpb=1.1361 elapsed=646.0s
+  fused_chunk [1856/1893] windows=21055 bpb=1.1361 elapsed=646.6s
+  fused_chunk [1861/1893] windows=21075 bpb=1.1361 elapsed=647.2s
+  fused_chunk [1866/1893] windows=21095 bpb=1.1361 elapsed=647.8s
+  fused_chunk [1871/1893] windows=21115 bpb=1.1360 elapsed=648.3s
+  fused_chunk [1876/1893] windows=21135 bpb=1.1359 elapsed=648.9s
+  fused_chunk [1881/1893] windows=21155 bpb=1.1358 elapsed=649.4s
+  fused_chunk [1886/1893] windows=21175 bpb=1.1357 elapsed=650.0s
+  fused_chunk [1891/1893] windows=21195 bpb=1.1357 elapsed=650.6s
+  fused_chunk [1893/1893] windows=21202 bpb=1.1357 elapsed=650.7s ADAPTIVE: skip 4->3 (est=651s, budget=218.68953067692928s)
+fused_ttt_sliding:done val_loss=1.905159 val_bpb=1.130128 elapsed=650.7s
+fused_ttt_sliding: val_loss=1.9052 val_bpb=1.1301 total_time=660601ms improvement:0.0666
+7.7s
+  fused_chunk [1836/1893] windows=20975 bpb=1.1363 elapsed=638.3s
+  fused_chunk [1841/1893] windows=20995 bpb=1.1363 elapsed=638.9s
+  fused_chunk [1846/1893] windows=21015 bpb=1.1362 elapsed=645.4s
+  fused_chunk [1851/1893] windows=21035 bpb=1.1361 elapsed=646.0s
+  fused_chunk [1856/1893] windows=21055 bpb=1.1361 elapsed=646.6s
+  fused_chunk [1861/1893] windows=21075 bpb=1.1361 elapsed=647.2s
+  fused_chunk [1866/1893] windows=21095 bpb=1.1361 elapsed=647.8s
+  fused_chunk [1871/1893] windows=21115 bpb=1.1360 elapsed=648.3s
+  fused_chunk [1876/1893] windows=21135 bpb=1.1359 elapsed=648.9s
+  fused_chunk [1881/1893] windows=21155 bpb=1.1358 elapsed=649.4s
+  fused_chunk [1886/1893] windows=21175 bpb=1.1357 elapsed=650.0s
+  fused_chunk [1891/1893] windows=21195 bpb=1.1357 elapsed=650.6s
+  fused_chunk [1893/1893] windows=21202 bpb=1.1357 elapsed=650.7s ADAPTIVE: skip 4->3 (est=651s, budget=218.68953067692928s)
+fused_ttt_sliding:done val_loss=1.905159 val_bpb=1.130128 elapsed=650.7s
+fused_ttt_sliding: val_loss=1.9052 val_bpb=1.1301 total_time=660601ms improvement:0.0666
+=== FINAL DONE Sun Apr  5 00:08:30 UTC 2026 ===
+=== RESULTS ===
+model_params:27333833
+step:5922/20000 val_loss:2.2876 val_bpb:1.3548 train_time:600132ms step_avg:101.34ms
+artifact: 16,328,917 bytes (model=16,215,433 code=113,484 limit=16,000,000 excess=328,917)
+final_int5_zstd_roundtrip val_loss:2.0206 val_bpb:1.1967 eval_time:28650ms gap:-0.1581
+fused_ttt_sliding:start chunks=1893 chunk_tokens=32768 total_windows=242265 stride=256 ttt_lr=0.002 ttt_epochs=2 mode=lora unfreeze=2 hedge=True
+fused_ttt_sliding:params trainable=65,536 groups=1
+fused_ttt_sliding:done val_loss=1.905159 val_bpb=1.130128 elapsed=650.7s
+fused_ttt_sliding: val_loss=1.9052 val_bpb=1.1301 total_time=660601ms improvement:0.0666
+fused_ttt_sliding:done val_loss=1.905159 val_bpb=1.130128 elapsed=650.7s
+fused_ttt_sliding: val_loss=1.9052 val_bpb=1.1301 total_time=660601ms improvement:0.0666
+=== ALL RUNS DONE Sun Apr  5 00:08:30 UTC 2026 ===
