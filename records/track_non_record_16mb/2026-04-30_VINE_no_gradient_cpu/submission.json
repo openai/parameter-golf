@@ -1,0 +1,25 @@
+{
+  "name": "VINE",
+  "author": "Raychell Langan, NEXICOG Ltd",
+  "github_id": "RaychellLangan",
+  "contact": "raychell.langan@gmail.com",
+  "portfolio": "https://vineai.net/research/portfolio/",
+  "date": "2026-04-30",
+  "track": "non_record",
+  "val_bpb": 2.1728,
+  "eval_protocol": {
+    "slice_bytes": 500000,
+    "slice_offset": 0,
+    "val_source": "FineWeb10B sp1024 val shard 0, decoded to UTF-8",
+    "wallclock_seconds_end_to_end": 1837,
+    "platform": "Single CPU, single process, home PC (AMD Ryzen 7 5700X3D)"
+  },
+  "training": {
+    "uses_transformer": false,
+    "uses_gradient_descent": false,
+    "uses_backpropagation": false,
+    "uses_loss_function": false,
+    "learned_parameters": 0
+  },
+  "notes": "Minimal byte-prediction adaptation of VINE."
+}
