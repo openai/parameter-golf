@@ -1,0 +1,10 @@
+{
+  "track": "10min_16mb",
+  "val_bpb_mean": 0.0235,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "hardware": "1xB200",
+  "train_time_s": 600,
+  "eval_time_s": 65808,
+  "artifact_bytes": 6458133
+}
