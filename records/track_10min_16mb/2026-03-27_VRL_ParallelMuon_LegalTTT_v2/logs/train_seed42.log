@@ -1,0 +1,338 @@
+W0328 10:19:57.786000 12704 torch/distributed/run.py:852] 
+W0328 10:19:57.786000 12704 torch/distributed/run.py:852] *****************************************
+W0328 10:19:57.786000 12704 torch/distributed/run.py:852] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0328 10:19:57.786000 12704 torch/distributed/run.py:852] *****************************************
+/usr/local/lib/python3.12/dist-packages/torch/library.py:357: UserWarning: Warning only once for all operators,  other operators may also be overridden.
+  Overriding a previously registered kernel for the same operator and the same dispatch key
+  operator: flash_attn::_flash_attn_backward(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, Tensor softmax_lse, Tensor(a6!)? dq, Tensor(a7!)? dk, Tensor(a8!)? dv, float dropout_p, float softmax_scale, bool causal, SymInt window_size_left, SymInt window_size_right, float softcap, Tensor? alibi_slopes, bool deterministic, Tensor? rng_state=None) -> Tensor
+    registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926
+  dispatch key: ADInplaceOrView
+  previous kernel: no debug info
+       new kernel: registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926 (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/core/dispatch/OperatorEntry.cpp:208.)
+  self.m.impl(
+/usr/local/lib/python3.12/dist-packages/torch/library.py:357: UserWarning: Warning only once for all operators,  other operators may also be overridden.
+  Overriding a previously registered kernel for the same operator and the same dispatch key
+  operator: flash_attn::_flash_attn_backward(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, Tensor softmax_lse, Tensor(a6!)? dq, Tensor(a7!)? dk, Tensor(a8!)? dv, float dropout_p, float softmax_scale, bool causal, SymInt window_size_left, SymInt window_size_right, float softcap, Tensor? alibi_slopes, bool deterministic, Tensor? rng_state=None) -> Tensor
+    registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926
+  dispatch key: ADInplaceOrView
+  previous kernel: no debug info
+       new kernel: registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926 (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/core/dispatch/OperatorEntry.cpp:208.)
+  self.m.impl(
+/usr/local/lib/python3.12/dist-packages/torch/library.py:357: UserWarning: Warning only once for all operators,  other operators may also be overridden.
+  Overriding a previously registered kernel for the same operator and the same dispatch key
+  operator: flash_attn::_flash_attn_backward(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, Tensor softmax_lse, Tensor(a6!)? dq, Tensor(a7!)? dk, Tensor(a8!)? dv, float dropout_p, float softmax_scale, bool causal, SymInt window_size_left, SymInt window_size_right, float softcap, Tensor? alibi_slopes, bool deterministic, Tensor? rng_state=None) -> Tensor
+    registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926
+  dispatch key: ADInplaceOrView
+  previous kernel: no debug info
+       new kernel: registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926 (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/core/dispatch/OperatorEntry.cpp:208.)
+  self.m.impl(
+/usr/local/lib/python3.12/dist-packages/torch/library.py:357: UserWarning: Warning only once for all operators,  other operators may also be overridden.
+  Overriding a previously registered kernel for the same operator and the same dispatch key
+  operator: flash_attn::_flash_attn_backward(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, Tensor softmax_lse, Tensor(a6!)? dq, Tensor(a7!)? dk, Tensor(a8!)? dv, float dropout_p, float softmax_scale, bool causal, SymInt window_size_left, SymInt window_size_right, float softcap, Tensor? alibi_slopes, bool deterministic, Tensor? rng_state=None) -> Tensor
+    registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926
+  dispatch key: ADInplaceOrView
+  previous kernel: no debug info
+       new kernel: registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926 (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/core/dispatch/OperatorEntry.cpp:208.)
+  self.m.impl(
+/usr/local/lib/python3.12/dist-packages/torch/library.py:357: UserWarning: Warning only once for all operators,  other operators may also be overridden.
+  Overriding a previously registered kernel for the same operator and the same dispatch key
+  operator: flash_attn::_flash_attn_backward(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, Tensor softmax_lse, Tensor(a6!)? dq, Tensor(a7!)? dk, Tensor(a8!)? dv, float dropout_p, float softmax_scale, bool causal, SymInt window_size_left, SymInt window_size_right, float softcap, Tensor? alibi_slopes, bool deterministic, Tensor? rng_state=None) -> Tensor
+    registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926
+  dispatch key: ADInplaceOrView
+  previous kernel: no debug info
+       new kernel: registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926 (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/core/dispatch/OperatorEntry.cpp:208.)
+  self.m.impl(
+/usr/local/lib/python3.12/dist-packages/torch/library.py:357: UserWarning: Warning only once for all operators,  other operators may also be overridden.
+  Overriding a previously registered kernel for the same operator and the same dispatch key
+  operator: flash_attn::_flash_attn_backward(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, Tensor softmax_lse, Tensor(a6!)? dq, Tensor(a7!)? dk, Tensor(a8!)? dv, float dropout_p, float softmax_scale, bool causal, SymInt window_size_left, SymInt window_size_right, float softcap, Tensor? alibi_slopes, bool deterministic, Tensor? rng_state=None) -> Tensor
+    registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926
+  dispatch key: ADInplaceOrView
+  previous kernel: no debug info
+       new kernel: registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926 (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/core/dispatch/OperatorEntry.cpp:208.)
+  self.m.impl(
+/usr/local/lib/python3.12/dist-packages/torch/library.py:357: UserWarning: Warning only once for all operators,  other operators may also be overridden.
+  Overriding a previously registered kernel for the same operator and the same dispatch key
+  operator: flash_attn::_flash_attn_backward(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, Tensor softmax_lse, Tensor(a6!)? dq, Tensor(a7!)? dk, Tensor(a8!)? dv, float dropout_p, float softmax_scale, bool causal, SymInt window_size_left, SymInt window_size_right, float softcap, Tensor? alibi_slopes, bool deterministic, Tensor? rng_state=None) -> Tensor
+    registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926
+  dispatch key: ADInplaceOrView
+  previous kernel: no debug info
+       new kernel: registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926 (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/core/dispatch/OperatorEntry.cpp:208.)
+  self.m.impl(
+/usr/local/lib/python3.12/dist-packages/torch/library.py:357: UserWarning: Warning only once for all operators,  other operators may also be overridden.
+  Overriding a previously registered kernel for the same operator and the same dispatch key
+  operator: flash_attn::_flash_attn_backward(Tensor dout, Tensor q, Tensor k, Tensor v, Tensor out, Tensor softmax_lse, Tensor(a6!)? dq, Tensor(a7!)? dk, Tensor(a8!)? dv, float dropout_p, float softmax_scale, bool causal, SymInt window_size_left, SymInt window_size_right, float softcap, Tensor? alibi_slopes, bool deterministic, Tensor? rng_state=None) -> Tensor
+    registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926
+  dispatch key: ADInplaceOrView
+  previous kernel: no debug info
+       new kernel: registered at /usr/local/lib/python3.12/dist-packages/torch/_library/custom_ops.py:926 (Triggered internally at /opt/pytorch/pytorch/aten/src/ATen/core/dispatch/OperatorEntry.cpp:208.)
+  self.m.impl(
+logs/8fdca0f2-2e0f-48aa-9f6a-76f13dfa3f74.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:27124850
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False attn_backend=fa2
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9295 val_bpb:4.1040 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9302 train_time:131ms step_avg:131.24ms
+step:2/20000 train_loss:8.6948 train_time:172ms step_avg:85.80ms
+step:3/20000 train_loss:7.7091 train_time:264ms step_avg:88.01ms
+step:4/20000 train_loss:7.2118 train_time:360ms step_avg:89.98ms
+step:5/20000 train_loss:7.1603 train_time:453ms step_avg:90.58ms
+step:6/20000 train_loss:7.1123 train_time:547ms step_avg:91.11ms
+step:7/20000 train_loss:7.1093 train_time:641ms step_avg:91.53ms
+step:8/20000 train_loss:7.0108 train_time:735ms step_avg:91.86ms
+step:9/20000 train_loss:6.6364 train_time:828ms step_avg:92.02ms
+step:10/20000 train_loss:6.2220 train_time:922ms step_avg:92.16ms
+step:500/20000 train_loss:2.3720 train_time:47986ms step_avg:95.97ms
+step:1000/20000 train_loss:2.2560 train_time:96399ms step_avg:96.40ms
+step:1500/20000 train_loss:2.2063 train_time:144882ms step_avg:96.59ms
+step:2000/20000 train_loss:2.0519 train_time:193410ms step_avg:96.71ms
+step:2500/20000 train_loss:2.1584 train_time:242001ms step_avg:96.80ms
+step:3000/20000 train_loss:2.1439 train_time:290591ms step_avg:96.86ms
+step:3500/20000 train_loss:2.1495 train_time:339194ms step_avg:96.91ms
+step:4000/20000 train_loss:1.9430 train_time:387783ms step_avg:96.95ms
+step:4000/20000 val_loss:2.0310 val_bpb:1.2029 train_time:387841ms step_avg:96.96ms
+step:4500/20000 train_loss:2.0877 train_time:436359ms step_avg:96.97ms
+step:5000/20000 train_loss:2.0670 train_time:484933ms step_avg:96.99ms
+swa:start step:5500
+step:5500/20000 train_loss:1.9770 train_time:533520ms step_avg:97.00ms
+late_qat:enabled step:5658 scale:0.1497
+step:6000/20000 train_loss:1.8983 train_time:582657ms step_avg:97.11ms
+step:6177/20000 val_loss:1.9296 val_bpb:1.1428 train_time:600098ms step_avg:97.15ms
+stopping_early: wallclock_cap train_time:600098ms step:6177/20000
+peak memory allocated: 22146 MiB reserved: 22290 MiB
+swa:applying Tight SWA weights count=14
+DIAGNOSTIC post_ema val_loss:1.9295 val_bpb:1.1428 eval_time:2271ms
+Serialized model: 106424065 bytes
+Code size: 102166 bytes
+quantize:full_gptq=0 gptq_lite=66
+Serialized model int6+zstd: 16543449 bytes
+Total submission size int6+zstd: 16645615 bytes
+final_int6_roundtrip val_loss:1.9428 val_bpb:1.1506 eval_time:6960ms
+final_int6_roundtrip_exact val_loss:1.94275441 val_bpb:1.15060859
+final_int6_sliding_window val_loss:1.9033 val_bpb:1.1272 stride:64 eval_time:84397ms
+final_int6_sliding_window_exact val_loss:1.90328684 val_bpb:1.12723367
+final_int8_zlib_roundtrip_exact val_loss:1.90328684 val_bpb:1.12723367
+ttt_sliding:start chunks=1893 chunk_tokens=32768 total_windows=969057 stride=64 ttt_lr=0.002 ttt_epochs=3 freeze_blocks=0
+ttt_sliding:params unfrozen=27124850 frozen=0
+  ttt_chunk [1/1893] bpb=1.164226 time=0.4s
+  ttt_chunk [11/1893] bpb=1.152205 time=2.6s
+  ttt_chunk [21/1893] bpb=1.137623 time=4.7s
+  ttt_chunk [31/1893] bpb=1.135174 time=6.9s
+  ttt_chunk [41/1893] bpb=1.122003 time=9.0s
+  ttt_chunk [51/1893] bpb=1.116087 time=11.2s
+  ttt_chunk [61/1893] bpb=1.122179 time=13.3s
+  ttt_chunk [71/1893] bpb=1.121118 time=15.5s
+  ttt_chunk [81/1893] bpb=1.120654 time=17.6s
+  ttt_chunk [91/1893] bpb=1.121265 time=19.8s
+  ttt_chunk [101/1893] bpb=1.124670 time=22.0s
+  ttt_chunk [111/1893] bpb=1.127212 time=24.2s
+  ttt_chunk [121/1893] bpb=1.120645 time=26.4s
+  ttt_chunk [131/1893] bpb=1.120551 time=28.5s
+  ttt_chunk [141/1893] bpb=1.126214 time=30.7s
+  ttt_chunk [151/1893] bpb=1.128013 time=32.9s
+  ttt_chunk [161/1893] bpb=1.127565 time=35.1s
+  ttt_chunk [171/1893] bpb=1.131823 time=37.3s
+  ttt_chunk [181/1893] bpb=1.134098 time=39.4s
+  ttt_chunk [191/1893] bpb=1.141459 time=41.6s
+  ttt_chunk [201/1893] bpb=1.140281 time=43.8s
+  ttt_chunk [211/1893] bpb=1.138033 time=46.0s
+  ttt_chunk [221/1893] bpb=1.139555 time=48.2s
+  ttt_chunk [231/1893] bpb=1.138167 time=50.4s
+  ttt_chunk [241/1893] bpb=1.138539 time=52.6s
+  ttt_chunk [251/1893] bpb=1.138046 time=54.8s
+  ttt_chunk [261/1893] bpb=1.135148 time=56.9s
+  ttt_chunk [271/1893] bpb=1.133964 time=59.2s
+  ttt_chunk [281/1893] bpb=1.135411 time=61.3s
+  ttt_chunk [291/1893] bpb=1.137268 time=63.5s
+  ttt_chunk [301/1893] bpb=1.137960 time=65.7s
+  ttt_chunk [311/1893] bpb=1.140062 time=67.9s
+  ttt_chunk [321/1893] bpb=1.142095 time=70.0s
+  ttt_chunk [331/1893] bpb=1.141939 time=72.2s
+  ttt_chunk [341/1893] bpb=1.140952 time=74.4s
+  ttt_chunk [351/1893] bpb=1.143287 time=76.6s
+  ttt_chunk [361/1893] bpb=1.143470 time=78.7s
+  ttt_chunk [371/1893] bpb=1.142799 time=81.0s
+  ttt_chunk [381/1893] bpb=1.142959 time=83.1s
+  ttt_chunk [391/1893] bpb=1.142808 time=85.3s
+  ttt_chunk [401/1893] bpb=1.140762 time=87.5s
+  ttt_chunk [411/1893] bpb=1.139636 time=89.7s
+  ttt_chunk [421/1893] bpb=1.138708 time=91.9s
+  ttt_chunk [431/1893] bpb=1.138582 time=94.0s
+  ttt_chunk [441/1893] bpb=1.139000 time=96.2s
+  ttt_chunk [451/1893] bpb=1.139301 time=98.4s
+  ttt_chunk [461/1893] bpb=1.138230 time=100.5s
+  ttt_chunk [471/1893] bpb=1.138909 time=102.7s
+  ttt_chunk [481/1893] bpb=1.138528 time=104.9s
+  ttt_chunk [491/1893] bpb=1.137451 time=107.1s
+  ttt_chunk [501/1893] bpb=1.137032 time=109.3s
+  ttt_chunk [511/1893] bpb=1.136376 time=111.5s
+  ttt_chunk [521/1893] bpb=1.134024 time=113.6s
+  ttt_chunk [531/1893] bpb=1.135186 time=115.8s
+  ttt_chunk [541/1893] bpb=1.135541 time=118.0s
+  ttt_chunk [551/1893] bpb=1.134484 time=120.2s
+  ttt_chunk [561/1893] bpb=1.135033 time=122.4s
+  ttt_chunk [571/1893] bpb=1.134061 time=124.6s
+  ttt_chunk [581/1893] bpb=1.133221 time=126.7s
+  ttt_chunk [591/1893] bpb=1.132586 time=128.9s
+  ttt_chunk [601/1893] bpb=1.133079 time=131.1s
+  ttt_chunk [611/1893] bpb=1.133014 time=133.3s
+  ttt_chunk [621/1893] bpb=1.132876 time=135.5s
+  ttt_chunk [631/1893] bpb=1.133584 time=137.7s
+  ttt_chunk [641/1893] bpb=1.133330 time=139.9s
+  ttt_chunk [651/1893] bpb=1.133450 time=142.1s
+  ttt_chunk [661/1893] bpb=1.132919 time=144.3s
+  ttt_chunk [671/1893] bpb=1.133238 time=146.5s
+  ttt_chunk [681/1893] bpb=1.133964 time=148.7s
+  ttt_chunk [691/1893] bpb=1.134973 time=150.8s
+  ttt_chunk [701/1893] bpb=1.134409 time=153.0s
+  ttt_chunk [711/1893] bpb=1.134410 time=155.2s
+  ttt_chunk [721/1893] bpb=1.134061 time=157.4s
+  ttt_chunk [731/1893] bpb=1.134115 time=159.6s
+  ttt_chunk [741/1893] bpb=1.134200 time=161.8s
+  ttt_chunk [751/1893] bpb=1.134048 time=164.0s
+  ttt_chunk [761/1893] bpb=1.133959 time=166.1s
+  ttt_chunk [771/1893] bpb=1.133658 time=168.3s
+  ttt_chunk [781/1893] bpb=1.134403 time=170.5s
+  ttt_chunk [791/1893] bpb=1.133980 time=172.7s
+  ttt_chunk [801/1893] bpb=1.134289 time=174.9s
+  ttt_chunk [811/1893] bpb=1.134064 time=177.1s
+  ttt_chunk [821/1893] bpb=1.133864 time=179.3s
+  ttt_chunk [831/1893] bpb=1.133685 time=181.5s
+  ttt_chunk [841/1893] bpb=1.133031 time=183.8s
+  ttt_chunk [851/1893] bpb=1.132768 time=186.0s
+  ttt_chunk [861/1893] bpb=1.132514 time=188.3s
+  ttt_chunk [871/1893] bpb=1.132759 time=190.5s
+  ttt_chunk [881/1893] bpb=1.132908 time=192.7s
+  ttt_chunk [891/1893] bpb=1.132464 time=195.0s
+  ttt_chunk [901/1893] bpb=1.132200 time=197.2s
+  ttt_chunk [911/1893] bpb=1.132348 time=199.4s
+  ttt_chunk [921/1893] bpb=1.132834 time=201.5s
+  ttt_chunk [931/1893] bpb=1.132787 time=203.7s
+  ttt_chunk [941/1893] bpb=1.132472 time=205.9s
+  ttt_chunk [951/1893] bpb=1.132875 time=208.1s
+  ttt_chunk [961/1893] bpb=1.132954 time=210.4s
+  ttt_chunk [971/1893] bpb=1.133796 time=212.6s
+  ttt_chunk [981/1893] bpb=1.133862 time=214.8s
+  ttt_chunk [991/1893] bpb=1.133876 time=217.0s
+  ttt_chunk [1001/1893] bpb=1.133843 time=219.2s
+  ttt_chunk [1011/1893] bpb=1.133639 time=221.5s
+  ttt_chunk [1021/1893] bpb=1.133996 time=223.7s
+  ttt_chunk [1031/1893] bpb=1.134443 time=225.9s
+  ttt_chunk [1041/1893] bpb=1.134083 time=228.1s
+  ttt_chunk [1051/1893] bpb=1.133834 time=230.3s
+  ttt_chunk [1061/1893] bpb=1.133898 time=232.5s
+  ttt_chunk [1071/1893] bpb=1.134534 time=234.7s
+  ttt_chunk [1081/1893] bpb=1.134782 time=236.9s
+  ttt_chunk [1091/1893] bpb=1.135530 time=239.2s
+  ttt_chunk [1101/1893] bpb=1.135523 time=241.4s
+  ttt_chunk [1111/1893] bpb=1.135362 time=243.6s
+  ttt_chunk [1121/1893] bpb=1.135160 time=245.8s
+  ttt_chunk [1131/1893] bpb=1.135061 time=248.0s
+  ttt_chunk [1141/1893] bpb=1.134775 time=250.2s
+  ttt_chunk [1151/1893] bpb=1.134794 time=252.4s
+  ttt_chunk [1161/1893] bpb=1.134420 time=254.7s
+  ttt_chunk [1171/1893] bpb=1.134737 time=256.8s
+  ttt_chunk [1181/1893] bpb=1.133992 time=259.1s
+  ttt_chunk [1191/1893] bpb=1.133849 time=261.2s
+  ttt_chunk [1201/1893] bpb=1.134281 time=263.4s
+  ttt_chunk [1211/1893] bpb=1.133805 time=265.6s
+  ttt_chunk [1221/1893] bpb=1.133530 time=267.8s
+  ttt_chunk [1231/1893] bpb=1.133256 time=270.0s
+  ttt_chunk [1241/1893] bpb=1.132934 time=272.2s
+  ttt_chunk [1251/1893] bpb=1.132361 time=274.4s
+  ttt_chunk [1261/1893] bpb=1.132349 time=276.7s
+  ttt_chunk [1271/1893] bpb=1.131997 time=278.9s
+  ttt_chunk [1281/1893] bpb=1.131827 time=281.1s
+  ttt_chunk [1291/1893] bpb=1.131593 time=283.3s
+  ttt_chunk [1301/1893] bpb=1.130997 time=285.5s
+  ttt_chunk [1311/1893] bpb=1.130618 time=287.7s
+  ttt_chunk [1321/1893] bpb=1.130310 time=289.9s
+  ttt_chunk [1331/1893] bpb=1.130264 time=292.1s
+  ttt_chunk [1341/1893] bpb=1.130135 time=294.3s
+  ttt_chunk [1351/1893] bpb=1.130083 time=296.6s
+  ttt_chunk [1361/1893] bpb=1.130123 time=298.8s
+  ttt_chunk [1371/1893] bpb=1.129994 time=301.0s
+  ttt_chunk [1381/1893] bpb=1.129984 time=303.3s
+  ttt_chunk [1391/1893] bpb=1.129585 time=305.4s
+  ttt_chunk [1401/1893] bpb=1.129556 time=307.7s
+  ttt_chunk [1411/1893] bpb=1.129658 time=309.9s
+  ttt_chunk [1421/1893] bpb=1.129924 time=312.1s
+  ttt_chunk [1431/1893] bpb=1.129610 time=314.3s
+  ttt_chunk [1441/1893] bpb=1.130114 time=316.5s
+  ttt_chunk [1451/1893] bpb=1.130435 time=318.7s
+  ttt_chunk [1461/1893] bpb=1.129976 time=320.8s
+  ttt_chunk [1471/1893] bpb=1.131037 time=323.0s
+  ttt_chunk [1481/1893] bpb=1.130584 time=325.2s
+  ttt_chunk [1491/1893] bpb=1.130398 time=327.4s
+  ttt_chunk [1501/1893] bpb=1.130314 time=329.6s
+  ttt_chunk [1511/1893] bpb=1.130323 time=331.8s
+  ttt_chunk [1521/1893] bpb=1.130356 time=334.0s
+  ttt_chunk [1531/1893] bpb=1.129837 time=336.2s
+  ttt_chunk [1541/1893] bpb=1.129692 time=338.4s
+  ttt_chunk [1551/1893] bpb=1.130009 time=340.7s
+  ttt_chunk [1561/1893] bpb=1.130003 time=342.9s
+  ttt_chunk [1571/1893] bpb=1.129831 time=345.2s
+  ttt_chunk [1581/1893] bpb=1.129955 time=347.4s
+  ttt_chunk [1591/1893] bpb=1.129811 time=349.6s
+  ttt_chunk [1601/1893] bpb=1.129979 time=351.8s
+  ttt_chunk [1611/1893] bpb=1.129930 time=354.0s
+  ttt_chunk [1621/1893] bpb=1.129520 time=356.2s
+  ttt_chunk [1631/1893] bpb=1.129840 time=358.5s
+  ttt_chunk [1641/1893] bpb=1.129853 time=360.7s
+  ttt_chunk [1651/1893] bpb=1.129796 time=362.9s
+  ttt_chunk [1661/1893] bpb=1.129676 time=365.1s
+  ttt_chunk [1671/1893] bpb=1.130148 time=367.3s
+  ttt_chunk [1681/1893] bpb=1.130302 time=369.5s
+  ttt_chunk [1691/1893] bpb=1.130136 time=371.7s
+  ttt_chunk [1701/1893] bpb=1.130305 time=373.9s
+  ttt_chunk [1711/1893] bpb=1.130300 time=376.1s
+  ttt_chunk [1721/1893] bpb=1.130304 time=378.3s
+  ttt_chunk [1731/1893] bpb=1.130188 time=380.5s
+  ttt_chunk [1741/1893] bpb=1.129986 time=382.7s
+  ttt_chunk [1751/1893] bpb=1.129819 time=385.0s
+  ttt_chunk [1761/1893] bpb=1.129964 time=387.2s
+  ttt_chunk [1771/1893] bpb=1.129857 time=389.4s
+  ttt_chunk [1781/1893] bpb=1.129887 time=391.6s
+  ttt_chunk [1791/1893] bpb=1.129474 time=393.8s
+  ttt_chunk [1801/1893] bpb=1.129365 time=396.0s
+  ttt_chunk [1811/1893] bpb=1.129264 time=398.3s
+  ttt_chunk [1821/1893] bpb=1.129326 time=400.4s
+  ttt_chunk [1831/1893] bpb=1.128743 time=402.6s
+  ttt_chunk [1841/1893] bpb=1.128684 time=404.8s
+  ttt_chunk [1851/1893] bpb=1.128468 time=407.1s
+  ttt_chunk [1861/1893] bpb=1.128107 time=409.3s
+  ttt_chunk [1871/1893] bpb=1.128098 time=411.5s
+  ttt_chunk [1881/1893] bpb=1.127650 time=413.8s
+  ttt_chunk [1891/1893] bpb=1.127423 time=416.0s
+  ttt_chunk [1893/1893] bpb=1.127469 time=416.3s
+ttt_sliding:done val_loss=1.899967 val_bpb=1.125267 elapsed=416.3s
+legal_ttt val_loss:1.9000 val_bpb:1.1253 eval_time:416487ms
+legal_ttt_exact val_loss:1.89996661 val_bpb:1.12526725
