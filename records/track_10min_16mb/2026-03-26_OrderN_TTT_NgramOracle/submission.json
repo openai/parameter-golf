@@ -1,0 +1,11 @@
+{
+  "author": "THUQiXuan",
+  "github_id": "THUQiXuan",
+  "name": "Order-13 N-gram Oracle + Score-First TTT",
+  "blurb": "Pre-fill order-13 n-gram tables from all 8B training tokens, then use score-first test-time training on val data. BackoffNgramMixer combines neural + per-order n-gram experts with learned mixture weights adapted during eval.",
+  "date": "2026-03-26",
+  "val_loss": 0.05205634,
+  "val_bpb": 0.03083070,
+  "bytes_total": 3660136,
+  "bytes_code": 98181
+}
