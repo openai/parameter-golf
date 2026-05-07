@@ -1,0 +1,47 @@
+{
+  "author": "Aditya Prathapa",
+  "github_id": "adiprathapa",
+  "name": "SP4096 Budget Reproduction Candidate",
+  "date": "2026-05-07",
+  "track": "non_record_16mb",
+  "status": "valid_budget_run",
+  "val_bpb": 1.10743376,
+  "base_record": {
+    "name": "4096-Vocab + Larger Model + High WD + Simplifications",
+    "author": "Kevin Clark",
+    "path": "records/track_10min_16mb/2026-04-01_Vocab4096_MLPMult4_WD085",
+    "reported_val_bpb": 1.09785,
+    "reported_artifact_bytes_mean": 15916170
+  },
+  "local_validation": {
+    "static_packaged": true,
+    "gpu_reproduction_pending": false
+  },
+  "runpod_result": {
+    "hardware": "1x NVIDIA H100 SXM 80GB",
+    "seed": 42,
+    "train_shards": 86,
+    "run_id": "sp4096_1xh100_seed42_86shards_qk45",
+    "qk_gain_init": 4.5,
+    "steps": 4271,
+    "train_time_ms": 3590178,
+    "pre_quant_post_ema_val_bpb": 1.11595986,
+    "valid_roundtrip_val_bpb": 1.12578632,
+    "valid_sliding_val_bpb": 1.10743376,
+    "valid_blob_bytes": 15916816,
+    "code_bytes": 70379,
+    "total_bytes": 15987195,
+    "artifact_under_16mb": true,
+    "notes": "The qk45 quantized artifact was initially over cap after one coarsening pass. The reproducible candidate now repeatedly coarsens ve_shared.embed.weight.q by halving integer codes and doubling its scale until code plus model bytes fit under 16,000,000."
+  },
+  "technique_summary": "SP4096 tokenizer, 11-layer 512d transformer, 4x MLP, high weight decay, coprime data loader, GPTQ int6, Brotli compression, gated U-Net skips, sliding-window eval.",
+  "compliance_intent": {
+    "artifact_under_16mb": true,
+    "no_external_network_during_eval": true,
+    "uses_public_fineweb_training_shards": true,
+    "gpu_logs_pending": true
+  },
+  "attribution": {
+    "base_train_gpt": "Based on Kevin Clark's 2026-04-01 accepted record folder, with a small artifact-fit guard added."
+  }
+}

@@ -1,0 +1,6 @@
+numpy
+sentencepiece
+brotli
+huggingface-hub
+tqdm
+typing-extensions==4.15.0
