@@ -1,0 +1,23 @@
+{
+  "author": "Yicheng Xia",
+  "github_id": "xiayicheng3-code",
+  "name": "Negative Results from Gated Multi-Order Hash N-grams",
+  "blurb": "Non-record submission documenting negative results from a gated multi-order hash n-gram line. Multi-hash hard top-1 routing and tail-loss emphasis did not beat the March 25 BigramHash baseline in the 10min/16MB regime. The line also produced practical AR-calibration and systems improvements, including prompt-bank AR tooling, repeat-penalized calibration generation, shard prefetch, async logging, and faster selective-prune search. Best legal simplified variant (single hash per order) reached 1.11959957 sliding exact BPB at 15,937,956 bytes.",
+  "date": "2026-04-04",
+  "track": "non-record-16mb",
+  "val_loss": 1.89039198,
+  "val_bpb": 1.11959957,
+  "pre_quant_val_loss": 1.9159,
+  "pre_quant_val_bpb": 1.1347,
+  "step_stop": 6863,
+  "wallclock_seconds": 600,
+  "bytes_total": 15937956,
+  "hardware": "8xH100 80GB SXM",
+  "gpu": "8xH100 80GB SXM",
+  "technique_summary": "Negative results from 2/3/4-gram gated hash priors; best legal result used single-hash-per-order plus AR prompt-bank calibration, async logging, next-shard prefetch, and improved selective prune behavior",
+  "supporting_logs": [
+    "run_overcap_multi_hash.log",
+    "run_submit_multi_hash_tail64.log",
+    "run_submit_single_hash.log"
+  ]
+}

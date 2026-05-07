@@ -1,0 +1,4 @@
+run	log_file	batch_tokens	num_hashes	tail_loss_tokens	tail_loss_weight	gptq_calib_source	post_ema_bpb	roundtrip_exact_bpb	sliding_exact_bpb	bytes_total	notes
+overcap_multi_hash	run_overcap_multi_hash.log	524288	2,2,2	0	1.0	ar/self-gen	1.1376	1.14104006	1.11738440	16197853	best raw quality in line, over true size cap
+submit_multi_hash_tail64	run_submit_multi_hash_tail64.log	524288	2,2,2	64	2.0	ar_prompt_bank	1.1393	1.14628762	1.12254768	15971636	tail emphasis did not help
+submit_single_hash	run_submit_single_hash.log	786432	1,1,1	0	1.0	ar_prompt_bank	1.1347	1.14309182	1.11959957	15937956	best legal run in this line
