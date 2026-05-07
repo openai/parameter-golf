@@ -1,0 +1,18 @@
+{
+  "author": "ivanontech",
+  "github_id": "ivanontech",
+  "name": "AutoResearch R3 — Batch Size Reduction + Value Embeddings",
+  "blurb": "Non-record submission on 1x RTX 4090: 12L 1024d transformer with Value Embeddings (31.4M gated fusion params), 32768 BPE vocab, all long-range attention. Key insight: reducing TOTAL_BATCH from 2^19 to 2^16 yields 6.4x more gradient steps in the same 5-min budget, dramatically improving convergence. 31 automated experiments across 3 rounds of hyperparameter search via karpathy/autoresearch.",
+  "date": "2026-03-28T20:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_bpb": 1.197368,
+  "training_seconds": 300.2,
+  "total_seconds": 406.2,
+  "num_steps": 404,
+  "num_params_M": 100.9,
+  "peak_vram_mb": 18635.5,
+  "mfu_percent": 4.38,
+  "total_tokens_M": 26.5,
+  "hardware": "1x NVIDIA RTX 4090 24GB",
+  "bytes_code": 26085
+}

@@ -1,0 +1,15 @@
+{
+  "name": "AutoResearch: LeakyReLU² + MLP3x + Batch Optimization",
+  "author": "ivanontech",
+  "score": 1.1801,
+  "date": "2026-03-30",
+  "track": "non_record_16mb",
+  "hardware": "1x RTX 4090",
+  "training_time_seconds": 300.6,
+  "eval_time_seconds": 93.3,
+  "peak_vram_mb": 8833.4,
+  "num_params_M": 91.1,
+  "num_steps": 467,
+  "mfu_percent": 4.47,
+  "summary": "MLP 3x + LeakyReLU(0.75)² + batch optimization via automated ablation sweeps on single 4090"
+}
