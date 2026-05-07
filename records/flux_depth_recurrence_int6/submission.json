@@ -1,0 +1,23 @@
+{
+  "name": "Flux",
+  "github_id": "polarizedfortnite-cpu",
+  "val_bpb": 1.1670,
+  "artifact_size_bytes": 15832405,
+  "model_params": 24140368,
+  "techniques": [
+    "swiglu_mlp",
+    "mlp_3x_expansion",
+    "10_layers",
+    "int6_quantization",
+    "zstd22_compression",
+    "lora_ttt_eval",
+    "qat_last_25pct",
+    "document_isolated_eval"
+  ],
+  "hardware": "8xH100 SXM (RunPod)",
+  "training_steps": 10351,
+  "training_time_seconds": 600,
+  "tokenizer": "sp1024",
+  "raw_val_bpb_before_ttt": 1.2004,
+  "ttt_improvement": 0.0334
+}
