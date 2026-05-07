@@ -1,0 +1,11 @@
+{
+  "author": "Atris Labs",
+  "github_id": "keshav55",
+  "name": "Atris v1: Mixed Precision + Tuned Hyperparameters",
+  "blurb": "10-layer transformer with INT8/INT6 mixed precision quantization, tuned learning rates, and extended evaluation context. Automated experiment loop inspired by Karpathy's autoresearch pattern.",
+  "date": "PLACEHOLDER",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "bytes_code": 0
+}
