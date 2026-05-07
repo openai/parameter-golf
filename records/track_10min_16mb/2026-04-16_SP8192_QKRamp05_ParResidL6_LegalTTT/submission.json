@@ -1,0 +1,66 @@
+{
+  "author": "Artem Buldin",
+  "github_id": "Buld1n",
+  "name": "SP8192 + QK Depth Ramp + Parallel Residuals from Layer 6 + Legal TTT",
+  "blurb": "Single-seed systems rerun of our SP8192 qkramp05/par0 recipe on PyTorch 2.9.1+cu128 + flash_attn_3. Same model recipe as the earlier stabilized run, but the corrected runtime stack recovered 4661 steps in 588s and reached 1.08088517 bpb with legal score-first TTT.",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "val_loss": 2.79203865,
+  "val_bpb": 1.08088517,
+  "val_bpb_method": "legal_ttt_exact_sliding_window_stride64",
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.79203865,
+      "val_bpb": 1.08088517,
+      "sliding_bpb": 1.08306921,
+      "pre_quant_bpb": 1.08755571,
+      "quantized_bpb": 1.09986947,
+      "artifact_bytes": 15993776,
+      "code_bytes": 16936,
+      "steps": 4661,
+      "train_time_ms": 588092,
+      "ttt_time_ms": 337814
+    }
+  },
+  "bytes_total": 15993776,
+  "code_bytes": 16936,
+  "train_steps_mean": 4661,
+  "sliding_bpb_mean": 1.08306921,
+  "pre_ttt_sliding_mean": 1.08306921,
+  "hardware": "8xH100 80GB SXM",
+  "platform": "RunPod 8xH100 80GB SXM, PyTorch 2.9.1+cu128, CUDA 12.8, flash_attn_3",
+  "technique_summary": "SP8192 + depth recurrence + QK depth ramp (5.0->5.5) + parallel residuals from layer 6 + legal score-first TTT + GPTQ SDClip + Brotli",
+  "comparison_to_previous_container": {
+    "run_id": "qkramp05_par0_s42",
+    "pytorch_version": "2.4.1+cu124",
+    "train_steps": 3774,
+    "sliding_bpb": 1.08958727,
+    "val_bpb": 1.08797291
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "score_first_ttt": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "single_seed_submission": true,
+    "systems_optimization_submission": true
+  },
+  "notes": {
+    "run_id": "qkramp05_par0_s42_t291",
+    "single_seed_only": true,
+    "environment": "Rerun on a fresh PyTorch 2.9.1+cu128 image with flash_attn_3. The train_gpt.py snapshot is the same stabilized recipe used on the older container."
+  },
+  "attribution": {
+    "sp8192_base": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "legal_ttt": "@abaybektursun (PR #549), @dexhunter (PR #1413)",
+    "qk_gain_line": "@bigbag (PR #1493)"
+  },
+  "our_contribution": "Kept the qkramp05/par0 modeling recipe fixed and reran it on the intended modern runtime stack, recovering throughput and the expected score from the same train_gpt.py snapshot."
+}
