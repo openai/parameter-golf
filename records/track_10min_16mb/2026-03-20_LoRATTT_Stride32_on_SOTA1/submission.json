@@ -1,0 +1,14 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "LoRA TTT + Stride-32 on SOTA #1 (Int5MLP BigramHash SWA)",
+  "author": "haikosys",
+  "github_id": "haikosys",
+  "seed_results": {
+    "note": "Pending 8xH100 validation"
+  },
+  "mean_val_bpb": null,
+  "artifact_bytes": null,
+  "code_bytes": 60551,
+  "notes": "Base: SOTA #1 (1.1428). Added: LoRA TTT eval + stride=32. Zero extra artifact bytes."
+}

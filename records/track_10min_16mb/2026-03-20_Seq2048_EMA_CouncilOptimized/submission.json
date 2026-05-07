@@ -1,0 +1,14 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "Seq2048 + EMA + Council-Optimized Warmdown",
+  "author": "haikosys",
+  "github_id": "haikosys",
+  "seed_results": {
+    "note": "Pending 8xH100 validation. Local RTX 5090 shows -0.035 BPB vs SlidingWindow SOTA at step 4000."
+  },
+  "mean_val_bpb": null,
+  "artifact_bytes": null,
+  "code_bytes": 64843,
+  "notes": "Early submission for compute request. Base: SlidingWindow_FP16Emb_10L_MuonWD_OvertoneInit (1.1748). Added: EMA, seq2048, warmdown=5000, lower LRs."
+}
