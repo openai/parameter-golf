@@ -1,0 +1,19 @@
+{
+  "project": "OpenAI Parameter Golf",
+  "track": "10min_16mb",
+  "model_name": "Hymba-11L-ParallelMuon",
+  "author": "Prikshit",
+  "date": "2026-03-26",
+  "bpb": 1.1189,
+  "wall_clock_seconds": 582.4,
+  "artifact_size_mb": 14.5,
+  "hyperparameters": {
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "ttt_epochs": 3,
+    "optimizer": "ParallelMuon",
+    "quantization": "TurboQuant-4bit"
+  }
+}
