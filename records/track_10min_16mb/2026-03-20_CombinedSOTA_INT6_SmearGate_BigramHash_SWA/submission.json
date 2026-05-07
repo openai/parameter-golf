@@ -1,0 +1,26 @@
+{
+  "author": "Mahsum Aktas",
+  "github_id": "mahsumaktas",
+  "name": "11L XSA + SmearGate + BigramHash + SWA + OrthoInit + RoPE50K",
+  "blurb": "SP-1024 11x512 MLP2.75x KV4 INT6+zstd FP16-TiedEmbed XSA4 SmearGate BigramHash2048 OrthoInit MuonWD0.04 SWA/50 RoPE50K SlidingWindow",
+  "date": "2026-03-21T08:00:00Z",
+  "val_loss": 1.95085049,
+  "val_bpb": 1.15540653,
+  "bytes_total": 15990398,
+  "bytes_code": 66074,
+  "sliding_window_stride": 64,
+  "sliding_window_seq_len": 2048,
+  "pre_quant_val_bpb": 1.1664,
+  "post_quant_val_bpb": 1.1766,
+  "quantization": "per-row INT6 + zstd-22 + FP16 tied embedding + Late-K FP16",
+  "training_steps": 7910,
+  "training_time_seconds": 600,
+  "gpu_config": "8xH100 SXM5",
+  "seeds": {
+    "1337": 1.1538,
+    "42": 1.1565,
+    "7": 1.1593
+  },
+  "mean_val_bpb": 1.1565,
+  "std_val_bpb": 0.0028
+}
