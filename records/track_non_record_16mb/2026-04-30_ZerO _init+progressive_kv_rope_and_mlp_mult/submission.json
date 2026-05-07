@@ -1,0 +1,11 @@
+{
+	"track": "non_record_16mb",
+	"date": "2026-04-30",
+	"name": "ZerO Initalization + Progressive KV, RoPE proportion and base, and MLP mult",
+	"author": "Alston Tang",
+	"github_id": "AlstonTang",
+	"val_bpb": 1.25212989,
+	"val_loss": 2.11416887,
+	"bytes_total": 15703926
+  }
+  
