@@ -1,0 +1,18 @@
+{
+  "name": "Kitchen Sink: 7-gram + XSA6 + BigramHash4K + Cosine TTT",
+  "author": "Aygul Galimova",
+  "github_id": "agalimova",
+  "val_bpb": 0.9258,
+  "seeds": {
+    "1337": 0.9249,
+    "42": 0.9266
+  },
+  "base_pr": 741,
+  "changes": [
+    "XSA_LAST_N=6",
+    "BIGRAM_VOCAB_SIZE=4096",
+    "NGRAM_ORDER=7",
+    "NGRAM_ALPHA_HIGH=0.50",
+    "Found via autoresearch-multi combinatorial search"
+  ]
+}
