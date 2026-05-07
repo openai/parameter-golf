@@ -1,0 +1,36 @@
+====================================================================================================
+train_shards: 5
+val_tokens: 40540160
+model_params:37022811
+gptq:reserving 10s, effective=590000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+0/20000 val_loss: 9.0081 val_bpb: 3.4873
+1/20000 train_loss: 9.0096 train_time: 0.0m tok/s: 919196
+2/20000 train_loss: 12.3809 train_time: 0.0m tok/s: 757742
+3/20000 train_loss: 11.3150 train_time: 0.0m tok/s: 794518
+4/20000 train_loss: 9.7588 train_time: 0.0m tok/s: 816594
+5/20000 train_loss: 8.6266 train_time: 0.1m tok/s: 827810
+500/20000 train_loss: 3.3751 train_time: 4.8m tok/s: 913731
+1000/20000 train_loss: 3.0715 train_time: 9.5m tok/s: 915409
+1031/20000 val_loss: 3.1077 val_bpb: 1.2031
+stopping_early: wallclock_cap train_time: 590461ms step: 1031/20000
+peak memory allocated: 18138 MiB reserved: 18212 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:3.21605510 val_bpb:1.24503515 eval_time:13576ms
+Serialized model: 137648707 bytes
+Code size: 68206 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 66 Hessians in 6.9s
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+Serialized model int6+brotli: 14033245 bytes
+Total submission size int6+brotli: 14101451 bytes
+final_int6_roundtrip val_loss:3.25903846 val_bpb:1.26167535 eval_time:17535ms
+final_int6_sliding_window val_loss:3.21766207 val_bpb:1.24565726 eval_time:547785ms
+
