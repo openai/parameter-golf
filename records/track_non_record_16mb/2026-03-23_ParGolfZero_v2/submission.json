@@ -1,0 +1,22 @@
+{
+  "name": "Sanjith G",
+  "github_id": "sanjith3057",
+  "run_name": "ParGolf-Zero v2",
+  "track": "non_record_16mb",
+  "val_bpb": null,
+  "notes": "Non-record submission. Awaiting H100 compute grant for final scored run. Artifact confirmed 5.52MB under 16MB.",
+  "approach": "Joint compression-aware training. Per-row weight range penalty + QAT + BigramHash(10240) + SWA + zstd-22 + TTT low-rank regularization.",
+  "layers": {
+    "L1_COMPAT": "Auto-detects GPU platform",
+    "L2_TRAIN": "FP16 embed + Muon WD=0.02 + warmdown=20000 + SWA",
+    "L3_COMPRESS": "Weight range penalty + QAT final 500 steps + zstd-22",
+    "L4_EVAL": "Sliding window stride=64, 960 token context",
+    "L5_ADAPT": "Low-rank Q/V regularization for TTT LoRA",
+    "L6_BIGRAM": "BigramHash(10240) learned bigram table"
+  },
+  "artifact_size_bytes": 5524254,
+  "hardware_tested": "Kaggle T4 (200 steps smoke test)",
+  "hardware_target": "8xH100 SXM (pending compute grant)",
+  "val_bpb_smoke_test": 3.1899,
+  "roundtrip_val_bpb_smoke_test": 3.2311
+}
