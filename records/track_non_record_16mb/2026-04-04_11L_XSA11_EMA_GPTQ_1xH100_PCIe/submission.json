@@ -1,0 +1,19 @@
+{
+  "author": "Rtx09x",
+  "github_id": "Rtx09x",
+  "name": "11L XSA-All + EMA + Legal GPTQ (1xH100 PCIe)",
+  "blurb": "Non-record 1xH100 PCIe submission using an 11-layer all-XSA fork of the #1019 lineage with EMA and legal self-generated GPTQ. Final exact post-quant score 1.15466807 bpb at 15,243,770 total bytes after LZMA compression.",
+  "date": "2026-04-04T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 1.94960867,
+  "val_bpb": 1.15466807,
+  "pre_quant_val_loss": 1.9275,
+  "pre_quant_val_bpb": 1.1416,
+  "step_stop": 4216,
+  "wallclock_seconds": 4800,
+  "bytes_total": 15243770,
+  "bytes_model_int8_zlib": null,
+  "bytes_model_int6_lzma": 15139756,
+  "bytes_code": 104014,
+  "gpu": "1xH100 PCIe"
+}
