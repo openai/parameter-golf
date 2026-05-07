@@ -644,6 +644,19 @@ class Block(nn.Module):
         x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
         return x
 
+class RMSNormNoWeight(nn.Module):
+    """
+    A simplified RMSNorm that doesn't use any learnable weight parameters.
+    Saves space in Parameter Golf!
+    """
+    def __init__(self, eps: float = 1e-6):
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, x):
+        # Calculate RMS (root mean square)
+        rms = torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return x * rms
 
 class GPT(nn.Module):
     def __init__(
@@ -661,33 +674,33 @@ class GPT(nn.Module):
         qk_gain_init: float,
     ):
         super().__init__()
-        if logit_softcap <= 0.0:
-            raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.tie_embeddings = tie_embeddings
         self.tied_embed_init_std = tied_embed_init_std
         self.logit_softcap = logit_softcap
+        
+        # Core Embeddings
         self.tok_emb = nn.Embedding(vocab_size, model_dim)
-        self.num_encoder_layers = num_layers // 2
-        self.num_decoder_layers = num_layers - self.num_encoder_layers
-        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
-        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    model_dim,
-                    num_heads,
-                    num_kv_heads,
-                    mlp_mult,
-                    rope_base,
-                    qk_gain_init,
-                )
-                for i in range(num_layers)
-            ]
+
+        # THE RECURSIVE HACK: 
+        # Create ONE block and reuse it for all layers to save memory.
+        self.shared_block = Block(
+            model_dim,
+            num_heads,
+            num_kv_heads,
+            mlp_mult,
+            rope_base,
+            qk_gain_init,
         )
-        self.final_norm = RMSNorm()
+        self.blocks = nn.ModuleList([self.shared_block for _ in range(num_layers)])
+        
+        # Final Norm - Using NoWeight version to save every possible byte
+        self.final_norm = RMSNormNoWeight()
+        
+        # Tied Head logic
         self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
         if self.lm_head is not None:
             self.lm_head._zero_init = True
+            
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -699,30 +712,29 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
+        # The baseline uses a functional RMS norm here before the blocks
         x = F.rms_norm(x, (x.size(-1),))
         x0 = x
-        skips: list[Tensor] = []
 
-        # First half stores skips; second half reuses them in reverse order.
-        for i in range(self.num_encoder_layers):
-            x = self.blocks[i](x, x0)
-            skips.append(x)
-        for i in range(self.num_decoder_layers):
-            if skips:
-                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
-            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        # THE RECURSIVE LOOP
+        # Instead of splitting into encoders and decoders, we just pass the data
+        # through our shared_block 9 times. No skips needed!
+        for block in self.blocks:
+            x = block(x, x0)
 
+        # The final norm and loss calculation remain exactly the same
         x = self.final_norm(x).reshape(-1, x.size(-1))
         targets = target_ids.reshape(-1)
+        
         if self.tie_embeddings:
             logits_proj = F.linear(x, self.tok_emb.weight)
         else:
             if self.lm_head is None:
                 raise RuntimeError("lm_head is required when tie_embeddings=False")
             logits_proj = self.lm_head(x)
+            
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
-
 
 # -----------------------------
 # TRAINING
@@ -859,7 +871,7 @@ def main() -> None:
         for name, p in block_named_params
         if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
     ]
-    if base_model.skip_weights.numel() > 0:
+    if hasattr(base_model, 'skip_weights') and base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
     optimizer_tok = torch.optim.Adam(
