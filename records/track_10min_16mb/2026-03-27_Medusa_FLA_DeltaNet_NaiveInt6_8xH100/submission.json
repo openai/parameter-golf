@@ -1,0 +1,36 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Medusa: DeltaNet (DELTA_NET_HEADS=4) + Loop-Aware GPTQ + Late-Start EMA",
+  "blurb": "Successor to PR #990 (ClownCar, 1.1813 BPB). Catalyzed by PR #875 (@shalyhinpavel, GDN 1.0226). Adds DELTA_NET_HEADS=4 (canonical chunk_delta_rule), loop-aware 2-phase GPTQ, late-start EMA (step 4400, decay=0.99). 4 flat + 1 crawler x 4 loops, INST_DIM=32. NOTE: this variant (Medusa_IV) has state dtype bug in eval path — see Medusa_V for fix.",
+  "date": "2026-03-28",
+  "seed_300": {
+    "val_bpb": 0.3736,
+    "sliding_window_bpb": 0.95777934,
+    "post_ema_bpb": 0.3882,
+    "steps": 4880,
+    "train_time_s": 600,
+    "eval_time_s": "~110s"
+  },
+  "seed_1337": {
+    "val_bpb": 0.6989,
+    "sliding_window_bpb": 1.22693269,
+    "post_ema_bpb": 0.7126,
+    "steps": 4876,
+    "train_time_s": 600,
+    "eval_time_s": "~108s"
+  },
+  "seed_42": {
+    "val_bpb": 0.2441,
+    "sliding_window_bpb": 0.81041025,
+    "post_ema_bpb": 0.2519,
+    "steps": 4872,
+    "train_time_s": 600,
+    "eval_time_s": "~124s"
+  },
+  "val_bpb": 0.9984,
+  "bytes_total": 10031847,
+  "bytes_code": 180226,
+  "hardware": "8xH100 SXM",
+  "notes": "High cross-seed variance (std dev 0.1724 vs ClownCar 0.00015). Best seed: 42 at 0.8104. DeltaNet heads introduce seed sensitivity. Stabilization ongoing in Medusa_VII."
+}

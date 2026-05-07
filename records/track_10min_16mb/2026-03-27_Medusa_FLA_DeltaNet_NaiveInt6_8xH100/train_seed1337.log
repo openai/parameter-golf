@@ -1,0 +1,91 @@
+============================================
+  MEDUSA_IV — late-start EMA (step 4400) + loop-aware GPTQ
+  Seed: 1337
+  inst_dim=32 FLOW | 4 flat + 1 crawler x 4 loops
+  DELTA_NET_HEADS=4 | chunk_delta_rule | short_conv=True
+  EMA_START_STEP=4400 | EMA_DECAY=0.99 | LOOP_AWARE_GPTQ=1
+  NITRUST_ENABLE=0 | NITRUST_STRICT=0
+============================================
+W0328 07:37:48.036000 68282 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.
+logs/0930bc22-2414-495e-bbee-b7d5fd442493.txt
+nitrust:disabled NITRUST_ENABLE=0
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:14487088
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:relu_sq mlp_leaky_slope:0.5
+XSA:last_11 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.03
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 fullgraph=0 optimize_ddp=0
+ddp:find_unused_parameters=1
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9286 val_bpb:4.1035 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9301 train_time:167ms step_avg:167.04ms
+step:2/20000 train_loss:8.9231 train_time:282ms step_avg:140.80ms
+step:3/20000 train_loss:7.8344 train_time:396ms step_avg:132.08ms
+step:4/20000 train_loss:7.4040 train_time:511ms step_avg:127.68ms
+step:5/20000 train_loss:7.1165 train_time:626ms step_avg:125.21ms
+step:6/20000 train_loss:6.9364 train_time:740ms step_avg:123.40ms
+step:7/20000 train_loss:6.8285 train_time:856ms step_avg:122.25ms
+step:8/20000 train_loss:6.6765 train_time:973ms step_avg:121.65ms
+step:9/20000 train_loss:6.3910 train_time:1094ms step_avg:121.52ms
+step:10/20000 train_loss:6.0225 train_time:1215ms step_avg:121.53ms
+step:500/20000 train_loss:2.4824 train_time:61433ms step_avg:122.87ms
+step:1000/20000 train_loss:2.3605 train_time:123018ms step_avg:123.02ms
+step:1500/20000 train_loss:2.3094 train_time:184390ms step_avg:122.93ms
+step:2000/20000 train_loss:2.1511 train_time:245942ms step_avg:122.97ms
+step:2500/20000 train_loss:2.2463 train_time:307366ms step_avg:122.95ms
+step:3000/20000 train_loss:2.2337 train_time:368706ms step_avg:122.90ms
+step:3500/20000 train_loss:2.1810 train_time:430214ms step_avg:122.92ms
+step:4000/20000 train_loss:1.7848 train_time:491543ms step_avg:122.89ms
+step:4000/20000 val_loss:1.8664 val_bpb:1.1054 train_time:491548ms step_avg:122.89ms
+ema:late-start re-initialized at step 4400 decay=0.99
+swa:start step:4500
+step:4500/20000 train_loss:1.4892 train_time:553038ms step_avg:122.90ms
+step:4876/20000 val_loss:1.1801 val_bpb:0.6989 train_time:600067ms step_avg:123.07ms
+stopping_early: wallclock_cap train_time:600067ms step:4876/20000
+peak memory allocated: 21023 MiB reserved: 21196 MiB
+gptq:loop-aware 2-phase calibration...
+gptq_loop_aware:patched 24 flat layers with GPTQ weights
+gptq_loop_aware:phase2 collected 16 crawler Hessians
+gptq_loop_aware:restored 24 flat layer weights
+gptq_loop_aware:merged 41 Hessians (16 crawler from phase2)
+gptq:loop-aware calibrated 41 layers in 11.6s
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.2031 val_bpb:0.7126 eval_time:3008ms
+Serialized model: 53860358 bytes
+Code size: 180226 bytes
+gptq_quantize: 24 GPTQ layers, 0 naive layers
+Serialized model int6+zstd: 9776503 bytes
+Total submission size int6+zstd: 9956729 bytes
+Total submission size int8+zlib: 9956729 bytes
+final_int6_roundtrip val_loss:1.8844 val_bpb:1.1160 eval_time:7096ms
+final_int6_roundtrip_exact val_loss:1.88439024 val_bpb:1.11604204
+final_int6_sliding_window val_loss:2.0716 val_bpb:1.2269 stride:64 eval_time:108201ms
+final_int6_sliding_window_exact val_loss:2.07161896 val_bpb:1.22693269
+final_int8_zlib_roundtrip_exact val_loss:2.07161896 val_bpb:1.22693269
+============================================
+  DONE
+============================================
