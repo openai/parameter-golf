@@ -1,0 +1,11 @@
+{
+  "author": "Jordan",
+  "github_id": "FyeJordy",
+  "name": "11L 448d PairHash int8+zstd",
+  "blurb": "11-layer 448-dim GQA model with PairHash embeddings and int8+zstd export. Trained for 10 minutes on 8xH100 and exported under the 16,000,000-byte cap.",
+  "date": "2026-03-25T17:06:31Z",
+  "val_loss": 2.31055144,
+  "val_bpb": 1.36843871,
+  "bytes_total": 15149719,
+  "bytes_code": 64461
+}
