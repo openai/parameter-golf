@@ -1,0 +1,9 @@
+{
+  "name": "TrigramHash: BigramHash(10240, dim=96) + TrigramHash(10240, dim=32)",
+  "val_loss": 1.52752169,
+  "bytes_total": 15421256,
+  "blurb": "Non-record submission. Iso-parametric split of SOTA bigram(128) into bigram(96)+trigram(32). Total embed params unchanged (10240x128=10240x96+10240x32). TrigramHash captures 3-token co-occurrence patterns via hash (36313*t[i] XOR 27191*t[i-1] XOR 18731*t[i-2]) % mod. Zero-init, scale=0.05. Tested on 1xH100 (not 8xH100). All other hyperparameters identical to 2026-03-20_10L_Int5MLP_MuonWD04_SWA50.",
+  "author": "fleeb83",
+  "github_id": "fleeb83",
+  "date": "2026-03-23"
+}
