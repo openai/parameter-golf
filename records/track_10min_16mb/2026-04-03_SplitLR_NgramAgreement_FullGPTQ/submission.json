@@ -1,0 +1,19 @@
+{
+    "author": "vlivashkin",
+    "github_id": "vlivashkin",
+    "date": "2026-04-03",
+    "val_bpb": 1.1078,
+    "val_loss": 1.87521,
+    "bytes_total": 15857705,
+    "seeds": [1337, 42, 2025],
+    "seed_results": {
+        "1337": {"val_bpb": 1.1083, "sliding_bpb": 1.1110, "val_loss": 1.87595, "artifact_bytes": 15853466},
+        "42": {"val_bpb": 1.1068, "sliding_bpb": 1.1095, "val_loss": 1.87342, "artifact_bytes": 15857705},
+        "2025": {"val_bpb": 1.1085, "sliding_bpb": 1.1112, "val_loss": 1.87627, "artifact_bytes": 15846914}
+    },
+    "val_bpb_std": 0.0009,
+    "delta_nats_vs_sota": 0.00697,
+    "sota_pr": 1019,
+    "hardware": "8xH100 SXM 80GB",
+    "blurb": "Split-LR + BigramHash(2816x160) + Full Hessian GPTQ + Soft-round QAT + Brotli + Online N-gram Agreement Eval"
+}
