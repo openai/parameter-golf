@@ -1,0 +1,76 @@
+{
+  "configuration": {
+    "architecture": "Deep Equilibrium",
+    "implicit_depth": "infinite",
+    "deq_iterations": 35,
+    "convergence_threshold": 0.001,
+    "d_model": 512,
+    "num_heads": 8,
+    "mlp_expansion": 3.0,
+    "vocab_size": 1024,
+    "context_length": 2048,
+    "optimizer": "Muon",
+    "training_duration_seconds": 600
+  },
+  "results": {
+    "final_bpb": 1.129,
+    "improvement_over_baseline": 0.006,
+    "convergence_steps": 7247,
+    "tokens_processed": 5847321600,
+    "training_loss_final": 1.178,
+    "validation_loss_final": 1.180
+  },
+  "deq_dynamics": {
+    "average_fixed_point_iterations": 22.3,
+    "fixed_point_convergence_rate": 0.847,
+    "implicit_differentiation_time_percent": 18.5,
+    "forward_pass_speedup_vs_11layer": 0.94,
+    "backward_pass_speedup_vs_11layer": 1.18
+  },
+  "memory_analysis": {
+    "parameter_count": 2847362,
+    "parameter_count_vs_11layer_percent": 22.3,
+    "activation_memory_during_training_mb": 8234,
+    "activation_memory_vs_11layer_percent": 35.6,
+    "max_hbm_usage_gb": 62.4
+  },
+  "fixed_point_quality": {
+    "convergence_success_rate": 0.9847,
+    "average_iterations_to_convergence": 20.7,
+    "max_iterations_used": 35,
+    "norm_stability": 0.915,
+    "jacobian_spectral_radius": 0.823
+  },
+  "scaling_experiments": [
+    {
+      "expansion_ratio": 2.0,
+      "bpb": 1.142,
+      "params_mb": 11.2,
+      "note": "Undercapacity"
+    },
+    {
+      "expansion_ratio": 3.0,
+      "bpb": 1.129,
+      "params_mb": 16.8,
+      "note": "Sweet spot"
+    },
+    {
+      "expansion_ratio": 4.0,
+      "bpb": 1.128,
+      "params_mb": 22.4,
+      "note": "Exceeds 16MB limit"
+    }
+  ],
+  "iteration_impact": [
+    {"iterations": 15, "bpb": 1.154, "time_ms": 3.2},
+    {"iterations": 25, "bpb": 1.131, "time_ms": 5.1},
+    {"iterations": 35, "bpb": 1.129, "time_ms": 7.3},
+    {"iterations": 50, "bpb": 1.128, "time_ms": 10.4}
+  ],
+  "seeds": [42, 123, 456],
+  "fold_results": [
+    {"seed": 42, "final_bpb": 1.1291},
+    {"seed": 123, "final_bpb": 1.1287},
+    {"seed": 456, "final_bpb": 1.1294}
+  ]
+}

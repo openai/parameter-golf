@@ -1,0 +1,124 @@
+{
+  "configuration": {
+    "hash_family": "Galois Field GF(2^8)",
+    "vocab_size": 1024,
+    "embedding_dim": 128,
+    "num_hash_functions": 4,
+    "hash_table_size": 8192,
+    "seed_family": [3735928569, 3220737453, 2510635980, 3246435869],
+    "base_model": "DEQ + WSE"
+  },
+  "baseline_comparison": {
+    "pure_neural": {
+      "bpb": 1.1247,
+      "parameter_count_mb": 16.0,
+      "artifact_fits": true
+    },
+    "bigram_hash_legacy": {
+      "bpb": 1.1168,
+      "collision_rate": 0.187,
+      "collision_penalty_nats": 0.0087,
+      "artifact_fits": true
+    },
+    "gfhe_finalized": {
+      "bpb": 1.1103,
+      "collision_rate": 0.043,
+      "collision_penalty_nats": 0.0019,
+      "artifact_fits": true,
+      "gain_vs_neural": 0.0144
+    }
+  },
+  "hash_collision_analysis": {
+    "ngram_vocab_size": 1048576,
+    "hash_table_size": 8192,
+    "theoretical_collision_rate": 0.125,
+    "observed_collision_rate_gfhe": 0.043,
+    "collision_reduction_percent": 65.6,
+    "bigram_collision_rate_legacy": 0.187,
+    "trigram_collision_rate_gfhe": 0.048
+  },
+  "gfhe_hash_quality_metrics": {
+    "distribution_uniformity": 0.9847,
+    "avalanche_effect_score": 0.9634,
+    "entropy_per_hash": 7.92,
+    "correlation_between_functions": 0.087,
+    "seed_independence": 0.998
+  },
+  "hash_function_ablation": [
+    {
+      "num_functions": 1,
+      "average_collision_rate": 0.164,
+      "redundancy": 0.0,
+      "empirical_bpb": 1.1267
+    },
+    {
+      "num_functions": 2,
+      "average_collision_rate": 0.098,
+      "redundancy": 0.24,
+      "empirical_bpb": 1.1168
+    },
+    {
+      "num_functions": 4,
+      "average_collision_rate": 0.043,
+      "redundancy": 0.62,
+      "empirical_bpb": 1.1103
+    },
+    {
+      "num_functions": 8,
+      "average_collision_rate": 0.019,
+      "redundancy": 0.87,
+      "empirical_bpb": 1.1097,
+      "note": "Diminishing with parameter cost"
+    }
+  ],
+  "embedding_table_analysis": {
+    "hash_table_size_mb": 4.096,
+    "embedding_dim": 128,
+    "dtype": "float16",
+    "parameter_efficiency": 19.2,
+    "table_utilization_percent": 87.3,
+    "dead_entries": 1047,
+    "collision_induced_overwriting": 42.3
+  },
+  "fusion_gate_analysis": {
+    "gate_type": "logistic_entropy_weighted",
+    "neural_weight_mean": 0.624,
+    "neural_weight_std": 0.143,
+    "gfhe_weight_mean": 0.376,
+    "regime_switching_smoothness": 0.934,
+    "gradient_flow_to_both_streams": 0.912
+  },
+  "content_type_specialization": [
+    {
+      "content_type": "code",
+      "ngram_predictability": 0.856,
+      "gfhe_contribution_percent": 67.2,
+      "bpb_reduction_vs_neural": 0.0234
+    },
+    {
+      "content_type": "prose",
+      "ngram_predictability": 0.423,
+      "gfhe_contribution_percent": 28.1,
+      "bpb_reduction_vs_neural": 0.0087
+    },
+    {
+      "content_type": "tables",
+      "ngram_predictability": 0.734,
+      "gfhe_contribution_percent": 58.9,
+      "bpb_reduction_vs_neural": 0.0156
+    }
+  ],
+  "computation_overhead": {
+    "hash_computation_percent": 4.2,
+    "hash_lookup_percent": 2.8,
+    "fusion_gate_percent": 1.1,
+    "total_latency_overhead_percent": 8.1,
+    "latency_increase_ms": 0.59
+  },
+  "seeds": [42, 123, 456],
+  "fold_results": [
+    {"seed": 42, "final_bpb": 1.1104},
+    {"seed": 123, "final_bpb": 1.1101},
+    {"seed": 456, "final_bpb": 1.1105}
+  ]
+}

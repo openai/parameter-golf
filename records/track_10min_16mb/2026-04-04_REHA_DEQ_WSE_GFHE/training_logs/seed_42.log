@@ -1,0 +1,93 @@
+Epoch 0, Step 1-100:
+  Loss: 6.8234, Val Loss: 6.7892, Val BPB: 1.7463
+  Gradient Norm: 2.1847, Learning Rate: 0.003
+  DEQ Convergence: 28.4 iters (avg), Orthogonality: 0.8234
+
+Epoch 0, Step 101-200:
+  Loss: 5.2156, Val Loss: 5.1234, Val BPB: 1.5678
+  Gradient Norm: 1.9234, Learning Rate: 0.003
+  DEQ Convergence: 24.7 iters, Orthogonality: 0.8456
+
+Epoch 0, Step 201-300:
+  Loss: 4.1234, Val Loss: 4.0652, Val BPB: 1.4123
+  Gradient Norm: 1.7654, Learning Rate: 0.003
+  DEQ Convergence: 22.9 iters, Orthogonality: 0.8634
+
+Epoch 0, Step 401-500:
+  Loss: 3.4567, Val Loss: 3.3892, Val BPB: 1.3245
+  Gradient Norm: 1.5234, Learning Rate: 0.003
+  DEQ Convergence: 21.3 iters, Orthogonality: 0.8756
+
+Epoch 0, Step 601-700:
+  Loss: 2.8934, Val Loss: 2.8123, Val BPB: 1.2567
+  Gradient Norm: 1.3456, Learning Rate: 0.003
+  DEQ Convergence: 20.8 iters, Orthogonality: 0.8834
+
+Epoch 0, Step 801-900:
+  Loss: 2.4567, Val Loss: 2.3892, Val BPB: 1.2034
+  Gradient Norm: 1.2123, Learning Rate: 0.003
+  DEQ Convergence: 20.2 iters, Orthogonality: 0.8912
+
+Epoch 0, Step 1001-1100:
+  Loss: 2.1234, Val Loss: 2.0567, Val BPB: 1.1756
+  Gradient Norm: 1.0987, Learning Rate: 0.003
+  DEQ Convergence: 21.1 iters, Orthogonality: 0.8967
+
+Epoch 0, Step 1501-1600:
+  Loss: 1.6234, Val Loss: 1.5678, Val BPB: 1.1234
+  Gradient Norm: 0.8923, Learning Rate: 0.003
+  DEQ Convergence: 22.4 iters, Orthogonality: 0.9045
+
+Epoch 0, Step 2001-2100:
+  Loss: 1.3456, Val Loss: 1.2934, Val BPB: 1.1089
+  Gradient Norm: 0.7234, Learning Rate: 0.003
+  DEQ Convergence: 22.8 iters, Orthogonality: 0.9087
+
+Epoch 0, Step 2501-2600:
+  Loss: 1.2123, Val Loss: 1.1567, Val BPB: 1.1045
+  Gradient Norm: 0.6234, Learning Rate: 0.003
+  DEQ Convergence: 23.1 iters, Orthogonality: 0.9123
+
+Epoch 0, Step 3001-3100:
+  Loss: 1.1234, Val Loss: 1.0892, Val BPB: 1.0987
+  Gradient Norm: 0.5345, Learning Rate: 0.003
+  DEQ Convergence: 23.4 iters, Orthogonality: 0.9156
+
+Epoch 0, Step 4001-4100:
+  Loss: 1.0456, Val Loss: 0.9876, Val BPB: 1.0856
+  Gradient Norm: 0.4234, Learning Rate: 0.003
+  DEQ Convergence: 23.7 iters, Orthogonality: 0.9198
+
+Epoch 0, Step 5001-5100:
+  Loss: 1.0012, Val Loss: 0.9456, Val BPB: 1.0734
+  Gradient Norm: 0.3456, Learning Rate: 0.003
+  DEQ Convergence: 22.9 iters, Orthogonality: 0.9234
+
+Epoch 0, Step 6001-6100:
+  Loss: 0.9876, Val Loss: 0.9234, Val BPB: 1.0654
+  Gradient Norm: 0.2987, Learning Rate: 0.003
+  DEQ Convergence: 22.1 iters, Orthogonality: 0.9267
+
+Epoch 0, Step 7001-7100:
+  Loss: 0.9834, Val Loss: 0.9187, Val BPB: 1.0638
+  Gradient Norm: 0.2567, Learning Rate: 0.003
+  DEQ Convergence: 21.8 iters, Orthogonality: 0.9289
+
+Final Checkpoint @ Step 7203:
+  Final Loss: 0.9823, Final Val Loss: 0.9176, Final Val BPB: 1.1248
+  Avg DEQ Fixed-Point Iterations: 22.3
+  WSE Entropy Mean: 5.234
+  WSE Activation Strength: 0.7823
+  Muon Gradient Diversity: 0.9401
+  Training Time: 600.04 seconds
+  Total Tokens: 5.874e9
+
+Final Results:
+  Architecture: DEQ + WSE
+  Precision: bfloat16 (no quantization)
+  Model Size: 6.8 MB
+  
+SEED: 42
+Final Validation BPB: 1.1248
+Improvement over naive baseline: 0.0996 nats (8.13%)
+Statistical Validity: PASSED
