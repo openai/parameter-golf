@@ -1,0 +1,1 @@
+{"run_id": "baseline-1xh100-001", "timestamp": "2026-03-24T04:58:00Z", "gpu": "1xH100", "steps": 1272, "train_time_s": 600, "val_bpb": 1.3382, "val_loss": 2.2594, "model_size_mb": 13.35, "code_version": "baseline", "techniques": ["9L", "512dim", "1024vocab", "int8+zlib", "muon"], "notes": "Baseline smoke test on 1xH100. Expected ~1.2244 on 8xH100.", "cost_usd": 0.68}

@@ -1,0 +1,10 @@
+{
+  "author": "Nicholas Ferrante",
+  "github_id": "nickferrantelive",
+  "name": "11L 512d Int8+Zlib Baseline",
+  "blurb": "Baseline train_gpt.py with NUM_LAYERS=11 (20.7M params), int8+zlib quantization, U-Net skip connections, Muon optimizer, tied embeddings. 3-seed verification on 8xH100 SXM.",
+  "date": "2026-03-26T00:00:00Z",
+  "val_loss": 2.04841074,
+  "val_bpb": 1.21318422,
+  "bytes_total": 15541950
+}
