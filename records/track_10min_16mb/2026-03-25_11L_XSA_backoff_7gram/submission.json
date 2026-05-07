@@ -1,0 +1,9 @@
+{
+  "name": "11L XSA-all + multi-order backoff 7-gram",
+  "val_loss": 0.9917,
+  "bytes_total": 13991619,
+  "blurb": "11L XSA-all with multi-order backoff n-gram cache (2-7 gram). Mean 0.9917 (std 0.0005) across 3 seeds.",
+  "author": "hypery11",
+  "github_id": "hypery11",
+  "date": "2026-03-25"
+}
