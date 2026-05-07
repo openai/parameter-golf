@@ -1,0 +1,21 @@
+{
+  "bundle_id": "opc-native-full-spec-rel",
+  "attachments": [
+    {
+      "source": "reports/submission.json",
+      "dest": "audits/tier1/submission.json"
+    },
+    {
+      "source": "reports/legality.json",
+      "dest": "audits/tier3/legality.json"
+    },
+    {
+      "source": "reports/replay.json",
+      "dest": "audits/tier3/replay.json"
+    }
+  ],
+  "claim": "claim.json",
+  "metrics": "metrics.json",
+  "provenance": "provenance.json",
+  "audits": "audits.json"
+}

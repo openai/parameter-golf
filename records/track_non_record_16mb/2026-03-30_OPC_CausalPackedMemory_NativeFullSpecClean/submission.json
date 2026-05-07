@@ -1,0 +1,11 @@
+{
+  "name": "OPC causal packed-memory legal packet stress test",
+  "track": "track_non_record_16mb",
+  "pre_quant_val_bpb": 2.48898442865273,
+  "val_bpb": 2.48898442865273,
+  "run_id": "opc_native_tokens100000000_62021846",
+  "source_repo": "opc-parameter-golf-submission",
+  "bytes_model_int6_zlib": 2705939,
+  "notes": "Standalone opc-native causal packed-memory submission rebuilt from scratch for packet stress testing.",
+  "bytes_total": 6146877
+}

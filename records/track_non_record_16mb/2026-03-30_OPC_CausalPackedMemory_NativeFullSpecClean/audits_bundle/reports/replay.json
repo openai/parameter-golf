@@ -1,0 +1,338 @@
+{
+  "profile": "parameter-golf",
+  "adapter": {
+    "adapter": "OpcNativeDetectAdapter",
+    "artifact_path": "model_artifact.npz",
+    "vocab_size": 1024,
+    "notes": "opc-native packed-memory replay adapter for legality and replay scans."
+  },
+  "token_count": 131072,
+  "audited_token_count": 65536,
+  "chunk_size": 8192,
+  "chunk_count": 8,
+  "max_chunks": 8,
+  "position_batch_size": 128,
+  "selected_chunks": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "aggregate": {
+    "total_loss_nats": 277494.23437665706,
+    "mean_loss_nats": 4.234225988413346,
+    "mean_bpb": 6.1086968354871045
+  },
+  "repeatability": {
+    "covered": true,
+    "pass": true,
+    "chunk_count": 8,
+    "position_count": 65536,
+    "max_abs_prediction_diff": 0.0,
+    "mean_abs_prediction_diff": 0.0,
+    "prediction_diff_failures": 0,
+    "max_abs_gold_logprob_diff": 0.0,
+    "mean_abs_gold_logprob_diff": 0.0,
+    "gold_logprob_diff_failures": 0,
+    "state_hash_compared_count": 131072,
+    "state_hash_mismatch_count": 0,
+    "tolerances": {
+      "atol": 1e-07,
+      "rtol": 1e-07
+    }
+  },
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "chunk_start": 0,
+      "token_count": 8192,
+      "total_loss_nats": 34394.62213477679,
+      "mean_loss_nats": 4.19856227231162,
+      "mean_bpb": 6.057244969127472,
+      "trace_fields_present": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "repeat_compared": true,
+      "repeatability": {
+        "covered": true,
+        "pass": true,
+        "chunk_count": 1,
+        "position_count": 8192,
+        "max_abs_prediction_diff": 0.0,
+        "mean_abs_prediction_diff": 0.0,
+        "prediction_diff_failures": 0,
+        "max_abs_gold_logprob_diff": 0.0,
+        "mean_abs_gold_logprob_diff": 0.0,
+        "gold_logprob_diff_failures": 0,
+        "state_hash_compared_count": 16384,
+        "state_hash_mismatch_count": 0,
+        "tolerances": {
+          "atol": 1e-07,
+          "rtol": 1e-07
+        }
+      }
+    },
+    {
+      "chunk_index": 1,
+      "chunk_start": 8192,
+      "token_count": 8192,
+      "total_loss_nats": 35620.48078424682,
+      "mean_loss_nats": 4.348203220733255,
+      "mean_bpb": 6.273131223329285,
+      "trace_fields_present": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "repeat_compared": true,
+      "repeatability": {
+        "covered": true,
+        "pass": true,
+        "chunk_count": 1,
+        "position_count": 8192,
+        "max_abs_prediction_diff": 0.0,
+        "mean_abs_prediction_diff": 0.0,
+        "prediction_diff_failures": 0,
+        "max_abs_gold_logprob_diff": 0.0,
+        "mean_abs_gold_logprob_diff": 0.0,
+        "gold_logprob_diff_failures": 0,
+        "state_hash_compared_count": 16384,
+        "state_hash_mismatch_count": 0,
+        "tolerances": {
+          "atol": 1e-07,
+          "rtol": 1e-07
+        }
+      }
+    },
+    {
+      "chunk_index": 2,
+      "chunk_start": 16384,
+      "token_count": 8192,
+      "total_loss_nats": 34939.65421480415,
+      "mean_loss_nats": 4.2650945086430845,
+      "mean_bpb": 6.153230696542129,
+      "trace_fields_present": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "repeat_compared": true,
+      "repeatability": {
+        "covered": true,
+        "pass": true,
+        "chunk_count": 1,
+        "position_count": 8192,
+        "max_abs_prediction_diff": 0.0,
+        "mean_abs_prediction_diff": 0.0,
+        "prediction_diff_failures": 0,
+        "max_abs_gold_logprob_diff": 0.0,
+        "mean_abs_gold_logprob_diff": 0.0,
+        "gold_logprob_diff_failures": 0,
+        "state_hash_compared_count": 16384,
+        "state_hash_mismatch_count": 0,
+        "tolerances": {
+          "atol": 1e-07,
+          "rtol": 1e-07
+        }
+      }
+    },
+    {
+      "chunk_index": 3,
+      "chunk_start": 24576,
+      "token_count": 8192,
+      "total_loss_nats": 35442.36588394684,
+      "mean_loss_nats": 4.32646067919273,
+      "mean_bpb": 6.241763366472448,
+      "trace_fields_present": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "repeat_compared": true,
+      "repeatability": {
+        "covered": true,
+        "pass": true,
+        "chunk_count": 1,
+        "position_count": 8192,
+        "max_abs_prediction_diff": 0.0,
+        "mean_abs_prediction_diff": 0.0,
+        "prediction_diff_failures": 0,
+        "max_abs_gold_logprob_diff": 0.0,
+        "mean_abs_gold_logprob_diff": 0.0,
+        "gold_logprob_diff_failures": 0,
+        "state_hash_compared_count": 16384,
+        "state_hash_mismatch_count": 0,
+        "tolerances": {
+          "atol": 1e-07,
+          "rtol": 1e-07
+        }
+      }
+    },
+    {
+      "chunk_index": 4,
+      "chunk_start": 32768,
+      "token_count": 8192,
+      "total_loss_nats": 34642.58123282339,
+      "mean_loss_nats": 4.228830716897386,
+      "mean_bpb": 6.100913104026779,
+      "trace_fields_present": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "repeat_compared": true,
+      "repeatability": {
+        "covered": true,
+        "pass": true,
+        "chunk_count": 1,
+        "position_count": 8192,
+        "max_abs_prediction_diff": 0.0,
+        "mean_abs_prediction_diff": 0.0,
+        "prediction_diff_failures": 0,
+        "max_abs_gold_logprob_diff": 0.0,
+        "mean_abs_gold_logprob_diff": 0.0,
+        "gold_logprob_diff_failures": 0,
+        "state_hash_compared_count": 16384,
+        "state_hash_mismatch_count": 0,
+        "tolerances": {
+          "atol": 1e-07,
+          "rtol": 1e-07
+        }
+      }
+    },
+    {
+      "chunk_index": 5,
+      "chunk_start": 40960,
+      "token_count": 8192,
+      "total_loss_nats": 33934.093170875654,
+      "mean_loss_nats": 4.142345357772907,
+      "mean_bpb": 5.976141105308392,
+      "trace_fields_present": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "repeat_compared": true,
+      "repeatability": {
+        "covered": true,
+        "pass": true,
+        "chunk_count": 1,
+        "position_count": 8192,
+        "max_abs_prediction_diff": 0.0,
+        "mean_abs_prediction_diff": 0.0,
+        "prediction_diff_failures": 0,
+        "max_abs_gold_logprob_diff": 0.0,
+        "mean_abs_gold_logprob_diff": 0.0,
+        "gold_logprob_diff_failures": 0,
+        "state_hash_compared_count": 16384,
+        "state_hash_mismatch_count": 0,
+        "tolerances": {
+          "atol": 1e-07,
+          "rtol": 1e-07
+        }
+      }
+    },
+    {
+      "chunk_index": 6,
+      "chunk_start": 49152,
+      "token_count": 8192,
+      "total_loss_nats": 33494.50629922753,
+      "mean_loss_nats": 4.088684850979923,
+      "mean_bpb": 5.8987253582665655,
+      "trace_fields_present": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "repeat_compared": true,
+      "repeatability": {
+        "covered": true,
+        "pass": true,
+        "chunk_count": 1,
+        "position_count": 8192,
+        "max_abs_prediction_diff": 0.0,
+        "mean_abs_prediction_diff": 0.0,
+        "prediction_diff_failures": 0,
+        "max_abs_gold_logprob_diff": 0.0,
+        "mean_abs_gold_logprob_diff": 0.0,
+        "gold_logprob_diff_failures": 0,
+        "state_hash_compared_count": 16384,
+        "state_hash_mismatch_count": 0,
+        "tolerances": {
+          "atol": 1e-07,
+          "rtol": 1e-07
+        }
+      }
+    },
+    {
+      "chunk_index": 7,
+      "chunk_start": 57344,
+      "token_count": 8192,
+      "total_loss_nats": 35025.93065595588,
+      "mean_loss_nats": 4.275626300775865,
+      "mean_bpb": 6.168424860823763,
+      "trace_fields_present": [
+        "counted",
+        "gold_logprobs",
+        "loss_nats",
+        "path_ids",
+        "state_hash_after",
+        "state_hash_before",
+        "weights"
+      ],
+      "repeat_compared": true,
+      "repeatability": {
+        "covered": true,
+        "pass": true,
+        "chunk_count": 1,
+        "position_count": 8192,
+        "max_abs_prediction_diff": 0.0,
+        "mean_abs_prediction_diff": 0.0,
+        "prediction_diff_failures": 0,
+        "max_abs_gold_logprob_diff": 0.0,
+        "mean_abs_gold_logprob_diff": 0.0,
+        "gold_logprob_diff_failures": 0,
+        "state_hash_compared_count": 16384,
+        "state_hash_mismatch_count": 0,
+        "tolerances": {
+          "atol": 1e-07,
+          "rtol": 1e-07
+        }
+      }
+    }
+  ]
+}
