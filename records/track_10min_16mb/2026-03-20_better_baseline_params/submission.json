@@ -1,0 +1,11 @@
+{
+  "author": "Fabrizio Milo",
+  "github_id": "Mistobaan",
+  "name": "LoRA TTT + Better HParams",
+  "blurb": "Same LoRA-TTT code path as 2026-03-17_LoRA_TTT, but with better defaults: 8x768 GQA, seq_len 2048, 262K-token batch, logit softcap 10, lower LR defaults (0.03/0.02/0.02), and beta1 0.70. submission.json is aggregated from the saved run logs.",
+  "date": "2026-03-21T01:53:26Z",
+  "val_loss": 1.97506667,
+  "val_bpb": 1.16973333,
+  "bytes_total": 31019889,
+  "bytes_code": 58510
+}
