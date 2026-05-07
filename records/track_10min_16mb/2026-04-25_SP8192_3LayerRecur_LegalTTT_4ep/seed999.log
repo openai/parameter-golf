@@ -1,0 +1,1171 @@
+=== PREFLIGHT (SMOKE_TEST=1, 108s) ===
+W0425 04:57:18.799000 179 torch/distributed/run.py:803] 
+W0425 04:57:18.799000 179 torch/distributed/run.py:803] *****************************************
+W0425 04:57:18.799000 179 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0425 04:57:18.799000 179 torch/distributed/run.py:803] *****************************************
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:247 [0] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:247 [0] NCCL INFO cudaDriverVersion 12080
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:247 [0] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:247 [0] NCCL INFO Comm config Blocking set to 1
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:251 [4] NCCL INFO cudaDriverVersion 12080
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:253 [6] NCCL INFO cudaDriverVersion 12080
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:251 [4] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:253 [6] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:251 [4] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:253 [6] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:251 [4] NCCL INFO Comm config Blocking set to 1
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:253 [6] NCCL INFO Comm config Blocking set to 1
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:248 [1] NCCL INFO cudaDriverVersion 12080
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:248 [1] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:248 [1] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:248 [1] NCCL INFO Comm config Blocking set to 1
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:249 [2] NCCL INFO cudaDriverVersion 12080
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:249 [2] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:249 [2] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:249 [2] NCCL INFO Comm config Blocking set to 1
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:250 [3] NCCL INFO cudaDriverVersion 12080
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:250 [3] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:250 [3] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:250 [3] NCCL INFO Comm config Blocking set to 1
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:252 [5] NCCL INFO cudaDriverVersion 12080
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:252 [5] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:252 [5] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:252 [5] NCCL INFO Comm config Blocking set to 1
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:254 [7] NCCL INFO cudaDriverVersion 12080
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:254 [7] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:254 [7] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:254 [7] NCCL INFO Comm config Blocking set to 1
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Failed to open libibverbs.so[.1]
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Initialized NET plugin Socket
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Assigned NET plugin Socket to comm
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Using network Socket
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO Failed to open libibverbs.so[.1]
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO Initialized NET plugin Socket
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO Assigned NET plugin Socket to comm
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO Using network Socket
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO Failed to open libibverbs.so[.1]
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO Initialized NET plugin Socket
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO Assigned NET plugin Socket to comm
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO Using network Socket
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO Failed to open libibverbs.so[.1]
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO Initialized NET plugin Socket
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO Assigned NET plugin Socket to comm
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO Using network Socket
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO Failed to open libibverbs.so[.1]
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO Failed to open libibverbs.so[.1]
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO Initialized NET plugin Socket
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO Initialized NET plugin Socket
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO Assigned NET plugin Socket to comm
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO Assigned NET plugin Socket to comm
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO Using network Socket
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO Using network Socket
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO ncclCommInitRankConfig comm 0x55c5b577e3d0 rank 0 nranks 8 cudaDev 0 nvmlDev 0 busId 19000 commId 0x415c0bbf2d093211 - Init START
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO Failed to open libibverbs.so[.1]
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO Initialized NET plugin Socket
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO Assigned NET plugin Socket to comm
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO Using network Socket
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO Failed to open libibverbs.so[.1]
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO Initialized NET plugin Socket
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO Assigned NET plugin Socket to comm
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO Using network Socket
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO ncclCommInitRankConfig comm 0x5630298ab9f0 rank 6 nranks 8 cudaDev 6 nvmlDev 6 busId cb000 commId 0x415c0bbf2d093211 - Init START
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO ncclCommInitRankConfig comm 0x5564b4fce0b0 rank 2 nranks 8 cudaDev 2 nvmlDev 2 busId 4c000 commId 0x415c0bbf2d093211 - Init START
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO ncclCommInitRankConfig comm 0x563c6b199700 rank 3 nranks 8 cudaDev 3 nvmlDev 3 busId 5d000 commId 0x415c0bbf2d093211 - Init START
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO RAS client listening socket at ::1<28028>
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO ncclCommInitRankConfig comm 0x5616fb60cd40 rank 7 nranks 8 cudaDev 7 nvmlDev 7 busId db000 commId 0x415c0bbf2d093211 - Init START
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO RAS client listening socket at ::1<28028>
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO ncclCommInitRankConfig comm 0x55bd61f08390 rank 4 nranks 8 cudaDev 4 nvmlDev 4 busId 9b000 commId 0x415c0bbf2d093211 - Init START
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO ncclCommInitRankConfig comm 0x56133127eba0 rank 1 nranks 8 cudaDev 1 nvmlDev 1 busId 3b000 commId 0x415c0bbf2d093211 - Init START
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO RAS client listening socket at ::1<28028>
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO Bootstrap timings total 0.001967 (create 0.000027, send 0.000087, recv 0.000131, ring 0.001408, delay 0.000002)
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO MNNVL busId 0x3b000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO RAS client listening socket at ::1<28028>
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO Bootstrap timings total 0.063517 (create 0.000028, send 0.000096, recv 0.000032, ring 0.001375, delay 0.000002)
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO MNNVL busId 0x4c000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO Bootstrap timings total 0.104352 (create 0.000030, send 0.000090, recv 0.005648, ring 0.060626, delay 0.000002)
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO MNNVL busId 0x5d000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO ncclCommInitRankConfig comm 0x5571e41170b0 rank 5 nranks 8 cudaDev 5 nvmlDev 5 busId bb000 commId 0x415c0bbf2d093211 - Init START
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO RAS client listening socket at ::1<28028>
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO Bootstrap timings total 0.033440 (create 0.000028, send 0.000098, recv 0.000072, ring 0.032893, delay 0.000002)
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO MNNVL busId 0xbb000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO Bootstrap timings total 0.072316 (create 0.000028, send 0.000091, recv 0.000107, ring 0.071688, delay 0.000002)
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO MNNVL busId 0xdb000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO RAS client listening socket at ::1<28028>
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Bootstrap timings total 0.660400 (create 0.000030, send 0.000090, recv 0.658532, ring 0.000130, delay 0.000002)
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO MNNVL busId 0x19000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO RAS client listening socket at ::1<28028>
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO Bootstrap timings total 0.098869 (create 0.000037, send 0.000103, recv 0.065459, ring 0.032897, delay 0.000002)
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO MNNVL busId 0x9b000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO RAS client listening socket at ::1<28028>
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO Bootstrap timings total 0.170724 (create 0.000032, send 0.000086, recv 0.098485, ring 0.032875, delay 0.000002)
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO MNNVL busId 0xcb000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO Setting affinity for GPU 1 to 0-47,96-143
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO comm 0x56133127eba0 rank 1 nRanks 8 nNodes 1 localRanks 8 localRank 1 MNNVL 0
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO Trees [0] 2/-1/-1->1->0 [1] 2/-1/-1->1->0 [2] 2/-1/-1->1->0 [3] 2/-1/-1->1->0 [4] 2/-1/-1->1->0 [5] 2/-1/-1->1->0 [6] 2/-1/-1->1->0 [7] 2/-1/-1->1->0 [8] 2/-1/-1->1->0 [9] 2/-1/-1->1->0 [10] 2/-1/-1->1->0 [11] 2/-1/-1->1->0 [12] 2/-1/-1->1->0 [13] 2/-1/-1->1->0 [14] 2/-1/-1->1->0 [15] 2/-1/-1->1->0 [16] 2/-1/-1->1->0 [17] 2/-1/-1->1->0 [18] 2/-1/-1->1->0 [19] 2/-1/-1->1->0 [20] 2/-1/-1->1->0 [21] 2/-1/-1->1->0 [22] 2/-1/-1->1->0 [23] 2/-1/-1->1->0
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO P2P Chunksize set to 524288
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:599 [1] NCCL INFO [Proxy Service] Device 1 CPU core 38
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:600 [1] NCCL INFO [Proxy Service UDS] Device 1 CPU core 137
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO Setting affinity for GPU 2 to 0-47,96-143
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO comm 0x5564b4fce0b0 rank 2 nRanks 8 nNodes 1 localRanks 8 localRank 2 MNNVL 0
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO Trees [0] 3/-1/-1->2->1 [1] 3/-1/-1->2->1 [2] 3/-1/-1->2->1 [3] 3/-1/-1->2->1 [4] 3/-1/-1->2->1 [5] 3/-1/-1->2->1 [6] 3/-1/-1->2->1 [7] 3/-1/-1->2->1 [8] 3/-1/-1->2->1 [9] 3/-1/-1->2->1 [10] 3/-1/-1->2->1 [11] 3/-1/-1->2->1 [12] 3/-1/-1->2->1 [13] 3/-1/-1->2->1 [14] 3/-1/-1->2->1 [15] 3/-1/-1->2->1 [16] 3/-1/-1->2->1 [17] 3/-1/-1->2->1 [18] 3/-1/-1->2->1 [19] 3/-1/-1->2->1 [20] 3/-1/-1->2->1 [21] 3/-1/-1->2->1 [22] 3/-1/-1->2->1 [23] 3/-1/-1->2->1
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO P2P Chunksize set to 524288
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:609 [2] NCCL INFO [Proxy Service] Device 2 CPU core 98
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:610 [2] NCCL INFO [Proxy Service UDS] Device 2 CPU core 109
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO Setting affinity for GPU 3 to 0-47,96-143
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO comm 0x563c6b199700 rank 3 nRanks 8 nNodes 1 localRanks 8 localRank 3 MNNVL 0
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO Trees [0] 4/-1/-1->3->2 [1] 4/-1/-1->3->2 [2] 4/-1/-1->3->2 [3] 4/-1/-1->3->2 [4] 4/-1/-1->3->2 [5] 4/-1/-1->3->2 [6] 4/-1/-1->3->2 [7] 4/-1/-1->3->2 [8] 4/-1/-1->3->2 [9] 4/-1/-1->3->2 [10] 4/-1/-1->3->2 [11] 4/-1/-1->3->2 [12] 4/-1/-1->3->2 [13] 4/-1/-1->3->2 [14] 4/-1/-1->3->2 [15] 4/-1/-1->3->2 [16] 4/-1/-1->3->2 [17] 4/-1/-1->3->2 [18] 4/-1/-1->3->2 [19] 4/-1/-1->3->2 [20] 4/-1/-1->3->2 [21] 4/-1/-1->3->2 [22] 4/-1/-1->3->2 [23] 4/-1/-1->3->2
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO P2P Chunksize set to 524288
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:602 [3] NCCL INFO [Proxy Service] Device 3 CPU core 103
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:604 [3] NCCL INFO [Proxy Service UDS] Device 3 CPU core 104
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO Setting affinity for GPU 5 to 48-95,144-191
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO comm 0x5571e41170b0 rank 5 nRanks 8 nNodes 1 localRanks 8 localRank 5 MNNVL 0
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO Trees [0] 6/-1/-1->5->4 [1] 6/-1/-1->5->4 [2] 6/-1/-1->5->4 [3] 6/-1/-1->5->4 [4] 6/-1/-1->5->4 [5] 6/-1/-1->5->4 [6] 6/-1/-1->5->4 [7] 6/-1/-1->5->4 [8] 6/-1/-1->5->4 [9] 6/-1/-1->5->4 [10] 6/-1/-1->5->4 [11] 6/-1/-1->5->4 [12] 6/-1/-1->5->4 [13] 6/-1/-1->5->4 [14] 6/-1/-1->5->4 [15] 6/-1/-1->5->4 [16] 6/-1/-1->5->4 [17] 6/-1/-1->5->4 [18] 6/-1/-1->5->4 [19] 6/-1/-1->5->4 [20] 6/-1/-1->5->4 [21] 6/-1/-1->5->4 [22] 6/-1/-1->5->4 [23] 6/-1/-1->5->4
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO P2P Chunksize set to 524288
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:606 [5] NCCL INFO [Proxy Service] Device 5 CPU core 158
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:608 [5] NCCL INFO [Proxy Service UDS] Device 5 CPU core 159
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO Setting affinity for GPU 7 to 48-95,144-191
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO comm 0x5616fb60cd40 rank 7 nRanks 8 nNodes 1 localRanks 8 localRank 7 MNNVL 0
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO Trees [0] -1/-1/-1->7->6 [1] -1/-1/-1->7->6 [2] -1/-1/-1->7->6 [3] -1/-1/-1->7->6 [4] -1/-1/-1->7->6 [5] -1/-1/-1->7->6 [6] -1/-1/-1->7->6 [7] -1/-1/-1->7->6 [8] -1/-1/-1->7->6 [9] -1/-1/-1->7->6 [10] -1/-1/-1->7->6 [11] -1/-1/-1->7->6 [12] -1/-1/-1->7->6 [13] -1/-1/-1->7->6 [14] -1/-1/-1->7->6 [15] -1/-1/-1->7->6 [16] -1/-1/-1->7->6 [17] -1/-1/-1->7->6 [18] -1/-1/-1->7->6 [19] -1/-1/-1->7->6 [20] -1/-1/-1->7->6 [21] -1/-1/-1->7->6 [22] -1/-1/-1->7->6 [23] -1/-1/-1->7->6
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO P2P Chunksize set to 524288
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:605 [7] NCCL INFO [Proxy Service] Device 7 CPU core 66
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:607 [7] NCCL INFO [Proxy Service UDS] Device 7 CPU core 67
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Setting affinity for GPU 0 to 0-47,96-143
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO comm 0x55c5b577e3d0 rank 0 nRanks 8 nNodes 1 localRanks 8 localRank 0 MNNVL 0
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 00/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 01/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 02/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 03/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 04/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 05/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 06/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 07/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 08/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 09/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 10/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 11/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 12/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 13/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 14/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 15/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 16/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 17/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 18/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 19/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 20/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 21/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 22/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Channel 23/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Trees [0] 1/-1/-1->0->-1 [1] 1/-1/-1->0->-1 [2] 1/-1/-1->0->-1 [3] 1/-1/-1->0->-1 [4] 1/-1/-1->0->-1 [5] 1/-1/-1->0->-1 [6] 1/-1/-1->0->-1 [7] 1/-1/-1->0->-1 [8] 1/-1/-1->0->-1 [9] 1/-1/-1->0->-1 [10] 1/-1/-1->0->-1 [11] 1/-1/-1->0->-1 [12] 1/-1/-1->0->-1 [13] 1/-1/-1->0->-1 [14] 1/-1/-1->0->-1 [15] 1/-1/-1->0->-1 [16] 1/-1/-1->0->-1 [17] 1/-1/-1->0->-1 [18] 1/-1/-1->0->-1 [19] 1/-1/-1->0->-1 [20] 1/-1/-1->0->-1 [21] 1/-1/-1->0->-1 [22] 1/-1/-1->0->-1 [23] 1/-1/-1->0->-1
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO P2P Chunksize set to 524288
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Check P2P Type isAllDirectP2p 1 directMode 0
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO Setting affinity for GPU 4 to 48-95,144-191
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:613 [0] NCCL INFO [Proxy Service] Device 0 CPU core 15
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:614 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 20
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO comm 0x55bd61f08390 rank 4 nRanks 8 nNodes 1 localRanks 8 localRank 4 MNNVL 0
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO Trees [0] 5/-1/-1->4->3 [1] 5/-1/-1->4->3 [2] 5/-1/-1->4->3 [3] 5/-1/-1->4->3 [4] 5/-1/-1->4->3 [5] 5/-1/-1->4->3 [6] 5/-1/-1->4->3 [7] 5/-1/-1->4->3 [8] 5/-1/-1->4->3 [9] 5/-1/-1->4->3 [10] 5/-1/-1->4->3 [11] 5/-1/-1->4->3 [12] 5/-1/-1->4->3 [13] 5/-1/-1->4->3 [14] 5/-1/-1->4->3 [15] 5/-1/-1->4->3 [16] 5/-1/-1->4->3 [17] 5/-1/-1->4->3 [18] 5/-1/-1->4->3 [19] 5/-1/-1->4->3 [20] 5/-1/-1->4->3 [21] 5/-1/-1->4->3 [22] 5/-1/-1->4->3 [23] 5/-1/-1->4->3
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO P2P Chunksize set to 524288
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:611 [4] NCCL INFO [Proxy Service] Device 4 CPU core 84
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:612 [4] NCCL INFO [Proxy Service UDS] Device 4 CPU core 181
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO Setting affinity for GPU 6 to 48-95,144-191
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO comm 0x5630298ab9f0 rank 6 nRanks 8 nNodes 1 localRanks 8 localRank 6 MNNVL 0
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO Trees [0] 7/-1/-1->6->5 [1] 7/-1/-1->6->5 [2] 7/-1/-1->6->5 [3] 7/-1/-1->6->5 [4] 7/-1/-1->6->5 [5] 7/-1/-1->6->5 [6] 7/-1/-1->6->5 [7] 7/-1/-1->6->5 [8] 7/-1/-1->6->5 [9] 7/-1/-1->6->5 [10] 7/-1/-1->6->5 [11] 7/-1/-1->6->5 [12] 7/-1/-1->6->5 [13] 7/-1/-1->6->5 [14] 7/-1/-1->6->5 [15] 7/-1/-1->6->5 [16] 7/-1/-1->6->5 [17] 7/-1/-1->6->5 [18] 7/-1/-1->6->5 [19] 7/-1/-1->6->5 [20] 7/-1/-1->6->5 [21] 7/-1/-1->6->5 [22] 7/-1/-1->6->5 [23] 7/-1/-1->6->5
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO P2P Chunksize set to 524288
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:601 [6] NCCL INFO [Proxy Service] Device 6 CPU core 146
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:603 [6] NCCL INFO [Proxy Service UDS] Device 6 CPU core 147
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO ncclCommInitRankConfig comm 0x56133127eba0 rank 1 nranks 8 cudaDev 1 nvmlDev 1 busId 3b000 commId 0x415c0bbf2d093211 - Init COMPLETE
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:590 [1] NCCL INFO Init timings - ncclCommInitRankConfig: rank 1 nranks 8 total 1.24 (kernels 0.64, alloc 0.45, bootstrap 0.00, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.03)
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 00/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 01/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 02/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 03/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 04/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 05/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 06/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 07/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 08/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 09/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 10/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 11/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 12/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 13/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 14/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 15/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 16/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 17/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 18/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 19/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 20/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 21/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 22/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Channel 23/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO ncclCommInitRankConfig comm 0x5564b4fce0b0 rank 2 nranks 8 cudaDev 2 nvmlDev 2 busId 4c000 commId 0x415c0bbf2d093211 - Init COMPLETE
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:582 [2] NCCL INFO Init timings - ncclCommInitRankConfig: rank 2 nranks 8 total 1.30 (kernels 0.39, alloc 0.70, bootstrap 0.06, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 00/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 01/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 02/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 03/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 04/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 05/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 06/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 07/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 08/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 09/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 10/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 11/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 12/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 13/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 14/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 15/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 16/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 17/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 18/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 19/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 20/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 21/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 22/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Channel 23/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO ncclCommInitRankConfig comm 0x563c6b199700 rank 3 nranks 8 cudaDev 3 nvmlDev 3 busId 5d000 commId 0x415c0bbf2d093211 - Init COMPLETE
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:585 [3] NCCL INFO Init timings - ncclCommInitRankConfig: rank 3 nranks 8 total 1.30 (kernels 0.34, alloc 0.70, bootstrap 0.10, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 00/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 01/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 02/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 03/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 04/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 05/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 06/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 07/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 08/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 09/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 10/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 11/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 12/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 13/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 14/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 15/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 16/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 17/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 18/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 19/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 20/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 21/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 22/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Channel 23/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO ncclCommInitRankConfig comm 0x5571e41170b0 rank 5 nranks 8 cudaDev 5 nvmlDev 5 busId bb000 commId 0x415c0bbf2d093211 - Init COMPLETE
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:587 [5] NCCL INFO Init timings - ncclCommInitRankConfig: rank 5 nranks 8 total 1.28 (kernels 0.47, alloc 0.62, bootstrap 0.03, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 00/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 01/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 02/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 03/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 04/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 05/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 06/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 07/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 08/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 09/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 10/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 11/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 12/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 13/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 14/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 15/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 16/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 17/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 18/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 19/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 20/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 21/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 22/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Channel 23/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO ncclCommInitRankConfig comm 0x5616fb60cd40 rank 7 nranks 8 cudaDev 7 nvmlDev 7 busId db000 commId 0x415c0bbf2d093211 - Init COMPLETE
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:586 [7] NCCL INFO Init timings - ncclCommInitRankConfig: rank 7 nranks 8 total 1.30 (kernels 0.36, alloc 0.71, bootstrap 0.07, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 00/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 01/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 02/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 03/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 04/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 05/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 06/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 07/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 08/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 09/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 10/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 11/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 12/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 13/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 14/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 15/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 16/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 17/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 18/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 19/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 20/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 21/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 22/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Channel 23/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO CC Off, workFifoBytes 1048576
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO ncclCommInitRankConfig comm 0x55c5b577e3d0 rank 0 nranks 8 cudaDev 0 nvmlDev 0 busId 19000 commId 0x415c0bbf2d093211 - Init COMPLETE
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:573 [0] NCCL INFO Init timings - ncclCommInitRankConfig: rank 0 nranks 8 total 1.36 (kernels 0.28, alloc 0.27, bootstrap 0.66, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 00/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO ncclCommInitRankConfig comm 0x55bd61f08390 rank 4 nranks 8 cudaDev 4 nvmlDev 4 busId 9b000 commId 0x415c0bbf2d093211 - Init COMPLETE
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 01/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:580 [4] NCCL INFO Init timings - ncclCommInitRankConfig: rank 4 nranks 8 total 1.31 (kernels 0.34, alloc 0.73, bootstrap 0.10, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 02/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 00/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 03/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 01/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 04/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 02/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 05/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 03/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 06/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 04/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 07/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 05/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 08/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 06/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 09/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 07/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 10/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 08/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 11/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 09/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 12/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 10/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 13/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 11/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO ncclCommInitRankConfig comm 0x5630298ab9f0 rank 6 nranks 8 cudaDev 6 nvmlDev 6 busId cb000 commId 0x415c0bbf2d093211 - Init COMPLETE
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 14/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 12/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:581 [6] NCCL INFO Init timings - ncclCommInitRankConfig: rank 6 nranks 8 total 1.31 (kernels 0.31, alloc 0.67, bootstrap 0.17, allgathers 0.00, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 15/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 13/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 00/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 16/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 14/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 01/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 17/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 15/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 02/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 18/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 16/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 03/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 19/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 17/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 04/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 20/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 18/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 05/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 21/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 19/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 06/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 22/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 20/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 07/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Channel 23/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 21/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 08/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 22/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Channel 23/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 09/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 10/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 11/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 12/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 13/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 14/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 15/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 16/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 17/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 18/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 19/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 20/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 21/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 22/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Channel 23/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:618 [1] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:619 [2] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:621 [3] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:616 [5] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:617 [7] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:615 [4] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:620 [0] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default0]:Hyperparameters:
+[default0]:  adam_eps: 1e-08
+[default0]:  adam_wd: 0.005
+[default0]:  beta1: 0.9
+[default0]:  beta2: 0.95
+[default0]:  compressor: brotli
+[default0]:  data_dir: ./openai_parameter_golf/data
+[default0]:  datasets_dir: ./openai_parameter_golf/data/datasets/fineweb10B_sp8192
+[default0]:  distributed: True
+[default0]:  ema_decay: 0.9965
+[default0]:  embed_bits: 8
+[default0]:  embed_clip_sigmas: 20.0
+[default0]:  embed_lr: 0.6
+[default0]:  embed_wd: 0.085
+[default0]:  embedding_dim: 512
+[default0]:  enable_looping_at: 0.35
+[default0]:  eval_seq_len: 512
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:622 [6] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default0]:  eval_stride: 64
+[default0]:  gptq_calibration_batches: 2
+[default0]:  grad_accum_steps: 1
+[default0]:  grad_clip_norm: 0.3
+[default0]:  head_lr: 0.008
+[default0]:  is_main_process: True
+[default0]:  iterations: 30
+[default0]:  ln_scale: True
+[default0]:  local_rank: 0
+[default0]:  logfile: logs/20260425_045722_d5cae9d7.txt
+[default0]:  logit_softcap: 30.0
+[default0]:  loop_end: 5
+[default0]:  loop_start: 3
+[default0]:  lowbit_layers: 
+[default0]:  matrix_bits: 6
+[default0]:  matrix_clip_sigmas: 12.85
+[default0]:  matrix_lr: 0.022
+[default0]:  max_wallclock_seconds: 120.0
+[default0]:  min_lr: 0.0
+[default0]:  mlp_mult: 4.0
+[default0]:  model_dim: 512
+[default0]:  model_path: ckpt/final_model.pt
+[default0]:  muon_backend_steps: 5
+[default0]:  muon_beta2: 0.95
+[default0]:  muon_momentum: 0.99
+[default0]:  muon_momentum_warmup_fraction: 0.22
+[default0]:  muon_momentum_warmup_start: 0.92
+[default0]:  muon_row_normalize: True
+[default0]:  muon_wd: 0.095
+[default0]:  muon_wd_mlp: 0.115
+[default0]:  num_heads: 8
+[default0]:  num_kv_heads: 4
+[default0]:  num_layers: 11
+[default0]:  num_loops: 2
+[default0]:  parallel_residual_start: 7
+[default0]:  qk_gain_init: 5.25
+[default0]:  quantized_model_path: ckpt/final_model.int6.ptz
+[default0]:  rank: 0
+[default0]:  rope_base: 10000.0
+[default0]:  rope_dims: 16
+[default0]:  rope_train_seq_len: 2048
+[default0]:  run_id: 20260425_045722_d5cae9d7
+[default0]:  scalar_lr: 0.02
+[default0]:  seed: 1337
+[default0]:  skip_gates_enabled: True
+[default0]:  sliding_window_enabled: True
+[default0]:  tie_embeddings: True
+[default0]:  tied_embed_init_std: 0.005
+[default0]:  tied_embed_lr: 0.03
+[default0]:  tokenizer_path: ./openai_parameter_golf/data/tokenizers/fineweb_8192_bpe.model
+[default0]:  train_batch_tokens: 32768
+[default0]:  train_files: /dev/shm/fineweb10B_sp8192/fineweb_train_*.bin
+[default0]:  train_log_every: 5
+[default0]:  train_seq_len: 512
+[default0]:  ttt_chunk_tokens: 65536
+[default0]:  ttt_enabled: False
+[default0]:  ttt_epochs: 4
+[default0]:  ttt_lr: 0.005
+[default0]:  ttt_momentum: 0.9
+[default0]:  val_batch_tokens: 2097152
+[default0]:  val_files: /dev/shm/fineweb10B_sp8192/fineweb_val_*.bin
+[default0]:  val_loss_every: 0
+[default0]:  vocab_size: 8192
+[default0]:  warmdown_frac: 0.2
+[default0]:  warmup_steps: 0
+[default0]:  world_size: 8
+[default0]:  xsa_last_n: 11
+[default0]:[SMOKE_TEST] attention_backend=sdpa_fallback  FA3=False  smoke_test=True
+[default0]:[SMOKE_TEST] val_bpb from this run is NOT comparable to proxy/full runs
+[default0]:attention_backend:sdpa_fallback(smoke) smoke_test:True
+[default0]:train_shards: 0
+[default0]:val_tokens: 40540672
+[default0]:smoke_test: torch.compile disabled (eager mode)
+[default0]:model_params:35946192
+[default0]:1/30 train_loss: 9.0074 train_time: 0.1m tok/s: 6877
+[default0]:2/30 train_loss: 13.8612 train_time: 0.1m tok/s: 13159
+[default0]:3/30 train_loss: 13.9006 train_time: 0.1m tok/s: 19473
+[default0]:4/30 train_loss: 12.3547 train_time: 0.1m tok/s: 25621
+[default0]:5/30 train_loss: 11.7225 train_time: 0.1m tok/s: 31590
+[default0]:10/30 train_loss: 7.8871 train_time: 0.1m tok/s: 59453
+[default0]:15/30 train_loss: 7.0285 train_time: 0.1m tok/s: 84709
+[default0]:20/30 train_loss: 6.7346 train_time: 0.1m tok/s: 107557
+[default0]:25/30 train_loss: 6.2556 train_time: 0.1m tok/s: 128298
+[default0]:30/30 train_loss: 6.2241 train_time: 0.1m tok/s: 147317
+[default0]:peak memory allocated: 2595 MiB reserved: 2840 MiB
+[default0]:ema:applying EMA weights
+[default0]:smoke_test: training complete — running GPTQ+brotli pack for size check
+[default0]:Serialized model: 135441937 bytes
+[default0]:GPTQ:collecting Hessians from calibration data...
+[default0]:GPTQ:collected 67 Hessians in 0.4s
+[default0]:Quantized weights:
+[default0]:  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+[default0]:  gptq (int8): tok_emb.weight
+[default0]:  passthrough (float16): blocks.attn.attn_out_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, embed_scale, skip_gates, skip_weights
+[default0]:Serialized model quantized+brotli: 15994543 bytes
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:251:251 [4] NCCL INFO comm 0x55bd61f08390 rank 4 nranks 8 cudaDev 4 busId 9b000 - Destroy COMPLETE
+[default0]:smoke_pack_bytes: code=19646 model=15994543 total=16014189
+[default0]:smoke_test:complete (code ran successfully; val_bpb not computed in smoke mode)
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:252:252 [5] NCCL INFO comm 0x5571e41170b0 rank 5 nranks 8 cudaDev 5 busId bb000 - Destroy COMPLETE
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:250:250 [3] NCCL INFO comm 0x563c6b199700 rank 3 nranks 8 cudaDev 3 busId 5d000 - Destroy COMPLETE
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:253:253 [6] NCCL INFO comm 0x5630298ab9f0 rank 6 nranks 8 cudaDev 6 busId cb000 - Destroy COMPLETE
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:247:247 [0] NCCL INFO comm 0x55c5b577e3d0 rank 0 nranks 8 cudaDev 0 busId 19000 - Destroy COMPLETE
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:249:249 [2] NCCL INFO comm 0x5564b4fce0b0 rank 2 nranks 8 cudaDev 2 busId 4c000 - Destroy COMPLETE
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:254:254 [7] NCCL INFO comm 0x5616fb60cd40 rank 7 nranks 8 cudaDev 7 busId db000 - Destroy COMPLETE
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:248:248 [1] NCCL INFO comm 0x56133127eba0 rank 1 nranks 8 cudaDev 1 busId 3b000 - Destroy COMPLETE
+
+=== TRAIN (rc=0, 1413s) ===
+W0425 04:59:06.896000 25565 torch/distributed/run.py:803] 
+W0425 04:59:06.896000 25565 torch/distributed/run.py:803] *****************************************
+W0425 04:59:06.896000 25565 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0425 04:59:06.896000 25565 torch/distributed/run.py:803] *****************************************
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25634 [0] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25634 [0] NCCL INFO cudaDriverVersion 12080
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25634 [0] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25634 [0] NCCL INFO Comm config Blocking set to 1
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25635 [1] NCCL INFO cudaDriverVersion 12080
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25635 [1] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25635 [1] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25635 [1] NCCL INFO Comm config Blocking set to 1
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25637 [3] NCCL INFO cudaDriverVersion 12080
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25637 [3] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25637 [3] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25637 [3] NCCL INFO Comm config Blocking set to 1
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25638 [4] NCCL INFO cudaDriverVersion 12080
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25638 [4] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25638 [4] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25638 [4] NCCL INFO Comm config Blocking set to 1
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25639 [5] NCCL INFO cudaDriverVersion 12080
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25639 [5] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25639 [5] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25639 [5] NCCL INFO Comm config Blocking set to 1
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25640 [6] NCCL INFO cudaDriverVersion 12080
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25640 [6] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25640 [6] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25640 [6] NCCL INFO Comm config Blocking set to 1
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25636 [2] NCCL INFO cudaDriverVersion 12080
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25636 [2] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25636 [2] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25636 [2] NCCL INFO Comm config Blocking set to 1
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25641 [7] NCCL INFO cudaDriverVersion 12080
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25641 [7] NCCL INFO Bootstrap: Using eth0:10.245.41.22<0>
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25641 [7] NCCL INFO NCCL version 2.27.5+cuda12.9
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25641 [7] NCCL INFO Comm config Blocking set to 1
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Failed to open libibverbs.so[.1]
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Initialized NET plugin Socket
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Assigned NET plugin Socket to comm
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Using network Socket
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO Failed to open libibverbs.so[.1]
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO ncclCommInitRankConfig comm 0x562a344e8e50 rank 0 nranks 8 cudaDev 0 nvmlDev 0 busId 19000 commId 0x858d7950b3ab6cee - Init START
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO Initialized NET plugin Socket
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO Assigned NET plugin Socket to comm
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO Using network Socket
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO Failed to open libibverbs.so[.1]
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO Initialized NET plugin Socket
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO Assigned NET plugin Socket to comm
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO Using network Socket
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO Failed to open libibverbs.so[.1]
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO Initialized NET plugin Socket
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO Assigned NET plugin Socket to comm
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO Using network Socket
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO Failed to open libibverbs.so[.1]
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO Initialized NET plugin Socket
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO Assigned NET plugin Socket to comm
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO Using network Socket
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO Failed to open libibverbs.so[.1]
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO Initialized NET plugin Socket
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO Assigned NET plugin Socket to comm
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO Using network Socket
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO Failed to open libibverbs.so[.1]
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO Initialized NET plugin Socket
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO Assigned NET plugin Socket to comm
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO Using network Socket
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO NET/Plugin: Could not find: libnccl-net.so. 
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO Failed to open libibverbs.so[.1]
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO NET/Socket : Using [0]eth0:10.245.41.22<0>
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO Initialized NET plugin Socket
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO Assigned NET plugin Socket to comm
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO Using network Socket
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO ncclCommInitRankConfig comm 0x56047e0e1d30 rank 2 nranks 8 cudaDev 2 nvmlDev 2 busId 4c000 commId 0x858d7950b3ab6cee - Init START
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO RAS client listening socket at ::1<28028>
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO ncclCommInitRankConfig comm 0x55621e803d40 rank 1 nranks 8 cudaDev 1 nvmlDev 1 busId 3b000 commId 0x858d7950b3ab6cee - Init START
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO ncclCommInitRankConfig comm 0x563da97ce7b0 rank 3 nranks 8 cudaDev 3 nvmlDev 3 busId 5d000 commId 0x858d7950b3ab6cee - Init START
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO RAS client listening socket at ::1<28028>
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO ncclCommInitRankConfig comm 0x5569464c4f90 rank 4 nranks 8 cudaDev 4 nvmlDev 4 busId 9b000 commId 0x858d7950b3ab6cee - Init START
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO RAS client listening socket at ::1<28028>
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO ncclCommInitRankConfig comm 0x5606f3d87690 rank 5 nranks 8 cudaDev 5 nvmlDev 5 busId bb000 commId 0x858d7950b3ab6cee - Init START
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO RAS client listening socket at ::1<28028>
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO ncclCommInitRankConfig comm 0x5654c1810d80 rank 6 nranks 8 cudaDev 6 nvmlDev 6 busId cb000 commId 0x858d7950b3ab6cee - Init START
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO Bootstrap timings total 0.027917 (create 0.000028, send 0.000098, recv 0.000081, ring 0.027376, delay 0.000002)
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO MNNVL busId 0x4c000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO Setting affinity for GPU 2 to 0-47,96-143
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO RAS client listening socket at ::1<28028>
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Bootstrap timings total 0.740574 (create 0.000031, send 0.000081, recv 0.618835, ring 0.000122, delay 0.000002)
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO MNNVL busId 0x19000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Setting affinity for GPU 0 to 0-47,96-143
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO RAS client listening socket at ::1<28028>
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO Bootstrap timings total 0.121845 (create 0.000029, send 0.000099, recv 0.093987, ring 0.026059, delay 0.000002)
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO MNNVL busId 0x3b000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO Setting affinity for GPU 1 to 0-47,96-143
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO Bootstrap timings total 0.117575 (create 0.000026, send 0.000096, recv 0.031388, ring 0.027355, delay 0.000002)
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO MNNVL busId 0x5d000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO Setting affinity for GPU 3 to 0-47,96-143
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO Bootstrap timings total 0.086239 (create 0.000028, send 0.000093, recv 0.000089, ring 0.085624, delay 0.000003)
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO MNNVL busId 0x9b000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO Setting affinity for GPU 4 to 48-95,144-191
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO Bootstrap timings total 0.125551 (create 0.000034, send 0.000103, recv 0.003561, ring 0.085614, delay 0.000002)
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO MNNVL busId 0xbb000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO Setting affinity for GPU 5 to 48-95,144-191
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO RAS client listening socket at ::1<28028>
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO Bootstrap timings total 0.122101 (create 0.000029, send 0.000095, recv 0.121407, ring 0.000199, delay 0.000002)
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO MNNVL busId 0xcb000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO Setting affinity for GPU 6 to 48-95,144-191
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO ncclCommInitRankConfig comm 0x564274bf4140 rank 7 nranks 8 cudaDev 7 nvmlDev 7 busId db000 commId 0x858d7950b3ab6cee - Init START
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO RAS client listening socket at ::1<28028>
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO Bootstrap timings total 0.000805 (create 0.000028, send 0.000087, recv 0.000146, ring 0.000167, delay 0.000002)
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO MNNVL busId 0xdb000 fabric UUID 0.0 cliqueId 0x0 state 3 healthMask 0x0
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO Setting affinity for GPU 7 to 48-95,144-191
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO NCCL_NVLS_ENABLE set by environment to 0.
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO comm 0x56047e0e1d30 rank 2 nRanks 8 nNodes 1 localRanks 8 localRank 2 MNNVL 0
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO Trees [0] 3/-1/-1->2->1 [1] 3/-1/-1->2->1 [2] 3/-1/-1->2->1 [3] 3/-1/-1->2->1 [4] 3/-1/-1->2->1 [5] 3/-1/-1->2->1 [6] 3/-1/-1->2->1 [7] 3/-1/-1->2->1 [8] 3/-1/-1->2->1 [9] 3/-1/-1->2->1 [10] 3/-1/-1->2->1 [11] 3/-1/-1->2->1 [12] 3/-1/-1->2->1 [13] 3/-1/-1->2->1 [14] 3/-1/-1->2->1 [15] 3/-1/-1->2->1 [16] 3/-1/-1->2->1 [17] 3/-1/-1->2->1 [18] 3/-1/-1->2->1 [19] 3/-1/-1->2->1 [20] 3/-1/-1->2->1 [21] 3/-1/-1->2->1 [22] 3/-1/-1->2->1 [23] 3/-1/-1->2->1
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO P2P Chunksize set to 524288
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26009 [2] NCCL INFO [Proxy Service] Device 2 CPU core 101
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26010 [2] NCCL INFO [Proxy Service UDS] Device 2 CPU core 6
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO ncclCommInitRankConfig comm 0x56047e0e1d30 rank 2 nranks 8 cudaDev 2 nvmlDev 2 busId 4c000 commId 0x858d7950b3ab6cee - Init COMPLETE
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25995 [2] NCCL INFO Init timings - ncclCommInitRankConfig: rank 2 nranks 8 total 1.28 (kernels 0.51, alloc 0.59, bootstrap 0.03, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.03)
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO comm 0x562a344e8e50 rank 0 nRanks 8 nNodes 1 localRanks 8 localRank 0 MNNVL 0
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 00/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 01/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 02/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 03/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 04/24 : 0 1 2 3 4 5 6 7
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO comm 0x55621e803d40 rank 1 nRanks 8 nNodes 1 localRanks 8 localRank 1 MNNVL 0
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO Trees [0] 2/-1/-1->1->0 [1] 2/-1/-1->1->0 [2] 2/-1/-1->1->0 [3] 2/-1/-1->1->0 [4] 2/-1/-1->1->0 [5] 2/-1/-1->1->0 [6] 2/-1/-1->1->0 [7] 2/-1/-1->1->0 [8] 2/-1/-1->1->0 [9] 2/-1/-1->1->0 [10] 2/-1/-1->1->0 [11] 2/-1/-1->1->0 [12] 2/-1/-1->1->0 [13] 2/-1/-1->1->0 [14] 2/-1/-1->1->0 [15] 2/-1/-1->1->0 [16] 2/-1/-1->1->0 [17] 2/-1/-1->1->0 [18] 2/-1/-1->1->0 [19] 2/-1/-1->1->0 [20] 2/-1/-1->1->0 [21] 2/-1/-1->1->0 [22] 2/-1/-1->1->0 [23] 2/-1/-1->1->0
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 05/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 06/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 07/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 08/24 : 0 1 2 3 4 5 6 7
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO P2P Chunksize set to 524288
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26007 [1] NCCL INFO [Proxy Service] Device 1 CPU core 97
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 09/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 10/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 11/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 12/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 13/24 : 0 1 2 3 4 5 6 7
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26008 [1] NCCL INFO [Proxy Service UDS] Device 1 CPU core 2
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 14/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 15/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 16/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 17/24 : 0 1 2 3 4 5 6 7
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO ncclCommInitRankConfig comm 0x55621e803d40 rank 1 nranks 8 cudaDev 1 nvmlDev 1 busId 3b000 commId 0x858d7950b3ab6cee - Init COMPLETE
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 18/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 19/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 20/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 21/24 : 0 1 2 3 4 5 6 7
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25988 [1] NCCL INFO Init timings - ncclCommInitRankConfig: rank 1 nranks 8 total 1.32 (kernels 0.34, alloc 0.70, bootstrap 0.12, allgathers 0.00, topo 0.05, graphs 0.02, connections 0.06, rest 0.03)
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 22/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Channel 23/24 : 0 1 2 3 4 5 6 7
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Trees [0] 1/-1/-1->0->-1 [1] 1/-1/-1->0->-1 [2] 1/-1/-1->0->-1 [3] 1/-1/-1->0->-1 [4] 1/-1/-1->0->-1 [5] 1/-1/-1->0->-1 [6] 1/-1/-1->0->-1 [7] 1/-1/-1->0->-1 [8] 1/-1/-1->0->-1 [9] 1/-1/-1->0->-1 [10] 1/-1/-1->0->-1 [11] 1/-1/-1->0->-1 [12] 1/-1/-1->0->-1 [13] 1/-1/-1->0->-1 [14] 1/-1/-1->0->-1 [15] 1/-1/-1->0->-1 [16] 1/-1/-1->0->-1 [17] 1/-1/-1->0->-1 [18] 1/-1/-1->0->-1 [19] 1/-1/-1->0->-1 [20] 1/-1/-1->0->-1 [21] 1/-1/-1->0->-1 [22] 1/-1/-1->0->-1 [23] 1/-1/-1->0->-1
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO P2P Chunksize set to 524288
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO comm 0x563da97ce7b0 rank 3 nRanks 8 nNodes 1 localRanks 8 localRank 3 MNNVL 0
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO Trees [0] 4/-1/-1->3->2 [1] 4/-1/-1->3->2 [2] 4/-1/-1->3->2 [3] 4/-1/-1->3->2 [4] 4/-1/-1->3->2 [5] 4/-1/-1->3->2 [6] 4/-1/-1->3->2 [7] 4/-1/-1->3->2 [8] 4/-1/-1->3->2 [9] 4/-1/-1->3->2 [10] 4/-1/-1->3->2 [11] 4/-1/-1->3->2 [12] 4/-1/-1->3->2 [13] 4/-1/-1->3->2 [14] 4/-1/-1->3->2 [15] 4/-1/-1->3->2 [16] 4/-1/-1->3->2 [17] 4/-1/-1->3->2 [18] 4/-1/-1->3->2 [19] 4/-1/-1->3->2 [20] 4/-1/-1->3->2 [21] 4/-1/-1->3->2 [22] 4/-1/-1->3->2 [23] 4/-1/-1->3->2
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Check P2P Type isAllDirectP2p 1 directMode 0
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26011 [0] NCCL INFO [Proxy Service] Device 0 CPU core 29
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26012 [0] NCCL INFO [Proxy Service UDS] Device 0 CPU core 33
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO CC Off, workFifoBytes 1048576
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO ncclCommInitRankConfig comm 0x562a344e8e50 rank 0 nranks 8 cudaDev 0 nvmlDev 0 busId 19000 commId 0x858d7950b3ab6cee - Init COMPLETE
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25983 [0] NCCL INFO Init timings - ncclCommInitRankConfig: rank 0 nranks 8 total 1.39 (kernels 0.28, alloc 0.21, bootstrap 0.74, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO P2P Chunksize set to 524288
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26019 [3] NCCL INFO [Proxy Service] Device 3 CPU core 99
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26020 [3] NCCL INFO [Proxy Service UDS] Device 3 CPU core 104
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO comm 0x5569464c4f90 rank 4 nRanks 8 nNodes 1 localRanks 8 localRank 4 MNNVL 0
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO Trees [0] 5/-1/-1->4->3 [1] 5/-1/-1->4->3 [2] 5/-1/-1->4->3 [3] 5/-1/-1->4->3 [4] 5/-1/-1->4->3 [5] 5/-1/-1->4->3 [6] 5/-1/-1->4->3 [7] 5/-1/-1->4->3 [8] 5/-1/-1->4->3 [9] 5/-1/-1->4->3 [10] 5/-1/-1->4->3 [11] 5/-1/-1->4->3 [12] 5/-1/-1->4->3 [13] 5/-1/-1->4->3 [14] 5/-1/-1->4->3 [15] 5/-1/-1->4->3 [16] 5/-1/-1->4->3 [17] 5/-1/-1->4->3 [18] 5/-1/-1->4->3 [19] 5/-1/-1->4->3 [20] 5/-1/-1->4->3 [21] 5/-1/-1->4->3 [22] 5/-1/-1->4->3 [23] 5/-1/-1->4->3
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO P2P Chunksize set to 524288
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26017 [4] NCCL INFO [Proxy Service] Device 4 CPU core 165
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO ncclCommInitRankConfig comm 0x563da97ce7b0 rank 3 nranks 8 cudaDev 3 nvmlDev 3 busId 5d000 commId 0x858d7950b3ab6cee - Init COMPLETE
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25989 [3] NCCL INFO Init timings - ncclCommInitRankConfig: rank 3 nranks 8 total 1.31 (kernels 0.33, alloc 0.70, bootstrap 0.12, allgathers 0.00, topo 0.05, graphs 0.02, connections 0.06, rest 0.03)
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26018 [4] NCCL INFO [Proxy Service UDS] Device 4 CPU core 166
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO ncclCommInitRankConfig comm 0x5569464c4f90 rank 4 nranks 8 cudaDev 4 nvmlDev 4 busId 9b000 commId 0x858d7950b3ab6cee - Init COMPLETE
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25992 [4] NCCL INFO Init timings - ncclCommInitRankConfig: rank 4 nranks 8 total 1.30 (kernels 0.38, alloc 0.68, bootstrap 0.09, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO comm 0x5606f3d87690 rank 5 nRanks 8 nNodes 1 localRanks 8 localRank 5 MNNVL 0
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO Trees [0] 6/-1/-1->5->4 [1] 6/-1/-1->5->4 [2] 6/-1/-1->5->4 [3] 6/-1/-1->5->4 [4] 6/-1/-1->5->4 [5] 6/-1/-1->5->4 [6] 6/-1/-1->5->4 [7] 6/-1/-1->5->4 [8] 6/-1/-1->5->4 [9] 6/-1/-1->5->4 [10] 6/-1/-1->5->4 [11] 6/-1/-1->5->4 [12] 6/-1/-1->5->4 [13] 6/-1/-1->5->4 [14] 6/-1/-1->5->4 [15] 6/-1/-1->5->4 [16] 6/-1/-1->5->4 [17] 6/-1/-1->5->4 [18] 6/-1/-1->5->4 [19] 6/-1/-1->5->4 [20] 6/-1/-1->5->4 [21] 6/-1/-1->5->4 [22] 6/-1/-1->5->4 [23] 6/-1/-1->5->4
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO P2P Chunksize set to 524288
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26013 [5] NCCL INFO [Proxy Service] Device 5 CPU core 53
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26014 [5] NCCL INFO [Proxy Service UDS] Device 5 CPU core 160
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO ncclCommInitRankConfig comm 0x5606f3d87690 rank 5 nranks 8 cudaDev 5 nvmlDev 5 busId bb000 commId 0x858d7950b3ab6cee - Init COMPLETE
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25991 [5] NCCL INFO Init timings - ncclCommInitRankConfig: rank 5 nranks 8 total 1.31 (kernels 0.35, alloc 0.67, bootstrap 0.13, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.02)
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO comm 0x5654c1810d80 rank 6 nRanks 8 nNodes 1 localRanks 8 localRank 6 MNNVL 0
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO Trees [0] 7/-1/-1->6->5 [1] 7/-1/-1->6->5 [2] 7/-1/-1->6->5 [3] 7/-1/-1->6->5 [4] 7/-1/-1->6->5 [5] 7/-1/-1->6->5 [6] 7/-1/-1->6->5 [7] 7/-1/-1->6->5 [8] 7/-1/-1->6->5 [9] 7/-1/-1->6->5 [10] 7/-1/-1->6->5 [11] 7/-1/-1->6->5 [12] 7/-1/-1->6->5 [13] 7/-1/-1->6->5 [14] 7/-1/-1->6->5 [15] 7/-1/-1->6->5 [16] 7/-1/-1->6->5 [17] 7/-1/-1->6->5 [18] 7/-1/-1->6->5 [19] 7/-1/-1->6->5 [20] 7/-1/-1->6->5 [21] 7/-1/-1->6->5 [22] 7/-1/-1->6->5 [23] 7/-1/-1->6->5
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO P2P Chunksize set to 524288
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26015 [6] NCCL INFO [Proxy Service] Device 6 CPU core 66
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26016 [6] NCCL INFO [Proxy Service UDS] Device 6 CPU core 67
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO ncclCommInitRankConfig comm 0x5654c1810d80 rank 6 nranks 8 cudaDev 6 nvmlDev 6 busId cb000 commId 0x858d7950b3ab6cee - Init COMPLETE
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25990 [6] NCCL INFO Init timings - ncclCommInitRankConfig: rank 6 nranks 8 total 1.31 (kernels 0.34, alloc 0.69, bootstrap 0.12, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.03)
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO comm 0x564274bf4140 rank 7 nRanks 8 nNodes 1 localRanks 8 localRank 7 MNNVL 0
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO Trees [0] -1/-1/-1->7->6 [1] -1/-1/-1->7->6 [2] -1/-1/-1->7->6 [3] -1/-1/-1->7->6 [4] -1/-1/-1->7->6 [5] -1/-1/-1->7->6 [6] -1/-1/-1->7->6 [7] -1/-1/-1->7->6 [8] -1/-1/-1->7->6 [9] -1/-1/-1->7->6 [10] -1/-1/-1->7->6 [11] -1/-1/-1->7->6 [12] -1/-1/-1->7->6 [13] -1/-1/-1->7->6 [14] -1/-1/-1->7->6 [15] -1/-1/-1->7->6 [16] -1/-1/-1->7->6 [17] -1/-1/-1->7->6 [18] -1/-1/-1->7->6 [19] -1/-1/-1->7->6 [20] -1/-1/-1->7->6 [21] -1/-1/-1->7->6 [22] -1/-1/-1->7->6 [23] -1/-1/-1->7->6
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO P2P Chunksize set to 524288
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO PROFILER/Plugin: Could not find: libnccl-profiler.so. 
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26022 [7] NCCL INFO [Proxy Service UDS] Device 7 CPU core 168
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26021 [7] NCCL INFO [Proxy Service] Device 7 CPU core 167
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO 24 coll channels, 24 collnet channels, 0 nvls channels, 32 p2p channels, 32 p2p channels per peer
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO TUNER/Plugin: Could not find: libnccl-tuner.so. Using internal tuner plugin.
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO ncclCommInitRankConfig comm 0x564274bf4140 rank 7 nranks 8 cudaDev 7 nvmlDev 7 busId db000 commId 0x858d7950b3ab6cee - Init COMPLETE
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25998 [7] NCCL INFO Init timings - ncclCommInitRankConfig: rank 7 nranks 8 total 1.25 (kernels 0.70, alloc 0.38, bootstrap 0.00, allgathers 0.01, topo 0.05, graphs 0.01, connections 0.06, rest 0.03)
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 00/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 01/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 02/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 03/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 04/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 05/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 06/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 07/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 08/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 09/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 10/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 11/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 12/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 13/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 14/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 15/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 16/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 17/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 18/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 19/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 20/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 21/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 22/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Channel 23/0 : 2[2] -> 3[3] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 00/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 01/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 02/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 03/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 04/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 05/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 06/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 07/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 08/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 09/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 10/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 11/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 12/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 13/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 14/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 15/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 16/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 17/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 18/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 19/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 20/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 21/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 22/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Channel 23/0 : 1[1] -> 2[2] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 00/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 01/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 02/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 03/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 04/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 05/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 06/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 07/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 08/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 09/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 10/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 11/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 12/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 13/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 14/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 15/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 16/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 17/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 18/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 19/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 20/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 21/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 22/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Channel 23/0 : 0[0] -> 1[1] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 00/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 01/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 00/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 01/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 02/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 02/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 03/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 04/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 05/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 03/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 04/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 05/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 06/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 06/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 07/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 08/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 09/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 10/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 07/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 08/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 09/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 10/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 11/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 12/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 13/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 14/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 15/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 16/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 11/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 12/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 13/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 14/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 17/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 15/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 18/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 16/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 17/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 18/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 19/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 19/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 20/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 21/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 20/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 21/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 22/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 22/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Channel 23/0 : 3[3] -> 4[4] via P2P/CUMEM
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Channel 23/0 : 4[4] -> 5[5] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 00/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 01/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 02/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 03/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 04/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 05/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 06/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 07/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 08/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 09/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 10/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 11/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 12/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 13/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 14/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 15/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 16/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 17/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 18/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 19/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 20/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 21/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 22/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Channel 23/0 : 5[5] -> 6[6] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 00/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 01/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 02/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 03/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 04/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 05/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 06/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 07/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 08/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 09/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 10/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 11/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 12/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 13/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 14/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 15/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 16/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 17/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 18/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 19/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 20/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 21/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 22/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Channel 23/0 : 6[6] -> 7[7] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 00/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 01/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 02/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 03/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 04/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 05/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 06/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 07/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 08/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 09/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 10/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 11/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 12/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 13/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 14/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 15/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 16/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 17/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 18/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 19/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 20/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 21/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 22/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Channel 23/0 : 7[7] -> 0[0] via P2P/CUMEM
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:26030 [2] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:26029 [1] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:26024 [0] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default0]:Hyperparameters:
+[default0]:  adam_eps: 1e-08
+[default0]:  adam_wd: 0.005
+[default0]:  beta1: 0.9
+[default0]:  beta2: 0.95
+[default0]:  compressor: brotli
+[default0]:  data_dir: ./openai_parameter_golf/data
+[default0]:  datasets_dir: ./openai_parameter_golf/data/datasets/fineweb10B_sp8192
+[default0]:  distributed: True
+[default0]:  ema_decay: 0.9965
+[default0]:  embed_bits: 8
+[default0]:  embed_clip_sigmas: 20.0
+[default0]:  embed_lr: 0.6
+[default0]:  embed_wd: 0.085
+[default0]:  embedding_dim: 512
+[default0]:  enable_looping_at: 0.35
+[default0]:  eval_seq_len: 2048
+[default0]:  eval_stride: 64
+[default0]:  gptq_calibration_batches: 64
+[default0]:  grad_accum_steps: 1
+[default0]:  grad_clip_norm: 0.3
+[default0]:  head_lr: 0.008
+[default0]:  is_main_process: True
+[default0]:  iterations: 50000
+[default0]:  ln_scale: True
+[default0]:  local_rank: 0
+[default0]:  logfile: logs/20260425_045910_88c4ca8a.txt
+[default0]:  logit_softcap: 30.0
+[default0]:  loop_end: 5
+[default0]:  loop_start: 3
+[default0]:  lowbit_layers: 
+[default0]:  matrix_bits: 6
+[default0]:  matrix_clip_sigmas: 12.85
+[default0]:  matrix_lr: 0.022
+[default0]:  max_wallclock_seconds: 600.0
+[default0]:  min_lr: 0.0
+[default0]:  mlp_mult: 4.0
+[default0]:  model_dim: 512
+[default0]:  model_path: ckpt/final_model.pt
+[default0]:  muon_backend_steps: 5
+[default0]:  muon_beta2: 0.95
+[default0]:  muon_momentum: 0.99
+[default0]:  muon_momentum_warmup_fraction: 0.22
+[default0]:  muon_momentum_warmup_start: 0.92
+[default0]:  muon_row_normalize: True
+[default0]:  muon_wd: 0.095
+[default0]:  muon_wd_mlp: 0.115
+[default0]:  num_heads: 8
+[default0]:  num_kv_heads: 4
+[default0]:  num_layers: 11
+[default0]:  num_loops: 2
+[default0]:  parallel_residual_start: 7
+[default0]:  qk_gain_init: 5.25
+[default0]:  quantized_model_path: ckpt/final_model.int6.ptz
+[default0]:  rank: 0
+[default0]:  rope_base: 10000.0
+[default0]:  rope_dims: 16
+[default0]:  rope_train_seq_len: 2048
+[default0]:  run_id: 20260425_045910_88c4ca8a
+[default0]:  scalar_lr: 0.02
+[default0]:  seed: 1337
+[default0]:  skip_gates_enabled: True
+[default0]:  sliding_window_enabled: True
+[default0]:  tie_embeddings: True
+[default0]:  tied_embed_init_std: 0.005
+[default0]:  tied_embed_lr: 0.03
+[default0]:  tokenizer_path: ./openai_parameter_golf/data/tokenizers/fineweb_8192_bpe.model
+[default0]:  train_batch_tokens: 786432
+[default0]:  train_files: /dev/shm/fineweb10B_sp8192/fineweb_train_*.bin
+[default0]:  train_log_every: 500
+[default0]:  train_seq_len: 2048
+[default0]:  ttt_chunk_tokens: 65536
+[default0]:  ttt_enabled: True
+[default0]:  ttt_epochs: 4
+[default0]:  ttt_lr: 0.005
+[default0]:  ttt_momentum: 0.9
+[default0]:  val_batch_tokens: 524288
+[default0]:  val_files: /dev/shm/fineweb10B_sp8192/fineweb_val_*.bin
+[default0]:  val_loss_every: 4000
+[default0]:  vocab_size: 8192
+[default0]:  warmdown_frac: 0.72
+[default0]:  warmup_steps: 20
+[default0]:  world_size: 8
+[default0]:  xsa_last_n: 11
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:26026 [4] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:26025 [3] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:26023 [5] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:26027 [6] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:26028 [7] NCCL INFO Connected all rings, use ring PXN 0 GDR 1
+[default0]:attention_backend:flash_attn_3 smoke_test:False
+[default0]:train_shards: 0
+[default0]:val_tokens: 40540160
+[default0]:model_params:35946192
+[default0]:warmup_step: 1/20
+[default0]:warmup_step: 2/20
+[default0]:warmup_step: 3/20
+[default0]:warmup_step: 4/20
+[default0]:warmup_step: 5/20
+[default0]:warmup_step: 6/20
+[default0]:warmup_step: 10/20
+[default0]:warmup_step: 20/20
+[default0]:loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+[default0]:loop_warmup_step: 1/20
+[default0]:loop_warmup_step: 2/20
+[default0]:loop_warmup_step: 3/20
+[default0]:loop_warmup_step: 4/20
+[default0]:loop_warmup_step: 5/20
+[default0]:loop_warmup_step: 6/20
+[default0]:loop_warmup_step: 10/20
+[default0]:loop_warmup_step: 20/20
+[default0]:0/50000 val_loss: 9.0047 val_bpb: 3.4860
+[default0]:1/50000 train_loss: 9.0043 train_time: 0.0m tok/s: 7998243
+[default0]:2/50000 train_loss: 12.3260 train_time: 0.0m tok/s: 8067913
+[default0]:3/50000 train_loss: 10.6755 train_time: 0.0m tok/s: 7983956
+[default0]:4/50000 train_loss: 9.0360 train_time: 0.0m tok/s: 7950366
+[default0]:5/50000 train_loss: 8.1956 train_time: 0.0m tok/s: 7935943
+[default0]:500/50000 train_loss: 3.2838 train_time: 0.8m tok/s: 7733467
+[default0]:1000/50000 train_loss: 3.1939 train_time: 1.7m tok/s: 7730853
+[default0]:1500/50000 train_loss: 3.1541 train_time: 2.5m tok/s: 7731072
+[default0]:2000/50000 train_loss: 3.0814 train_time: 3.4m tok/s: 7730575
+[default0]:layer_loop:enabled step:2065 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+[default0]:2500/50000 train_loss: 2.9958 train_time: 4.6m tok/s: 7149542
+[default0]:3000/50000 train_loss: 2.9185 train_time: 5.8m tok/s: 6748731
+[default0]:3500/50000 train_loss: 2.9287 train_time: 7.1m tok/s: 6466484
+[default0]:4000/50000 train_loss: 2.8960 train_time: 8.4m tok/s: 6250728
+[default0]:4000/50000 val_loss: 2.8638 val_bpb: 1.1087
+[default0]:4500/50000 train_loss: 2.7425 train_time: 9.6m tok/s: 6125653
+[default0]:4650/50000 val_loss: 2.7925 val_bpb: 1.0811
+[default0]:stopping_early: wallclock_cap train_time: 600108ms step: 4650/50000
+[default0]:peak memory allocated: 39076 MiB reserved: 39150 MiB
+[default0]:ema:applying EMA weights
+[default0]:pre-quantization post-ema val_loss:2.79176818 val_bpb:1.08078046 eval_time:8229ms
+[default0]:Serialized model: 135441937 bytes
+[default0]:GPTQ:collecting Hessians from calibration data...
+[default0]:GPTQ:collected 67 Hessians in 13.1s
+[default0]:Quantized weights:
+[default0]:  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+[default0]:  gptq (int8): tok_emb.weight
+[default0]:  passthrough (float16): blocks.attn.attn_out_gate_w, blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, embed_scale, skip_gates, skip_weights
+[default0]:Serialized model quantized+brotli: 15976105 bytes
+[default0]:quantized val_loss:2.81865316 val_bpb:1.09118848 eval_time:27235ms
+[default0]:quantized_sliding_window val_loss:2.77537502 val_bpb:1.07443416 eval_time:129816ms
+[default0]:ttt:start chunks=619 ttt_lr=0.005 ttt_epochs=4
+[default0]:quantized_ttt val_loss:2.77154797 val_bpb:1.07295259 eval_time:314448ms
+[default1]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25635:25635 [1] NCCL INFO comm 0x55621e803d40 rank 1 nranks 8 cudaDev 1 busId 3b000 - Destroy COMPLETE
+[default6]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25640:25640 [6] NCCL INFO comm 0x5654c1810d80 rank 6 nranks 8 cudaDev 6 busId cb000 - Destroy COMPLETE
+[default5]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25639:25639 [5] NCCL INFO comm 0x5606f3d87690 rank 5 nranks 8 cudaDev 5 busId bb000 - Destroy COMPLETE
+[default4]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25638:25638 [4] NCCL INFO comm 0x5569464c4f90 rank 4 nranks 8 cudaDev 4 busId 9b000 - Destroy COMPLETE
+[default3]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25637:25637 [3] NCCL INFO comm 0x563da97ce7b0 rank 3 nranks 8 cudaDev 3 busId 5d000 - Destroy COMPLETE
+[default7]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25641:25641 [7] NCCL INFO comm 0x564274bf4140 rank 7 nranks 8 cudaDev 7 busId db000 - Destroy COMPLETE
+[default0]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25634:25634 [0] NCCL INFO comm 0x562a344e8e50 rank 0 nranks 8 cudaDev 0 busId 19000 - Destroy COMPLETE
+[default2]:job-e807e32d-7aab-4e0d-b687-e73e463923d7-worker-0:25636:25636 [2] NCCL INFO comm 0x56047e0e1d30 rank 2 nranks 8 cudaDev 2 busId 4c000 - Destroy COMPLETE
+
+--- EVAL_WALL 586.4s ---
+
+=== PACK (rc=0) ===
+Packed code: 19646 bytes (raw=70361 bytes)
+Model blob : 15976105 bytes
+Submission size: 15995751 bytes
