@@ -1,0 +1,9 @@
+{
+  "name": "Smaller Batch SOTA Stack",
+  "blurb": "SOTA-like stack (MLP 3x, int6, fp16 embed, late-K fp16, sliding eval stride=256) with smaller batch (524K vs 786K) for ~50% more optimizer steps. 10,831 steps vs SOTA's ~7,199. 9-layer 512-dim, seq2048.",
+  "date": "2026-03-19T18:00:00Z",
+  "val_loss": 1.96392463,
+  "val_bpb": 1.16314679,
+  "bytes_total": 15859538,
+  "bytes_code": 58672
+}
