@@ -1,0 +1,21 @@
+{
+    "author": "Rana Usman",
+    "github_id": "ranausmanai",
+    "name": "Asymmetric 1/10 Encoder-Decoder Split + Systematic Exploration",
+    "blurb": "One-line change: setting num_encoder_layers=1 (instead of num_layers//2) monotonically improves BPB. Validated on baseline code (-0.016 BPB across 4 split ratios on RTX 5090) and SOTA code (-0.004 BPB). 8xH100 partial run reached 1.1492 pre-quant BPB at step 5666/9000 (FA2 speed bottleneck prevented full training). Background: 27 systematic experiments on M4 MacBook exploring deep supervision, LR tuning, batch scaling, and architecture.",
+    "date": "2026-04-03T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 2.7714,
+    "val_bpb": 1.6414,
+    "pre_quant_val_loss": 2.7683,
+    "pre_quant_val_bpb": 1.6395,
+    "h100_pre_quant_val_bpb": 1.1492,
+    "h100_steps_completed": 5666,
+    "h100_steps_target": 9000,
+    "step_stop": 300,
+    "wallclock_seconds": 4125,
+    "bytes_total": 9815427,
+    "bytes_model_int8_zlib": 9815427,
+    "bytes_code": null,
+    "gpu": "Apple M4 (MLX), RTX 5090 (PyTorch), 8xH100 SXM (PyTorch)"
+}
