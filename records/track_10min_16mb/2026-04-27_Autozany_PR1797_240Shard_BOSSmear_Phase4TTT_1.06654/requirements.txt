@@ -1,0 +1,6 @@
+torch
+flash-attn-interface
+sentencepiece
+triton
+numpy
+brotli
