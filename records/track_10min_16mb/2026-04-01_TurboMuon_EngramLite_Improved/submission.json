@@ -1,0 +1,22 @@
+{
+  "name": "Serghei Brinza",
+  "github": "SergheiBrinza",
+  "val_bpb": 1.1431,
+  "val_bpb_mean": 1.1431,
+  "val_bpb_std": 0.0007,
+  "seeds": {
+    "1337": 1.1425,
+    "42": 1.1438,
+    "2024": 1.1431
+  },
+  "artifact_bytes": 15985158,
+  "code_bytes": 146041,
+  "total_bytes": 15985158,
+  "hardware": "8xH100 80GB SXM",
+  "training_time_seconds": 591,
+  "steps": 5562,
+  "step_avg_ms": 106.74,
+  "date": "2026-04-01",
+  "base_pr": 1089,
+  "summary": "Turbo-Muon + EngramLite(10240x48) + VE(8,9,10) + Higher LR + Warmdown 4500"
+}
