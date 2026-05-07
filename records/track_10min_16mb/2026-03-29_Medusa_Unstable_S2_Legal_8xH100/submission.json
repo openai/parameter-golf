@@ -1,0 +1,39 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Medusa: Unstable S2 — DeltaNet Crawler + Loop-Aware GPTQ (Legal)",
+  "blurb": "Legal resubmission of Medusa: Unstable (PR #1028). Fix: GPTQ_RESERVE_MS=30000 stops training 30s early so GPTQ calibration (~12s) completes within the 600s wallclock budget. All hyperparameters identical to Medusa_IV. DELTA_NET_HEADS=4, chunk_delta_rule, loop-aware 2-phase GPTQ, late-start EMA (step 4400, decay=0.99). 4 flat + 1 crawler x 4 loops, INST_DIM=32. Known: high cross-seed variance from DeltaNet heads; stabilization is active research.",
+  "date": "2026-03-29",
+  "seed_300": {
+    "val_bpb": 0.6191,
+    "sliding_window_bpb": 1.02508673,
+    "post_ema_bpb": 0.6484,
+    "roundtrip_bpb": 0.89869376,
+    "steps": 4628,
+    "train_time_s": 570,
+    "eval_time_s": "~124s"
+  },
+  "seed_444": {
+    "val_bpb": 0.4214,
+    "sliding_window_bpb": 0.84693639,
+    "post_ema_bpb": 0.4330,
+    "roundtrip_bpb": 0.71594908,
+    "steps": 4616,
+    "train_time_s": 570,
+    "eval_time_s": "~106s"
+  },
+  "seed_4": {
+    "val_bpb": 0.4116,
+    "sliding_window_bpb": 0.77444386,
+    "post_ema_bpb": 0.4339,
+    "roundtrip_bpb": 0.62712646,
+    "steps": 4642,
+    "train_time_s": 570,
+    "eval_time_s": "~106s"
+  },
+  "val_bpb": 0.88215566,
+  "bytes_total": 9758873,
+  "bytes_code": 180983,
+  "hardware": "8xH100 SXM",
+  "notes": "Cross-seed variance std dev ~0.105 (vs ClownCar 0.00015). DeltaNet heads introduce seed sensitivity. GPTQ_RESERVE_MS=30000: training stops at ~570s, GPTQ completes at ~582s. Stabilization ongoing."
+}
