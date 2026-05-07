@@ -1,0 +1,17 @@
+{
+  "author": "S Akash",
+  "github_id": "Akasxh",
+  "name": "INT6 10L SWA NorMuon (NTK eval — suboptimal)",
+  "blurb": "10-layer GPT with INT6 quantization (3.82x compression), SWA weight averaging (50 snapshots), NorMuon optimizer with decoupled weight decay, aggressive warmdown (20000 iters). Pre-quant val_bpb=1.1923 is competitive but NTK RoPE eval at 4096 context hurt post-quant score. Rerun without NTK expected to yield ~1.19.",
+  "date": "2026-03-20T10:34:00Z",
+  "val_loss": 2.08016806,
+  "val_bpb": 1.23199932,
+  "pre_quant_val_loss": 2.0131,
+  "pre_quant_val_bpb": 1.1923,
+  "step_stop": 9956,
+  "wallclock_seconds": 600.017,
+  "eval_time_seconds": 336.698,
+  "bytes_total": 14202629,
+  "bytes_model_int6_zlib": 14121116,
+  "bytes_code": 81513
+}
