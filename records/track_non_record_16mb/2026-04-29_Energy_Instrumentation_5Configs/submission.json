@@ -1,0 +1,88 @@
+{
+  "name": "Energy as the missing leaderboard axis: Wh per BPB-drop across 5 configs",
+  "author": "jayyvk",
+  "github_id": "jayyvk",
+  "date": "2026-04-29",
+  "track": "non_record_16mb",
+  "kind": "instrumentation_study",
+  "blurb": "Reproduced 5 published parameter-golf submissions on 8xH100 SXM5 and added NVML hardware-counter energy measurement (matcha 0.3.1). Found 14x spread in Wh per 0.001 BPB-drop between most/least efficient techniques despite identical 600s wallclock budget; post-training overhead 5-31% of total energy is invisible to the val_bpb-only leaderboard. Two configs ('SlidingWindow eval' and 'LoRA TTT') hit the same final score at near-identical energy via completely different mechanisms. Provides raw JSONLs, analysis scripts, and 5 figures so anyone can re-derive or extend.",
+  "configs_measured": [
+    {
+      "submission": "2026-03-17_NaiveBaseline",
+      "val_bpb_published": 1.2244,
+      "val_bpb_reproduced": 1.22551,
+      "energy_kwh_total": 1.090,
+      "duration_s": 807,
+      "post_train_pct_of_energy": 5
+    },
+    {
+      "submission": "2026-03-19_SlidingWindowEval",
+      "val_bpb_published": 1.1925,
+      "val_bpb_reproduced": 1.19259,
+      "energy_kwh_total": 1.035,
+      "duration_s": 773,
+      "post_train_pct_of_energy": 10
+    },
+    {
+      "submission": "2026-03-17_LoRA_TTT",
+      "val_bpb_published": 1.1928,
+      "val_bpb_reproduced": 1.19234,
+      "energy_kwh_total": 0.996,
+      "duration_s": 734,
+      "post_train_pct_of_energy": 8
+    },
+    {
+      "submission": "2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233",
+      "val_bpb_published": 1.1233,
+      "val_bpb_reproduced": 1.12329,
+      "energy_kwh_total": 1.105,
+      "duration_s": 888,
+      "post_train_pct_of_energy": 17
+    },
+    {
+      "submission": "2026-03-31_ParallelResiduals_MiniDepthRecurrence",
+      "val_bpb_published": 1.1063,
+      "val_bpb_reproduced": 1.10554,
+      "energy_kwh_total": 1.346,
+      "duration_s": 1300,
+      "post_train_pct_of_energy": 31
+    }
+  ],
+  "key_findings": {
+    "energy_per_bpb_drop_spread_x": 14,
+    "most_efficient_config_wh_per_0p001_bpb": 147,
+    "least_efficient_config_wh_per_0p001_bpb": 2137,
+    "training_phase_wh_range": [919, 1033],
+    "total_energy_kwh_range": [0.996, 1.346],
+    "free_wins_count": 2,
+    "post_train_pct_range": [5, 31]
+  },
+  "hardware": "8x NVIDIA H100 80GB HBM3 SXM5 (700W TDP per GPU)",
+  "platform": "Runpod (pod 064ce247e933), parameter-golf official template, NVIDIA driver 580.126.09",
+  "instrumentation": {
+    "tool": "matcha 0.3.1 (https://github.com/keeyalabs/usematcha)",
+    "energy_source": "NVML hardware counter (nvmlDeviceGetTotalEnergyConsumption)",
+    "power_polling_interval_ms": 100,
+    "alternatives_compatible": ["DCGM", "codecarbon", "nvidia-smi polling loops", "any NVML-based meter"]
+  },
+  "reproducibility": {
+    "single_seed": true,
+    "seeds_used": {
+      "lb_baseline": 1337,
+      "lb_slide64": 1337,
+      "lb_lora_ttt": 1337,
+      "lb_11l_ema_gptq": 1337,
+      "lb_par_resid_dr": 1337
+    },
+    "val_bpb_match_to_published": "within +/-0.0011 BPB (well below leaderboard 0.005-nat significance threshold)",
+    "energy_reproducibility_pct": "5-10% on identical hardware (Runpod allocation variance dominates)"
+  },
+  "caveats": [
+    "Single-seed runs (vs published 3-seed means) — see README for details and statistical context",
+    "Config #4 artifact size 17.05 MB > 16 MB cap (zlib vs zstd-22 compression mismatch). Loss measurement unaffected; methodology footnote, not a measurement issue",
+    "No SP4096/SP8192 configs — required HF dataset mirrors had been depopulated by time of study; SP1024 ceiling (~1.10) is the lowest reproducible point here",
+    "GPU 2 was a hardware-level laggard on this Runpod allocation (1-3% below per-config median across all 5 runs); a different allocation likely shows different straggle pattern"
+  ],
+  "standalone_repo": "https://github.com/jayyvk/parameter-golf-study",
+  "license": "Apache-2.0"
+}
