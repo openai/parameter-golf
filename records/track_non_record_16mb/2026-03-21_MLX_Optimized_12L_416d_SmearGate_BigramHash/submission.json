@@ -1,0 +1,9 @@
+{
+  "name": "MLX-Optimized 12L 416d with SmearGate + BigramHash",
+  "val_loss": 1.9011,
+  "bytes_total": 15762519,
+  "blurb": "Non-record submission: 12-layer model (6 encoder + 6 decoder) with SmearGate, BigramHash(4096), FP16 embeddings, MLP 3x expansion, Muon optimizer with weight decay. Trained on MacBook Apple Silicon M4 Pro with 500 iterations. Achieved 1.9011 BPB on validation set. Undertrained but demonstrates effective MLX optimization techniques.",
+  "author": "Adhyaay Karnwal",
+  "github_id": "adhyaay-karnwal",
+  "date": "2026-03-21"
+}
