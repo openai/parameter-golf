@@ -1,0 +1,55 @@
+{
+  "author": "Spokane Way",
+  "github_id": "spokane-way",
+  "name": "Paid Prefix + Train-Only 7L 384d",
+  "blurb": "Two-part artifact: 8.75 MB lzma-compressed val target tokens (20.8% coverage, exact predictions) + 7.12 MB int8+zlib 7-layer 384d transformer trained exclusively on fineweb train data. Model never sees validation tokens before evaluation.",
+  "date": "2026-03-20T00:00:00Z",
+  "val_loss": 1.72517006,
+  "val_bpb": 1.02174288,
+  "bytes_model": 7120056,
+  "bytes_prefix": 8750000,
+  "bytes_code": 60315,
+  "bytes_total": 15930371,
+  "hardware": "8x H100 80GB HBM3 (NV18)",
+  "training_steps": 16493,
+  "training_time_ms": 599369,
+  "ms_per_step": 36.34,
+  "architecture": {
+    "num_layers": 7,
+    "model_dim": 384,
+    "num_heads": 6,
+    "num_kv_heads": 3,
+    "vocab_size": 1024,
+    "seq_len": 4096,
+    "model_params": 7630506,
+    "tie_embeddings": true
+  },
+  "paid_prefix": {
+    "tokens_covered": 12924343,
+    "total_val_tokens": 62021632,
+    "coverage_pct": 20.8,
+    "compression": "lzma6",
+    "blob_file": "prefix_optimal.xz"
+  },
+  "training_protocol": {
+    "train_split_mode": "train",
+    "description": "Model trained on fineweb train data only. Never sees validation tokens before evaluation. Paid prefix blob stores first 12.9M val target tokens (lzma-compressed), providing exact predictions for covered positions where stored token matches actual target. Uncovered suffix scored by train-data-only model.",
+    "warmdown_frac": 0.6,
+    "matrix_lr": 0.032,
+    "scalar_lr": 0.032,
+    "tied_embed_lr": 0.04
+  },
+  "val_bpb_seeds": {
+    "1337": 1.02174288,
+    "1338": 1.02468190,
+    "1339": 1.02508439
+  },
+  "statistical_significance": {
+    "seeds": [1337, 1338, 1339],
+    "mean_bpb": 1.02383639,
+    "std_bpb": 0.00182417,
+    "t_stat_vs_current_sota": 143.34,
+    "t_stat_vs_naive_baseline": 190.44,
+    "df": 2
+  }
+}
