@@ -1,0 +1,10 @@
+# Standard deps (also in repo root requirements.txt)
+numpy
+torch
+sentencepiece
+
+# Mamba3 — requires CUDA; see README.md "Installing Mamba-3" for build flags
+# pip install causal-conv1d>=1.4.0 --no-build-isolation
+# MAMBA_FORCE_BUILD=TRUE pip install --no-cache-dir --no-build-isolation --no-deps git+https://github.com/state-spaces/mamba.git
+causal-conv1d>=1.4.0
+mamba_ssm @ git+https://github.com/state-spaces/mamba.git

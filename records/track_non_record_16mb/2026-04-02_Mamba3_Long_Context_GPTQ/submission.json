@@ -1,0 +1,10 @@
+{
+  "author": "Sam Quiring",
+  "github_id": "samquiring",
+  "name": "Mamba3-GPTQ-Long-Context",
+  "blurb": "10L Mamba3 hybrid (8 Mamba3 SISO + 2 GQA attention) with U-Net skip connections, EMA, full Hessian GPTQ int6, and LZMA compression. Trains at seq_len=16384 exploiting Mamba's linear-time long context scaling.",
+  "date": "2026-04-02T00:00:00Z",
+  "val_loss": 2.00510046,
+  "val_bpb": 1.18752767,
+  "bytes_total": 15510226
+}
