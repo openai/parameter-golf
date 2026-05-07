@@ -1,0 +1,14 @@
+parameter-golf insurance submission artifact
+created_ct: 2026-04-28 12:05 CDT
+source_host: Beast Box
+source_dir: /home/user/parameter-golf
+config: 9L1216
+exact_bpb: 1.26347117
+validation_line: final_int8_zlib_roundtrip_exact val_loss:2.13331815 val_bpb:1.26347117
+model_file: final_model.int8.ptz
+code_file: train_gpt_beastbox.py
+source_log: logs/643d3737-405a-402d-bb82-18ac1e64ab3a.txt
+model_bytes: 15687281
+code_bytes: 59198
+estimated_payload_bytes: 15746479
+notes: Insurance fallback bundle before H100 sweep. Model was roundtrip-validated by training script.

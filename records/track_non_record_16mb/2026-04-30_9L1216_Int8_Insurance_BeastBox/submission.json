@@ -1,0 +1,16 @@
+{
+  "author": "texanfirst",
+  "github_id": "texanfirst",
+  "name": "9L1216 Int8 Insurance Artifact (Beast Box)",
+  "date": "2026-04-30",
+  "track": "non_record_16mb",
+  "val_bpb": 1.26347117,
+  "val_loss": null,
+  "hardware": "Beast Box local run; later Vast canaries did not beat this artifact",
+  "step_stop": 59494,
+  "bytes_total": 15746479,
+  "bytes_model_int8_ptz": 15687281,
+  "bytes_code": 59198,
+  "artifact_sha256": "5320170738fe709cecac7260d8a7d47d13ed649cdbe30444a8ace5e3e7115ed7",
+  "notes": "Insurance/fallback submission preserved before challenge close. Final exact val_bpb from source log: 1.26347117. Under 16,000,000 byte artifact cap for train_gpt.py plus final_model.int8.ptz."
+}
