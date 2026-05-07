@@ -1,0 +1,3 @@
+# Record-local deps (also in repo requirements.txt). Install with:
+#   source .venv/bin/activate && uv pip install -r requirements-record.txt
+zstandard>=0.22

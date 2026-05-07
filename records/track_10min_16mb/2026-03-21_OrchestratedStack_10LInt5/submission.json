@@ -1,0 +1,11 @@
+{
+  "author": "TBD",
+  "github_id": "TBD",
+  "name": "Orchestrated stack 10L Int5 + SmearGate + BigramHash + SWA (10L Int5 fork)",
+  "blurb": "Production-ready fork of 2026-03-20_10L_Int5MLP_MuonWD04_SWA50: mixed int5/int6, zstd-22, sliding eval (default EVAL_BATCH_SEQS=64 for eval throughput). Replace metrics after a real 8xH100 run.",
+  "date": "2026-03-21T00:00:00Z",
+  "val_loss": null,
+  "val_bpb": null,
+  "bytes_total": null,
+  "bytes_code": null
+}
