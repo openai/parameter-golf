@@ -1,0 +1,11 @@
+Non-record: AIR-MM v2 Debug Prototype — experimental importance routing
+
+--- longer variant ---
+
+Non-record: AIR-MM v2 Debug Prototype — experimental importance routing
+
+Add Adaptive Importance Routing Memory Model (AIR-MM) as an experimental
+non-record submission. AIR-MM estimates per-token importance and selectively
+scales residual updates via a learned gate combined with a positional recency
+signal. Local fast-debug results show stable training and small directional
+improvements over baseline; GPU-scale validation pending.

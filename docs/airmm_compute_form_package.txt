@@ -1,0 +1,77 @@
+AIR-MM COMPUTE REQUEST — FORM PACKAGE
+======================================
+
+Recommended tier: Development grant (not Advanced competitor grant)
+
+Reasoning: This is an experimental prototype with local debug-only evidence.
+A development grant is appropriate for initial GPU validation. An advanced
+grant would be premature until GPU results demonstrate competitive potential.
+
+---
+
+BRIEF DESCRIPTION OF APPROACH:
+
+I'm developing Adaptive Importance Routing Memory Model (AIR-MM) for the
+Parameter Golf challenge. Instead of applying uniform computation to every
+token, AIR-MM estimates per-token importance and selectively scales residual
+updates so the model can focus limited capacity on higher-value information.
+
+The current v2 prototype combines:
+- A learned token-importance gate (~800 params/block)
+- A positional recency signal
+- A lightweight learned combiner (3 params/block)
+
+The mechanism preserves a clean baseline path (USE_IMPORTANCE_ROUTING=0)
+for controlled ablation.
+
+---
+
+WHAT HAVE YOU TRIED SO FAR:
+
+Working baseline plus AIR-MM v1 (learned gate only) and v2 (learned gate +
+recency signal + combiner) prototypes. Tested learned importance gating,
+recency signal integration, and ablations against the baseline in a fast
+local CPU debug loop (128-dim, 4-layer, 10 steps). Results are stable and
+directionally promising: no training divergence, non-trivial gate
+distributions, and small consistent improvements from v1 to v2.
+
+---
+
+PR LINK (paste once created):
+
+https://github.com/openai/parameter-golf/pull/___
+
+---
+
+WHAT I WOULD DO WITH COMPUTE:
+
+1. Run AIR-MM v2 at full scale (9x512, SP-1024, KV4) on GPU hardware
+2. Compare against the published naive baseline under identical conditions
+3. Controlled ablations:
+   - Routing ON vs OFF (same model, same training)
+   - v1 vs v2
+   - min_scale sweep (0.05, 0.10, 0.25)
+   - recency_strength sweep (0.5, 1.0, 2.0)
+4. Measure wallclock overhead of the routing mechanism
+5. Test quantization compatibility (int8+zlib roundtrip with gates)
+
+---
+
+HOW TO DESCRIBE CURRENT STATUS HONESTLY:
+
+"I have a working prototype with a novel mechanism (token-importance routing)
+that is stable and shows small directional improvements in local fast-debug
+experiments. I need GPU compute to determine whether the approach scales and
+can become competitive. This is a development-stage exploration, not a
+validated competitor."
+
+Do not claim:
+- Any GPU-validated results
+- Any leaderboard-competitive metrics
+- That the approach "works" in a performance sense
+
+Do claim:
+- Novel mechanism design (distinct from pruning/MoE/dropout/early-exit)
+- Clean implementation with ablation controls
+- Stable local prototype with honest preliminary results
+- Clear plan for GPU validation experiments

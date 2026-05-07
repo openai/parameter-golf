@@ -1,0 +1,39 @@
+COMPUTE REQUEST — AIR-MM (Adaptive Importance Routing Memory Model)
+===================================================================
+
+What I'm working on:
+
+I'm developing a novel architecture called Adaptive Importance Routing Memory
+Model (AIR-MM) for the Parameter Golf challenge. Instead of applying the same
+amount of computation to every token, AIR-MM estimates token importance and
+selectively scales residual updates so the model can focus limited compute on
+higher-value information. The current prototype combines a learned
+token-importance signal with a positional recency signal using a lightweight
+combiner, while preserving a clean baseline path for ablation and comparison.
+
+My goal is to move beyond simply shrinking a standard Transformer and test
+whether selective compute allocation can improve parameter efficiency under the
+16 MB artifact and 10-minute training constraints. I already have a working
+baseline, a fast local debug loop, and a stable prototype that shows small
+directional improvements over baseline in local experiments. I'm requesting
+compute to validate the approach under proper GPU conditions, run controlled
+ablations, and determine whether AIR-MM can become a competitive non-record or
+leaderboard submission.
+
+What I've tried so far:
+
+Working baseline plus AIR-MM v1 and v2 prototypes. Tested learned importance
+gating, recency signal integration, and ablations against the baseline in a
+fast local debug loop; results are stable and directionally promising.
+
+What I would do with compute:
+
+1. Run AIR-MM v2 at full scale (9x512, SP-1024, KV4) on GPU hardware
+2. Compare against the published naive baseline under identical conditions
+3. Run controlled ablations:
+   - Routing ON vs OFF (same model, same training)
+   - v1 (learned gate only) vs v2 (learned + recency)
+   - min_scale sweep (0.05, 0.10, 0.25)
+   - recency_strength sweep (0.5, 1.0, 2.0)
+4. Measure parameter overhead and wallclock impact of the routing mechanism
+5. Determine whether the approach warrants a formal record or non-record submission

@@ -1,0 +1,37 @@
+# AIR-MM v2 — Git workflow for PR preparation
+# Do NOT run these until explicitly ready to push.
+
+# 1. Check current state
+git status
+
+# 2. You are already on branch john-v1. If you prefer a dedicated branch:
+# git checkout -b airmm-v2-experimental
+
+# 3. Stage submission files
+git add \
+  records/track_non_record_16mb/2026-04-08_AIRMM_v2_Debug_Prototype/README.md \
+  records/track_non_record_16mb/2026-04-08_AIRMM_v2_Debug_Prototype/submission.json \
+  records/track_non_record_16mb/2026-04-08_AIRMM_v2_Debug_Prototype/requirements.txt \
+  records/track_non_record_16mb/2026-04-08_AIRMM_v2_Debug_Prototype/train_gpt.py \
+  records/track_non_record_16mb/2026-04-08_AIRMM_v2_Debug_Prototype/train_debug_v2.log \
+  docs/airmm_architecture.md
+
+# 4. Commit (use the short message; the PR body carries the detail)
+git commit -m "Non-record: AIR-MM v2 Debug Prototype — experimental importance routing"
+
+# 5. Push to your fork
+git push -u origin john-v1
+
+# 6. Open PR via GitHub CLI (or web UI)
+# gh pr create \
+#   --repo openai/parameter-golf \
+#   --title "Non-record: AIR-MM v2 Debug Prototype — Adaptive Importance Routing for Selective Compute" \
+#   --body-file docs/airmm_pr_body_draft.md
+
+# Or open manually at:
+# https://github.com/openai/parameter-golf/compare/main...Jmccrayiii:parameter-golf:john-v1
+
+# Notes:
+# - Do NOT include docs/*.txt drafts in the commit (they are local prep files)
+# - Do NOT include the modified root train_gpt.py (that has local FAST_DEBUG changes)
+# - Do NOT include final_model.pt or final_model.int8.ptz (large binary artifacts)
