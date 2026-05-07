@@ -1,0 +1,10 @@
+{
+    "track": "non_record_16mb",
+    "date": "2026-03-29",
+    "name": "BSM Bounded State Manifolds Non-Transformer Approach with QAT",
+    "author" : "Dheeren Tejani",
+    "github_id" : "dheeren-tejani",
+    "val_bpb" : "1.4242",
+    "val_loss" : "2.4048",
+    "bytes_total" : "17080000"
+}

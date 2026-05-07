@@ -1,0 +1,242 @@
+Loading Model
+Model Compiled
+Model Loaded
+Starting Training
+Validating
+Step 0 | Val Loss: 8.2640 | Val BPB: 4.8944
+Step 0 | Train GeoLoss: 8.2648 | Time: 0.0s
+Step 10 | Train GeoLoss: 6.3557 | Time: 122.0s
+Step 20 | Train GeoLoss: 4.3679 | Time: 145.0s
+Step 30 | Train GeoLoss: 3.8394 | Time: 168.1s
+Step 40 | Train GeoLoss: 3.5277 | Time: 191.1s
+Step 50 | Train GeoLoss: 3.4242 | Time: 214.1s
+Step 60 | Train GeoLoss: 3.2947 | Time: 237.1s
+Step 70 | Train GeoLoss: 3.3523 | Time: 260.1s
+Step 80 | Train GeoLoss: 3.2607 | Time: 283.2s
+Step 90 | Train GeoLoss: 3.1724 | Time: 306.2s
+Validating
+Step 100 | Val Loss: 3.1737 | Val BPB: 1.8796
+Step 100 | Train GeoLoss: 3.1882 | Time: 329.2s
+Step 110 | Train GeoLoss: 3.1534 | Time: 445.8s
+Step 120 | Train GeoLoss: 3.1643 | Time: 468.7s
+Step 130 | Train GeoLoss: 3.1271 | Time: 491.8s
+Step 140 | Train GeoLoss: 3.0703 | Time: 514.8s
+Step 150 | Train GeoLoss: 3.0408 | Time: 537.8s
+Step 160 | Train GeoLoss: 3.0050 | Time: 560.8s
+Step 170 | Train GeoLoss: 2.9911 | Time: 583.8s
+Step 180 | Train GeoLoss: 2.9734 | Time: 606.7s
+Step 190 | Train GeoLoss: 2.9823 | Time: 629.7s
+Validating
+Step 200 | Val Loss: 2.9725 | Val BPB: 1.7605
+Step 200 | Train GeoLoss: 2.9220 | Time: 652.9s
+Step 210 | Train GeoLoss: 2.9552 | Time: 769.7s
+Step 220 | Train GeoLoss: 2.9263 | Time: 792.6s
+Step 230 | Train GeoLoss: 2.9105 | Time: 815.7s
+Step 240 | Train GeoLoss: 2.8628 | Time: 838.6s
+Step 250 | Train GeoLoss: 2.8543 | Time: 861.6s
+Step 260 | Train GeoLoss: 2.8787 | Time: 884.5s
+Step 270 | Train GeoLoss: 2.8906 | Time: 907.6s
+Step 280 | Train GeoLoss: 2.8151 | Time: 930.5s
+Step 290 | Train GeoLoss: 2.8768 | Time: 953.5s
+Validating
+Step 300 | Val Loss: 2.8276 | Val BPB: 1.6746
+Step 300 | Train GeoLoss: 2.8135 | Time: 976.4s
+Step 310 | Train GeoLoss: 2.8075 | Time: 1093.3s
+Step 320 | Train GeoLoss: 2.7856 | Time: 1116.2s
+Step 330 | Train GeoLoss: 2.7594 | Time: 1139.3s
+Step 340 | Train GeoLoss: 2.8026 | Time: 1162.3s
+Step 350 | Train GeoLoss: 2.7385 | Time: 1185.2s
+Step 360 | Train GeoLoss: 2.7693 | Time: 1208.3s
+Step 370 | Train GeoLoss: 2.7000 | Time: 1231.3s
+Step 380 | Train GeoLoss: 2.7760 | Time: 1254.4s
+Step 390 | Train GeoLoss: 2.7207 | Time: 1277.4s
+Validating
+Step 400 | Val Loss: 2.7436 | Val BPB: 1.6249
+Step 400 | Train GeoLoss: 2.6020 | Time: 1300.4s
+Step 410 | Train GeoLoss: 2.7832 | Time: 1417.3s
+Step 420 | Train GeoLoss: 2.7306 | Time: 1440.1s
+Step 430 | Train GeoLoss: 2.7060 | Time: 1463.0s
+Step 440 | Train GeoLoss: 2.7130 | Time: 1485.9s
+Step 450 | Train GeoLoss: 2.7112 | Time: 1509.0s
+Step 460 | Train GeoLoss: 2.7203 | Time: 1531.9s
+Step 470 | Train GeoLoss: 2.7123 | Time: 1555.0s
+Step 480 | Train GeoLoss: 2.7123 | Time: 1577.9s
+Step 490 | Train GeoLoss: 2.7006 | Time: 1601.1s
+Validating
+Step 500 | Val Loss: 2.6836 | Val BPB: 1.5894
+Step 500 | Train GeoLoss: 2.6826 | Time: 1624.0s
+Step 510 | Train GeoLoss: 2.6176 | Time: 1740.9s
+Step 520 | Train GeoLoss: 2.6881 | Time: 1763.7s
+Step 530 | Train GeoLoss: 2.6514 | Time: 1786.8s
+Step 540 | Train GeoLoss: 2.5413 | Time: 1809.7s
+Step 550 | Train GeoLoss: 2.6676 | Time: 1832.8s
+Step 560 | Train GeoLoss: 2.6591 | Time: 1855.7s
+Step 570 | Train GeoLoss: 2.6335 | Time: 1878.7s
+Step 580 | Train GeoLoss: 2.7310 | Time: 1901.9s
+Step 590 | Train GeoLoss: 2.6323 | Time: 1925.0s
+Validating
+Step 600 | Val Loss: 2.6407 | Val BPB: 1.5640
+Step 600 | Train GeoLoss: 2.6643 | Time: 1948.0s
+Step 610 | Train GeoLoss: 2.6855 | Time: 2065.4s
+Step 620 | Train GeoLoss: 2.6218 | Time: 2088.2s
+Step 630 | Train GeoLoss: 2.6744 | Time: 2111.0s
+Step 640 | Train GeoLoss: 2.6129 | Time: 2133.8s
+Step 650 | Train GeoLoss: 2.5734 | Time: 2156.7s
+Step 700 | Val Loss: 2.6014 | Val BPB: 1.5407
+Step 700 | Train GeoLoss: 2.6103 | Time: 2272.1s
+Step 710 | Train GeoLoss: 2.6053 | Time: 2389.3s
+Step 720 | Train GeoLoss: 2.5478 | Time: 2412.3s
+Step 730 | Train GeoLoss: 2.5865 | Time: 2435.4s
+Step 740 | Train GeoLoss: 2.6199 | Time: 2458.4s
+Step 750 | Train GeoLoss: 2.5498 | Time: 2481.5s
+Step 760 | Train GeoLoss: 2.5100 | Time: 2504.5s
+Step 770 | Train GeoLoss: 2.5723 | Time: 2527.7s
+Step 780 | Train GeoLoss: 2.5708 | Time: 2550.7s
+Step 790 | Train GeoLoss: 2.5756 | Time: 2573.7s
+Validating
+Step 800 | Val Loss: 2.5751 | Val BPB: 1.5251
+Step 800 | Train GeoLoss: 2.5444 | Time: 2596.7s
+Step 810 | Train GeoLoss: 2.5510 | Time: 2713.6s
+Step 820 | Train GeoLoss: 2.5633 | Time: 2736.6s
+Step 830 | Train GeoLoss: 2.5638 | Time: 2759.6s
+Step 840 | Train GeoLoss: 2.5489 | Time: 2782.6s
+Step 850 | Train GeoLoss: 2.5779 | Time: 2805.6s
+Step 860 | Train GeoLoss: 2.5611 | Time: 2828.6s
+Step 870 | Train GeoLoss: 2.5366 | Time: 2851.7s
+Step 880 | Train GeoLoss: 2.5659 | Time: 2874.7s
+Step 890 | Train GeoLoss: 2.5590 | Time: 2897.7s
+Validating
+Step 900 | Val Loss: 2.5524 | Val BPB: 1.5117
+Step 900 | Train GeoLoss: 2.5533 | Time: 2920.9s
+Step 910 | Train GeoLoss: 2.5572 | Time: 3037.7s
+Step 920 | Train GeoLoss: 2.5737 | Time: 3060.8s
+Step 930 | Train GeoLoss: 2.5552 | Time: 3083.7s
+Step 940 | Train GeoLoss: 2.4920 | Time: 3106.8s
+Step 950 | Train GeoLoss: 2.5400 | Time: 3129.8s
+Step 960 | Train GeoLoss: 2.5303 | Time: 3153.0s
+Step 970 | Train GeoLoss: 2.5480 | Time: 3176.0s
+Step 980 | Train GeoLoss: 2.5242 | Time: 3199.1s
+Step 990 | Train GeoLoss: 2.5268 | Time: 3222.1s
+Validating
+Step 1000 | Val Loss: 2.5263 | Val BPB: 1.4962
+Step 1000 | Train GeoLoss: 2.5119 | Time: 3245.2s
+Step 1010 | Train GeoLoss: 2.5004 | Time: 3361.8s
+Step 1020 | Train GeoLoss: 2.5430 | Time: 3384.9s
+Step 1030 | Train GeoLoss: 2.5290 | Time: 3407.9s
+Step 1040 | Train GeoLoss: 2.5584 | Time: 3430.9s
+Step 1050 | Train GeoLoss: 2.5553 | Time: 3453.9s
+Step 1060 | Train GeoLoss: 2.4902 | Time: 3477.0s
+Step 1070 | Train GeoLoss: 2.4237 | Time: 3499.9s
+Step 1080 | Train GeoLoss: 2.5337 | Time: 3523.1s
+Step 1090 | Train GeoLoss: 2.5349 | Time: 3546.1s
+Validating
+Step 1100 | Val Loss: 2.5094 | Val BPB: 1.4862
+Step 1100 | Train GeoLoss: 2.4917 | Time: 3569.1s
+Step 1110 | Train GeoLoss: 2.4909 | Time: 3685.8s
+Step 1120 | Train GeoLoss: 2.5318 | Time: 3708.7s
+Step 1130 | Train GeoLoss: 2.5411 | Time: 3731.5s
+Step 1140 | Train GeoLoss: 2.4936 | Time: 3754.4s
+Step 1150 | Train GeoLoss: 2.4845 | Time: 3777.4s
+Step 1160 | Train GeoLoss: 2.5393 | Time: 3800.4s
+Step 1170 | Train GeoLoss: 2.4619 | Time: 3823.4s
+Step 1180 | Train GeoLoss: 2.4035 | Time: 3846.5s
+Step 1190 | Train GeoLoss: 2.5408 | Time: 3869.5s
+Validating
+Step 1200 | Val Loss: 2.4923 | Val BPB: 1.4761
+Step 1200 | Train GeoLoss: 2.4637 | Time: 3892.5s
+Step 1210 | Train GeoLoss: 2.5022 | Time: 4009.3s
+Step 1220 | Train GeoLoss: 2.4910 | Time: 4032.3s
+Step 1230 | Train GeoLoss: 2.5302 | Time: 4055.3s
+Step 1240 | Train GeoLoss: 2.4928 | Time: 4078.3s
+Step 1250 | Train GeoLoss: 2.4974 | Time: 4101.4s
+Step 1260 | Train GeoLoss: 2.5324 | Time: 4124.4s
+Step 1270 | Train GeoLoss: 2.5100 | Time: 4147.4s
+Step 1280 | Train GeoLoss: 2.3833 | Time: 4170.4s
+Step 1290 | Train GeoLoss: 2.4923 | Time: 4193.4s
+Validating
+Step 1300 | Val Loss: 2.4763 | Val BPB: 1.4666
+Step 1300 | Train GeoLoss: 2.4729 | Time: 4216.4s
+Step 1310 | Train GeoLoss: 2.4368 | Time: 4333.2s
+Step 1320 | Train GeoLoss: 2.6221 | Time: 4356.2s
+Step 1330 | Train GeoLoss: 2.5595 | Time: 4379.2s
+Step 1340 | Train GeoLoss: 2.4449 | Time: 4402.3s
+Step 1350 | Train GeoLoss: 2.3870 | Time: 4425.3s
+Step 1360 | Train GeoLoss: 2.4327 | Time: 4448.3s
+Step 1370 | Train GeoLoss: 2.5029 | Time: 4471.2s
+Step 1380 | Train GeoLoss: 2.3258 | Time: 4494.2s
+Step 1390 | Train GeoLoss: 2.4684 | Time: 4517.2s
+Validating
+Step 1400 | Val Loss: 2.4639 | Val BPB: 1.4593
+Step 1400 | Train GeoLoss: 2.6330 | Time: 4540.2s
+Step 1410 | Train GeoLoss: 2.4014 | Time: 4656.9s
+Step 1420 | Train GeoLoss: 2.4719 | Time: 4679.9s
+Step 1430 | Train GeoLoss: 2.4655 | Time: 4702.9s
+Step 1440 | Train GeoLoss: 2.4506 | Time: 4725.9s
+Step 1450 | Train GeoLoss: 2.4464 | Time: 4748.9s
+Step 1460 | Train GeoLoss: 2.4335 | Time: 4771.9s
+Step 1470 | Train GeoLoss: 2.4760 | Time: 4794.9s
+Step 1480 | Train GeoLoss: 2.5326 | Time: 4817.9s
+Step 1490 | Train GeoLoss: 2.4364 | Time: 4840.9s
+Validating
+Step 1500 | Val Loss: 2.4533 | Val BPB: 1.4530
+Step 1500 | Train GeoLoss: 2.4617 | Time: 4863.9s
+Step 1510 | Train GeoLoss: 2.4035 | Time: 4980.5s
+Step 1520 | Train GeoLoss: 2.4196 | Time: 5003.4s
+Step 1530 | Train GeoLoss: 2.4175 | Time: 5026.4s
+Step 1540 | Train GeoLoss: 2.4484 | Time: 5049.4s
+Step 1550 | Train GeoLoss: 2.5617 | Time: 5072.4s
+Step 1560 | Train GeoLoss: 2.6080 | Time: 5095.4s
+Step 1570 | Train GeoLoss: 2.4512 | Time: 5118.4s
+Step 1580 | Train GeoLoss: 2.4487 | Time: 5141.4s
+Step 1590 | Train GeoLoss: 2.4147 | Time: 5164.4s
+Validating
+Step 1600 | Val Loss: 2.4456 | Val BPB: 1.4484
+Step 1600 | Train GeoLoss: 2.4243 | Time: 5187.3s
+Step 1610 | Train GeoLoss: 2.4445 | Time: 5304.1s
+Step 1620 | Train GeoLoss: 2.4358 | Time: 5327.0s
+Step 1630 | Train GeoLoss: 2.4302 | Time: 5350.0s
+Step 1640 | Train GeoLoss: 2.5027 | Time: 5373.0s
+Step 1650 | Train GeoLoss: 2.4033 | Time: 5395.9s
+Step 1660 | Train GeoLoss: 2.4047 | Time: 5418.9s
+Step 1670 | Train GeoLoss: 2.4265 | Time: 5441.9s
+Step 1680 | Train GeoLoss: 2.4456 | Time: 5464.9s
+Step 1690 | Train GeoLoss: 2.5388 | Time: 5487.8s
+Validating
+Step 1700 | Val Loss: 2.4361 | Val BPB: 1.4428
+Step 1700 | Train GeoLoss: 2.4939 | Time: 5510.8s
+Step 1710 | Train GeoLoss: 2.4274 | Time: 5627.5s
+Step 1720 | Train GeoLoss: 2.4482 | Time: 5650.6s
+Step 1730 | Train GeoLoss: 2.4499 | Time: 5673.6s
+Step 1740 | Train GeoLoss: 2.4353 | Time: 5696.5s
+Step 1750 | Train GeoLoss: 2.4172 | Time: 5719.6s
+Step 1760 | Train GeoLoss: 2.4325 | Time: 5742.5s
+Step 1770 | Train GeoLoss: 2.4797 | Time: 5765.5s
+Step 1780 | Train GeoLoss: 2.3900 | Time: 5788.5s
+Step 1790 | Train GeoLoss: 2.4344 | Time: 5811.5s
+Validating
+Step 1800 | Val Loss: 2.4246 | Val BPB: 1.4360
+Step 1800 | Train GeoLoss: 2.4206 | Time: 5834.5s
+Step 1810 | Train GeoLoss: 2.3636 | Time: 5951.0s
+Step 1820 | Train GeoLoss: 2.3848 | Time: 5973.8s
+Step 1830 | Train GeoLoss: 2.3994 | Time: 5996.6s
+Step 1840 | Train GeoLoss: 2.4884 | Time: 6019.4s
+Step 1850 | Train GeoLoss: 2.3890 | Time: 6042.2s
+Step 1860 | Train GeoLoss: 2.4206 | Time: 6065.0s
+Step 1870 | Train GeoLoss: 2.4334 | Time: 6087.8s
+Step 1880 | Train GeoLoss: 2.4264 | Time: 6110.6s
+Step 1890 | Train GeoLoss: 2.4252 | Time: 6133.4s
+Validating
+Step 1900 | Val Loss: 2.4198 | Val BPB: 1.4331
+Step 1900 | Train GeoLoss: 2.4110 | Time: 6156.2s
+Step 1910 | Train GeoLoss: 2.4302 | Time: 6272.9s
+Step 1920 | Train GeoLoss: 2.3884 | Time: 6295.9s
+Step 1930 | Train GeoLoss: 2.4268 | Time: 6318.8s
+Step 1940 | Train GeoLoss: 2.4150 | Time: 6341.8s
+Step 1950 | Train GeoLoss: 2.4359 | Time: 6364.8s
+Step 1960 | Train GeoLoss: 2.3821 | Time: 6387.8s
+Step 1970 | Train GeoLoss: 2.4361 | Time: 6410.7s
+Step 1980 | Train GeoLoss: 2.4343 | Time: 6433.7s
+Step 1990 | Train GeoLoss: 2.3797 | Time: 6456.7s
+Validating
+Step 1999 | Val Loss: 2.4048 | Val BPB: 1.4242
+Successfully saved. Compressed size: 17.08 MB
