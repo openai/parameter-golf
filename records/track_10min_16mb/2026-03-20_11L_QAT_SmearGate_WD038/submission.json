@@ -1,0 +1,13 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "11L Int6 QAT + SmearGate + Decoupled WD 0.038",
+  "author": "baudrillardsgh0st",
+  "seed_results": {
+    "1337": {"val_loss": 1.94212606, "val_bpb": 1.15023949, "steps": 7723, "ms_per_step": 77.25}
+  },
+  "mean_val_loss": 1.94212606,
+  "mean_val_bpb": 1.15023949,
+  "artifact_bytes": 15495792,
+  "code_bytes": 71909
+}
