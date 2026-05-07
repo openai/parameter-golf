@@ -1,0 +1,9 @@
+{
+  "name": "Order-Adaptive BackoffMixer",
+  "val_loss": 0.5440,
+  "bytes_total": 15995959,
+  "blurb": "11L XSA-all 8/8 MHA, order-adaptive entropy gating + BackoffNgramMixer. Mean 0.5440 (std 0.0008) across 3 seeds. Eval 391s.",
+  "author": "hypery11",
+  "github_id": "hypery11",
+  "date": "2026-03-26"
+}
