@@ -1,0 +1,14 @@
+{
+  "name": "Cecilia Casarini",
+  "github_id": "my-sonicase",
+  "track": "track_10min_16mb",
+  "submission_type": "non-record",
+  "title": "LR warmdown on 1x A40",
+  "val_loss": 2.90957934,
+  "val_bpb": 1.72321677,
+  "artifact_size_bytes": 8397395,
+  "model_size_bytes": 8349709,
+  "hardware": "1x A40",
+  "time_limit_seconds": 600
+}
+
