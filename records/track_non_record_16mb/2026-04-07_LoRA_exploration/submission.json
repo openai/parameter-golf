@@ -1,0 +1,10 @@
+{
+  "author": "reyhandl",
+  "github_id": "reyhandl",
+  "name": "LoRA Exploration: Rank Scaling, Technical LoRA Tweaks, and Selective LoRA",
+  "blurb": "Non-record exploration of learned adapters on random linear maps: rank scaling, technical LoRA ideas (rsLoRA, LoRA-GA, AdaLoRA, RandLoRA), and selective layer/type placement. Selective attention-only LoRA on layers 4-6 at val_bpb 1.2639 with reduced artifact size, trained on 1xH100 with 24 minutes.",
+  "date": "2026-04-07T00:00:00Z",
+  "val_bpb": 1.2639,
+  "bytes_total": 14724469,
+  "gpu": "4xA6000 / 1xH100"
+}
