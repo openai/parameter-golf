@@ -1,0 +1,9 @@
+{
+  "name": "Gravity Tokenizer — Ablation Leverage Vocabulary Optimization",
+  "val_bpb": 1.0321,
+  "bytes_total": 15625195,
+  "blurb": "Replaces 659/765 merge tokens by ablation leverage scoring (beta=1.0). Vanilla 12L 384d transformer, no architectural novelties. 3-seed mean: 1.0321 (std 0.0011). The vocabulary alone accounts for the entire improvement. No SmearGate, no BigramHash, no XSA, no EMA, no TTT, no sliding window eval.",
+  "author": "Che Crowley",
+  "github_id": "dcrow85",
+  "date": "2026-03-25"
+}
