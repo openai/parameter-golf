@@ -1,0 +1,7 @@
+{
+    "name": "Systematic Technique Taxonomy for Parameter Golf",
+    "author": "robbiebusinessacc",
+    "type": "non-record-research",
+    "date": "2026-03-26",
+    "summary": "Comprehensive taxonomy of all known techniques with measured BPB deltas, tier rankings, interaction effects matrix, BPB verification checklist, quantization guide, TTT best practices, parameter budget calculator, and n-gram validity analysis. Synthesizes findings from 20+ merged PRs, 880+ open PRs, and related research PRs (#363, #831, #756, #670, #886)."
+}
