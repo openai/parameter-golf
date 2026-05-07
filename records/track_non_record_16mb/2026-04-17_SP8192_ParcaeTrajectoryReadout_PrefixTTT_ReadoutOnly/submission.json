@@ -1,0 +1,38 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-17",
+  "name": "SP8192 Parcae Trajectory Readout + Prefix TTT + Readout-Only Adaptation",
+  "author": "Artem Buldin",
+  "github_id": "Buld1n",
+  "val_bpb": 1.09760452,
+  "val_bpb_std": 0.0,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.09760452,
+      "artifact_bytes": 15968435
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP8192 + Parcae-style loop reinjection + grouped trajectory readout + phased prefix legal TTT + readout-only evaluation-time adaptation",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": false,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false,
+    "record_claim": false
+  },
+  "notes": "Negative single-seed experiment. The overlay underperformed the full-TTT Parcae readout run and also exceeded the size limit with a 16,071,408-byte submission.",
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev",
+    "recurrent_sp8192_stack": "@dexhunter",
+    "legal_ttt_framework": "@abaybektursun",
+    "submission_variant": "@Buld1n"
+  }
+}
