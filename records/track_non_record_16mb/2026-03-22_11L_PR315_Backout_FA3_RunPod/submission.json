@@ -1,0 +1,23 @@
+{
+  "author": "GreQ",
+  "github_id": "greqone",
+  "name": "11L PR315 Backout + Native FA3",
+  "blurb": "Non-record 10-minute track submission: a faithful PR315-style 11-layer Partial-RoPE + LN-Scale + EMA + XSA4 run on 8xH100 SXM with native Hopper FlashAttention and one cheap Backout residual, reaching 1.12467423 val_bpb under the 16,000,000-byte artifact cap.",
+  "date": "2026-03-22T02:25:59Z",
+  "track": "non-record-10min-16mb",
+  "val_loss": 1.89896029,
+  "val_bpb": 1.12467423,
+  "roundtrip_val_loss": 1.93874395,
+  "roundtrip_val_bpb": 1.14823337,
+  "step_stop": 7048,
+  "wallclock_seconds": 600.037,
+  "eval_seconds_roundtrip": 35.625,
+  "eval_seconds_sliding": 90.736,
+  "bytes_total": 15545662,
+  "bytes_model_int6_zstd": 15472918,
+  "bytes_code": 72744,
+  "seed": 2025,
+  "train_shards": 80,
+  "gpu": "8xH100 SXM (RunPod)",
+  "notes": "Submitted as a non-record result under the current rules because the live public open-PR frontier is already slightly lower than this score and this package contains a single full run rather than a significance set."
+}
