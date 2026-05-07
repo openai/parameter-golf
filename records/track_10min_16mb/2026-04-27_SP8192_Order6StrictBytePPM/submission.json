@@ -1,0 +1,62 @@
+{
+  "author": "someone114514",
+  "github_id": "someone114514",
+  "name": "SP8192 + Order-6 Strict Full-Val Byte PPM",
+  "date": "2026-04-27",
+  "track": "10min_16mb",
+  "val_bpb": 0.96255352,
+  "val_bpb_std": 0.00046732,
+  "seeds": [42, 7, 1337],
+  "seed_results": {
+    "42": {
+      "val_bpb": 0.96261595,
+      "pre_quant_bpb": 1.08754884,
+      "artifact_bytes": 15996904,
+      "train_time_s": 588.147,
+      "eval_time_s": 474.016
+    },
+    "7": {
+      "val_bpb": 0.96298648,
+      "pre_quant_bpb": 1.08763287,
+      "artifact_bytes": 15999992,
+      "train_time_s": 588.102,
+      "eval_time_s": 464.055
+    },
+    "1337": {
+      "val_bpb": 0.96205812,
+      "pre_quant_bpb": 1.08663175,
+      "artifact_bytes": 15994492,
+      "train_time_s": 588.135,
+      "eval_time_s": 463.261
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "base_record": "2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT",
+  "technique_summary": "SP8192 base stack plus strict full-validation order-6 byte-level PPM-D mixture in eval_val_sliding, prefix-only confidence gate, score-before-update byte counts, native C scorer, and compact raw per-rank collection.",
+  "new_controls": {
+    "PPM_ENABLED": 1,
+    "PPM_NATIVE_ENABLED": 1,
+    "PPM_ORDER": 6,
+    "PPM_LAMBDA_HI": 0.9,
+    "PPM_LAMBDA_LO": 0.05,
+    "PPM_CONF_THRESHOLD": 0.9,
+    "PPM_LOG_CACHE_SIZE": 1048576,
+    "SKIP_QUANTIZED_EVAL": 1,
+    "SLIDING_BATCH_SEQS": 32
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_ttt_in_packed_artifact": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_byte_ppm": true,
+    "prefix_only_gate": true,
+    "full_val_required_for_claimed_score": true,
+    "three_seeds": true
+  },
+  "review_notes": "The submitted score is a strict online byte-level PPM mixture over full validation bytes. Logs include nn_token_bpb, nn_byte_bpb, ppm_only, mix_bpb, gate_high_frac, artifact size, and eval time for auditability."
+}
