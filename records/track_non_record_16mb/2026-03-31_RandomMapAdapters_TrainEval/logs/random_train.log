@@ -1,0 +1,289 @@
+# slug=random_train
+# description=Random-map train only
+# started_at=2026-03-31 01:27:30
+# command=/usr/local/bin/torchrun --standalone --nproc_per_node=8 train_gpt.py
+# env.ADAPTER_RANDOM_DIST=rademacher
+# env.ADAPTER_SEED=20260331
+# env.DATA_PATH=/parameter-golf/data/datasets/fineweb10B_sp1024
+# env.MAX_WALLCLOCK_SECONDS=600.0
+# env.PYTHONUNBUFFERED=1
+# env.RUN_ID=abl_random_train_8xh100
+# env.SEED=1337
+# env.TOKENIZER_PATH=/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+# env.TRAIN_ADAPTER_KIND=random_diag
+# env.TRAIN_ADAPTER_LR=0.02
+# env.TRAIN_ADAPTER_RANK=8
+# env.TRAIN_ADAPTER_TARGETS=q,v,lm_head
+# env.TTT_ADAPTER_KIND=none
+# env.VAL_LOSS_EVERY=1000
+# env.VOCAB_SIZE=1024
+
+W0331 01:27:31.668000 37171 torch/distributed/run.py:803] 
+W0331 01:27:31.668000 37171 torch/distributed/run.py:803] *****************************************
+W0331 01:27:31.668000 37171 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0331 01:27:31.668000 37171 torch/distributed/run.py:803] *****************************************
+logs/abl_random_train_8xh100.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17060064
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+train_adapter kind:random_diag rank:8 targets:q,v,lm_head params:152 lr:0.02 dist:rademacher seed:20260331
+ttt_adapter kind:none rank:8 lr:0.01 chunk:256 eval_seq:1024 batch:64
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9357 val_bpb:4.1077 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9370 train_time:38ms step_avg:38.04ms
+step:2/20000 train_loss:16.8406 train_time:81ms step_avg:40.29ms
+step:3/20000 train_loss:8.7568 train_time:130ms step_avg:43.33ms
+step:4/20000 train_loss:6.6414 train_time:179ms step_avg:44.73ms
+step:5/20000 train_loss:6.6217 train_time:227ms step_avg:45.46ms
+step:6/20000 train_loss:7.4200 train_time:276ms step_avg:45.99ms
+step:7/20000 train_loss:6.3377 train_time:324ms step_avg:46.29ms
+step:8/20000 train_loss:6.1426 train_time:373ms step_avg:46.64ms
+step:9/20000 train_loss:6.0687 train_time:421ms step_avg:46.76ms
+step:10/20000 train_loss:5.9718 train_time:470ms step_avg:47.01ms
+step:200/20000 train_loss:2.8505 train_time:9644ms step_avg:48.22ms
+step:400/20000 train_loss:2.3541 train_time:19278ms step_avg:48.20ms
+step:600/20000 train_loss:2.5463 train_time:28918ms step_avg:48.20ms
+step:800/20000 train_loss:2.2973 train_time:38569ms step_avg:48.21ms
+step:1000/20000 train_loss:2.3732 train_time:48224ms step_avg:48.22ms
+step:1000/20000 val_loss:2.3345 val_bpb:1.3826 train_time:48238ms step_avg:48.24ms
+step:1200/20000 train_loss:2.3868 train_time:57975ms step_avg:48.31ms
+step:1400/20000 train_loss:2.4340 train_time:67658ms step_avg:48.33ms
+step:1600/20000 train_loss:2.0996 train_time:77345ms step_avg:48.34ms
+step:1800/20000 train_loss:2.2018 train_time:87028ms step_avg:48.35ms
+step:2000/20000 train_loss:2.2521 train_time:96723ms step_avg:48.36ms
+step:2000/20000 val_loss:2.2365 val_bpb:1.3246 train_time:96737ms step_avg:48.37ms
+step:2200/20000 train_loss:2.0763 train_time:106400ms step_avg:48.36ms
+step:2400/20000 train_loss:2.2014 train_time:116074ms step_avg:48.36ms
+step:2600/20000 train_loss:2.4160 train_time:125750ms step_avg:48.37ms
+step:2800/20000 train_loss:2.2349 train_time:135421ms step_avg:48.36ms
+step:3000/20000 train_loss:2.2269 train_time:145082ms step_avg:48.36ms
+step:3000/20000 val_loss:2.1959 val_bpb:1.3006 train_time:145097ms step_avg:48.37ms
+step:3200/20000 train_loss:2.1870 train_time:154740ms step_avg:48.36ms
+step:3400/20000 train_loss:2.1562 train_time:164400ms step_avg:48.35ms
+step:3600/20000 train_loss:2.1165 train_time:174048ms step_avg:48.35ms
+step:3800/20000 train_loss:2.2215 train_time:183707ms step_avg:48.34ms
+step:4000/20000 train_loss:2.1624 train_time:193361ms step_avg:48.34ms
+step:4000/20000 val_loss:2.1707 val_bpb:1.2856 train_time:193374ms step_avg:48.34ms
+step:4200/20000 train_loss:2.1759 train_time:203069ms step_avg:48.35ms
+step:4400/20000 train_loss:2.1118 train_time:212716ms step_avg:48.34ms
+step:4600/20000 train_loss:1.9697 train_time:222354ms step_avg:48.34ms
+step:4800/20000 train_loss:2.2647 train_time:231999ms step_avg:48.33ms
+step:5000/20000 train_loss:2.0255 train_time:241641ms step_avg:48.33ms
+step:5000/20000 val_loss:2.1543 val_bpb:1.2759 train_time:241658ms step_avg:48.33ms
+step:5200/20000 train_loss:2.1716 train_time:251289ms step_avg:48.32ms
+step:5400/20000 train_loss:2.1871 train_time:260939ms step_avg:48.32ms
+step:5600/20000 train_loss:2.1879 train_time:270582ms step_avg:48.32ms
+step:5800/20000 train_loss:2.1449 train_time:280228ms step_avg:48.32ms
+step:6000/20000 train_loss:2.2256 train_time:289884ms step_avg:48.31ms
+step:6000/20000 val_loss:2.1449 val_bpb:1.2704 train_time:289893ms step_avg:48.32ms
+step:6200/20000 train_loss:2.0893 train_time:299523ms step_avg:48.31ms
+step:6400/20000 train_loss:2.1639 train_time:309163ms step_avg:48.31ms
+step:6600/20000 train_loss:2.1208 train_time:318809ms step_avg:48.30ms
+step:6800/20000 train_loss:2.1910 train_time:328462ms step_avg:48.30ms
+step:7000/20000 train_loss:2.2257 train_time:338110ms step_avg:48.30ms
+step:7000/20000 val_loss:2.1335 val_bpb:1.2636 train_time:338124ms step_avg:48.30ms
+step:7200/20000 train_loss:2.2000 train_time:347751ms step_avg:48.30ms
+step:7400/20000 train_loss:2.1192 train_time:357396ms step_avg:48.30ms
+step:7600/20000 train_loss:1.9985 train_time:367039ms step_avg:48.29ms
+step:7800/20000 train_loss:2.1463 train_time:376684ms step_avg:48.29ms
+step:8000/20000 train_loss:2.1177 train_time:386338ms step_avg:48.29ms
+step:8000/20000 val_loss:2.1241 val_bpb:1.2580 train_time:386353ms step_avg:48.29ms
+step:8200/20000 train_loss:2.1877 train_time:395978ms step_avg:48.29ms
+step:8400/20000 train_loss:2.1384 train_time:405684ms step_avg:48.30ms
+step:8600/20000 train_loss:2.1396 train_time:415330ms step_avg:48.29ms
+step:8800/20000 train_loss:2.1012 train_time:424974ms step_avg:48.29ms
+step:9000/20000 train_loss:2.0293 train_time:434609ms step_avg:48.29ms
+step:9000/20000 val_loss:2.1191 val_bpb:1.2550 train_time:434625ms step_avg:48.29ms
+step:9200/20000 train_loss:2.0844 train_time:444255ms step_avg:48.29ms
+step:9400/20000 train_loss:2.1329 train_time:453898ms step_avg:48.29ms
+step:9600/20000 train_loss:2.1498 train_time:463539ms step_avg:48.29ms
+step:9800/20000 train_loss:2.0731 train_time:473181ms step_avg:48.28ms
+step:10000/20000 train_loss:2.1166 train_time:482824ms step_avg:48.28ms
+step:10000/20000 val_loss:2.1135 val_bpb:1.2517 train_time:482838ms step_avg:48.28ms
+step:10200/20000 train_loss:2.0701 train_time:492464ms step_avg:48.28ms
+step:10400/20000 train_loss:2.1002 train_time:502109ms step_avg:48.28ms
+step:10600/20000 train_loss:1.9751 train_time:511748ms step_avg:48.28ms
+step:10800/20000 train_loss:2.1862 train_time:521392ms step_avg:48.28ms
+step:11000/20000 train_loss:2.1161 train_time:531046ms step_avg:48.28ms
+step:11000/20000 val_loss:2.1071 val_bpb:1.2479 train_time:531061ms step_avg:48.28ms
+step:11200/20000 train_loss:2.0691 train_time:540687ms step_avg:48.28ms
+step:11400/20000 train_loss:2.0522 train_time:550336ms step_avg:48.28ms
+step:11600/20000 train_loss:2.0531 train_time:559986ms step_avg:48.27ms
+step:11800/20000 train_loss:2.0774 train_time:569625ms step_avg:48.27ms
+step:12000/20000 train_loss:2.0486 train_time:579266ms step_avg:48.27ms
+step:12000/20000 val_loss:2.0770 val_bpb:1.2301 train_time:579281ms step_avg:48.27ms
+step:12200/20000 train_loss:2.1936 train_time:588908ms step_avg:48.27ms
+step:12400/20000 train_loss:1.8285 train_time:598621ms step_avg:48.28ms
+step:12429/20000 val_loss:2.0632 val_bpb:1.2220 train_time:600021ms step_avg:48.28ms
+stopping_early: wallclock_cap train_time:600021ms step:12429/20000
+peak memory allocated: 10260 MiB reserved: 10442 MiB
+Serialized model: 67231989 bytes
+Code size: 65861 bytes
+Total submission size: 67297850 bytes
+Serialized model int8+zlib: 15813852 bytes (payload:17179520 raw_torch:17229811 payload_ratio:3.91x)
+Total submission size int8+zlib: 15879713 bytes
+final_int8_zlib_roundtrip val_loss:2.0785 val_bpb:1.2310 eval_time:1613ms
+final_int8_zlib_roundtrip_exact val_loss:2.07849918 val_bpb:1.23100429
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1498, in <module>
+[rank0]:     main()
+[rank0]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1484, in main
+[rank0]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_adapter(
+[rank0]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1039, in eval_val_ttt_adapter
+[rank0]:     _accumulate_bpb(
+[rank0]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 933, in _accumulate_bpb
+[rank0]:     lbl = ptl[batch_i, chunk_offset:chunk_offset + chunk_len].to(torch.float64)
+[rank0]:           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]: IndexError: too many indices for tensor of dimension 0
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1498, in <module>
+[rank6]:     main()
+[rank6]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1484, in main
+[rank6]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_adapter(
+[rank6]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank6]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1039, in eval_val_ttt_adapter
+[rank6]:     _accumulate_bpb(
+[rank6]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 933, in _accumulate_bpb
+[rank6]:     lbl = ptl[batch_i, chunk_offset:chunk_offset + chunk_len].to(torch.float64)
+[rank6]:           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank6]: IndexError: too many indices for tensor of dimension 0
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1498, in <module>
+[rank4]:     main()
+[rank4]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1484, in main
+[rank4]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_adapter(
+[rank4]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank4]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1039, in eval_val_ttt_adapter
+[rank4]:     _accumulate_bpb(
+[rank4]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 933, in _accumulate_bpb
+[rank4]:     lbl = ptl[batch_i, chunk_offset:chunk_offset + chunk_len].to(torch.float64)
+[rank4]:           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank4]: IndexError: too many indices for tensor of dimension 0
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1498, in <module>
+[rank1]:     main()
+[rank1]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1484, in main
+[rank1]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_adapter(
+[rank1]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1039, in eval_val_ttt_adapter
+[rank1]:     _accumulate_bpb(
+[rank1]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 933, in _accumulate_bpb
+[rank1]:     lbl = ptl[batch_i, chunk_offset:chunk_offset + chunk_len].to(torch.float64)
+[rank1]:           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]: IndexError: too many indices for tensor of dimension 0
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1498, in <module>
+[rank3]:     main()
+[rank3]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1484, in main
+[rank3]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_adapter(
+[rank3]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1039, in eval_val_ttt_adapter
+[rank3]:     _accumulate_bpb(
+[rank3]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 933, in _accumulate_bpb
+[rank3]:     lbl = ptl[batch_i, chunk_offset:chunk_offset + chunk_len].to(torch.float64)
+[rank3]:           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]: IndexError: too many indices for tensor of dimension 0
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1498, in <module>
+[rank5]:     main()
+[rank5]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1484, in main
+[rank5]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_adapter(
+[rank5]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank5]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1039, in eval_val_ttt_adapter
+[rank5]:     _accumulate_bpb(
+[rank5]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 933, in _accumulate_bpb
+[rank5]:     lbl = ptl[batch_i, chunk_offset:chunk_offset + chunk_len].to(torch.float64)
+[rank5]:           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank5]: IndexError: too many indices for tensor of dimension 0
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1498, in <module>
+[rank7]:     main()
+[rank7]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1484, in main
+[rank7]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_adapter(
+[rank7]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank7]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1039, in eval_val_ttt_adapter
+[rank7]:     _accumulate_bpb(
+[rank7]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 933, in _accumulate_bpb
+[rank7]:     lbl = ptl[batch_i, chunk_offset:chunk_offset + chunk_len].to(torch.float64)
+[rank7]:           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank7]: IndexError: too many indices for tensor of dimension 0
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1498, in <module>
+[rank2]:     main()
+[rank2]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1484, in main
+[rank2]:     ttt_val_loss, ttt_val_bpb = eval_val_ttt_adapter(
+[rank2]:                                 ^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 1039, in eval_val_ttt_adapter
+[rank2]:     _accumulate_bpb(
+[rank2]:   File "/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/train_gpt.py", line 933, in _accumulate_bpb
+[rank2]:     lbl = ptl[batch_i, chunk_offset:chunk_offset + chunk_len].to(torch.float64)
+[rank2]:           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]: IndexError: too many indices for tensor of dimension 0
+[rank0]:[W331 01:39:40.647580718 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0331 01:39:41.273000 37171 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 37239 closing signal SIGTERM
+W0331 01:39:41.275000 37171 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 37240 closing signal SIGTERM
+W0331 01:39:41.277000 37171 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 37241 closing signal SIGTERM
+W0331 01:39:41.278000 37171 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 37242 closing signal SIGTERM
+W0331 01:39:41.279000 37171 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 37243 closing signal SIGTERM
+W0331 01:39:41.280000 37171 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 37244 closing signal SIGTERM
+W0331 01:39:41.281000 37171 torch/distributed/elastic/multiprocessing/api.py:908] Sending process 37246 closing signal SIGTERM
+E0331 01:39:42.211000 37171 torch/distributed/elastic/multiprocessing/api.py:882] failed (exitcode: 1) local_rank: 6 (pid: 37245) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 936, in main
+    run(args)
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/run.py", line 927, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 156, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/distributed/launcher/api.py", line 293, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-03-31_01:39:41
+  host      : 477d5d130936
+  rank      : 6 (local_rank: 6)
+  exitcode  : 1 (pid: 37245)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

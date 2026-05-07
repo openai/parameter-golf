@@ -1,0 +1,6 @@
+slug	description	train_points	val_points	final_roundtrip_bpb	final_ttt_kind	final_ttt_bpb	log_path
+baseline	No train adapters and no TTT adapters	77	15	1.22680233			/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/ablations/logs/baseline.log
+lora_ttt	LoRA TTT control	77	15	1.22665282	lora	1.19170000	/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/ablations/logs/lora_ttt.log
+random_train	Random-map train only	72	14	1.23100429			/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/ablations/logs/random_train.log
+random_train_ttt	Random-map train + random-map TTT	72	14	1.23301621	random_diag	1.20080000	/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/ablations/logs/random_train_ttt.log
+random_ttt	Random-map TTT only	34	5				/parameter-golf/records/track_non_record_16mb/2026-03-31_RandomMapAdapters_TrainEval/ablations/logs/random_ttt.log
