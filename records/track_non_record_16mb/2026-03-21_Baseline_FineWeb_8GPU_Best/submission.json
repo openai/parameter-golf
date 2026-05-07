@@ -1,0 +1,11 @@
+{
+  "author": "XilongZhu",
+  "github_id": "sicauzxl",
+  "name": "Baseline FineWeb 8GPU TTT Best",
+  "blurb": "8xH100 non-record FineWeb baseline candidate obtained through official-path recipe tuning, QAT, and TTT-style evaluation while staying under the 16MB artifact cap.",
+  "date": "2026-03-21T12:00:00Z",
+  "val_loss": 2.3343,
+  "val_bpb": 1.3825,
+  "bytes_total": 15818566,
+  "bytes_code": 67679
+}
