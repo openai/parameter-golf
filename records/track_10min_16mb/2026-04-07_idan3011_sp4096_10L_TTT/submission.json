@@ -1,0 +1,18 @@
+{
+  "author": "idan3011",
+  "github_id": "idan3011",
+  "name": "sp4096 + 10L 3.5x MLP + GPTQ + Score-First TTT",
+  "blurb": "Custom sp4096 SentencePiece tokenizer + 10-layer tied-embedding GPT with 3.5x MLP, int5-all GPTQ quantization, brotli+byte-shuffle compression, and score-first TTT eval-time adaptation.",
+  "date": "2026-04-07T00:00:00Z",
+  "val_loss": 2.63175670,
+  "val_bpb": 1.12662548,
+  "pre_quant_val_loss": 2.6289,
+  "pre_quant_val_bpb": 1.1427,
+  "sliding_val_bpb": 1.12768974,
+  "ttt_val_bpb": 1.12662548,
+  "step_stop": 5952,
+  "wallclock_seconds": 600.054,
+  "bytes_total": 15989376,
+  "bytes_code": 71265,
+  "bytes_model_int6_brotli": 15918111
+}
