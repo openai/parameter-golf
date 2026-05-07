@@ -1,0 +1,802 @@
+[
+  {
+    "shard": "fineweb_train_000020",
+    "avg_rank": 6.2,
+    "rank_m1_ngram_cosine": 1,
+    "rank_m2_neg_jsd": 6,
+    "rank_m3_moore_lewis": 10,
+    "rank_m6_embed_cosine": 4,
+    "rank_m8_importance": 10,
+    "rank_m5_valce": 66
+  },
+  {
+    "shard": "fineweb_train_000037",
+    "avg_rank": 8.4,
+    "rank_m1_ngram_cosine": 3,
+    "rank_m2_neg_jsd": 4,
+    "rank_m3_moore_lewis": 3,
+    "rank_m6_embed_cosine": 29,
+    "rank_m8_importance": 3,
+    "rank_m5_valce": 54
+  },
+  {
+    "shard": "fineweb_train_000010",
+    "avg_rank": 9.4,
+    "rank_m1_ngram_cosine": 4,
+    "rank_m2_neg_jsd": 7,
+    "rank_m3_moore_lewis": 0,
+    "rank_m6_embed_cosine": 36,
+    "rank_m8_importance": 0,
+    "rank_m5_valce": 40
+  },
+  {
+    "shard": "fineweb_train_000033",
+    "avg_rank": 9.4,
+    "rank_m1_ngram_cosine": 7,
+    "rank_m2_neg_jsd": 9,
+    "rank_m3_moore_lewis": 13,
+    "rank_m6_embed_cosine": 5,
+    "rank_m8_importance": 13,
+    "rank_m5_valce": 63
+  },
+  {
+    "shard": "fineweb_train_000050",
+    "avg_rank": 11.0,
+    "rank_m1_ngram_cosine": 12,
+    "rank_m2_neg_jsd": 3,
+    "rank_m3_moore_lewis": 15,
+    "rank_m6_embed_cosine": 10,
+    "rank_m8_importance": 15,
+    "rank_m5_valce": 60
+  },
+  {
+    "shard": "fineweb_train_000041",
+    "avg_rank": 11.2,
+    "rank_m1_ngram_cosine": 5,
+    "rank_m2_neg_jsd": 5,
+    "rank_m3_moore_lewis": 2,
+    "rank_m6_embed_cosine": 42,
+    "rank_m8_importance": 2,
+    "rank_m5_valce": 43
+  },
+  {
+    "shard": "fineweb_train_000021",
+    "avg_rank": 11.4,
+    "rank_m1_ngram_cosine": 2,
+    "rank_m2_neg_jsd": 17,
+    "rank_m3_moore_lewis": 6,
+    "rank_m6_embed_cosine": 26,
+    "rank_m8_importance": 6,
+    "rank_m5_valce": 41
+  },
+  {
+    "shard": "fineweb_train_000075",
+    "avg_rank": 13.2,
+    "rank_m1_ngram_cosine": 29,
+    "rank_m2_neg_jsd": 19,
+    "rank_m3_moore_lewis": 9,
+    "rank_m6_embed_cosine": 0,
+    "rank_m8_importance": 9,
+    "rank_m5_valce": 27
+  },
+  {
+    "shard": "fineweb_train_000036",
+    "avg_rank": 14.6,
+    "rank_m1_ngram_cosine": 20,
+    "rank_m2_neg_jsd": 20,
+    "rank_m3_moore_lewis": 4,
+    "rank_m6_embed_cosine": 25,
+    "rank_m8_importance": 4,
+    "rank_m5_valce": 11
+  },
+  {
+    "shard": "fineweb_train_000001",
+    "avg_rank": 15.0,
+    "rank_m1_ngram_cosine": 0,
+    "rank_m2_neg_jsd": 0,
+    "rank_m3_moore_lewis": 5,
+    "rank_m6_embed_cosine": 65,
+    "rank_m8_importance": 5,
+    "rank_m5_valce": 39
+  },
+  {
+    "shard": "fineweb_train_000061",
+    "avg_rank": 15.2,
+    "rank_m1_ngram_cosine": 11,
+    "rank_m2_neg_jsd": 12,
+    "rank_m3_moore_lewis": 8,
+    "rank_m6_embed_cosine": 37,
+    "rank_m8_importance": 8,
+    "rank_m5_valce": 55
+  },
+  {
+    "shard": "fineweb_train_000057",
+    "avg_rank": 17.6,
+    "rank_m1_ngram_cosine": 18,
+    "rank_m2_neg_jsd": 8,
+    "rank_m3_moore_lewis": 22,
+    "rank_m6_embed_cosine": 18,
+    "rank_m8_importance": 22,
+    "rank_m5_valce": 62
+  },
+  {
+    "shard": "fineweb_train_000009",
+    "avg_rank": 18.4,
+    "rank_m1_ngram_cosine": 8,
+    "rank_m2_neg_jsd": 13,
+    "rank_m3_moore_lewis": 7,
+    "rank_m6_embed_cosine": 57,
+    "rank_m8_importance": 7,
+    "rank_m5_valce": 53
+  },
+  {
+    "shard": "fineweb_train_000026",
+    "avg_rank": 18.8,
+    "rank_m1_ngram_cosine": 10,
+    "rank_m2_neg_jsd": 2,
+    "rank_m3_moore_lewis": 11,
+    "rank_m6_embed_cosine": 60,
+    "rank_m8_importance": 11,
+    "rank_m5_valce": 49
+  },
+  {
+    "shard": "fineweb_train_000000",
+    "avg_rank": 19.4,
+    "rank_m1_ngram_cosine": 9,
+    "rank_m2_neg_jsd": 1,
+    "rank_m3_moore_lewis": 17,
+    "rank_m6_embed_cosine": 53,
+    "rank_m8_importance": 17,
+    "rank_m5_valce": 75
+  },
+  {
+    "shard": "fineweb_train_000044",
+    "avg_rank": 19.4,
+    "rank_m1_ngram_cosine": 17,
+    "rank_m2_neg_jsd": 18,
+    "rank_m3_moore_lewis": 14,
+    "rank_m6_embed_cosine": 34,
+    "rank_m8_importance": 14,
+    "rank_m5_valce": 48
+  },
+  {
+    "shard": "fineweb_train_000004",
+    "avg_rank": 19.8,
+    "rank_m1_ngram_cosine": 6,
+    "rank_m2_neg_jsd": 25,
+    "rank_m3_moore_lewis": 1,
+    "rank_m6_embed_cosine": 66,
+    "rank_m8_importance": 1,
+    "rank_m5_valce": 30
+  },
+  {
+    "shard": "fineweb_train_000034",
+    "avg_rank": 20.2,
+    "rank_m1_ngram_cosine": 23,
+    "rank_m2_neg_jsd": 10,
+    "rank_m3_moore_lewis": 24,
+    "rank_m6_embed_cosine": 20,
+    "rank_m8_importance": 24,
+    "rank_m5_valce": 58
+  },
+  {
+    "shard": "fineweb_train_000077",
+    "avg_rank": 20.6,
+    "rank_m1_ngram_cosine": 31,
+    "rank_m2_neg_jsd": 24,
+    "rank_m3_moore_lewis": 12,
+    "rank_m6_embed_cosine": 24,
+    "rank_m8_importance": 12,
+    "rank_m5_valce": 22
+  },
+  {
+    "shard": "fineweb_train_000079",
+    "avg_rank": 20.8,
+    "rank_m1_ngram_cosine": 21,
+    "rank_m2_neg_jsd": 26,
+    "rank_m3_moore_lewis": 20,
+    "rank_m6_embed_cosine": 17,
+    "rank_m8_importance": 20,
+    "rank_m5_valce": 68
+  },
+  {
+    "shard": "fineweb_train_000076",
+    "avg_rank": 23.2,
+    "rank_m1_ngram_cosine": 40,
+    "rank_m2_neg_jsd": 28,
+    "rank_m3_moore_lewis": 16,
+    "rank_m6_embed_cosine": 16,
+    "rank_m8_importance": 16,
+    "rank_m5_valce": 15
+  },
+  {
+    "shard": "fineweb_train_000014",
+    "avg_rank": 25.0,
+    "rank_m1_ngram_cosine": 13,
+    "rank_m2_neg_jsd": 14,
+    "rank_m3_moore_lewis": 29,
+    "rank_m6_embed_cosine": 40,
+    "rank_m8_importance": 29,
+    "rank_m5_valce": 67
+  },
+  {
+    "shard": "fineweb_train_000013",
+    "avg_rank": 26.8,
+    "rank_m1_ngram_cosine": 14,
+    "rank_m2_neg_jsd": 15,
+    "rank_m3_moore_lewis": 28,
+    "rank_m6_embed_cosine": 49,
+    "rank_m8_importance": 28,
+    "rank_m5_valce": 72
+  },
+  {
+    "shard": "fineweb_train_000049",
+    "avg_rank": 26.8,
+    "rank_m1_ngram_cosine": 22,
+    "rank_m2_neg_jsd": 16,
+    "rank_m3_moore_lewis": 23,
+    "rank_m6_embed_cosine": 50,
+    "rank_m8_importance": 23,
+    "rank_m5_valce": 47
+  },
+  {
+    "shard": "fineweb_train_000042",
+    "avg_rank": 28.0,
+    "rank_m1_ngram_cosine": 30,
+    "rank_m2_neg_jsd": 21,
+    "rank_m3_moore_lewis": 19,
+    "rank_m6_embed_cosine": 51,
+    "rank_m8_importance": 19,
+    "rank_m5_valce": 51
+  },
+  {
+    "shard": "fineweb_train_000056",
+    "avg_rank": 28.6,
+    "rank_m1_ngram_cosine": 45,
+    "rank_m2_neg_jsd": 37,
+    "rank_m3_moore_lewis": 26,
+    "rank_m6_embed_cosine": 9,
+    "rank_m8_importance": 26,
+    "rank_m5_valce": 31
+  },
+  {
+    "shard": "fineweb_train_000043",
+    "avg_rank": 29.8,
+    "rank_m1_ngram_cosine": 15,
+    "rank_m2_neg_jsd": 11,
+    "rank_m3_moore_lewis": 25,
+    "rank_m6_embed_cosine": 73,
+    "rank_m8_importance": 25,
+    "rank_m5_valce": 70
+  },
+  {
+    "shard": "fineweb_train_000029",
+    "avg_rank": 31.8,
+    "rank_m1_ngram_cosine": 35,
+    "rank_m2_neg_jsd": 30,
+    "rank_m3_moore_lewis": 21,
+    "rank_m6_embed_cosine": 52,
+    "rank_m8_importance": 21,
+    "rank_m5_valce": 33
+  },
+  {
+    "shard": "fineweb_train_000040",
+    "avg_rank": 32.4,
+    "rank_m1_ngram_cosine": 43,
+    "rank_m2_neg_jsd": 32,
+    "rank_m3_moore_lewis": 32,
+    "rank_m6_embed_cosine": 23,
+    "rank_m8_importance": 32,
+    "rank_m5_valce": 64
+  },
+  {
+    "shard": "fineweb_train_000005",
+    "avg_rank": 34.2,
+    "rank_m1_ngram_cosine": 48,
+    "rank_m2_neg_jsd": 38,
+    "rank_m3_moore_lewis": 27,
+    "rank_m6_embed_cosine": 31,
+    "rank_m8_importance": 27,
+    "rank_m5_valce": 12
+  },
+  {
+    "shard": "fineweb_train_000006",
+    "avg_rank": 34.2,
+    "rank_m1_ngram_cosine": 41,
+    "rank_m2_neg_jsd": 47,
+    "rank_m3_moore_lewis": 18,
+    "rank_m6_embed_cosine": 47,
+    "rank_m8_importance": 18,
+    "rank_m5_valce": 9
+  },
+  {
+    "shard": "fineweb_train_000032",
+    "avg_rank": 34.4,
+    "rank_m1_ngram_cosine": 34,
+    "rank_m2_neg_jsd": 36,
+    "rank_m3_moore_lewis": 36,
+    "rank_m6_embed_cosine": 30,
+    "rank_m8_importance": 36,
+    "rank_m5_valce": 73
+  },
+  {
+    "shard": "fineweb_train_000074",
+    "avg_rank": 37.0,
+    "rank_m1_ngram_cosine": 32,
+    "rank_m2_neg_jsd": 54,
+    "rank_m3_moore_lewis": 40,
+    "rank_m6_embed_cosine": 19,
+    "rank_m8_importance": 40,
+    "rank_m5_valce": 44
+  },
+  {
+    "shard": "fineweb_train_000016",
+    "avg_rank": 37.8,
+    "rank_m1_ngram_cosine": 36,
+    "rank_m2_neg_jsd": 27,
+    "rank_m3_moore_lewis": 35,
+    "rank_m6_embed_cosine": 56,
+    "rank_m8_importance": 35,
+    "rank_m5_valce": 35
+  },
+  {
+    "shard": "fineweb_train_000068",
+    "avg_rank": 38.4,
+    "rank_m1_ngram_cosine": 38,
+    "rank_m2_neg_jsd": 35,
+    "rank_m3_moore_lewis": 37,
+    "rank_m6_embed_cosine": 45,
+    "rank_m8_importance": 37,
+    "rank_m5_valce": 52
+  },
+  {
+    "shard": "fineweb_train_000060",
+    "avg_rank": 38.6,
+    "rank_m1_ngram_cosine": 27,
+    "rank_m2_neg_jsd": 45,
+    "rank_m3_moore_lewis": 30,
+    "rank_m6_embed_cosine": 61,
+    "rank_m8_importance": 30,
+    "rank_m5_valce": 24
+  },
+  {
+    "shard": "fineweb_train_000078",
+    "avg_rank": 39.0,
+    "rank_m1_ngram_cosine": 26,
+    "rank_m2_neg_jsd": 29,
+    "rank_m3_moore_lewis": 31,
+    "rank_m6_embed_cosine": 78,
+    "rank_m8_importance": 31,
+    "rank_m5_valce": 32
+  },
+  {
+    "shard": "fineweb_train_000073",
+    "avg_rank": 40.6,
+    "rank_m1_ngram_cosine": 28,
+    "rank_m2_neg_jsd": 40,
+    "rank_m3_moore_lewis": 34,
+    "rank_m6_embed_cosine": 67,
+    "rank_m8_importance": 34,
+    "rank_m5_valce": 38
+  },
+  {
+    "shard": "fineweb_train_000015",
+    "avg_rank": 42.0,
+    "rank_m1_ngram_cosine": 25,
+    "rank_m2_neg_jsd": 22,
+    "rank_m3_moore_lewis": 52,
+    "rank_m6_embed_cosine": 59,
+    "rank_m8_importance": 52,
+    "rank_m5_valce": 59
+  },
+  {
+    "shard": "fineweb_train_000039",
+    "avg_rank": 42.2,
+    "rank_m1_ngram_cosine": 46,
+    "rank_m2_neg_jsd": 43,
+    "rank_m3_moore_lewis": 47,
+    "rank_m6_embed_cosine": 28,
+    "rank_m8_importance": 47,
+    "rank_m5_valce": 36
+  },
+  {
+    "shard": "fineweb_train_000031",
+    "avg_rank": 42.8,
+    "rank_m1_ngram_cosine": 33,
+    "rank_m2_neg_jsd": 23,
+    "rank_m3_moore_lewis": 55,
+    "rank_m6_embed_cosine": 48,
+    "rank_m8_importance": 55,
+    "rank_m5_valce": 74
+  },
+  {
+    "shard": "fineweb_train_000038",
+    "avg_rank": 42.8,
+    "rank_m1_ngram_cosine": 24,
+    "rank_m2_neg_jsd": 44,
+    "rank_m3_moore_lewis": 41,
+    "rank_m6_embed_cosine": 64,
+    "rank_m8_importance": 41,
+    "rank_m5_valce": 45
+  },
+  {
+    "shard": "fineweb_train_000062",
+    "avg_rank": 43.0,
+    "rank_m1_ngram_cosine": 42,
+    "rank_m2_neg_jsd": 39,
+    "rank_m3_moore_lewis": 61,
+    "rank_m6_embed_cosine": 12,
+    "rank_m8_importance": 61,
+    "rank_m5_valce": 61
+  },
+  {
+    "shard": "fineweb_train_000035",
+    "avg_rank": 44.8,
+    "rank_m1_ngram_cosine": 47,
+    "rank_m2_neg_jsd": 48,
+    "rank_m3_moore_lewis": 33,
+    "rank_m6_embed_cosine": 63,
+    "rank_m8_importance": 33,
+    "rank_m5_valce": 8
+  },
+  {
+    "shard": "fineweb_train_000024",
+    "avg_rank": 45.0,
+    "rank_m1_ngram_cosine": 67,
+    "rank_m2_neg_jsd": 66,
+    "rank_m3_moore_lewis": 42,
+    "rank_m6_embed_cosine": 8,
+    "rank_m8_importance": 42,
+    "rank_m5_valce": 17
+  },
+  {
+    "shard": "fineweb_train_000023",
+    "avg_rank": 45.2,
+    "rank_m1_ngram_cosine": 72,
+    "rank_m2_neg_jsd": 63,
+    "rank_m3_moore_lewis": 38,
+    "rank_m6_embed_cosine": 15,
+    "rank_m8_importance": 38,
+    "rank_m5_valce": 6
+  },
+  {
+    "shard": "fineweb_train_000007",
+    "avg_rank": 45.4,
+    "rank_m1_ngram_cosine": 55,
+    "rank_m2_neg_jsd": 53,
+    "rank_m3_moore_lewis": 39,
+    "rank_m6_embed_cosine": 41,
+    "rank_m8_importance": 39,
+    "rank_m5_valce": 25
+  },
+  {
+    "shard": "fineweb_train_000047",
+    "avg_rank": 45.8,
+    "rank_m1_ngram_cosine": 64,
+    "rank_m2_neg_jsd": 62,
+    "rank_m3_moore_lewis": 51,
+    "rank_m6_embed_cosine": 1,
+    "rank_m8_importance": 51,
+    "rank_m5_valce": 28
+  },
+  {
+    "shard": "fineweb_train_000045",
+    "avg_rank": 46.2,
+    "rank_m1_ngram_cosine": 16,
+    "rank_m2_neg_jsd": 33,
+    "rank_m3_moore_lewis": 56,
+    "rank_m6_embed_cosine": 70,
+    "rank_m8_importance": 56,
+    "rank_m5_valce": 79
+  },
+  {
+    "shard": "fineweb_train_000008",
+    "avg_rank": 46.4,
+    "rank_m1_ngram_cosine": 37,
+    "rank_m2_neg_jsd": 31,
+    "rank_m3_moore_lewis": 60,
+    "rank_m6_embed_cosine": 44,
+    "rank_m8_importance": 60,
+    "rank_m5_valce": 78
+  },
+  {
+    "shard": "fineweb_train_000058",
+    "avg_rank": 46.8,
+    "rank_m1_ngram_cosine": 50,
+    "rank_m2_neg_jsd": 49,
+    "rank_m3_moore_lewis": 66,
+    "rank_m6_embed_cosine": 3,
+    "rank_m8_importance": 66,
+    "rank_m5_valce": 37
+  },
+  {
+    "shard": "fineweb_train_000018",
+    "avg_rank": 47.0,
+    "rank_m1_ngram_cosine": 62,
+    "rank_m2_neg_jsd": 52,
+    "rank_m3_moore_lewis": 50,
+    "rank_m6_embed_cosine": 21,
+    "rank_m8_importance": 50,
+    "rank_m5_valce": 46
+  },
+  {
+    "shard": "fineweb_train_000003",
+    "avg_rank": 48.8,
+    "rank_m1_ngram_cosine": 54,
+    "rank_m2_neg_jsd": 56,
+    "rank_m3_moore_lewis": 44,
+    "rank_m6_embed_cosine": 46,
+    "rank_m8_importance": 44,
+    "rank_m5_valce": 16
+  },
+  {
+    "shard": "fineweb_train_000017",
+    "avg_rank": 49.4,
+    "rank_m1_ngram_cosine": 56,
+    "rank_m2_neg_jsd": 58,
+    "rank_m3_moore_lewis": 49,
+    "rank_m6_embed_cosine": 35,
+    "rank_m8_importance": 49,
+    "rank_m5_valce": 5
+  },
+  {
+    "shard": "fineweb_train_000012",
+    "avg_rank": 50.4,
+    "rank_m1_ngram_cosine": 51,
+    "rank_m2_neg_jsd": 42,
+    "rank_m3_moore_lewis": 45,
+    "rank_m6_embed_cosine": 69,
+    "rank_m8_importance": 45,
+    "rank_m5_valce": 21
+  },
+  {
+    "shard": "fineweb_train_000027",
+    "avg_rank": 50.4,
+    "rank_m1_ngram_cosine": 49,
+    "rank_m2_neg_jsd": 46,
+    "rank_m3_moore_lewis": 57,
+    "rank_m6_embed_cosine": 43,
+    "rank_m8_importance": 57,
+    "rank_m5_valce": 50
+  },
+  {
+    "shard": "fineweb_train_000046",
+    "avg_rank": 51.4,
+    "rank_m1_ngram_cosine": 39,
+    "rank_m2_neg_jsd": 34,
+    "rank_m3_moore_lewis": 63,
+    "rank_m6_embed_cosine": 58,
+    "rank_m8_importance": 63,
+    "rank_m5_valce": 71
+  },
+  {
+    "shard": "fineweb_train_000063",
+    "avg_rank": 52.2,
+    "rank_m1_ngram_cosine": 52,
+    "rank_m2_neg_jsd": 50,
+    "rank_m3_moore_lewis": 74,
+    "rank_m6_embed_cosine": 11,
+    "rank_m8_importance": 74,
+    "rank_m5_valce": 76
+  },
+  {
+    "shard": "fineweb_train_000022",
+    "avg_rank": 52.4,
+    "rank_m1_ngram_cosine": 71,
+    "rank_m2_neg_jsd": 67,
+    "rank_m3_moore_lewis": 43,
+    "rank_m6_embed_cosine": 38,
+    "rank_m8_importance": 43,
+    "rank_m5_valce": 23
+  },
+  {
+    "shard": "fineweb_train_000071",
+    "avg_rank": 53.0,
+    "rank_m1_ngram_cosine": 61,
+    "rank_m2_neg_jsd": 61,
+    "rank_m3_moore_lewis": 65,
+    "rank_m6_embed_cosine": 13,
+    "rank_m8_importance": 65,
+    "rank_m5_valce": 56
+  },
+  {
+    "shard": "fineweb_train_000011",
+    "avg_rank": 53.2,
+    "rank_m1_ngram_cosine": 74,
+    "rank_m2_neg_jsd": 70,
+    "rank_m3_moore_lewis": 58,
+    "rank_m6_embed_cosine": 6,
+    "rank_m8_importance": 58,
+    "rank_m5_valce": 2
+  },
+  {
+    "shard": "fineweb_train_000069",
+    "avg_rank": 55.2,
+    "rank_m1_ngram_cosine": 66,
+    "rank_m2_neg_jsd": 65,
+    "rank_m3_moore_lewis": 59,
+    "rank_m6_embed_cosine": 27,
+    "rank_m8_importance": 59,
+    "rank_m5_valce": 20
+  },
+  {
+    "shard": "fineweb_train_000019",
+    "avg_rank": 55.4,
+    "rank_m1_ngram_cosine": 53,
+    "rank_m2_neg_jsd": 57,
+    "rank_m3_moore_lewis": 67,
+    "rank_m6_embed_cosine": 33,
+    "rank_m8_importance": 67,
+    "rank_m5_valce": 69
+  },
+  {
+    "shard": "fineweb_train_000064",
+    "avg_rank": 55.6,
+    "rank_m1_ngram_cosine": 68,
+    "rank_m2_neg_jsd": 60,
+    "rank_m3_moore_lewis": 48,
+    "rank_m6_embed_cosine": 54,
+    "rank_m8_importance": 48,
+    "rank_m5_valce": 4
+  },
+  {
+    "shard": "fineweb_train_000028",
+    "avg_rank": 55.8,
+    "rank_m1_ngram_cosine": 69,
+    "rank_m2_neg_jsd": 72,
+    "rank_m3_moore_lewis": 68,
+    "rank_m6_embed_cosine": 2,
+    "rank_m8_importance": 68,
+    "rank_m5_valce": 3
+  },
+  {
+    "shard": "fineweb_train_000072",
+    "avg_rank": 56.4,
+    "rank_m1_ngram_cosine": 44,
+    "rank_m2_neg_jsd": 41,
+    "rank_m3_moore_lewis": 71,
+    "rank_m6_embed_cosine": 55,
+    "rank_m8_importance": 71,
+    "rank_m5_valce": 77
+  },
+  {
+    "shard": "fineweb_train_000025",
+    "avg_rank": 56.6,
+    "rank_m1_ngram_cosine": 60,
+    "rank_m2_neg_jsd": 64,
+    "rank_m3_moore_lewis": 76,
+    "rank_m6_embed_cosine": 7,
+    "rank_m8_importance": 76,
+    "rank_m5_valce": 42
+  },
+  {
+    "shard": "fineweb_train_000052",
+    "avg_rank": 57.2,
+    "rank_m1_ngram_cosine": 63,
+    "rank_m2_neg_jsd": 55,
+    "rank_m3_moore_lewis": 46,
+    "rank_m6_embed_cosine": 76,
+    "rank_m8_importance": 46,
+    "rank_m5_valce": 10
+  },
+  {
+    "shard": "fineweb_train_000053",
+    "avg_rank": 57.4,
+    "rank_m1_ngram_cosine": 58,
+    "rank_m2_neg_jsd": 51,
+    "rank_m3_moore_lewis": 53,
+    "rank_m6_embed_cosine": 72,
+    "rank_m8_importance": 53,
+    "rank_m5_valce": 65
+  },
+  {
+    "shard": "fineweb_train_000048",
+    "avg_rank": 58.6,
+    "rank_m1_ngram_cosine": 65,
+    "rank_m2_neg_jsd": 68,
+    "rank_m3_moore_lewis": 64,
+    "rank_m6_embed_cosine": 32,
+    "rank_m8_importance": 64,
+    "rank_m5_valce": 29
+  },
+  {
+    "shard": "fineweb_train_000051",
+    "avg_rank": 60.6,
+    "rank_m1_ngram_cosine": 59,
+    "rank_m2_neg_jsd": 59,
+    "rank_m3_moore_lewis": 54,
+    "rank_m6_embed_cosine": 77,
+    "rank_m8_importance": 54,
+    "rank_m5_valce": 26
+  },
+  {
+    "shard": "fineweb_train_000002",
+    "avg_rank": 62.2,
+    "rank_m1_ngram_cosine": 75,
+    "rank_m2_neg_jsd": 76,
+    "rank_m3_moore_lewis": 69,
+    "rank_m6_embed_cosine": 22,
+    "rank_m8_importance": 69,
+    "rank_m5_valce": 0
+  },
+  {
+    "shard": "fineweb_train_000059",
+    "avg_rank": 62.4,
+    "rank_m1_ngram_cosine": 73,
+    "rank_m2_neg_jsd": 71,
+    "rank_m3_moore_lewis": 77,
+    "rank_m6_embed_cosine": 14,
+    "rank_m8_importance": 77,
+    "rank_m5_valce": 14
+  },
+  {
+    "shard": "fineweb_train_000055",
+    "avg_rank": 66.0,
+    "rank_m1_ngram_cosine": 78,
+    "rank_m2_neg_jsd": 69,
+    "rank_m3_moore_lewis": 72,
+    "rank_m6_embed_cosine": 39,
+    "rank_m8_importance": 72,
+    "rank_m5_valce": 18
+  },
+  {
+    "shard": "fineweb_train_000067",
+    "avg_rank": 66.0,
+    "rank_m1_ngram_cosine": 57,
+    "rank_m2_neg_jsd": 74,
+    "rank_m3_moore_lewis": 62,
+    "rank_m6_embed_cosine": 75,
+    "rank_m8_importance": 62,
+    "rank_m5_valce": 13
+  },
+  {
+    "shard": "fineweb_train_000030",
+    "avg_rank": 67.0,
+    "rank_m1_ngram_cosine": 19,
+    "rank_m2_neg_jsd": 79,
+    "rank_m3_moore_lewis": 79,
+    "rank_m6_embed_cosine": 79,
+    "rank_m8_importance": 79,
+    "rank_m5_valce": 57
+  },
+  {
+    "shard": "fineweb_train_000054",
+    "avg_rank": 72.0,
+    "rank_m1_ngram_cosine": 76,
+    "rank_m2_neg_jsd": 73,
+    "rank_m3_moore_lewis": 70,
+    "rank_m6_embed_cosine": 71,
+    "rank_m8_importance": 70,
+    "rank_m5_valce": 34
+  },
+  {
+    "shard": "fineweb_train_000065",
+    "avg_rank": 73.6,
+    "rank_m1_ngram_cosine": 70,
+    "rank_m2_neg_jsd": 78,
+    "rank_m3_moore_lewis": 73,
+    "rank_m6_embed_cosine": 74,
+    "rank_m8_importance": 73,
+    "rank_m5_valce": 1
+  },
+  {
+    "shard": "fineweb_train_000066",
+    "avg_rank": 74.4,
+    "rank_m1_ngram_cosine": 77,
+    "rank_m2_neg_jsd": 77,
+    "rank_m3_moore_lewis": 75,
+    "rank_m6_embed_cosine": 68,
+    "rank_m8_importance": 75,
+    "rank_m5_valce": 19
+  },
+  {
+    "shard": "fineweb_train_000070",
+    "avg_rank": 74.4,
+    "rank_m1_ngram_cosine": 79,
+    "rank_m2_neg_jsd": 75,
+    "rank_m3_moore_lewis": 78,
+    "rank_m6_embed_cosine": 62,
+    "rank_m8_importance": 78,
+    "rank_m5_valce": 7
+  }
+]
