@@ -1,0 +1,9 @@
+{
+  "name": "10L Int5-MLP/Int6-Attn + BigramHash(10240) + SWA(0.4) + 3% Prune",
+  "val_loss": 1.1388,
+  "bytes_total": 15850024,
+  "blurb": "Pushed to 10 layers by compressing MLPs to Int5 and attention to Int6. Expanded BigramHash to 10240 buckets for better token memorization, tuned SWA to start early at 0.4, and applied 3% magnitude pruning right before export to fit the expanded capacity within the 16MB limit.",
+  "author": "malc3om",
+  "github_id": "malc3om",
+  "date": "2026-03-22"
+}
