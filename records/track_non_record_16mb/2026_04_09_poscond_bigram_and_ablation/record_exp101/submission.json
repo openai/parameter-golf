@@ -1,0 +1,42 @@
+{
+  "author": "Sidhant Thole",
+  "github_id": "SPThole",
+  "name": "Pos-Conditional BigramHash + Trigram (exp101)",
+  "blurb": "Position-conditional bigram hash splits the 4095 usable buckets into ws-current [0,2047) and non-ws-current [2047,4094) halves, so word-start and within-word (prev,curr) pairs never share a bucket. Combined with (t-2,t-1,t) trigram lookup reusing the same 4096×64 table at zero extra params. TTT optimizer reverted from AdamW+flat to SGD+cosine (the parent model's AdamW path was never validated end-to-end — its 1.1169 number came from a standalone SGD re-run). FOMAML meta-TTT every=4 inherited from parent architecture (11L XSA-all, BigramHash4096×64, VE7-10). 1×H100, wall-clock cap 4800s. Ablation (see exp105a) shows meta-TTT contributes only +0.00036 bpb of the final score.",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "val_loss": 1.88411925,
+  "val_bpb": 1.11588450,
+  "pre_quant_val_loss": 1.9167,
+  "pre_quant_val_bpb": 1.1352,
+  "int6_roundtrip_val_loss": 1.92365637,
+  "int6_roundtrip_val_bpb": 1.13929766,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 1.88411925,
+      "val_bpb": 1.11588450,
+      "pre_quant_val_bpb": 1.1352,
+      "int6_roundtrip_val_bpb": 1.13929766,
+      "artifact_bytes": 15804196,
+      "model_bytes": 15689152,
+      "code_bytes": 115044,
+      "steps": 7020,
+      "step_avg_ms": 683.79,
+      "wallclock_s": 4800,
+      "late_qat_step": 5384,
+      "swa_start_step": 5600,
+      "adaptive_warmdown_step": 2200,
+      "peak_gpu_mib": 23044
+    }
+  },
+  "hardware": "1×H100 80GB SXM",
+  "gptq_calibration": "AR self-generated (64 seqs × 2048 tokens, temp=0.8)",
+  "gptq_layers": 68,
+  "selective_prune_candidates": 4169170,
+  "selective_prune_applied": false,
+  "technique_summary": "Pos-conditional bigram hash (ws/non-ws bucket split) + trigram + SGD+cosine TTT + FOMAML meta-TTT + XSA-all-11L + VE layers 7-10 + GPTQ int6+lzma",
+  "non_record": false,
+  "parent_arch": "11L XSA-all · BigramHash 4096×64 (shared) · VE7-10 · partial RoPE 16/64 · FOMAML every=4 · TTT AdamW+flat · int6 GPTQ+lzma · legal_ttt 1.1169",
+  "ablation": "exp105a (META_TTT_ENABLED=0) — meta-TTT ablation, see that folder"
+}
