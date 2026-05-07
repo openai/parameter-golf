@@ -1,0 +1,18 @@
+{
+  "author": "Siddhardha Nanda",
+  "github_id": "SID-6921",
+  "name": "R08 Higher-LR Matrix/Scalar GPT 17M A40",
+  "blurb": "Increased matrix and scalar learning rates (MATRIX_LR=0.05, SCALAR_LR=0.04, embed_lr=0.05) vs stock defaults, with 1M-token batch and 400-step warmdown. 60 steps on single A40. Improves val_bpb from baseline 3.2686 to 2.1827, submission size 9.4MB well under 16MB cap.",
+  "date": "2026-04-02T00:00:00Z",
+  "track": "non_record_16mb",
+  "val_loss": 3.68541758,
+  "val_bpb": 2.18271188,
+  "pre_quant_val_loss": 3.6800,
+  "pre_quant_val_bpb": 2.1795,
+  "step_stop": 60,
+  "wallclock_seconds": 169,
+  "bytes_total": 9897284,
+  "bytes_model_int8_zlib": 9849598,
+  "bytes_code": 47686,
+  "gpu": "1xA40"
+}
