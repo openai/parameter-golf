@@ -1,0 +1,11 @@
+{
+  "author": "Pionion Lab",
+  "github_id": "lookin-zz",
+  "name": "Int6 QAT MLP1472 SlidingWindow + TTT",
+  "blurb": "9L 512d GPT with int6 STE QAT, MLP 1472, sliding window eval, and full-weight TTT (3 epochs SGD). Post-quant 1.1991, after TTT 1.1807.",
+  "date": "2026-03-21T12:00:00Z",
+  "val_loss": 1.99358097,
+  "val_bpb": 1.18071094,
+  "bytes_total": 15781354,
+  "bytes_code": 69450
+}
