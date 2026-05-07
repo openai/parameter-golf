@@ -1,0 +1,15 @@
+{
+  "author": "Uday Bhatia",
+  "github_id": "BhatiaUday",
+  "name": "LeakyReLU² + TrigramHashEmbedding",
+  "blurb": "LeakyReLU(0.5)² activation + novel hash-based trigram embedding (2048×48) on PR #414 stack. 11L 512d 8H 4KV GQA, Partial RoPE 16/64, XSA last 4, EMA+SWA, GPTQ-lite int6+lzma, sliding eval stride 64. Validated on 1×H100 NVL with proportional wallclock (4054s ≈ 600s × 6.76).",
+  "date": "2026-03-26",
+  "val_loss": 1.93302095,
+  "val_bpb": 1.14484692,
+  "val_loss_roundtrip": 1.97289039,
+  "val_bpb_roundtrip": 1.16845682,
+  "n_seeds": 3,
+  "seeds": [1337, 42, 2025],
+  "bytes_total": 15642196,
+  "bytes_code": 70472
+}
