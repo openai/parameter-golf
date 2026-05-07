@@ -1,0 +1,39 @@
+{
+  "author": "amabito",
+  "github_id": "amabito",
+  "name": "Oscillatory Recurrence at Layer 0",
+  "blurb": "11L hybrid (1 TRN + 10 Transformer). TRN oscillatory recurrence at layer 0 gives +0.031 BPP per-step quality over pure Transformer, but 13ms/step overhead costs 0.009 BPP at 600s finish. Only oscillatory recurrence submission in Parameter Golf.",
+  "date": "2026-04-01",
+  "track": "non-record-16mb",
+  "val_bpb": 1.1915,
+  "val_loss": null,
+  "bytes_total": 15177260,
+  "bytes_code": 157260,
+  "gpu": "8x H100 SXM 80GB",
+  "technique_summary": "TRN oscillatory recurrence + sliding window eval + dynamic quantization + XSA-all + BigramHash + partial RoPE + SWA",
+  "metadata": {
+    "tags": ["trn", "hybrid", "oscillatory-recurrence", "sliding-eval", "ablation"],
+    "layers": 11,
+    "d_model": 512,
+    "mlp_mult": 2.5,
+    "params": "24,557,011",
+    "trn_layers": "0",
+    "quantization": "dynamic int4/int5 + zstd-22",
+    "eval_stride": 64,
+    "seeds": {
+      "42": {"sliding_bpb": 1.1924, "int8_bpb": 1.2267},
+      "1337": {"sliding_bpb": 1.1911, "int8_bpb": 1.2255},
+      "2024": {"sliding_bpb": 1.1910, "int8_bpb": 1.2255}
+    },
+    "mean_sliding_bpb": 1.1915,
+    "std_sliding_bpb": 0.0008,
+    "ablation": {
+      "all_transformer_sliding_bpb": 1.1830,
+      "all_transformer_int8_bpb": 1.2171,
+      "all_transformer_steps": 9439,
+      "trn_per_step_advantage_at_step7000": 0.031,
+      "trn_final_deficit": 0.009,
+      "conclusion": "TRN has genuine per-step quality but loses to speed penalty at 600s"
+    }
+  }
+}
