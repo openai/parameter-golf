@@ -1,0 +1,21 @@
+{
+  "val_bpb": 1.3045,
+  "val_loss": 2.2025,
+  "eval_method": "standard",
+  "eval_stride": 1024,
+  "quantization": "int8",
+  "compression": "zlib-9",
+  "artifact_size_bytes": 14719767,
+  "model_params": 17059912,
+  "train_steps": 1813,
+  "train_time_seconds": 600,
+  "hardware": "1xH100-80GB",
+  "seed": 1337,
+  "techniques": [
+    "Int8 Quantization",
+    "zlib-9 Compression"
+  ],
+  "post_quant_standard_val_bpb": 1.3058,
+  "post_quant_standard_val_loss": 2.2047,
+  "quantization_gap_bpb": 0.0013
+}
