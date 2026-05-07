@@ -1,0 +1,299 @@
+W0407 18:33:12.749000 45793 torch/distributed/run.py:793] 
+W0407 18:33:12.749000 45793 torch/distributed/run.py:793] *****************************************
+W0407 18:33:12.749000 45793 torch/distributed/run.py:793] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0407 18:33:12.749000 45793 torch/distributed/run.py:793] *****************************************
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 919, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 910, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 138, in __call__
+    returnwarmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+prog_depth: schedule=[(0.3, 2), (0.5, 3), (1.0, 4)] starting_repeats=2
+step:0/20000 val_loss:6.9322 val_bpb:4.1056 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9932 train_time:5848ms step_avg:5847.68ms
+step:2/20000 train_loss:9.9975 train_time:5867ms step_avg:2933.44ms
+step:3/20000 train_loss:9.6852 train_time:5954ms step_avg:1984.61ms
+step:4/20000 train_loss:8.9228 train_time:6042ms step_avg:1510.43ms
+step:5/20000 train_loss:7.7753 train_time:6139ms step_avg:1227.82ms
+step:6/20000 train_loss:6.9328 train_time:6224ms step_avg:1037.37ms
+step:7/20000 train_loss:6.0226 train_time:6315ms step_avg:902.09ms
+step:8/20000 train_loss:5.7609 train_time:6406ms step_avg:800.69ms
+step:9/20000 train_loss:5.6007 train_time:6496ms step_avg:721.77ms
+step:10/20000 train_loss:5.4417 train_time:6587ms step_avg:658.73ms
+step:50/20000 val_loss:4.0227 val_bpb:2.3825 train_time:10231ms step_avg:204.62ms
+step:100/20000 val_loss:3.1260 val_bpb:1.8514 train_time:14709ms step_avg:147.09ms
+step:150/20000 val_loss:2.8145 val_bpb:1.6669 train_time:19189ms step_avg:127.93ms
+step:200/20000 train_loss:2.7073 train_time:23676ms step_avg:118.38ms
+step:200/20000 val_loss:2.6976 val_bpb:1.5977 train_time:23734ms step_avg:118.67ms
+step:250/20000 val_loss:2.6070 val_bpb:1.5440 train_time:28231ms step_avg:112.92ms
+step:300/20000 val_loss:2.5557 val_bpb:1.5136 train_time:32731ms step_avg:109.10ms
+step:350/20000 val_loss:2.5119 val_bpb:1.4877 train_time:37231ms step_avg:106.37ms
+step:400/20000 train_loss:2.2702 train_time:41757ms step_avg:104.39ms
+step:400/20000 val_loss:2.4847 val_bpb:1.4716 train_time:41815ms step_avg:104.54ms
+step:450/20000 val_loss:2.4538 val_bpb:1.4533 train_time:46318ms step_avg:102.93ms
+step:500/20000 val_loss:2.4394 val_bpb:1.4448 train_time:50824ms step_avg:101.65ms
+step:550/20000 val_loss:2.4238 val_bpb:1.4355 train_time:55332ms step_avg:100.60ms
+step:600/20000 train_loss:2.5007 train_time:59848ms step_avg:99.75ms
+step:600/20000 val_loss:2.4044 val_bpb:1.4240 train_time:59904ms step_avg:99.84ms
+step:650/20000 val_loss:2.3866 val_bpb:1.4135 train_time:64419ms step_avg:99.11ms
+step:700/20000 val_loss:2.3685 val_bpb:1.4028 train_time:68929ms step_avg:98.47ms
+step:750/20000 val_loss:2.3552 val_bpb:1.3949 train_time:73437ms step_avg:97.92ms
+step:800/20000 train_loss:2.2588 train_time:77960ms step_avg:97.45ms
+step:800/20000 val_loss:2.3469 val_bpb:1.3900 train_time:78019ms step_avg:97.52ms
+step:850/20000 val_loss:2.3349 val_bpb:1.3829 train_time:82521ms step_avg:97.08ms
+step:900/20000 val_loss:2.3276 val_bpb:1.3785 train_time:87028ms step_avg:96.70ms
+step:950/20000 val_loss:2.3171 val_bpb:1.3723 train_time:91533ms step_avg:96.35ms
+step:1000/20000 train_loss:2.3494 train_time:96048ms step_avg:96.05ms
+step:1000/20000 val_loss:2.3076 val_bpb:1.3667 train_time:96105ms step_avg:96.11ms
+step:1050/20000 val_loss:2.3004 val_bpb:1.3624 train_time:100608ms step_avg:95.82ms
+step:1100/20000 val_loss:2.2960 val_bpb:1.3598 train_time:105109ms step_avg:95.55ms
+step:1150/20000 val_loss:2.2949 val_bpb:1.3591 train_time:109671ms step_avg:95.37ms
+step:1200/20000 train_loss:2.3626 train_time:114119ms step_avg:95.10ms
+step:1200/20000 val_loss:2.2810 val_bpb:1.3509 train_time:114177ms step_avg:95.15ms
+step:1250/20000 val_loss:2.2791 val_bpb:1.3498 train_time:118683ms step_avg:94.95ms
+step:1300/20000 val_loss:2.2693 val_bpb:1.3440 train_time:123182ms step_avg:94.76ms
+step:1350/20000 val_loss:2.2676 val_bpb:1.3430 train_time:127741ms step_avg:94.62ms
+step:1400/20000 train_loss:2.4113 train_time:132188ms step_avg:94.42ms
+step:1400/20000 val_loss:2.2617 val_bpb:1.3395 train_time:132246ms step_avg:94.46ms
+step:1450/20000 val_loss:2.2604 val_bpb:1.3387 train_time:136747ms step_avg:94.31ms
+step:1500/20000 val_loss:2.2549 val_bpb:1.3355 train_time:141247ms step_avg:94.16ms
+step:1550/20000 val_loss:2.2582 val_bpb:1.3374 train_time:145816ms step_avg:94.07ms
+step:1600/20000 train_loss:2.0807 train_time:150260ms step_avg:93.91ms
+step:1600/20000 val_loss:2.2508 val_bpb:1.3331 train_time:150319ms step_avg:93.95ms
+step:1650/20000 val_loss:2.2464 val_bpb:1.3305 train_time:154815ms step_avg:93.83ms
+step:1700/20000 val_loss:2.2417 val_bpb:1.3276 train_time:159309ms step_avg:93.71ms
+step:1750/20000 val_loss:2.2397 val_bpb:1.3265 train_time:163869ms step_avg:93.64ms
+step:1800/20000 train_loss:2.1850 train_time:168309ms step_avg:93.51ms
+step:1800/20000 val_loss:2.2387 val_bpb:1.3259 train_time:168368ms step_avg:93.54ms
+step:1850/20000 val_loss:2.2328 val_bpb:1.3224 train_time:172867ms step_avg:93.44ms
+step:1900/20000 val_loss:2.2355 val_bpb:1.3240 train_time:177367ms step_avg:93.35ms
+prog_depth: switched to 3 repeats at step:1929 frac:0.30
+step:1950/20000 val_loss:2.2771 val_bpb:1.3486 train_time:191990ms step_avg:98.46ms
+step:2000/20000 train_loss:2.2512 train_time:198522ms step_avg:99.26ms
+step:2000/20000 val_loss:2.2340 val_bpb:1.3231 train_time:198612ms step_avg:99.31ms
+step:2050/20000 val_loss:2.2220 val_bpb:1.3160 train_time:205246ms step_avg:100.12ms
+step:2100/20000 val_loss:2.2171 val_bpb:1.3131 train_time:211958ms step_avg:100.93ms
+step:2150/20000 val_loss:2.2095 val_bpb:1.3086 train_time:218600ms step_avg:101.67ms
+step:2200/20000 train_loss:2.0481 train_time:225153ms step_avg:102.34ms
+step:2200/20000 val_loss:2.2044 val_bpb:1.3056 train_time:225241ms step_avg:102.38ms
+step:2250/20000 val_loss:2.2037 val_bpb:1.3051 train_time:231889ms step_avg:103.06ms
+step:2300/20000 val_loss:2.1969 val_bpb:1.3012 train_time:238596ms step_avg:103.74ms
+step:2350/20000 val_loss:2.1980 val_bpb:1.3018 train_time:245247ms step_avg:104.36ms
+step:2400/20000 train_loss:2.1752 train_time:251809ms step_avg:104.92ms
+step:2400/20000 val_loss:2.1926 val_bpb:1.2986 train_time:251900ms step_avg:104.96ms
+step:2450/20000 val_loss:2.1913 val_bpb:1.2978 train_time:258549ms step_avg:105.53ms
+step:2500/20000 val_loss:2.1854 val_bpb:1.2943 train_time:265268ms step_avg:106.11ms
+step:2550/20000 val_loss:2.1855 val_bpb:1.2944 train_time:271914ms step_avg:106.63ms
+step:2600/20000 train_loss:2.3890 train_time:278470ms step_avg:107.10ms
+step:2600/20000 val_loss:2.1905 val_bpb:1.2974 train_time:278561ms step_avg:107.14ms
+step:2650/20000 val_loss:2.1815 val_bpb:1.2920 train_time:285206ms step_avg:107.63ms
+step:2700/20000 val_loss:2.1774 val_bpb:1.2896 train_time:291918ms step_avg:108.12ms
+step:2750/20000 val_loss:2.1757 val_bpb:1.2886 train_time:298565ms step_avg:108.57ms
+prog_depth: switched to 4 repeats at step:2761 frac:0.50
+step:2800/20000 train_loss:2.2098 train_time:318158ms step_avg:113.63ms
+step:2800/20000 val_loss:2.1724 val_bpb:1.2866 train_time:318246ms step_avg:113.66ms
+step:2850/20000 val_loss:2.1574 val_bpb:1.2777 train_time:327002ms step_avg:114.74ms
+step:2900/20000 val_loss:2.1488 val_bpb:1.2726 train_time:335847ms step_avg:115.81ms
+step:2950/20000 val_loss:2.1426 val_bpb:1.2689 train_time:344637ms step_avg:116.83ms
+step:3000/20000 train_loss:2.1666 train_time:353337ms step_avg:117.78ms
+step:3000/20000 val_loss:2.1369 val_bpb:1.2656 train_time:353425ms step_avg:117.81ms
+step:3050/20000 val_loss:2.1353 val_bpb:1.2647 train_time:362230ms step_avg:118.76ms
+step:3100/20000 val_loss:2.1275 val_bpb:1.2600 train_time:371097ms step_avg:119.71ms
+step:3150/20000 val_loss:2.1248 val_bpb:1.2584 train_time:379901ms step_avg:120.60ms
+swa:start step:3180
+step:3200/20000 train_loss:2.1195 train_time:388667ms step_avg:121.46ms
+step:3200/20000 val_loss:2.1180 val_bpb:1.2544 train_time:388755ms step_avg:121.49ms
+step:3250/20000 val_loss:2.1147 val_bpb:1.2525 train_time:397698ms step_avg:122.37ms
+step:3300/20000 val_loss:2.1107 val_bpb:1.2501 train_time:406572ms step_avg:123.20ms
+step:3350/20000 val_loss:2.1075 val_bpb:1.2482 train_time:415399ms step_avg:124.00ms
+step:3400/20000 train_loss:2.0720 train_time:424194ms step_avg:124.76ms
+step:3400/20000 val_loss:2.1023 val_bpb:1.2451 train_time:424281ms step_avg:124.79ms
+step:3450/20000 val_loss:2.0992 val_bpb:1.2432 train_time:433216ms step_avg:125.57ms
+step:3500/20000 val_loss:2.0926 val_bpb:1.2394 train_time:442059ms step_avg:126.30ms
+step:3550/20000 val_loss:2.0886 val_bpb:1.2370 train_time:450919ms step_avg:127.02ms
+step:3600/20000 train_loss:2.0163 train_time:459663ms step_avg:127.68ms
+step:3600/20000 val_loss:2.0839 val_bpb:1.2342 train_time:459777ms step_avg:127.72ms
+step:3650/20000 val_loss:2.0803 val_bpb:1.2320 train_time:468670ms step_avg:128.40ms
+step:3700/20000 val_loss:2.0769 val_bpb:1.2301 train_time:477528ms step_avg:129.06ms
+step:3750/20000 val_loss:2.0732 val_bpb:1.2279 train_time:486381ms step_avg:129.70ms
+step:3800/20000 train_loss:2.1148 train_time:495143ms step_avg:130.30ms
+step:3800/20000 val_loss:2.0685 val_bpb:1.2251 train_time:495231ms step_avg:130.32ms
+step:3850/20000 val_loss:2.0649 val_bpb:1.2230 train_time:504163ms step_avg:130.95ms
+step:3900/20000 val_loss:2.0616 val_bpb:1.2210 train_time:513027ms step_avg:131.55ms
+step:3950/20000 val_loss:2.0567 val_bpb:1.2181 train_time:521849ms step_avg:132.11ms
+step:4000/20000 train_loss:2.0534 train_time:530607ms step_avg:132.65ms
+step:4000/20000 val_loss:2.0533 val_bpb:1.2161 train_time:530695ms step_avg:132.67ms
+step:4050/20000 val_loss:2.0497 val_bpb:1.2140 train_time:539631ms step_avg:133.24ms
+step:4100/20000 val_loss:2.0462 val_bpb:1.2119 train_time:548469ms step_avg:133.77ms
+step:4150/20000 val_loss:2.0431 val_bpb:1.2101 train_time:557332ms step_avg:134.30ms
+step:4200/20000 train_loss:2.0542 train_time:566146ms step_avg:134.80ms
+step:4200/20000 val_loss:2.0400 val_bpb:1.2082 train_time:566263ms step_avg:134.82ms
+step:4250/20000 val_loss:2.0374 val_bpb:1.2066 train_time:575089ms step_avg:135.32ms
+step:4300/20000 val_loss:2.0349 val_bpb:1.2052 train_time:583962ms step_avg:135.81ms
+step:4350/20000 val_loss:2.0330 val_bpb:1.2041 train_time:592832ms step_avg:136.28ms
+step:4391/20000 val_loss:2.0322 val_bpb:1.2036 train_time:600153ms step_avg:136.68ms
+stopping_early: wallclock_cap train_time:600153ms step:4391/20000
+peak memory allocated: 30342 MiB reserved: 31078 MiB
+swa: averaging 42 checkpoints
+Serialized model: 89176650 bytes
+Code size: 76171 bytes
+Total submission size: 89252821 bytes
+Serialized model int8+zstd22: 15285123 bytes (payload:23776800 raw_torch:23793515 payload_ratio:3.75x)
+Total submission size int8+zstd22: 15361294 bytes
+/workspace/parameter-golf/train_gpt_refactored.py:1584: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/parameter-golf/train_gpt_refactored.py:1584: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/parameter-golf/train_gpt_refactored.py:1584: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/parameter-golf/train_gpt_refactored.py:1584: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/parameter-golf/train_gpt_refactored.py:1584: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/parameter-golf/train_gpt_refactored.py:1584: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/parameter-golf/train_gpt_refactored.py:1584: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+/workspace/parameter-golf/train_gpt_refactored.py:1584: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(io.BytesIO(dctx.decompress(quant_blob_disk)), map_location="cpu")
+final_roundtrip val_loss:2.0536 val_bpb:1.2163 eval_time:15264ms
+final_roundtrip_exact val_loss:2.05362252 val_bpb:1.21627093
+final_sliding_window val_loss:1.9972 val_bpb:1.1828 window:1024 stride:256 eval_time:78463ms
+final_sliding_window_exact val_loss:1.99719348 val_bpb:1.18284997
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1670, in <module>
+[rank5]:     main()
+[rank5]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1636, in main
+[rank5]:     hm_val_loss, hm_val_bpb = eval_val_sliding(
+[rank5]:                               ^^^^^^^^^^^^^^^^^
+[rank5]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 476, in eval_val_sliding
+[rank5]:     tokens_per_byte = val_token_count.item() / val_byte_count.item()
+[rank5]:                       ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+[rank5]: ZeroDivisionError: float division by zero
+final_hedge_mixer val_loss:1.8899 val_bpb:1.1193 eval_time:162912ms
+final_hedge_mixer_exact val_loss:1.88989896 val_bpb:1.11930414
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1670, in <module>
+[rank1]:     main()
+[rank1]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1636, in main
+[rank1]:     hm_val_loss, hm_val_bpb = eval_val_sliding(
+[rank1]:                               ^^^^^^^^^^^^^^^^^
+[rank1]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 476, in eval_val_sliding
+[rank1]:     tokens_per_byte = val_token_count.item() / val_byte_count.item()
+[rank1]:                       ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+[rank1]: ZeroDivisionError: float division by zero
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1670, in <module>
+[rank3]:     main()
+[rank3]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1636, in main
+[rank3]:     hm_val_loss, hm_val_bpb = eval_val_sliding(
+[rank3]:                               ^^^^^^^^^^^^^^^^^
+[rank3]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 476, in eval_val_sliding
+[rank3]:     tokens_per_byte = val_token_count.item() / val_byte_count.item()
+[rank3]:                       ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+[rank3]: ZeroDivisionError: float division by zero
+[rank6]: Traceback (most recent call last):
+[rank6]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1670, in <module>
+[rank6]:     main()
+[rank6]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1636, in main
+[rank6]:     hm_val_loss, hm_val_bpb = eval_val_sliding(
+[rank6]:                               ^^^^^^^^^^^^^^^^^
+[rank6]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 476, in eval_val_sliding
+[rank6]:     tokens_per_byte = val_token_count.item() / val_byte_count.item()
+[rank6]:                       ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+[rank6]: ZeroDivisionError: float division by zero
+[rank7]: Traceback (most recent call last):
+[rank7]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1670, in <module>
+[rank7]:     main()
+[rank7]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1636, in main
+[rank7]:     hm_val_loss, hm_val_bpb = eval_val_sliding(
+[rank7]:                               ^^^^^^^^^^^^^^^^^
+[rank7]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 476, in eval_val_sliding
+[rank7]:     tokens_per_byte = val_token_count.item() / val_byte_count.item()
+[rank7]:                       ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+[rank7]: ZeroDivisionError: float division by zero
+[rank4]: Traceback (most recent call last):
+[rank4]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1670, in <module>
+[rank4]:     main()
+[rank4]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1636, in main
+[rank4]:     hm_val_loss, hm_val_bpb = eval_val_sliding(
+[rank4]:                               ^^^^^^^^^^^^^^^^^
+[rank4]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 476, in eval_val_sliding
+[rank4]:     tokens_per_byte = val_token_count.item() / val_byte_count.item()
+[rank4]:                       ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+[rank4]: ZeroDivisionError: float division by zero
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1670, in <module>
+[rank2]:     main()
+[rank2]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 1636, in main
+[rank2]:     hm_val_loss, hm_val_bpb = eval_val_sliding(
+[rank2]:                               ^^^^^^^^^^^^^^^^^
+[rank2]:   File "/workspace/parameter-golf/train_gpt_refactored.py", line 476, in eval_val_sliding
+[rank2]:     tokens_per_byte = val_token_count.item() / val_byte_count.item()
+[rank2]:                       ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~
+[rank2]: ZeroDivisionError: float division by zero
+W0407 18:54:26.949000 44428 torch/distributed/elastic/multiprocessing/api.py:897] Sending process 44494 closing signal SIGTERM
+W0407 18:54:26.951000 44428 torch/distributed/elastic/multiprocessing/api.py:897] Sending process 44496 closing signal SIGTERM
+W0407 18:54:26.952000 44428 torch/distributed/elastic/multiprocessing/api.py:897] Sending process 44497 closing signal SIGTERM
+W0407 18:54:26.952000 44428 torch/distributed/elastic/multiprocessing/api.py:897] Sending process 44498 closing signal SIGTERM
+W0407 18:54:26.953000 44428 torch/distributed/elastic/multiprocessing/api.py:897] Sending process 44499 closing signal SIGTERM
+W0407 18:54:26.954000 44428 torch/distributed/elastic/multiprocessing/api.py:897] Sending process 44500 closing signal SIGTERM
+E0407 18:54:27.741000 44428 torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 2 (pid: 44495) of binary: /usr/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 919, in main
+    run(args)
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/run.py", line 910, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 138, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/torch/distributed/launcher/api.py", line 269, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+train_gpt_refactored.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-04-07_18:54:26
+  host      : 2e165e16ceb6
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 44495)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
