@@ -1,0 +1,11 @@
+{
+  "preflight_ok": false,
+  "t0_completed": false,
+  "t1_completed": false,
+  "donor_completed": false,
+  "final_operator_token": "PRECHECK_FAIL",
+  "final_artifact_path": null,
+  "final_artifact_bytes": null,
+  "final_roundtrip_bpb": null,
+  "stop_spending_now": true
+}

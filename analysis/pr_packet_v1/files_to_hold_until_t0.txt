@@ -1,0 +1,8 @@
+records/track_10min_16mb/2026-03-23_mike_record_pass_v5_9/.DS_Store
+records/track_10min_16mb/2026-03-23_mike_record_pass_v5_9/Archive.zip
+records/track_10min_16mb/2026-03-23_mike_record_pass_v5_9/fullrun_outputs/**
+records/track_10min_16mb/2026-03-23_mike_record_pass_v5_9/optimizer_smoke/**
+records/track_10min_16mb/2026-03-23_mike_record_pass_v5_9/consensus_export/**
+analysis/runpod_cycle_1/raw/**
+runpod_cycle_1_results.zip
+codex_record_pass_v5_9_results.zip
