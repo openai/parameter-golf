@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
+
+cd "${SCRIPT_DIR}"
+
+export RUN_ID="${RUN_ID:-record_polar_qjl_h100x8}"
+export DATA_PATH="${DATA_PATH:-${REPO_ROOT}/data/datasets/fineweb10B_sp1024}"
+export TOKENIZER_PATH="${TOKENIZER_PATH:-${REPO_ROOT}/data/tokenizers/fineweb_1024_bpe.model}"
+export VOCAB_SIZE="${VOCAB_SIZE:-1024}"
+
+export QAT="${QAT:-1}"
+export QAT_SCHEME="${QAT_SCHEME:-polar}"
+export WEIGHT_QUANT_SCHEME="${WEIGHT_QUANT_SCHEME:-polar}"
+export POLAR_QAT_BITS_MODE="${POLAR_QAT_BITS_MODE:-quality}"
+export POLAR_WEIGHT_BITS_MODE="${POLAR_WEIGHT_BITS_MODE:-quality}"
+export POLAR_WEIGHT_ROTATE="${POLAR_WEIGHT_ROTATE:-0}"
+
+export TRAIN_SEQ_LEN="${TRAIN_SEQ_LEN:-256}"
+export TRAIN_BATCH_TOKENS="${TRAIN_BATCH_TOKENS:-65536}"
+export ITERATIONS="${ITERATIONS:-100000}"
+export WARMUP_STEPS="${WARMUP_STEPS:-0}"
+export LR_WARMUP_STEPS="${LR_WARMUP_STEPS:-128}"
+export LR_WARMUP_INIT_SCALE="${LR_WARMUP_INIT_SCALE:-0.1}"
+export TRAIN_LOG_EVERY="${TRAIN_LOG_EVERY:-20}"
+
+export VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}"
+export VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-131072}"
+export VAL_MAX_TOKENS="${VAL_MAX_TOKENS:-4096}"
+
+export EVAL_AUTOREGRESSIVE_KV="${EVAL_AUTOREGRESSIVE_KV:-1}"
+export KV_QUANT_BACKEND="${KV_QUANT_BACKEND:-qjl}"
+export KV_EVAL_CONTEXT_LEN="${KV_EVAL_CONTEXT_LEN:-256}"
+export KV_EVAL_MAX_TOKENS="${KV_EVAL_MAX_TOKENS:-512}"
+export KV_BACKEND_SELFTEST="${KV_BACKEND_SELFTEST:-0}"
+
+export ENABLE_TORCH_COMPILE="${ENABLE_TORCH_COMPILE:-0}"
+export MAX_WALLCLOCK_SECONDS="${MAX_WALLCLOCK_SECONDS:-600}"
+export FINALIZE_BUDGET_SECONDS="${FINALIZE_BUDGET_SECONDS:-15}"
+export LOG_SYNC_TO_DISK="${LOG_SYNC_TO_DISK:-1}"
+
+torchrun --standalone --nproc_per_node=8 train_gpt.py
