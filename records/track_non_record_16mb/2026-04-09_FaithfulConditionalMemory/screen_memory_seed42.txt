@@ -1,0 +1,25 @@
+logs/screen_memory_seed42.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:262144
+model_params:3966032
+world_size:8 grad_accum_steps:1
+compile_enabled:False
+attention_mode:engram_ref num_heads:4 num_kv_heads:2
+attention_extras:exclusive_self_attention=True
+engram:layers:[1, 3] vocab_sizes:[2048, 2048] max_ngram:3 embed_per_ngram:128 heads_per_ngram:4 kernel:4
+faithful_optimizer:adamw embed_lr:0.003 matrix_lr:0.003 head_lr:0.003
+train_batch_tokens:8192 train_seq_len:256 iterations:200000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+...
+step:16868/200000 val_loss:2.7851 val_bpb:1.6493 train_time:599992ms step_avg:35.57ms
+stopping_early: wallclock_cap train_time:599992ms step:16868/200000
+peak memory allocated: 227 MiB reserved: 270 MiB
+Serialized model: 12674858 bytes
+Code size: 63754 bytes
+Total submission size: 12738612 bytes
+Serialized model int6+zstd: 2709744 bytes
+Total submission size int8+zlib: 2773498 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:32
+final_int8_zlib_roundtrip val_loss:2.7203 val_bpb:1.6110 eval_time:152ms
+final_int8_zlib_roundtrip_exact val_loss:2.72026400 val_bpb:1.61095535
