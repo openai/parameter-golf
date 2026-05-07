@@ -1,0 +1,10 @@
+{
+  "author": "Tejas Goyal",
+  "github_id": "tejas-goyal",
+  "name": "LeakyReLU² + 11L EMA + GPTQ-lite (10 min / 16 MB)",
+  "blurb": "Draft / smoke: 1×H100, step 916 at 600s wall cap (seed 1337). MLP uses LeakyReLU(0.5) then square vs parent ReLU+square. Canonical 8×H100 + 3 seeds to follow.",
+  "date": "2026-03-28T00:00:00Z",
+  "val_loss": 2.3325,
+  "val_bpb": 1.3814,
+  "bytes_total": 7804166
+}
