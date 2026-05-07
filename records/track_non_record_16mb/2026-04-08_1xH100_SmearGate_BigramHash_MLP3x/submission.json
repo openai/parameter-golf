@@ -1,0 +1,12 @@
+{
+  "author": "tsubasa",
+  "github_id": "tsubasagit",
+  "val_bpb": 1.2774,
+  "val_loss": 2.1569,
+  "bytes_total": 16374104,
+  "bytes_code": 52243,
+  "date": "2026-04-08",
+  "name": "1xH100 Budget Run: SmearGate + BigramHash + MLP3x",
+  "blurb": "Non-record submission exploring competitive results on 1xH100 with $20 budget. Adapted PR #162 techniques (SmearGate, BigramHash, MLP3x, SWA) with hyperparameters tuned for single-GPU training.",
+  "note": "Artifact slightly exceeds 16MB limit (~2.3% over). Could be resolved with zstd-22 compression. Submitted as non-record to demonstrate 1xH100 feasibility."
+}
