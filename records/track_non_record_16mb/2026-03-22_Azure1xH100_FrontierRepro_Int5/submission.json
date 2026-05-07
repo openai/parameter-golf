@@ -1,0 +1,20 @@
+{
+  "author": "Warren Johnson",
+  "github_id": "micoverde",
+  "name": "Azure 1xH100 Frontier Repro Int5",
+  "blurb": "Non-record single-H100 engineering capture of the March 20 frontier int5 family on Azure H100 NVL. Final pre-quant BPB reached 1.2591 and the exact int8+zlib roundtrip scored 1.26233375 under the 16,000,000-byte cap.",
+  "date": "2026-03-22T01:26:31Z",
+  "track": "non-record-single-h100-16mb",
+  "val_loss": 2.13139766,
+  "val_bpb": 1.26233375,
+  "pre_quant_val_loss": 2.1260,
+  "pre_quant_val_bpb": 1.2591,
+  "step_stop": 3752,
+  "wallclock_seconds": 1800.135,
+  "bytes_total": 12727250,
+  "bytes_model_int8_zlib": 12662104,
+  "bytes_code": 65146,
+  "hardware": "1x NVIDIA H100 NVL 94GB",
+  "eval_scope": "exact int8+zlib roundtrip completed; trailing eval tail interrupted after metric print",
+  "source_commit": "8e8c6d7a23f1bdf26905c0d93e43b5233a45a8ac"
+}
