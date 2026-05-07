@@ -1,0 +1,19 @@
+{
+  "author": "GreQ (Grzegorz Nowosielski)",
+  "github_id": "greq333",
+  "name": "Tiny H-Net: First Learned Byte-Level Tokenization for Parameter Golf",
+  "blurb": "Non-record submission implementing H-Net (arXiv:2507.07955) at tiny scale: byte-level input with dynamic chunking gate (cosine similarity + STE) that learns to segment raw bytes into variable-length chunks (~4 bytes avg), processed by a 9-layer transformer, expanded via EMA dechunking. Replaces Mamba-2 SSM with pure-PyTorch depthwise causal Conv1d. First-ever sub-100M H-Net. Post-quantization val_bpb 1.8989 under 16MB.",
+  "date": "2026-03-28T22:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 1.3171,
+  "val_bpb": 1.9002,
+  "pre_quant_val_loss": 1.3171,
+  "pre_quant_val_bpb": 1.9002,
+  "post_quant_val_loss": 1.3162,
+  "post_quant_val_bpb": 1.8989,
+  "step_stop": 20000,
+  "wallclock_seconds": 10175,
+  "bytes_total": 15512976,
+  "bytes_model_int6_zstd": 15443775,
+  "bytes_code": 69201
+}
