@@ -1,0 +1,20 @@
+{
+  "name": "Leo Feasby",
+  "github_id": "leofeasby",
+  "track": "non_record_unlimited_compute",
+  "val_bpb": 1.1454,
+  "roundtrip_int8_zlib_bpb": 1.1723,
+  "model_params": 18915344,
+  "artifact_size_bytes": 13934227,
+  "hardware": "8xH100 SXM",
+  "runtime_seconds": 8300,
+  "date": "2026-03-22",
+  "architecture": "shared-core-unet-transformer",
+  "seq_len": 2048,
+  "num_layers": 9,
+  "model_dim": 1024,
+  "num_heads": 16,
+  "num_kv_heads": 8,
+  "mlp_mult": 5,
+  "notes": "Loss still descending at cutoff. True floor estimated below 1.13 bpb. WARMDOWN_START_STEP mechanism allows step-based warmdown independent of wallclock budget."
+}
