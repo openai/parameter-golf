@@ -1,0 +1,90 @@
+{
+  "author": "Jayesh Chaudhari, Satyam Kumar, Yusuf Baig",
+  "github_id": "ShadowNinja10",
+  "name": "k-XSA (k=2): Rank-2 Subspace Exclusive Self-Attention with Quantization-Aware Energy Capping",
+  "blurb": "Generalizes Apple's XSA from a rank-1 orthogonal projection along v_i to a rank-2 orthogonal projection in a learned subspace anchored at v_i, with second basis W*x_i. Each direction's projection coefficient is soft-thresholded by a learned per-direction tau (energy cap); a per-head learnable alpha (no weight decay) scales the projection. Beats paper-XSA by -0.0019 BPB pre-quant and -0.0019 BPB int6+brotli on the 11L/512d/35.9M baseline. Energy cap absorbs quantization error: the new xsa_basis_proj matrix quantizes for free (per-rank quant penalty drops from +0.0023 BPB to +0.0000 BPB).",
+  "date": "2026-04-30",
+  "track": "non_record_16mb",
+  "method": "k-XSA, rank=2, basis=v+x, alpha=free (per-head, no WD), energy_cap=on",
+  "val_loss": 2.86551,
+  "val_bpb": 1.1093,
+  "pre_quant_val_loss": 2.86551,
+  "pre_quant_val_bpb": 1.1093,
+  "int6_brotli_val_bpb": 1.1190,
+  "sliding_window_s64_val_bpb": 1.1026,
+  "quant_penalty_bpb": 0.0097,
+  "delta_vs_paper_xsa": {
+    "pre_quant": -0.0019,
+    "int6_brotli": -0.0019,
+    "sliding_s64": -0.0018
+  },
+  "params_total": 37390000,
+  "bytes_total": 16680000,
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "pre_quant_val_bpb": 1.1093,
+      "int6_brotli_val_bpb": 1.1190,
+      "sliding_s64_val_bpb": 1.1026,
+      "bytes_total": 16680000
+    }
+  },
+  "hardware": "1xH200 (grad_accum_steps=8)",
+  "training": {
+    "iterations": 3000,
+    "wallclock_minutes_approx": 80,
+    "train_batch_tokens": 786432,
+    "optimizer": "Muon (matrix) + AdamW (embed) + AdamW-no-WD (xsa alpha/tau)",
+    "ema": true
+  },
+  "architecture": {
+    "num_layers": 11,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 4,
+    "vocab": "sentencepiece-8192",
+    "parallel_residual": true,
+    "skip_gates": true,
+    "layer_loop": "loop layers 4-5 x2 from ~50% of training onward"
+  },
+  "xsa_config": {
+    "XSA_RANK": 2,
+    "XSA_BASIS": "v+x",
+    "XSA_TARGET": "attn",
+    "XSA_ENERGY_CAP": 1,
+    "XSA_THRESHOLD_INIT": 0.0,
+    "XSA_ALPHA_MODE": "free",
+    "XSA_ALPHA_INIT": 1.0,
+    "XSA_ALPHA_NO_WD": 1,
+    "XSA_ALPHA_LR": 0.02
+  },
+  "quantization": "GPTQ int6 (matrices) + int8 (embeddings) + brotli",
+  "technique_summary": "Rank-2 anchored XSA (v_i + W*x_i) with float32 modified Gram-Schmidt, per-head free alpha (no WD), per-(head,rank) learned tau soft-threshold (energy cap). Built on the 11L/512d/35.9M parameter-golf baseline (Muon + AdamW + EMA + parallel residuals + skip gates + layer-loop). Quantized with GPTQ int6 + int8 embed + brotli. Energy cap eliminates the per-extra-basis-matrix quantization penalty.",
+  "caveats": {
+    "single_seed": true,
+    "artifact_over_16mb_cap": true,
+    "artifact_over_cap_pct": 4.3,
+    "rank_cap_partially_confounded": true,
+    "no_comparison_vs_modern_sota": true,
+    "single_gpu_run": "1xH200 instead of 8xH100"
+  },
+  "sanity_tests": {
+    "count": 20,
+    "all_passing": true,
+    "command": "FORCE_CPU=1 SANITY_CHECK=1 python train_xsa_k.py"
+  },
+  "files": {
+    "readme": "README.md",
+    "code": "train_xsa_k.py",
+    "checkpoint_fp32": "final_model_k.pt",
+    "artifact_quantized": "final_model_k.int6.ptz",
+    "training_log": "k2_vx_full.txt",
+    "alpha_csv": "k2_vx_full_alpha.csv",
+    "full_report": "REPORT_K_XSA.md"
+  },
+  "reproduce": {
+    "command": "RUN_ID=k2_vx_full XSA_RANK=2 XSA_BASIS=v+x XSA_TARGET=attn XSA_ENERGY_CAP=1 XSA_THRESHOLD_INIT=0.0 XSA_ALPHA_MODE=free XSA_ALPHA_INIT=1.0 XSA_ALPHA_NO_WD=1 XSA_ALPHA_LR=0.02 XSA_ALPHA_CSV=logs/k2_vx_full_alpha.csv MAX_WALLCLOCK_SECONDS=0 ITERATIONS=3000 TRAIN_LOG_EVERY=200 SEED=1337 python train_xsa_k.py",
+    "sanity": "FORCE_CPU=1 SANITY_CHECK=1 python train_xsa_k.py"
+  }
+}

@@ -1,0 +1,507 @@
+train_shards: 20
+val_tokens: 40540160
+model_params:37385568
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 4] decoder:[5, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/3000 val_loss: 9.0073 val_bpb: 3.4870
+1/3000 train_loss: 9.0080 train_time: 0.0m tok/s: 412545
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=0 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=1 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=2 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=3 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=4 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=5 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=6 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=7 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=8 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=9 min=0.000 max=0.000 mean=0.000
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=1.000 max=1.000 mean=1.000 vals=[1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000]
+  xsa_threshold block=10 min=0.000 max=0.000 mean=0.000
+2/3000 train_loss: 11.8915 train_time: 0.1m tok/s: 378771
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.985 max=0.985 mean=0.985 vals=[0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985]
+  xsa_threshold block=0 min=0.015 max=0.015 mean=0.015
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.985 max=0.985 mean=0.985 vals=[0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985]
+  xsa_threshold block=1 min=0.015 max=0.015 mean=0.015
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.985 max=0.985 mean=0.985 vals=[0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985]
+  xsa_threshold block=2 min=0.014 max=0.015 mean=0.015
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.985 max=0.986 mean=0.985 vals=[0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.986]
+  xsa_threshold block=3 min=0.014 max=0.015 mean=0.015
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.985 max=0.986 mean=0.985 vals=[0.985, 0.986, 0.985, 0.985, 0.985, 0.985, 0.985, 0.986]
+  xsa_threshold block=4 min=0.014 max=0.015 mean=0.014
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.985 max=0.986 mean=0.986 vals=[0.986, 0.985, 0.985, 0.985, 0.985, 0.986, 0.985, 0.985]
+  xsa_threshold block=5 min=0.013 max=0.015 mean=0.014
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.985 max=0.986 mean=0.985 vals=[0.985, 0.985, 0.986, 0.985, 0.985, 0.985, 0.986, 0.985]
+  xsa_threshold block=6 min=0.014 max=0.015 mean=0.015
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.985 max=0.985 mean=0.985 vals=[0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985]
+  xsa_threshold block=7 min=0.015 max=0.015 mean=0.015
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.985 max=0.985 mean=0.985 vals=[0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985]
+  xsa_threshold block=8 min=0.015 max=0.015 mean=0.015
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.985 max=0.985 mean=0.985 vals=[0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985]
+  xsa_threshold block=9 min=0.015 max=0.015 mean=0.015
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.985 max=0.985 mean=0.985 vals=[0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985, 0.985]
+  xsa_threshold block=10 min=0.014 max=0.015 mean=0.015
+3/3000 train_loss: 11.4067 train_time: 0.1m tok/s: 369386
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.969 max=0.970 mean=0.969 vals=[0.969, 0.969, 0.969, 0.969, 0.970, 0.970, 0.969, 0.969]
+  xsa_threshold block=0 min=0.030 max=0.032 mean=0.031
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.969 max=0.970 mean=0.969 vals=[0.970, 0.970, 0.969, 0.970, 0.969, 0.969, 0.970, 0.970]
+  xsa_threshold block=1 min=0.030 max=0.032 mean=0.031
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.969 max=0.970 mean=0.970 vals=[0.970, 0.970, 0.970, 0.970, 0.970, 0.970, 0.969, 0.969]
+  xsa_threshold block=2 min=0.030 max=0.031 mean=0.031
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.969 max=0.970 mean=0.970 vals=[0.970, 0.970, 0.970, 0.970, 0.970, 0.969, 0.969, 0.970]
+  xsa_threshold block=3 min=0.030 max=0.031 mean=0.031
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.970 max=0.970 mean=0.970 vals=[0.970, 0.970, 0.970, 0.970, 0.970, 0.970, 0.970, 0.970]
+  xsa_threshold block=4 min=0.029 max=0.031 mean=0.030
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.969 max=0.971 mean=0.970 vals=[0.971, 0.969, 0.970, 0.970, 0.969, 0.970, 0.970, 0.970]
+  xsa_threshold block=5 min=0.028 max=0.031 mean=0.031
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.969 max=0.971 mean=0.970 vals=[0.970, 0.970, 0.970, 0.969, 0.970, 0.969, 0.971, 0.969]
+  xsa_threshold block=6 min=0.029 max=0.032 mean=0.031
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.969 max=0.970 mean=0.969 vals=[0.969, 0.969, 0.969, 0.969, 0.969, 0.969, 0.969, 0.970]
+  xsa_threshold block=7 min=0.030 max=0.032 mean=0.031
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.969 max=0.970 mean=0.969 vals=[0.969, 0.969, 0.969, 0.969, 0.969, 0.970, 0.969, 0.969]
+  xsa_threshold block=8 min=0.030 max=0.032 mean=0.031
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.968 max=0.969 mean=0.969 vals=[0.969, 0.969, 0.969, 0.969, 0.969, 0.969, 0.968, 0.969]
+  xsa_threshold block=9 min=0.031 max=0.032 mean=0.031
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.968 max=0.970 mean=0.969 vals=[0.970, 0.969, 0.969, 0.969, 0.969, 0.969, 0.968, 0.969]
+  xsa_threshold block=10 min=0.028 max=0.032 mean=0.031
+4/3000 train_loss: 9.9644 train_time: 0.1m tok/s: 363520
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.951 max=0.953 mean=0.952 vals=[0.952, 0.951, 0.952, 0.952, 0.953, 0.953, 0.951, 0.952]
+  xsa_threshold block=0 min=0.047 max=0.049 mean=0.049
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.951 max=0.953 mean=0.952 vals=[0.953, 0.953, 0.951, 0.952, 0.953, 0.951, 0.952, 0.953]
+  xsa_threshold block=1 min=0.047 max=0.049 mean=0.049
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.953 max=0.955 mean=0.954 vals=[0.954, 0.954, 0.953, 0.953, 0.953, 0.953, 0.953, 0.955]
+  xsa_threshold block=2 min=0.047 max=0.049 mean=0.048
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.952 max=0.954 mean=0.953 vals=[0.953, 0.952, 0.953, 0.954, 0.954, 0.952, 0.952, 0.953]
+  xsa_threshold block=3 min=0.047 max=0.049 mean=0.048
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.953 max=0.954 mean=0.954 vals=[0.954, 0.953, 0.954, 0.954, 0.954, 0.954, 0.953, 0.954]
+  xsa_threshold block=4 min=0.045 max=0.049 mean=0.048
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.951 max=0.955 mean=0.953 vals=[0.955, 0.953, 0.953, 0.953, 0.951, 0.952, 0.953, 0.953]
+  xsa_threshold block=5 min=0.045 max=0.049 mean=0.048
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.952 max=0.955 mean=0.953 vals=[0.954, 0.954, 0.954, 0.952, 0.953, 0.953, 0.955, 0.952]
+  xsa_threshold block=6 min=0.046 max=0.049 mean=0.048
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.951 max=0.953 mean=0.952 vals=[0.951, 0.952, 0.952, 0.952, 0.952, 0.951, 0.952, 0.953]
+  xsa_threshold block=7 min=0.047 max=0.050 mean=0.049
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.951 max=0.964 mean=0.953 vals=[0.952, 0.952, 0.951, 0.951, 0.951, 0.953, 0.952, 0.964]
+  xsa_threshold block=8 min=0.045 max=0.050 mean=0.049
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.951 max=0.953 mean=0.952 vals=[0.951, 0.951, 0.953, 0.951, 0.952, 0.951, 0.952, 0.951]
+  xsa_threshold block=9 min=0.048 max=0.050 mean=0.049
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.951 max=0.953 mean=0.952 vals=[0.953, 0.951, 0.953, 0.951, 0.951, 0.953, 0.951, 0.952]
+  xsa_threshold block=10 min=0.044 max=0.050 mean=0.049
+5/3000 train_loss: 8.6630 train_time: 0.2m tok/s: 361845
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.933 max=0.941 mean=0.937 vals=[0.934, 0.933, 0.935, 0.941, 0.940, 0.939, 0.937, 0.934]
+  xsa_threshold block=0 min=0.064 max=0.068 mean=0.066
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.933 max=0.936 mean=0.935 vals=[0.935, 0.935, 0.933, 0.935, 0.936, 0.933, 0.935, 0.935]
+  xsa_threshold block=1 min=0.065 max=0.068 mean=0.067
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.936 max=0.955 mean=0.939 vals=[0.936, 0.937, 0.936, 0.936, 0.936, 0.936, 0.936, 0.955]
+  xsa_threshold block=2 min=0.063 max=0.068 mean=0.066
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.934 max=0.937 mean=0.935 vals=[0.935, 0.934, 0.935, 0.937, 0.937, 0.935, 0.935, 0.935]
+  xsa_threshold block=3 min=0.064 max=0.067 mean=0.066
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.935 max=0.938 mean=0.937 vals=[0.938, 0.938, 0.937, 0.937, 0.937, 0.937, 0.935, 0.937]
+  xsa_threshold block=4 min=0.062 max=0.067 mean=0.065
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.933 max=0.955 mean=0.938 vals=[0.940, 0.955, 0.936, 0.935, 0.933, 0.935, 0.937, 0.935]
+  xsa_threshold block=5 min=0.059 max=0.067 mean=0.065
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.934 max=0.939 mean=0.936 vals=[0.937, 0.937, 0.939, 0.934, 0.935, 0.936, 0.937, 0.936]
+  xsa_threshold block=6 min=0.063 max=0.067 mean=0.066
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.933 max=0.936 mean=0.935 vals=[0.934, 0.936, 0.935, 0.936, 0.934, 0.933, 0.935, 0.936]
+  xsa_threshold block=7 min=0.065 max=0.068 mean=0.067
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.933 max=0.971 mean=0.939 vals=[0.934, 0.934, 0.933, 0.935, 0.933, 0.938, 0.934, 0.971]
+  xsa_threshold block=8 min=0.051 max=0.068 mean=0.066
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.932 max=0.949 mean=0.936 vals=[0.934, 0.934, 0.936, 0.933, 0.940, 0.932, 0.949, 0.934]
+  xsa_threshold block=9 min=0.065 max=0.068 mean=0.067
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.933 max=0.941 mean=0.935 vals=[0.937, 0.935, 0.941, 0.933, 0.934, 0.937, 0.933, 0.934]
+  xsa_threshold block=10 min=0.060 max=0.068 mean=0.066
+200/3000 train_loss: 3.6639 train_time: 6.4m tok/s: 406553
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=1.099 max=1.264 mean=1.152 vals=[1.157, 1.099, 1.130, 1.140, 1.264, 1.149, 1.154, 1.126]
+  xsa_threshold block=0 min=-0.322 max=0.201 mean=-0.070
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=1.141 max=1.294 mean=1.232 vals=[1.220, 1.246, 1.292, 1.216, 1.141, 1.294, 1.202, 1.245]
+  xsa_threshold block=1 min=-0.304 max=0.036 mean=-0.102
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.925 max=1.422 mean=1.176 vals=[1.150, 1.422, 1.148, 1.210, 1.132, 1.286, 1.131, 0.925]
+  xsa_threshold block=2 min=-0.231 max=0.057 mean=-0.082
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=1.097 max=1.269 mean=1.186 vals=[1.240, 1.103, 1.241, 1.187, 1.199, 1.151, 1.269, 1.097]
+  xsa_threshold block=3 min=-0.227 max=-0.017 mean=-0.122
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=1.062 max=1.390 mean=1.267 vals=[1.390, 1.170, 1.062, 1.329, 1.205, 1.379, 1.267, 1.332]
+  xsa_threshold block=4 min=-0.320 max=-0.021 mean=-0.173
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=1.127 max=1.370 mean=1.266 vals=[1.188, 1.127, 1.295, 1.346, 1.289, 1.364, 1.146, 1.370]
+  xsa_threshold block=5 min=-0.307 max=-0.019 mean=-0.173
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=1.098 max=1.328 mean=1.193 vals=[1.098, 1.243, 1.209, 1.194, 1.328, 1.137, 1.117, 1.217]
+  xsa_threshold block=6 min=-0.254 max=0.316 mean=-0.114
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=1.031 max=1.350 mean=1.197 vals=[1.145, 1.254, 1.297, 1.269, 1.350, 1.070, 1.158, 1.031]
+  xsa_threshold block=7 min=-0.300 max=0.635 mean=-0.106
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=1.146 max=1.261 mean=1.203 vals=[1.192, 1.203, 1.256, 1.211, 1.156, 1.197, 1.146, 1.261]
+  xsa_threshold block=8 min=-0.244 max=0.839 mean=-0.059
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=1.147 max=1.261 mean=1.195 vals=[1.151, 1.261, 1.231, 1.147, 1.181, 1.224, 1.213, 1.150]
+  xsa_threshold block=9 min=-0.243 max=0.357 mean=-0.063
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=1.071 max=1.248 mean=1.182 vals=[1.194, 1.248, 1.071, 1.157, 1.209, 1.194, 1.171, 1.214]
+  xsa_threshold block=10 min=-0.190 max=0.103 mean=-0.062
+400/3000 train_loss: 3.3749 train_time: 12.9m tok/s: 405116
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=1.018 max=1.166 mean=1.073 vals=[1.042, 1.055, 1.028, 1.024, 1.166, 1.136, 1.117, 1.018]
+  xsa_threshold block=0 min=-0.320 max=0.150 mean=-0.089
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=1.099 max=1.259 mean=1.175 vals=[1.109, 1.194, 1.178, 1.228, 1.099, 1.259, 1.165, 1.166]
+  xsa_threshold block=1 min=-0.242 max=0.084 mean=-0.080
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.867 max=1.472 mean=1.143 vals=[1.088, 1.472, 1.091, 1.154, 1.128, 1.249, 1.096, 0.867]
+  xsa_threshold block=2 min=-0.218 max=0.044 mean=-0.061
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=1.078 max=1.240 mean=1.121 vals=[1.138, 1.078, 1.159, 1.092, 1.095, 1.086, 1.240, 1.083]
+  xsa_threshold block=3 min=-0.237 max=0.012 mean=-0.082
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.947 max=1.384 mean=1.202 vals=[1.384, 1.086, 0.947, 1.246, 1.117, 1.308, 1.234, 1.291]
+  xsa_threshold block=4 min=-0.278 max=0.025 mean=-0.087
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=1.020 max=1.321 mean=1.175 vals=[1.103, 1.020, 1.234, 1.196, 1.185, 1.321, 1.056, 1.286]
+  xsa_threshold block=5 min=-0.291 max=0.039 mean=-0.081
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=1.041 max=1.212 mean=1.118 vals=[1.078, 1.133, 1.096, 1.129, 1.151, 1.041, 1.104, 1.212]
+  xsa_threshold block=6 min=-0.189 max=0.146 mean=-0.042
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.995 max=1.443 mean=1.157 vals=[1.034, 1.192, 1.311, 1.165, 1.443, 0.995, 1.103, 1.010]
+  xsa_threshold block=7 min=-0.315 max=0.608 mean=-0.054
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=1.041 max=1.189 mean=1.101 vals=[1.106, 1.098, 1.189, 1.104, 1.106, 1.044, 1.121, 1.041]
+  xsa_threshold block=8 min=-0.290 max=0.772 mean=-0.019
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=1.044 max=1.178 mean=1.092 vals=[1.044, 1.112, 1.078, 1.054, 1.084, 1.178, 1.110, 1.076]
+  xsa_threshold block=9 min=-0.251 max=0.356 mean=-0.070
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=1.087 max=1.215 mean=1.156 vals=[1.157, 1.215, 1.087, 1.142, 1.190, 1.132, 1.110, 1.215]
+  xsa_threshold block=10 min=-0.204 max=0.015 mean=-0.058
+600/3000 train_loss: 3.2438 train_time: 19.4m tok/s: 404705
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.835 max=1.137 mean=1.031 vals=[0.835, 1.065, 1.013, 0.975, 1.137, 1.133, 1.097, 0.991]
+  xsa_threshold block=0 min=-0.243 max=0.165 mean=-0.031
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=1.060 max=1.234 mean=1.142 vals=[1.060, 1.137, 1.136, 1.234, 1.085, 1.218, 1.141, 1.125]
+  xsa_threshold block=1 min=-0.201 max=0.317 mean=-0.021
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.815 max=1.503 mean=1.118 vals=[1.055, 1.503, 1.052, 1.106, 1.104, 1.215, 1.094, 0.815]
+  xsa_threshold block=2 min=-0.195 max=0.112 mean=-0.039
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=1.044 max=1.224 mean=1.091 vals=[1.098, 1.075, 1.119, 1.044, 1.049, 1.052, 1.224, 1.064]
+  xsa_threshold block=3 min=-0.256 max=0.187 mean=-0.059
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.895 max=1.323 mean=1.156 vals=[1.323, 1.020, 0.895, 1.242, 1.058, 1.258, 1.195, 1.255]
+  xsa_threshold block=4 min=-0.361 max=0.228 mean=-0.064
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.975 max=1.288 mean=1.119 vals=[1.065, 0.975, 1.126, 1.094, 1.138, 1.288, 1.034, 1.233]
+  xsa_threshold block=5 min=-0.333 max=0.102 mean=-0.043
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.995 max=1.150 mean=1.081 vals=[1.059, 1.118, 1.044, 1.107, 1.097, 0.995, 1.079, 1.150]
+  xsa_threshold block=6 min=-0.146 max=0.248 mean=-0.014
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.951 max=1.512 mean=1.143 vals=[0.993, 1.136, 1.277, 1.172, 1.512, 0.951, 1.094, 1.012]
+  xsa_threshold block=7 min=-0.283 max=0.271 mean=-0.039
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.994 max=1.152 mean=1.082 vals=[1.096, 1.067, 1.152, 1.066, 1.133, 1.018, 1.129, 0.994]
+  xsa_threshold block=8 min=-0.315 max=0.557 mean=0.011
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.998 max=1.174 mean=1.048 vals=[0.998, 1.058, 1.004, 1.022, 1.039, 1.174, 1.028, 1.057]
+  xsa_threshold block=9 min=-0.283 max=0.368 mean=-0.070
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=1.069 max=1.246 mean=1.141 vals=[1.127, 1.161, 1.140, 1.130, 1.151, 1.100, 1.069, 1.246]
+  xsa_threshold block=10 min=-0.225 max=0.006 mean=-0.054
+800/3000 train_loss: 3.2402 train_time: 25.9m tok/s: 404383
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.642 max=1.144 mean=1.008 vals=[0.642, 1.071, 1.019, 0.978, 1.144, 1.125, 1.087, 0.994]
+  xsa_threshold block=0 min=-0.234 max=0.547 mean=0.055
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=1.032 max=1.234 mean=1.123 vals=[1.032, 1.109, 1.116, 1.234, 1.067, 1.191, 1.126, 1.106]
+  xsa_threshold block=1 min=-0.141 max=0.570 mean=0.031
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.773 max=1.537 mean=1.100 vals=[1.026, 1.537, 1.029, 1.071, 1.080, 1.183, 1.098, 0.773]
+  xsa_threshold block=2 min=-0.203 max=0.219 mean=-0.012
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.996 max=1.209 mean=1.068 vals=[1.058, 1.063, 1.094, 0.996, 1.032, 1.043, 1.209, 1.046]
+  xsa_threshold block=3 min=-0.244 max=0.323 mean=-0.038
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.869 max=1.262 mean=1.114 vals=[1.262, 0.979, 0.869, 1.240, 1.021, 1.181, 1.136, 1.225]
+  xsa_threshold block=4 min=-0.473 max=0.428 mean=-0.044
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.944 max=1.271 mean=1.090 vals=[1.064, 0.944, 1.054, 1.044, 1.126, 1.271, 1.018, 1.199]
+  xsa_threshold block=5 min=-0.323 max=0.171 mean=-0.023
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.972 max=1.141 mean=1.068 vals=[1.045, 1.126, 1.017, 1.108, 1.062, 0.972, 1.069, 1.141]
+  xsa_threshold block=6 min=-0.165 max=0.374 mean=0.010
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.912 max=1.562 mean=1.134 vals=[0.968, 1.116, 1.258, 1.147, 1.562, 0.912, 1.089, 1.024]
+  xsa_threshold block=7 min=-0.223 max=0.125 mean=-0.014
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.978 max=1.148 mean=1.082 vals=[1.097, 1.077, 1.145, 1.049, 1.148, 1.018, 1.142, 0.978]
+  xsa_threshold block=8 min=-0.230 max=0.494 mean=0.055
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.962 max=1.180 mean=1.022 vals=[0.962, 1.016, 0.967, 1.008, 1.018, 1.180, 0.992, 1.032]
+  xsa_threshold block=9 min=-0.334 max=0.410 mean=-0.057
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=1.041 max=1.274 mean=1.135 vals=[1.112, 1.117, 1.213, 1.128, 1.115, 1.083, 1.041, 1.274]
+  xsa_threshold block=10 min=-0.241 max=0.086 mean=-0.042
+1000/3000 train_loss: 3.1842 train_time: 32.4m tok/s: 404073
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.481 max=1.147 mean=0.993 vals=[0.481, 1.089, 1.031, 0.993, 1.147, 1.121, 1.083, 0.998]
+  xsa_threshold block=0 min=-0.269 max=0.914 mean=0.127
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=1.006 max=1.224 mean=1.106 vals=[1.006, 1.086, 1.102, 1.224, 1.056, 1.171, 1.117, 1.086]
+  xsa_threshold block=1 min=-0.126 max=0.872 mean=0.109
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.730 max=1.567 mean=1.090 vals=[1.011, 1.567, 1.007, 1.065, 1.067, 1.170, 1.104, 0.730]
+  xsa_threshold block=2 min=-0.166 max=0.382 mean=0.015
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.963 max=1.195 mean=1.053 vals=[1.029, 1.067, 1.076, 0.963, 1.020, 1.036, 1.195, 1.034]
+  xsa_threshold block=3 min=-0.192 max=0.456 mean=-0.010
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.848 max=1.240 mean=1.091 vals=[1.213, 0.955, 0.848, 1.240, 1.021, 1.128, 1.121, 1.204]
+  xsa_threshold block=4 min=-0.536 max=0.621 mean=-0.010
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.926 max=1.259 mean=1.066 vals=[1.046, 0.926, 0.990, 1.006, 1.107, 1.259, 1.015, 1.177]
+  xsa_threshold block=5 min=-0.281 max=0.262 mean=-0.003
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.962 max=1.162 mean=1.062 vals=[1.044, 1.125, 1.001, 1.101, 1.044, 0.962, 1.056, 1.162]
+  xsa_threshold block=6 min=-0.163 max=0.488 mean=0.040
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.890 max=1.629 mean=1.136 vals=[0.959, 1.112, 1.235, 1.143, 1.629, 0.890, 1.089, 1.031]
+  xsa_threshold block=7 min=-0.138 max=0.213 mean=0.019
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.970 max=1.160 mean=1.081 vals=[1.105, 1.070, 1.149, 1.031, 1.160, 1.017, 1.149, 0.970]
+  xsa_threshold block=8 min=-0.199 max=0.550 mean=0.087
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.942 max=1.187 mean=1.014 vals=[0.942, 1.003, 0.946, 1.001, 1.006, 1.187, 0.992, 1.031]
+  xsa_threshold block=9 min=-0.384 max=0.445 mean=-0.048
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=1.038 max=1.295 mean=1.139 vals=[1.099, 1.085, 1.283, 1.138, 1.083, 1.095, 1.038, 1.295]
+  xsa_threshold block=10 min=-0.256 max=0.169 mean=-0.031
+1200/3000 train_loss: 3.1794 train_time: 38.9m tok/s: 404140
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.368 max=1.146 mean=0.981 vals=[0.368, 1.094, 1.039, 1.001, 1.146, 1.126, 1.076, 0.996]
+  xsa_threshold block=0 min=-0.294 max=1.385 mean=0.212
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.987 max=1.225 mean=1.096 vals=[0.987, 1.070, 1.089, 1.225, 1.040, 1.160, 1.118, 1.078]
+  xsa_threshold block=1 min=-0.170 max=1.121 mean=0.177
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.690 max=1.593 mean=1.075 vals=[1.005, 1.593, 0.973, 1.046, 1.040, 1.146, 1.110, 0.690]
+  xsa_threshold block=2 min=-0.151 max=0.563 mean=0.061
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.937 max=1.193 mean=1.038 vals=[0.982, 1.065, 1.052, 0.937, 1.018, 1.033, 1.193, 1.027]
+  xsa_threshold block=3 min=-0.152 max=0.565 mean=0.034
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.840 max=1.240 mean=1.065 vals=[1.142, 0.922, 0.840, 1.240, 1.020, 1.063, 1.105, 1.185]
+  xsa_threshold block=4 min=-0.547 max=0.828 mean=0.031
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.902 max=1.239 mean=1.043 vals=[1.054, 0.902, 0.929, 0.978, 1.088, 1.239, 1.014, 1.144]
+  xsa_threshold block=5 min=-0.207 max=0.419 mean=0.023
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.948 max=1.147 mean=1.051 vals=[1.041, 1.128, 0.988, 1.086, 1.023, 0.948, 1.046, 1.147]
+  xsa_threshold block=6 min=-0.138 max=0.602 mean=0.069
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.863 max=1.685 mean=1.133 vals=[0.936, 1.086, 1.212, 1.133, 1.685, 0.863, 1.104, 1.049]
+  xsa_threshold block=7 min=-0.132 max=0.337 mean=0.059
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.970 max=1.154 mean=1.079 vals=[1.116, 1.068, 1.149, 1.021, 1.154, 1.004, 1.146, 0.970]
+  xsa_threshold block=8 min=-0.164 max=0.643 mean=0.132
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.923 max=1.191 mean=1.006 vals=[0.923, 0.993, 0.943, 0.990, 1.001, 1.191, 0.976, 1.027]
+  xsa_threshold block=9 min=-0.404 max=0.561 mean=-0.020
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=1.025 max=1.343 mean=1.144 vals=[1.077, 1.060, 1.343, 1.145, 1.054, 1.123, 1.025, 1.324]
+  xsa_threshold block=10 min=-0.260 max=0.257 mean=-0.011
+1400/3000 train_loss: 3.1052 train_time: 45.4m tok/s: 404033
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.264 max=1.140 mean=0.972 vals=[0.264, 1.112, 1.052, 1.022, 1.140, 1.118, 1.066, 1.002]
+  xsa_threshold block=0 min=-0.265 max=1.839 mean=0.311
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.973 max=1.217 mean=1.087 vals=[0.973, 1.060, 1.084, 1.217, 1.035, 1.143, 1.109, 1.071]
+  xsa_threshold block=1 min=-0.139 max=1.411 mean=0.274
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.659 max=1.606 mean=1.063 vals=[1.004, 1.606, 0.956, 1.018, 1.019, 1.132, 1.107, 0.659]
+  xsa_threshold block=2 min=-0.173 max=0.735 mean=0.098
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.896 max=1.178 mean=1.029 vals=[0.968, 1.061, 1.041, 0.896, 1.046, 1.027, 1.178, 1.017]
+  xsa_threshold block=3 min=-0.152 max=0.675 mean=0.081
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.839 max=1.242 mean=1.039 vals=[1.087, 0.881, 0.839, 1.242, 1.018, 1.017, 1.058, 1.172]
+  xsa_threshold block=4 min=-0.538 max=1.032 mean=0.086
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.890 max=1.215 mean=1.031 vals=[1.055, 0.890, 0.890, 0.977, 1.077, 1.215, 1.022, 1.123]
+  xsa_threshold block=5 min=-0.204 max=0.589 mean=0.055
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.935 max=1.127 mean=1.040 vals=[1.034, 1.123, 0.981, 1.078, 1.026, 0.935, 1.018, 1.127]
+  xsa_threshold block=6 min=-0.128 max=0.713 mean=0.105
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.856 max=1.719 mean=1.128 vals=[0.912, 1.060, 1.201, 1.123, 1.719, 0.856, 1.103, 1.053]
+  xsa_threshold block=7 min=-0.116 max=0.485 mean=0.110
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.961 max=1.174 mean=1.084 vals=[1.139, 1.073, 1.159, 1.012, 1.174, 0.994, 1.158, 0.961]
+  xsa_threshold block=8 min=-0.132 max=0.691 mean=0.170
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.913 max=1.197 mean=1.002 vals=[0.913, 0.989, 0.937, 0.989, 0.990, 1.197, 0.979, 1.021]
+  xsa_threshold block=9 min=-0.398 max=0.786 mean=0.018
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=1.024 max=1.391 mean=1.150 vals=[1.064, 1.047, 1.391, 1.155, 1.024, 1.161, 1.025, 1.335]
+  xsa_threshold block=10 min=-0.259 max=0.358 mean=0.014
+layer_loop:enabled step:1500 frac:0.500 encoder:[0, 1, 2, 3, 4, 5, 4] decoder:[5, 4, 5, 6, 7, 8, 9, 10]
+1600/3000 train_loss: 3.1085 train_time: 53.0m tok/s: 395672
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.167 max=1.127 mean=0.948 vals=[0.167, 1.070, 1.034, 0.986, 1.127, 1.126, 1.072, 0.998]
+  xsa_threshold block=0 min=-0.289 max=2.294 mean=0.420
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.969 max=1.192 mean=1.071 vals=[0.969, 1.042, 1.079, 1.192, 1.008, 1.116, 1.080, 1.079]
+  xsa_threshold block=1 min=-0.140 max=1.671 mean=0.341
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.624 max=1.601 mean=1.048 vals=[1.012, 1.601, 0.917, 0.979, 1.006, 1.134, 1.113, 0.624]
+  xsa_threshold block=2 min=-0.225 max=0.949 mean=0.150
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.868 max=1.175 mean=1.030 vals=[0.989, 1.066, 1.054, 0.868, 1.058, 1.024, 1.175, 1.009]
+  xsa_threshold block=3 min=-0.187 max=0.793 mean=0.114
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.848 max=1.251 mean=1.045 vals=[1.057, 0.891, 0.848, 1.251, 1.011, 1.036, 1.107, 1.163]
+  xsa_threshold block=4 min=-0.408 max=1.292 mean=0.133
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.879 max=1.211 mean=1.037 vals=[1.070, 0.879, 0.917, 0.991, 1.063, 1.211, 1.028, 1.139]
+  xsa_threshold block=5 min=-0.394 max=0.860 mean=0.092
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.913 max=1.113 mean=1.021 vals=[1.016, 1.113, 0.974, 1.061, 1.023, 0.913, 0.974, 1.093]
+  xsa_threshold block=6 min=-0.105 max=0.889 mean=0.151
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.819 max=1.755 mean=1.119 vals=[0.881, 1.041, 1.204, 1.123, 1.755, 0.819, 1.086, 1.039]
+  xsa_threshold block=7 min=-0.118 max=0.668 mean=0.157
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.948 max=1.205 mean=1.087 vals=[1.168, 1.089, 1.125, 0.995, 1.205, 0.980, 1.182, 0.948]
+  xsa_threshold block=8 min=-0.106 max=0.901 mean=0.236
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.904 max=1.186 mean=1.001 vals=[0.904, 0.992, 0.944, 0.990, 0.980, 1.186, 1.011, 1.004]
+  xsa_threshold block=9 min=-0.394 max=1.065 mean=0.063
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.974 max=1.401 mean=1.148 vals=[1.043, 1.036, 1.401, 1.157, 0.974, 1.215, 1.036, 1.325]
+  xsa_threshold block=10 min=-0.248 max=0.508 mean=0.054
+1800/3000 train_loss: 3.0479 train_time: 61.7m tok/s: 382519
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.125 max=1.122 mean=0.946 vals=[0.125, 1.086, 1.045, 1.009, 1.122, 1.122, 1.069, 0.990]
+  xsa_threshold block=0 min=-0.323 max=2.612 mean=0.469
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.976 max=1.191 mean=1.070 vals=[0.976, 1.053, 1.069, 1.191, 1.003, 1.115, 1.102, 1.055]
+  xsa_threshold block=1 min=-0.169 max=1.910 mean=0.413
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.612 max=1.594 mean=1.045 vals=[0.999, 1.594, 0.906, 0.990, 1.003, 1.140, 1.120, 0.612]
+  xsa_threshold block=2 min=-0.222 max=1.107 mean=0.193
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.848 max=1.166 mean=1.028 vals=[1.004, 1.078, 1.050, 0.848, 1.052, 1.020, 1.166, 1.009]
+  xsa_threshold block=3 min=-0.191 max=0.879 mean=0.151
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.889 max=1.264 mean=1.063 vals=[1.046, 0.937, 0.889, 1.264, 1.061, 1.024, 1.115, 1.168]
+  xsa_threshold block=4 min=-0.414 max=1.481 mean=0.173
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.895 max=1.204 mean=1.037 vals=[1.069, 0.895, 0.899, 1.014, 1.049, 1.204, 1.039, 1.126]
+  xsa_threshold block=5 min=-0.457 max=1.044 mean=0.127
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.916 max=1.119 mean=1.012 vals=[1.018, 1.119, 0.975, 1.030, 1.014, 0.916, 0.966, 1.057]
+  xsa_threshold block=6 min=-0.091 max=1.038 mean=0.184
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.821 max=1.811 mean=1.125 vals=[0.857, 1.034, 1.202, 1.117, 1.811, 0.821, 1.109, 1.047]
+  xsa_threshold block=7 min=-0.145 max=0.846 mean=0.204
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.950 max=1.185 mean=1.082 vals=[1.149, 1.081, 1.138, 0.992, 1.185, 0.986, 1.171, 0.950]
+  xsa_threshold block=8 min=-0.090 max=1.100 mean=0.268
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.907 max=1.201 mean=1.004 vals=[0.907, 0.999, 0.947, 0.990, 0.984, 1.201, 1.001, 1.000]
+  xsa_threshold block=9 min=-0.375 max=1.265 mean=0.096
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.964 max=1.442 mean=1.166 vals=[1.046, 1.033, 1.442, 1.171, 0.964, 1.264, 1.048, 1.361]
+  xsa_threshold block=10 min=-0.241 max=0.617 mean=0.085
+2000/3000 train_loss: 3.0194 train_time: 70.4m tok/s: 372622
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.120 max=1.122 mean=0.955 vals=[0.120, 1.096, 1.069, 1.034, 1.122, 1.120, 1.074, 1.006]
+  xsa_threshold block=0 min=-0.493 max=2.913 mean=0.523
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.975 max=1.203 mean=1.076 vals=[0.975, 1.058, 1.069, 1.203, 1.009, 1.116, 1.107, 1.069]
+  xsa_threshold block=1 min=-0.178 max=2.059 mean=0.453
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.632 max=1.593 mean=1.054 vals=[0.997, 1.593, 0.911, 1.000, 1.025, 1.150, 1.128, 0.632]
+  xsa_threshold block=2 min=-0.219 max=1.225 mean=0.223
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.848 max=1.173 mean=1.026 vals=[1.001, 1.065, 1.050, 0.848, 1.052, 1.008, 1.173, 1.013]
+  xsa_threshold block=3 min=-0.185 max=0.939 mean=0.184
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.894 max=1.269 mean=1.066 vals=[1.039, 0.939, 0.894, 1.269, 1.076, 1.023, 1.125, 1.164]
+  xsa_threshold block=4 min=-0.404 max=1.584 mean=0.208
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.882 max=1.194 mean=1.035 vals=[1.078, 0.899, 0.882, 1.022, 1.051, 1.194, 1.042, 1.112]
+  xsa_threshold block=5 min=-0.499 max=1.183 mean=0.158
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.915 max=1.122 mean=1.012 vals=[1.017, 1.122, 0.972, 1.021, 1.008, 0.915, 0.963, 1.081]
+  xsa_threshold block=6 min=-0.060 max=1.113 mean=0.211
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.823 max=1.827 mean=1.131 vals=[0.860, 1.043, 1.198, 1.133, 1.827, 0.823, 1.114, 1.053]
+  xsa_threshold block=7 min=-0.139 max=0.963 mean=0.234
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.949 max=1.174 mean=1.082 vals=[1.149, 1.087, 1.158, 0.999, 1.174, 0.982, 1.161, 0.949]
+  xsa_threshold block=8 min=-0.084 max=1.243 mean=0.285
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.904 max=1.199 mean=1.006 vals=[0.904, 0.999, 0.949, 0.987, 0.987, 1.199, 1.000, 1.021]
+  xsa_threshold block=9 min=-0.335 max=1.291 mean=0.120
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.947 max=1.468 mean=1.177 vals=[1.054, 1.034, 1.468, 1.177, 0.947, 1.322, 1.055, 1.364]
+  xsa_threshold block=10 min=-0.238 max=0.703 mean=0.114
+2200/3000 train_loss: 3.0121 train_time: 79.0m tok/s: 364845
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.124 max=1.140 mean=0.964 vals=[0.124, 1.109, 1.085, 1.050, 1.140, 1.133, 1.071, 1.002]
+  xsa_threshold block=0 min=-0.588 max=3.100 mean=0.555
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.978 max=1.209 mean=1.084 vals=[0.978, 1.082, 1.070, 1.209, 1.015, 1.122, 1.120, 1.075]
+  xsa_threshold block=1 min=-0.150 max=2.155 mean=0.484
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.632 max=1.594 mean=1.056 vals=[0.995, 1.594, 0.919, 1.022, 1.020, 1.147, 1.122, 0.632]
+  xsa_threshold block=2 min=-0.211 max=1.310 mean=0.245
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.860 max=1.172 mean=1.034 vals=[0.994, 1.079, 1.061, 0.860, 1.076, 1.009, 1.172, 1.017]
+  xsa_threshold block=3 min=-0.196 max=0.990 mean=0.213
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.894 max=1.280 mean=1.070 vals=[1.032, 0.945, 0.894, 1.280, 1.088, 1.020, 1.123, 1.174]
+  xsa_threshold block=4 min=-0.395 max=1.651 mean=0.233
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.868 max=1.186 mean=1.033 vals=[1.085, 0.906, 0.868, 1.028, 1.044, 1.186, 1.047, 1.104]
+  xsa_threshold block=5 min=-0.524 max=1.263 mean=0.179
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.923 max=1.122 mean=1.013 vals=[1.030, 1.122, 0.968, 1.015, 1.011, 0.923, 0.954, 1.080]
+  xsa_threshold block=6 min=-0.057 max=1.156 mean=0.232
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.829 max=1.850 mean=1.139 vals=[0.884, 1.038, 1.195, 1.130, 1.850, 0.829, 1.120, 1.065]
+  xsa_threshold block=7 min=-0.107 max=1.050 mean=0.268
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.940 max=1.187 mean=1.080 vals=[1.145, 1.074, 1.187, 0.988, 1.174, 0.973, 1.159, 0.940]
+  xsa_threshold block=8 min=-0.095 max=1.348 mean=0.287
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.911 max=1.205 mean=1.008 vals=[0.911, 0.995, 0.949, 0.989, 0.986, 1.205, 1.010, 1.020]
+  xsa_threshold block=9 min=-0.293 max=1.286 mean=0.134
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.938 max=1.480 mean=1.187 vals=[1.056, 1.031, 1.480, 1.198, 0.938, 1.351, 1.057, 1.383]
+  xsa_threshold block=10 min=-0.229 max=0.757 mean=0.141
+2400/3000 train_loss: 2.9515 train_time: 87.7m tok/s: 358741
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.135 max=1.127 mean=0.964 vals=[0.135, 1.115, 1.083, 1.055, 1.127, 1.122, 1.077, 0.998]
+  xsa_threshold block=0 min=-0.593 max=3.233 mean=0.586
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.979 max=1.216 mean=1.088 vals=[0.979, 1.083, 1.065, 1.216, 1.019, 1.122, 1.134, 1.087]
+  xsa_threshold block=1 min=-0.134 max=2.195 mean=0.500
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.651 max=1.583 mean=1.062 vals=[0.989, 1.583, 0.928, 1.032, 1.034, 1.149, 1.131, 0.651]
+  xsa_threshold block=2 min=-0.199 max=1.369 mean=0.260
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.861 max=1.171 mean=1.037 vals=[1.013, 1.072, 1.057, 0.861, 1.072, 1.015, 1.171, 1.032]
+  xsa_threshold block=3 min=-0.186 max=1.026 mean=0.235
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.897 max=1.286 mean=1.071 vals=[1.030, 0.945, 0.897, 1.286, 1.087, 1.023, 1.123, 1.179]
+  xsa_threshold block=4 min=-0.394 max=1.700 mean=0.259
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.855 max=1.183 mean=1.034 vals=[1.090, 0.902, 0.855, 1.030, 1.055, 1.183, 1.057, 1.099]
+  xsa_threshold block=5 min=-0.536 max=1.324 mean=0.199
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.926 max=1.116 mean=1.011 vals=[1.035, 1.116, 0.964, 1.016, 1.006, 0.926, 0.950, 1.078]
+  xsa_threshold block=6 min=-0.051 max=1.149 mean=0.244
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.842 max=1.857 mean=1.144 vals=[0.874, 1.030, 1.200, 1.139, 1.857, 0.842, 1.131, 1.081]
+  xsa_threshold block=7 min=-0.115 max=1.074 mean=0.286
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.937 max=1.199 mean=1.082 vals=[1.147, 1.091, 1.199, 0.996, 1.161, 0.972, 1.150, 0.937]
+  xsa_threshold block=8 min=-0.082 max=1.394 mean=0.299
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.912 max=1.218 mean=1.011 vals=[0.912, 0.995, 0.952, 0.991, 0.995, 1.218, 1.000, 1.023]
+  xsa_threshold block=9 min=-0.243 max=1.358 mean=0.153
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.920 max=1.455 mean=1.189 vals=[1.059, 1.031, 1.455, 1.190, 0.920, 1.392, 1.069, 1.398]
+  xsa_threshold block=10 min=-0.222 max=0.801 mean=0.160
+2600/3000 train_loss: 2.9284 train_time: 96.4m tok/s: 353600
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.156 max=1.138 mean=0.974 vals=[0.156, 1.117, 1.101, 1.067, 1.133, 1.138, 1.082, 1.001]
+  xsa_threshold block=0 min=-0.668 max=3.293 mean=0.599
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.982 max=1.232 mean=1.095 vals=[0.982, 1.106, 1.069, 1.232, 1.017, 1.127, 1.142, 1.084]
+  xsa_threshold block=1 min=-0.127 max=2.204 mean=0.510
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.664 max=1.583 mean=1.068 vals=[0.987, 1.583, 0.939, 1.025, 1.049, 1.160, 1.136, 0.664]
+  xsa_threshold block=2 min=-0.193 max=1.395 mean=0.269
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.872 max=1.175 mean=1.041 vals=[1.008, 1.084, 1.077, 0.872, 1.069, 1.019, 1.175, 1.027]
+  xsa_threshold block=3 min=-0.155 max=1.049 mean=0.247
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.902 max=1.296 mean=1.073 vals=[1.029, 0.939, 0.902, 1.296, 1.101, 1.018, 1.122, 1.179]
+  xsa_threshold block=4 min=-0.396 max=1.727 mean=0.272
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.850 max=1.183 mean=1.034 vals=[1.090, 0.903, 0.850, 1.039, 1.050, 1.183, 1.057, 1.097]
+  xsa_threshold block=5 min=-0.545 max=1.337 mean=0.210
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.921 max=1.132 mean=1.015 vals=[1.048, 1.132, 0.969, 1.017, 1.003, 0.921, 0.955, 1.078]
+  xsa_threshold block=6 min=-0.048 max=1.139 mean=0.248
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.853 max=1.859 mean=1.150 vals=[0.887, 1.032, 1.189, 1.152, 1.859, 0.853, 1.139, 1.087]
+  xsa_threshold block=7 min=-0.103 max=1.079 mean=0.298
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.938 max=1.209 mean=1.080 vals=[1.147, 1.085, 1.209, 0.992, 1.157, 0.971, 1.142, 0.938]
+  xsa_threshold block=8 min=-0.085 max=1.442 mean=0.301
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.913 max=1.218 mean=1.016 vals=[0.913, 0.994, 0.956, 0.998, 1.003, 1.218, 1.013, 1.030]
+  xsa_threshold block=9 min=-0.215 max=1.412 mean=0.162
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.906 max=1.461 mean=1.196 vals=[1.080, 1.034, 1.461, 1.188, 0.906, 1.426, 1.076, 1.392]
+  xsa_threshold block=10 min=-0.212 max=0.830 mean=0.178
+2800/3000 train_loss: 2.8990 train_time: 105.1m tok/s: 349357
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.173 max=1.145 mean=0.982 vals=[0.173, 1.131, 1.103, 1.072, 1.145, 1.139, 1.088, 1.007]
+  xsa_threshold block=0 min=-0.685 max=3.298 mean=0.601
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.985 max=1.233 mean=1.099 vals=[0.985, 1.118, 1.064, 1.233, 1.029, 1.130, 1.143, 1.090]
+  xsa_threshold block=1 min=-0.130 max=2.192 mean=0.510
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.668 max=1.579 mean=1.071 vals=[0.990, 1.579, 0.942, 1.038, 1.051, 1.166, 1.138, 0.668]
+  xsa_threshold block=2 min=-0.189 max=1.408 mean=0.276
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.869 max=1.181 mean=1.042 vals=[1.004, 1.087, 1.071, 0.869, 1.074, 1.022, 1.181, 1.031]
+  xsa_threshold block=3 min=-0.157 max=1.056 mean=0.254
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.897 max=1.308 mean=1.074 vals=[1.027, 0.935, 0.897, 1.308, 1.097, 1.020, 1.126, 1.179]
+  xsa_threshold block=4 min=-0.390 max=1.732 mean=0.279
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.844 max=1.189 mean=1.035 vals=[1.096, 0.906, 0.844, 1.045, 1.045, 1.189, 1.064, 1.095]
+  xsa_threshold block=5 min=-0.543 max=1.354 mean=0.215
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.921 max=1.131 mean=1.013 vals=[1.050, 1.131, 0.969, 1.009, 1.004, 0.921, 0.938, 1.081]
+  xsa_threshold block=6 min=-0.044 max=1.109 mean=0.253
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.858 max=1.861 mean=1.151 vals=[0.886, 1.025, 1.201, 1.148, 1.861, 0.858, 1.133, 1.096]
+  xsa_threshold block=7 min=-0.088 max=1.078 mean=0.308
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.941 max=1.214 mean=1.079 vals=[1.139, 1.084, 1.214, 1.000, 1.149, 0.970, 1.135, 0.941]
+  xsa_threshold block=8 min=-0.071 max=1.436 mean=0.295
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.916 max=1.229 mean=1.016 vals=[0.916, 0.993, 0.954, 0.990, 1.000, 1.229, 1.011, 1.032]
+  xsa_threshold block=9 min=-0.184 max=1.374 mean=0.166
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.902 max=1.470 mean=1.203 vals=[1.083, 1.037, 1.470, 1.201, 0.902, 1.444, 1.076, 1.410]
+  xsa_threshold block=10 min=-0.205 max=0.841 mean=0.185
+3000/3000 train_loss: 2.8642 train_time: 111.8m tok/s: 351650
+  xsa_alpha[free] block=0 rank=2 basis=v+x min=0.176 max=1.145 mean=0.985 vals=[0.176, 1.138, 1.106, 1.077, 1.145, 1.141, 1.089, 1.006]
+  xsa_threshold block=0 min=-0.684 max=3.302 mean=0.601
+  xsa_alpha[free] block=1 rank=2 basis=v+x min=0.978 max=1.243 mean=1.100 vals=[0.978, 1.123, 1.064, 1.243, 1.028, 1.130, 1.143, 1.091]
+  xsa_threshold block=1 min=-0.138 max=2.188 mean=0.510
+  xsa_alpha[free] block=2 rank=2 basis=v+x min=0.673 max=1.578 mean=1.072 vals=[0.985, 1.578, 0.946, 1.040, 1.056, 1.165, 1.135, 0.673]
+  xsa_threshold block=2 min=-0.180 max=1.409 mean=0.276
+  xsa_alpha[free] block=3 rank=2 basis=v+x min=0.869 max=1.184 mean=1.042 vals=[1.004, 1.083, 1.077, 0.869, 1.065, 1.023, 1.184, 1.032]
+  xsa_threshold block=3 min=-0.141 max=1.056 mean=0.260
+  xsa_alpha[free] block=4 rank=2 basis=v+x min=0.896 max=1.309 mean=1.074 vals=[1.028, 0.935, 0.896, 1.309, 1.098, 1.022, 1.120, 1.181]
+  xsa_threshold block=4 min=-0.385 max=1.736 mean=0.283
+  xsa_alpha[free] block=5 rank=2 basis=v+x min=0.841 max=1.178 mean=1.033 vals=[1.096, 0.902, 0.841, 1.046, 1.044, 1.178, 1.063, 1.092]
+  xsa_threshold block=5 min=-0.540 max=1.357 mean=0.219
+  xsa_alpha[free] block=6 rank=2 basis=v+x min=0.925 max=1.131 mean=1.014 vals=[1.046, 1.131, 0.966, 1.015, 1.001, 0.925, 0.949, 1.077]
+  xsa_threshold block=6 min=-0.042 max=1.102 mean=0.253
+  xsa_alpha[free] block=7 rank=2 basis=v+x min=0.860 max=1.861 mean=1.153 vals=[0.885, 1.032, 1.204, 1.154, 1.861, 0.860, 1.131, 1.097]
+  xsa_threshold block=7 min=-0.076 max=1.077 mean=0.313
+  xsa_alpha[free] block=8 rank=2 basis=v+x min=0.939 max=1.220 mean=1.079 vals=[1.142, 1.083, 1.220, 0.997, 1.147, 0.968, 1.136, 0.939]
+  xsa_threshold block=8 min=-0.067 max=1.436 mean=0.297
+  xsa_alpha[free] block=9 rank=2 basis=v+x min=0.915 max=1.219 mean=1.013 vals=[0.915, 0.992, 0.952, 0.991, 1.000, 1.219, 1.006, 1.032]
+  xsa_threshold block=9 min=-0.172 max=1.368 mean=0.168
+  xsa_alpha[free] block=10 rank=2 basis=v+x min=0.900 max=1.467 mean=1.204 vals=[1.084, 1.040, 1.467, 1.197, 0.900, 1.454, 1.080, 1.411]
+  xsa_threshold block=10 min=-0.200 max=0.858 mean=0.187
+3000/3000 val_loss: 2.8639 val_bpb: 1.1087
+peak memory allocated: 37245 MiB reserved: 38782 MiB
+ema:applying EMA weights
+pre-quantization post-ema val_loss:2.86531079 val_bpb:1.10925110 eval_time:33150ms
+Serialized model: 141205970 bytes
+Code size: 96608 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 78 Hessians in 15.3s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.attn.xsa_basis_proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn.xsa_alpha, blocks.attn.xsa_threshold, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+recover/pre-quantization val_loss:2.86531079 val_bpb:1.10925110 eval_time:74612ms
+Serialized model: 141205970 bytes
+Code size: 96608 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 78 Hessians in 14.8s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.attn.xsa_basis_proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn.xsa_alpha, blocks.attn.xsa_threshold, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 16588320 bytes
+Total submission size quantized+brotli: 16684928 bytes
+recover/quantized val_loss:2.89060285 val_bpb:1.11904244 eval_time:36616ms
+recover/quantized_sliding_window val_loss:2.84811037 val_bpb:1.10259228 eval_time:699107ms
