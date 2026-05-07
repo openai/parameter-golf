@@ -1,0 +1,48 @@
+{
+  "author": "Weijie Chen",
+  "github_id": "WeijieChen2017",
+  "name": "VQ-VAE Weight Compression: Learned Codebook During Warmdown",
+  "blurb": "Replaces scalar INT5/INT8 quantization with Vector Quantization (VQ G=2, K=1024). Per-layer codebook trained via EMA during warmdown with cosine similarity on unit sphere. Halves quantization delta vs INT5 at same bitrate. Novel compression technique not previously submitted to Parameter Golf.",
+  "date": "2026-04-01",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.017318,
+  "val_bpb": 1.194769,
+  "val_loss_std": 0.003942,
+  "val_bpb_std": 0.002335,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.021304,
+      "val_bpb": 1.197130,
+      "artifact_bytes": 15848290,
+      "model_bytes": 15780544,
+      "steps": 49360,
+      "step_avg_ms": 218.8,
+      "vq_delta": 0.0075
+    },
+    "314": {
+      "val_loss": 2.017229,
+      "val_bpb": 1.194716,
+      "artifact_bytes": 15865971,
+      "model_bytes": 15798225,
+      "steps": 49253,
+      "step_avg_ms": 219.3,
+      "vq_delta": 0.0067
+    },
+    "999": {
+      "val_loss": 2.013421,
+      "val_bpb": 1.192461,
+      "artifact_bytes": 15850810,
+      "model_bytes": 15783064,
+      "steps": 49375,
+      "step_avg_ms": 218.8,
+      "vq_delta": 0.0089
+    }
+  },
+  "artifact_bytes_mean": 15855024,
+  "artifact_bytes_max": 15865971,
+  "bytes_code": 67746,
+  "hardware": "3x RTX A6000 48GB (~equivalent to 10min 8xH100 in TFLOPS)",
+  "compression": "VQ G=2 K=1024, cosine sphere codebook, EMA=0.95, 10-bit packed indices + zstd-22",
+  "architecture": "10L x 512d, MLP 3.0x, 8H/4KV GQA, SmearGate, tied embeddings, 24.1M params"
+}
