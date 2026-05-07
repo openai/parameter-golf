@@ -1,0 +1,21 @@
+{
+  "author": "Ashish Pandey",
+  "github_id": "mr-ashish-panday",
+  "name": "Top-Heavy FFN + Packed Int6 Export (pending eval)",
+  "blurb": "Pending-compute submission built around OpenELM-style layer-wise FFN scaling on the 9x512 backbone, exact packed-int6 export, fp16 tied-embedding passthrough, and sliding-window evaluation. Seed-42 dry-run verified locally; full 8xH100 training and eval pending.",
+  "date": "2026-03-19T18:30:00Z",
+  "status": "pending_eval",
+  "baseline_val_bpb": 1.2243657,
+  "val_loss": null,
+  "val_bpb": null,
+  "step_stop": null,
+  "wallclock_seconds": null,
+  "bytes_total": null,
+  "bytes_model_packed_int6_zlib": null,
+  "bytes_code": 60837,
+  "init_export_bytes_total": 4273390,
+  "init_export_bytes_model_packed_int6_zlib": 4212553,
+  "dense_random_probe_bytes_total": 16549133,
+  "parameter_count": 21778504,
+  "seed": 42
+}
