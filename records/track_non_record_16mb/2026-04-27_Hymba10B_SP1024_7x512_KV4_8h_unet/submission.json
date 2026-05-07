@@ -1,0 +1,18 @@
+{
+  "author": "DataRock Labs",
+  "github_id": "szecsip",
+  "name": "2026-04-21_Hymba10B_SP1024_6x512_KV4_8h_unet",
+  "blurb": "Single-GPU 1xH100 submission with a Hymba hybrid Attention+Mamba SSM model using SP1024 tokenization, U-Net skip connections, BigramHash embeddings, sequence length curriculum, and bias-corrected EMA. Final pre-quant validation reached 1.3375 bpb, with post-quant roundtrip validation at 1.3419 bpb under the 16MB artifact cap.",
+  "date": "2026-04-21T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.2658,
+  "val_bpb": 1.3419,
+  "pre_quant_val_loss": 2.2584,
+  "pre_quant_val_bpb": 1.3375,
+  "step_stop": 6423,
+  "wallclock_seconds": 600,
+  "bytes_total": 15478013,
+  "bytes_model_int8_zlib": 15405717,
+  "bytes_code": 72296,
+  "gpu": "1xH100 80GB HBM3"
+}
