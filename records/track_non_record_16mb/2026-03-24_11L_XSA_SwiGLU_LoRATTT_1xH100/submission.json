@@ -1,0 +1,18 @@
+{
+  "name": "11L XSA + SwiGLU + SWA + Mixed Quant + LoRA TTT (1xH100 PCIe)",
+  "author": "swapp1990",
+  "github_id": "swapp1990",
+  "date": "2026-03-24",
+  "val_bpb": 1.1573,
+  "val_loss": 1.9724,
+  "pre_quant_val_bpb": 1.1727,
+  "pre_quant_val_loss": 1.9800,
+  "step_stop": 7926,
+  "wallclock_seconds": 4850,
+  "gpu": "1xH100 PCIe (RunPod)",
+  "track": "non-record-16mb",
+  "bytes_total": 15793319,
+  "bytes_model": 15727804,
+  "bytes_code": 65515,
+  "blurb": "11-layer transformer with XSA (cross-token self-attention on last 4 layers), SwiGLU 3x MLP, SmearGate, U-Net skip connections, orthogonal init, Muon optimizer with WD=0.04, and stochastic weight averaging. Trained on 1xH100 PCIe for ~80 min with batch=524K seq=2048 (grad accumulation). Mixed quantization (int5 MLP + int6 attn + int8 embed + zstd) fits in 15.02 MB. LoRA TTT (rank-8, score-then-train per chunk) brings val_bpb from 1.191 to 1.157. 18 experiments over 5 days."
+}
