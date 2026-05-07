@@ -1,0 +1,30 @@
+{
+  "package": "2026-04-30_future_state_encoder_planner",
+  "runs": [
+    {
+      "name": "future_state_encoder_planner_1g",
+      "log": "logs/future_state_encoder_planner_1g.txt",
+      "world_size": 1,
+      "grad_accum_steps": 8,
+      "train_batch_tokens": 688128,
+      "local_batch_tokens": 86016,
+      "train_seq_len": 2048,
+      "model_params": 29739499,
+      "stop_step": 539,
+      "wallclock_seconds": 600.970,
+      "step_avg_ms": 1114.97,
+      "total_tokens_seen": 370900992,
+      "best_logged_pre_roundtrip_val_loss": 2.3602,
+      "best_logged_pre_roundtrip_val_bpb": 1.3978,
+      "final_val_loss": 2.36019942,
+      "final_val_bpb": 1.39784304,
+      "bytes_model_raw": 118874382,
+      "bytes_model_int4_zlib": 14802210,
+            "bytes_code": 201482,
+            "bytes_total": 15003692,
+      "artifact_under_16mb": true,
+      "peak_memory_allocated_mib": 30502,
+      "peak_memory_reserved_mib": 32432
+    }
+  ]
+}
