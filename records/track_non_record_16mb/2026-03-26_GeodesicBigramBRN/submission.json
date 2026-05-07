@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-03-26",
+  "name": "Geodesic Topological Tokenizer + BigramHash + BRN",
+  "author": "skar07",
+  "github_id": "skar07",
+  "val_loss": 3.4562,
+  "val_bpb": 1.5406,
+  "bytes_total": 0,
+  "notes": "Research oriented - TBD on actual 8xH100s. Results from 50k steps training."
+}
