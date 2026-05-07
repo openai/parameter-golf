@@ -1,0 +1,93 @@
+starting ar_export_rotq_mlpdown_had256_long4800_fullcal_slide64
+world_size:1 grad_accum_steps:8
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_kernel:flashattn3
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:0 warmup_steps:0 max_wallclock_seconds:0.000
+seed:314
+step:0/0 val_loss:1.9122 val_bpb:1.1325 train_time:0ms step_avg:0.02ms
+peak memory allocated: 1002 MiB reserved: 1242 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9122 val_bpb:1.1325 eval_time:16429ms
+Serialized model: 106289590 bytes
+Code size: 119252 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 64 sequences in 199.6s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+rotq:enabled groups:1 active:11 meta_bytes:264
+rotq:mlp_down:1536 group:mlp_down mode:hadamard block:256 score:1.564798e-01
+selective_prune: 4217740 ±1 candidates, unpruned=15.09MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 15705748 bytes
+Rotation metadata bytes (logical): 264
+Total submission size int6+lzma: 15825000 bytes
+final_int6_roundtrip val_loss:1.9190 val_bpb:1.1365 eval_time:16283ms
+final_int6_roundtrip_exact val_loss:1.91901076 val_bpb:1.13654627
+final_int6_sliding_window val_loss:1.8791 val_bpb:1.1129 stride:64 eval_time:595377ms
+final_int6_sliding_window_exact val_loss:1.87910898 val_bpb:1.11291713
+final_int8_zlib_roundtrip_exact val_loss:1.87910898 val_bpb:1.11291713
+starting ar_export_rotq_mlpdown_perlayer_had_long4800_fullcal_slide64
+DIAGNOSTIC post_ema val_loss:1.9122 val_bpb:1.1325 eval_time:16381ms
+Serialized model: 106289590 bytes
+Code size: 119252 bytes
+gptq:building non-banked model for Hessian collection...
+gptq:generating autoregressive calibration data (64 seqs x 2048 tokens, temp=0.8)...
+gptq:generated 64 sequences in 198.9s
+gptq:collecting hessians from autoregressive data...
+gptq:collected hessians for 68 layers (AR self-gen)
+rotq:enabled groups:11 active:11 meta_bytes:264
+rotq:blocks.0.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.569647e-01
+rotq:blocks.1.mlp.proj.weight group:mlp_down mode:hadamard block:512 score:1.561793e-01
+rotq:blocks.2.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.568002e-01
+rotq:blocks.3.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.558599e-01
+rotq:blocks.4.mlp.proj.weight group:mlp_down mode:hadamard block:512 score:1.558491e-01
+rotq:blocks.5.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.564744e-01
+rotq:blocks.6.mlp.proj.weight group:mlp_down mode:hadamard block:512 score:1.560896e-01
+rotq:blocks.7.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.559215e-01
+rotq:blocks.8.mlp.proj.weight group:mlp_down mode:hadamard block:256 score:1.554852e-01
+rotq:blocks.9.mlp.proj.weight group:mlp_down mode:hadamard block:512 score:1.563086e-01
+rotq:blocks.10.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.571935e-01
+selective_prune: 4216026 ±1 candidates, unpruned=15.09MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 15707228 bytes
+Rotation metadata bytes (logical): 264
+Total submission size int6+lzma: 15826480 bytes
+final_int6_roundtrip val_loss:1.9190 val_bpb:1.1365 eval_time:16266ms
+final_int6_roundtrip_exact val_loss:1.91899953 val_bpb:1.13653961
+final_int6_sliding_window val_loss:1.8791 val_bpb:1.1129 stride:64 eval_time:592103ms
+final_int6_sliding_window_exact val_loss:1.87909590 val_bpb:1.11290938
+final_int8_zlib_roundtrip_exact val_loss:1.87909590 val_bpb:1.11290938
+starting ar_export_rotq_mlpupdown_perlayer_had_long4800_fullcal_slide64
+rotq:blocks.2.mlp.fc.weight group:mlp_up mode:hadamard block:128 score:1.543067e-01
+rotq:blocks.3.mlp.fc.weight group:mlp_up mode:hadamard block:512 score:1.542510e-01
+rotq:blocks.4.mlp.fc.weight group:mlp_up mode:hadamard block:512 score:1.528345e-01
+rotq:blocks.5.mlp.fc.weight group:mlp_up mode:hadamard block:128 score:1.565601e-01
+rotq:blocks.6.mlp.fc.weight group:mlp_up mode:hadamard block:256 score:1.545500e-01
+rotq:blocks.7.mlp.fc.weight group:mlp_up mode:hadamard block:256 score:1.552076e-01
+rotq:blocks.8.mlp.fc.weight group:mlp_up mode:hadamard block:512 score:1.547106e-01
+rotq:blocks.9.mlp.fc.weight group:mlp_up mode:hadamard block:128 score:1.537057e-01
+rotq:blocks.10.mlp.fc.weight group:mlp_up mode:hadamard block:128 score:1.545073e-01
+rotq:blocks.0.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.569647e-01
+rotq:blocks.1.mlp.proj.weight group:mlp_down mode:hadamard block:512 score:1.561793e-01
+rotq:blocks.2.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.568002e-01
+rotq:blocks.3.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.558599e-01
+rotq:blocks.4.mlp.proj.weight group:mlp_down mode:hadamard block:512 score:1.558491e-01
+rotq:blocks.5.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.564744e-01
+rotq:blocks.6.mlp.proj.weight group:mlp_down mode:hadamard block:512 score:1.560896e-01
+rotq:blocks.7.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.559215e-01
+rotq:blocks.8.mlp.proj.weight group:mlp_down mode:hadamard block:256 score:1.554852e-01
+rotq:blocks.9.mlp.proj.weight group:mlp_down mode:hadamard block:512 score:1.563086e-01
+rotq:blocks.10.mlp.proj.weight group:mlp_down mode:hadamard block:128 score:1.571935e-01
+selective_prune: 4208001 ±1 candidates, unpruned=15.09MB target=15.9MB
+selective_prune: already fits, no pruning needed
+Serialized model int6+lzma: 15706896 bytes
+Rotation metadata bytes (logical): 506
+Total submission size int6+lzma: 15826148 bytes
+final_int6_roundtrip val_loss:1.9190 val_bpb:1.1365 eval_time:16322ms
+final_int6_roundtrip_exact val_loss:1.91899332 val_bpb:1.13653594
+final_int6_sliding_window val_loss:1.8791 val_bpb:1.1129 stride:64 eval_time:596342ms
+final_int6_sliding_window_exact val_loss:1.87908996 val_bpb:1.11290586
+final_int8_zlib_roundtrip_exact val_loss:1.87908996 val_bpb:1.11290586
