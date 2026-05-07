@@ -1,0 +1,8 @@
+{
+  "name": "11L-LeakyReLU2-TTT",
+  "date": "2026-03-23",
+  "expected_bpb": 1.118,
+  "track": "10min_16mb",
+  "base": "2026-03-22_11L_EMA_GPTQ-lite_warmdown3500_QAT015_1.1233",
+  "changes": ["LeakyReLU(0.5)^2 activation", "Legal score-first TTT", "FA3 optional fallback"]
+}
