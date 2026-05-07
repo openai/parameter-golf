@@ -1,0 +1,66 @@
+{
+  "experiment": "PR #1950 Long-Train Artifact Scaling",
+  "pod_id": "hq01mtcdiivfij",
+  "gpu_config": "8xH100 SXM COMMUNITY",
+  "cost_per_hr": 21.52,
+  "estimated_runtime_min": 90,
+  "estimated_cost_usd": 32.3,
+  "research_question": "Does longer training make PR #1950 model more compressible?",
+  "result": "NEGATIVE for compressibility; POSITIVE for BPB",
+  "baseline_artifact_bytes": 15953292,
+  "final_artifact_bytes": 15944203,
+  "artifact_shrink_bytes": -9089,
+  "artifact_shrink_pct": -0.057,
+  "final_metrics": {
+    "training_val_bpb": 1.0615,
+    "pre_quant_bpb": 1.03969,
+    "quantized_bpb": 1.04944,
+    "post_ttt_bpb": 1.03988,
+    "quantization_tax": 0.00975,
+    "ttt_gain": 0.00956
+  },
+  "checkpoints": [
+    {
+      "minute": 10,
+      "steps": 6348,
+      "artifact_bytes": 15953292,
+      "delta": 0
+    },
+    {
+      "minute": 20,
+      "steps": 7193,
+      "artifact_bytes": 15952677,
+      "delta": -615
+    },
+    {
+      "minute": 30,
+      "steps": 7899,
+      "artifact_bytes": 15956638,
+      "delta": 3346
+    },
+    {
+      "minute": 45,
+      "steps": 12135,
+      "artifact_bytes": 15955847,
+      "delta": 2555
+    },
+    {
+      "minute": 60,
+      "steps": 16001,
+      "artifact_bytes": 15944203,
+      "delta": -9089
+    }
+  ],
+  "conclusions": [
+    "Artifact size is essentially constant (\u00b19KB) regardless of training duration",
+    "BPB improves substantially with longer training (1.18 \u2192 1.06 training val)",
+    "Quantization tax is stable at ~0.01 BPB across all checkpoints",
+    "TTT provides consistent ~0.01 gain independent of training duration",
+    "The 9 KB savings does NOT justify a larger model variant (threshold: 300 KB)",
+    "Checkpoint export causes ~10 min of torch.compile recompilation overhead per export",
+    "The PR #1950 INT6 GPTQ + pergroup lrzip compression is already near-optimal for this architecture size"
+  ],
+  "recommendation": "No artifact size benefit from longer training. For non-record track: longer training dramatically improves BPB but does not free artifact budget for larger models.",
+  "nccl_fix_applied": true,
+  "nccl_fix_description": "Added dist.broadcast for checkpoint decision + barriers before/after serialize to prevent rank desync"
+}
