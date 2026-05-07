@@ -1,0 +1,28 @@
+{
+  "author": "Kamil Krawczyk",
+  "github_id": "bsisduck",
+  "name": "Ablation: WiderGate, RoPE dims, activation slopes, hparam stack",
+  "date": "2026-04-30",
+  "track": "non_record_16mb",
+  "type": "ablation",
+  "hardware": "8xH100 80GB SXM",
+  "base_config": "PR #1693 + CaseOps SP8192 + AttnOutGate + SmearGate + PolarNS",
+  "experiments": {
+    "gates_caseops": {"val_bpb": 1.0674, "change": "baseline", "artifact_bytes": 16934743},
+    "optimized_v1": {"val_bpb": 1.0703, "change": "WARMDOWN=0.85 BETA2=0.99 clips=tighter", "artifact_bytes": 17256881},
+    "rope24": {"val_bpb": 1.0706, "change": "ROPE_DIMS=24", "artifact_bytes": 16394907},
+    "rope32": {"val_bpb": 1.0698, "change": "ROPE_DIMS=32", "artifact_bytes": 16392886},
+    "v2_baseline": {"val_bpb": 1.0819, "change": "EMBED_BITS=6 LQER_ENABLED=0", "artifact_bytes": 15885705},
+    "v2_slope03": {"val_bpb": 1.0822, "change": "LEAKY_SLOPE=0.3", "artifact_bytes": 15889757},
+    "v2_slope00": {"val_bpb": 1.0837, "change": "LEAKY_SLOPE=0.0 (ReLU²)", "artifact_bytes": 15892782},
+    "v2_gate32": {"val_bpb": 1.0788, "change": "GATE_WIDTH=32", "artifact_bytes": 15891157}
+  },
+  "key_findings": [
+    "GATE_WIDTH=32 improves val_bpb by -0.003 (novel finding)",
+    "ROPE_DIMS >16 hurts post-quantization despite better pre-quant",
+    "LeakyReLU slope 0.3/0.0 neutral or worse vs 0.5",
+    "PR #1855 hparam stack does not transfer to this config",
+    "EMBED_BITS=6 costs +0.014 BPB",
+    "LZMA worse than brotli by +300KB"
+  ]
+}
