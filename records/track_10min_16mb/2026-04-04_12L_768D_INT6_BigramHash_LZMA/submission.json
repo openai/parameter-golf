@@ -1,0 +1,12 @@
+{
+  "author": "Rugved Katkade",
+  "github_id": "Rugved1817",
+  "name": "12L/768D + INT6/LZMA + BigramHash + U-Net Skips",
+  "blurb": "Optimized 57M parameter model for the 16MB track. INT6 quantization + LZMA-9 compression allows for 12 layers at 768 width. Features BigramHash(3072) and U-Net style residual connections for enhanced local/global context at zero parameter cost. Optimized with Parallel Muon.",
+  "date": "2026-04-04",
+  "track": "10min_16mb",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "hardware": "8xH100 SXM5",
+  "technique_summary": "12L/768D + INT6/LZMA + BigramHash + U-Net Skips + Parallel Muon"
+}
