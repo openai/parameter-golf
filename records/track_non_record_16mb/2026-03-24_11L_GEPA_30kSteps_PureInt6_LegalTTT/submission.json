@@ -1,0 +1,16 @@
+{
+  "track": "non_record_16mb",
+  "val_bpb": 1.09197267,
+  "model_file": "final_model.int6.ptz",
+  "model_bytes": 14057451,
+  "total_submission_bytes": 14136140,
+  "training_tokens_billions": 23.59,
+  "training_script": "train_gpt.py",
+  "hardware": "4×A100-40GB",
+  "training_time_hours": 4.17,
+  "quantization": "int6+zstd-22",
+  "ttt_optimizer": "sgd",
+  "ttt_epochs": 10,
+  "ttt_lr": 0.002,
+  "date": "2026-03-24"
+}
