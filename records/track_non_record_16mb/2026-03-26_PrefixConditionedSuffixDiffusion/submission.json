@@ -1,0 +1,28 @@
+{
+    "name": "Prefix-Conditioned Suffix Diffusion",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "date": "2026-03-26",
+    "track": "non_record_16mb",
+    "metric_name": "diffusion_pll_bpb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "seed_results": {
+        "1337": {
+            "val_loss": 3.21086636,
+            "val_bpb": 1.85873462,
+            "steps": 2398,
+            "ms_per_step": 250.32
+        }
+    },
+    "val_loss": 3.21086636,
+    "val_bpb": 1.85873462,
+    "training_time_seconds": 600,
+    "bytes_total": 13729820,
+    "bytes_model_int8_zlib": 13654994,
+    "bytes_code": 74826,
+    "diffusion_num_steps": 8,
+    "scored_tokens": 32736,
+    "blurb": "True discrete diffusion non-record: prefix-conditioned suffix denoising with absorbing mask process. Not autoregressive — scores via approximate diffusion pseudo-log-likelihood. Achieves diffusion_pll_bpb=1.8587 on 8xH100 in 600s.",
+    "notes": "Metric is approximate prefix-conditioned diffusion pseudo-log-likelihood BPB, not exact autoregressive challenge BPB."
+}
