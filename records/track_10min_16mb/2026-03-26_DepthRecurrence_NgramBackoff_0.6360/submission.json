@@ -1,0 +1,12 @@
+{
+  "name": "Record: Depth Recurrence + Multi-Order N-gram Backoff",
+  "author": "naazimsnh02",
+  "github_id": "naazimsnh02",
+  "blurb": "Depth Recurrence (layers 4,5) for 13 virtual layers + multi-order n-gram backoff (orders 2-7, 4M buckets) with entropy-adaptive alpha blending + multi-GPU n-gram prefill. Built on PR #549 stack (LeakyReLU(0.5)\u00b2, BigramHash(2048), XSA4, Partial RoPE, LN Scale, VE128, EMA+SWA, Parameter Banking + Parallel Muon, int6 GPTQ-lite + lzma).",
+  "date": "2026-03-26",
+  "val_loss": 1.07393178,
+  "val_bpb": 0.63604457,
+  "bytes_total": 15942380,
+  "gpu": "8xH100 SXM",
+  "num_seeds": 3
+}
