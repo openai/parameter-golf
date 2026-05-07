@@ -1,0 +1,25 @@
+{
+  "author": "aquarious dante workman",
+  "github_id": "aquariouseworkman",
+  "name": "PR #1855 base + activation-aware GPTQ mixed precision (AWQ-lite)",
+  "date": "2026-04-29",
+  "track": "10min_16mb",
+  "val_bpb": 1.06086,
+  "val_bpb_std": 0.00069,
+  "seeds": [42, 314, 1234],
+  "seed_results": {
+    "42":   {"val_loss": 2.32225638, "val_bpb": 1.06118055, "artifact_bytes": 15978503, "steps": 4989, "eval_time_s": 392.8},
+    "314":  {"val_loss": 2.31977393, "val_bpb": 1.06004616, "artifact_bytes": 15976469, "steps": 4986, "eval_time_s": 395.8},
+    "1234": {"val_loss": 2.32262534, "val_bpb": 1.06134915, "artifact_bytes": 15976673, "steps": 4977, "eval_time_s": 395.5}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 3.0.0 (cu128_torch291 wheel)",
+  "compressor": "pergroup",
+  "technique_summary": "PR #1855 9-knob hyperparameter stack + PR #1908 activation-aware GPTQ mixed precision (AWQ-lite). Training identical to PR #1855. Post-training: AWQ_LITE_ENABLED=1 selects 1 salient 64-column group per weight matrix via activation RMS * weight magnitude saliency, quantizes at int8 (vs int6 baseline) inside the same GPTQ solve. LQER asymmetric rank-4 correction on top. Per-group lrzip+brotli compression. Phased TTT eval (3 phases, prefix=2500 docs).",
+  "compliance": {
+    "artifact_bytes_max": 15978503,
+    "eval_time_max_s": 395.8
+  }
+}
