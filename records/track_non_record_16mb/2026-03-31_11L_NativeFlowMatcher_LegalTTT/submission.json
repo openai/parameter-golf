@@ -1,0 +1,92 @@
+{
+  "track": "non_record_16mb",
+  "val_bpb": 1.11990650,
+  "val_bpb_no_ttt": 1.12311579,
+  "val_bpb_no_ttt_3seed_mean": 1.12252020,
+  "val_bpb_no_ttt_3seed_std": 0.00151,
+  "model_file": "final_model.int6.ptz",
+  "model_bytes": 15630744,
+  "code_bytes": 115032,
+  "total_submission_bytes": 15745776,
+  "training_tokens_billions": 5.51,
+  "training_script": "train_gpt.py",
+  "hardware": "1×A100 PCIe 40GB",
+  "training_time_hours": 3.86,
+  "training_steps": 7000,
+  "quantization": "int6+int5[layers5,6]+zstd-16",
+  "architecture": "11L-512D-8H-4KV-3xMLP-BigramHash4096-NativeFlowMatcher256",
+  "num_layers": 11,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "mlp_mult": 3,
+  "model_params": 27530952,
+  "nfm_params": 393729,
+  "seed": 42,
+  "seeds_attempted": [42, 1337, 2025],
+  "seeds_completed": [42, 1337, 2025],
+  "date": "2026-03-31",
+  "eval_stride": 64,
+  "legal_ttt": {
+    "enabled": true,
+    "optimizer": "sgd",
+    "lr": 0.002,
+    "epochs": 10,
+    "freeze_blocks": 2,
+    "chunk_tokens": 32768,
+    "momentum": 0.9,
+    "grad_clip": 1.0,
+    "total_chunks": 1893,
+    "eval_time_seconds": 7190
+  },
+  "native_flow_matcher": {
+    "hidden_dim": 256,
+    "init_scale": 0.01,
+    "loss_weight": 0.1
+  },
+  "xsa_last_n": 11,
+  "bigram_vocab_size": 4096,
+  "bigram_dim": 128,
+  "seed_results": {
+    "seed_42": {
+      "slurm_training": 55342820,
+      "slurm_eval_legal_ttt": 55375245,
+      "slurm_eval_no_ttt": 55375246,
+      "roundtrip_bpb": 1.14679034,
+      "sliding_no_ttt_bpb": 1.12311579,
+      "sliding_legal_ttt_bpb": 1.11990650,
+      "artifact_bytes": 15745776
+    },
+    "seed_1337": {
+      "slurm_training": 55398556,
+      "slurm_eval_legal_ttt": 55411651,
+      "slurm_eval_no_ttt": 55411652,
+      "roundtrip_bpb": 1.14729126,
+      "sliding_no_ttt_bpb": 1.12366996,
+      "sliding_legal_ttt_bpb": null,
+      "artifact_bytes": 15736933
+    },
+    "seed_2025": {
+      "slurm_training": 55398557,
+      "slurm_eval_legal_ttt": 55411653,
+      "slurm_eval_no_ttt": 55411654,
+      "roundtrip_bpb": 1.14444585,
+      "sliding_no_ttt_bpb": 1.12077485,
+      "sliding_legal_ttt_bpb": null,
+      "artifact_bytes": 15745950
+    }
+  },
+  "slurm_jobs": {
+    "training": 55342820,
+    "eval_legal_ttt": 55375245,
+    "eval_no_ttt": 55375246,
+    "training_s1337": 55398556,
+    "training_s2025": 55398557,
+    "eval_s1337_legal_ttt": 55411651,
+    "eval_s1337_no_ttt": 55411652,
+    "eval_s2025_legal_ttt": 55411653,
+    "eval_s2025_no_ttt": 55411654,
+    "e2ettt_flow_eval": 55398555
+  },
+  "note": "Three-seed reproducibility achieved. Training and no-TTT sliding eval complete for all seeds. Legal TTT eval pending for seeds 1337, 2025."
+}
