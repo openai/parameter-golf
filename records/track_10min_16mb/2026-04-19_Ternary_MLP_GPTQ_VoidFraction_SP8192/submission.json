@@ -1,0 +1,19 @@
+{
+  "author": "G3sparky (Gavin Saunders)",
+  "name": "Non-record: Ternary MLP Quantization (Void Fraction) + SP8192 + Depth Recurrence",
+  "date": "2026-04-19",
+  "track": "10min_16mb",
+  "category": "non-record creative submission",
+  "val_bpb": 1.3262,
+  "seeds": {
+    "42": {
+      "val_bpb": 1.3262,
+      "artifact_bytes": 10891761
+    }
+  },
+  "hardware": "8xH100 80GB SXM (Vast.ai)",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "technique_summary": "Ternary {-1,0,+1} GPTQ quantization for MLP layers, int6 for attention, int8 for embeddings. Based on the void fraction invariant: 30% of trained weights converge to near-zero across seeds, matching the maximum-entropy distribution of a ternary code (1.585 bits/weight). Post-hoc quantization \u2014 QAT version in development.",
+  "github_id": "G3sparky"
+}
