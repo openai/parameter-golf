@@ -1,0 +1,11 @@
+{
+  "name": "Okezue Bell",
+  "github_id": "okezue",
+  "val_bpb": 1.1261,
+  "date": "2026-03-28",
+  "summary": "PP12: Bayesian posterior packets + selective gating on PR #549 stack. Distilled bigram posteriors serve as conjugate priors for online Bayesian cache during eval. Selective gating mixes only when packet is more confident than neural model.",
+  "base_pr": "#549",
+  "train_time_seconds": 600,
+  "eval_time_seconds": 531,
+  "hardware": "8xH100 SXM"
+}
