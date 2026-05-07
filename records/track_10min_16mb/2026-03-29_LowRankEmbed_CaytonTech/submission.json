@@ -1,0 +1,10 @@
+{
+    "name": "Cayton",
+    "github_id": "Cayton-Tech",
+    "val_bpb": 1.3902,
+    "val_bpb_rank128": 1.3440,
+    "baseline_val_bpb": 1.3192,
+    "hardware": "1xH100 SXM (RunPod)",
+    "training_time_seconds": 900,
+    "notes": "Non-record exploratory submission. ALBERT-style low-rank embedding factorisation ablation study (rank 64 and rank 128). Negative result: low-rank embedding does not improve BPB at 1024-token vocabulary scale."
+}
