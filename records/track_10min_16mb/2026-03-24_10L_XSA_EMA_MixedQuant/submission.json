@@ -1,0 +1,10 @@
+{
+  "submission_name": "Exp 001 - 11L Frontier MixedQuant Trigram",
+  "author": "Antigravity",
+  "method_description": "11-Layer 512-dim GPT model. Features TrigramHash (2048x128) and BigramHash embeddings, U-Net Skip Gates, Star-ReLU, NTK-Aware RoPE, and Mixed INT6/INT8 Quantization. Pruning was explicitly disabled, relying purely on zlib compression which failed the artifact limit.",
+  "parameters": "27.19M",
+  "validation_bpb": "1.3434",
+  "training_time_seconds": "600",
+  "hardware_used": "8x H100 SXM",
+  "artifact_bytes": "19362024"
+}
