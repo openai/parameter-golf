@@ -1,0 +1,13 @@
+numpy
+torch
+sentencepiece
+tqdm
+huggingface-hub
+datasets
+tiktoken
+setuptools
+typing-extensions==4.15.0
+
+# Optional accelerators; the packaged script has fallbacks if these are absent.
+zstandard
+flash-attn
