@@ -1,0 +1,17 @@
+[
+  {
+    "name": "final_model.int6.ptz",
+    "bytes": 15249936,
+    "sha256": "E5AFFC0AEE175584F074B2A2C4A6F9EB3EE765DDD39ADEFC07BF88C7F57AD6D5"
+  },
+  {
+    "name": "final_model.pt",
+    "bytes": 128439859,
+    "sha256": "22F4AF1E0852646078B9ACF0E2D120ED3EEEC94B16D323DE430FCAF5E740490D"
+  },
+  {
+    "name": "final_model_pre_quant.pt",
+    "bytes": 128440479,
+    "sha256": "28CD107F1809341531ADE08FBB9B024E673A893536436D63CEFD079316DE1AC9"
+  }
+]
