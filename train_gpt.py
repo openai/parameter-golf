@@ -56,6 +56,10 @@ class Hyperparameters:
     warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
     train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    enable_sliding_eval = bool(int(os.environ.get("ENABLE_SLIDING_EVAL", "0")))
+    sliding_eval_window_len = int(os.environ.get("SLIDING_EVAL_WINDOW_LEN", str(train_seq_len)))
+    sliding_eval_stride = int(os.environ.get("SLIDING_EVAL_STRIDE", str(max(train_seq_len // 2, 1))))
+    final_roundtrip_use_sliding = bool(int(os.environ.get("FINAL_ROUNDTRIP_USE_SLIDING", "0")))
     max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
     qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
 
@@ -265,6 +269,128 @@ def eval_val(
             token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
             token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
             val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+
+def build_sliding_eval_windows(total_tokens: int, window_len: int, stride: int) -> list[tuple[int, int, int]]:
+    """Build overlapping eval windows that partition predictions exactly once."""
+    if window_len <= 0:
+        raise ValueError(f"SLIDING_EVAL_WINDOW_LEN must be positive, got {window_len}")
+    if stride <= 0:
+        raise ValueError(f"SLIDING_EVAL_STRIDE must be positive, got {stride}")
+    if stride > window_len:
+        raise ValueError(
+            "SLIDING_EVAL_STRIDE must be <= SLIDING_EVAL_WINDOW_LEN to avoid uncovered gaps; "
+            f"got stride={stride}, window_len={window_len}"
+        )
+    if total_tokens <= 0:
+        return []
+
+    last_start = max(total_tokens - window_len, 0)
+    window_starts = list(range(0, last_start + 1, stride))
+    if window_starts[-1] != last_start:
+        window_starts.append(last_start)
+
+    windows: list[tuple[int, int, int]] = []
+    prev_end = 0
+    for i, window_start in enumerate(window_starts):
+        window_end = min(window_start + window_len, total_tokens)
+        score_start = 0 if i == 0 else prev_end
+        if score_start < window_start:
+            raise RuntimeError(
+                f"Sliding eval overlap accounting underflowed for window_start={window_start} score_start={score_start}"
+            )
+        if score_start >= window_end:
+            raise RuntimeError(
+                f"Sliding eval overlap accounting would score zero tokens for window_start={window_start} "
+                f"window_end={window_end} score_start={score_start}"
+            )
+        windows.append((window_start, window_end, score_start))
+        prev_end = window_end
+
+    if prev_end != total_tokens:
+        raise RuntimeError(f"Sliding eval windows ended at {prev_end}, expected {total_tokens}")
+    return windows
+
+
+def eval_val_sliding(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+    window_len: int,
+    stride: int,
+) -> tuple[float, float]:
+    # Sliding-window validation uses overlapping windows, but only scores the
+    # newly introduced suffix of each later window so every prediction is counted once.
+    total_tokens = val_tokens.numel() - 1
+    windows = build_sliding_eval_windows(total_tokens, window_len, stride)
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    if local_batch_tokens < window_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sliding window per rank; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, SLIDING_EVAL_WINDOW_LEN={window_len}"
+        )
+    local_batch_windows = max(local_batch_tokens // window_len, 1)
+    window_start_idx = (len(windows) * rank) // world_size
+    window_end_idx = (len(windows) * (rank + 1)) // world_size
+    my_windows = windows[window_start_idx:window_end_idx]
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.inference_mode():
+        for batch_window_start in range(0, len(my_windows), local_batch_windows):
+            batch_windows = my_windows[batch_window_start : batch_window_start + local_batch_windows]
+            bsz = len(batch_windows)
+            x_batch = torch.zeros(bsz, window_len, dtype=torch.int64, device=device)
+            y_batch = torch.zeros(bsz, window_len, dtype=torch.int64, device=device)
+            batch_ranges: list[tuple[int, int]] = []
+
+            for i, (window_start, window_end, score_start) in enumerate(batch_windows):
+                curr_window_len = window_end - window_start
+                score_start_local = score_start - window_start
+                chunk = val_tokens[window_start : window_end + 1].to(device=device, dtype=torch.int64, non_blocking=True)
+                x_batch[i, :curr_window_len] = chunk[:-1]
+                y_batch[i, :curr_window_len] = chunk[1:]
+                batch_ranges.append((curr_window_len, score_start_local))
+
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                logits = model.forward_logits(x_batch)
+
+            nll = F.cross_entropy(
+                logits.reshape(-1, logits.size(-1)).float(),
+                y_batch.reshape(-1),
+                reduction="none",
+            ).reshape(bsz, window_len)
+
+            for i, (curr_window_len, score_start_local) in enumerate(batch_ranges):
+                scored_nll = nll[i, score_start_local:curr_window_len].to(torch.float64)
+                val_loss_sum += scored_nll.sum()
+                val_token_count += float(curr_window_len - score_start_local)
+                prev_ids = x_batch[i, score_start_local:curr_window_len]
+                tgt_ids = y_batch[i, score_start_local:curr_window_len]
+                token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+                token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+                val_byte_count += token_bytes.to(torch.float64).sum()
 
     if dist.is_available() and dist.is_initialized():
         dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
@@ -723,6 +849,30 @@ class GPT(nn.Module):
         logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
         return F.cross_entropy(logits.float(), targets, reduction="mean")
 
+    def forward_logits(self, input_ids: Tensor) -> Tensor:
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+
+        # First half stores skips; second half reuses them in reverse order.
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+
+        x = self.final_norm(x)
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(x)
+        return self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+
 
 # -----------------------------
 # TRAINING
@@ -733,6 +883,12 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
+    if args.enable_sliding_eval or args.final_roundtrip_use_sliding:
+        build_sliding_eval_windows(
+            total_tokens=max(args.train_seq_len, args.sliding_eval_window_len),
+            window_len=args.sliding_eval_window_len,
+            stride=args.sliding_eval_stride,
+        )
     zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
@@ -818,6 +974,10 @@ def main() -> None:
     log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
     log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
     log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+    log0(
+        f"sliding_eval:enabled={args.enable_sliding_eval} window_len={args.sliding_eval_window_len} "
+        f"stride={args.sliding_eval_stride} final_roundtrip_use_sliding={args.final_roundtrip_use_sliding}"
+    )
 
     # -----------------------------
     # MODEL + OPTIMIZER SETUP
@@ -977,6 +1137,7 @@ def main() -> None:
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            t_eval = time.perf_counter()
             val_loss, val_bpb = eval_val(
                 args,
                 model,
@@ -989,10 +1150,38 @@ def main() -> None:
                 has_leading_space_lut,
                 is_boundary_token_lut,
             )
+            torch.cuda.synchronize()
+            standard_eval_time_ms = 1000.0 * (time.perf_counter() - t_eval)
             log0(
-                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
-                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+                f"step:{step}/{args.iterations} eval_mode:standard val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms "
+                f"eval_time:{standard_eval_time_ms:.0f}ms"
             )
+            if args.enable_sliding_eval:
+                torch.cuda.synchronize()
+                t_eval = time.perf_counter()
+                sliding_val_loss, sliding_val_bpb = eval_val_sliding(
+                    args,
+                    base_model,
+                    rank,
+                    world_size,
+                    device,
+                    grad_accum_steps,
+                    val_tokens,
+                    base_bytes_lut,
+                    has_leading_space_lut,
+                    is_boundary_token_lut,
+                    window_len=args.sliding_eval_window_len,
+                    stride=args.sliding_eval_stride,
+                )
+                torch.cuda.synchronize()
+                sliding_eval_time_ms = 1000.0 * (time.perf_counter() - t_eval)
+                log0(
+                    f"step:{step}/{args.iterations} eval_mode:sliding val_loss:{sliding_val_loss:.4f} "
+                    f"val_bpb:{sliding_val_bpb:.4f} train_time:{training_time_ms:.0f}ms "
+                    f"step_avg:{training_time_ms / max(step, 1):.2f}ms eval_time:{sliding_eval_time_ms:.0f}ms "
+                    f"window_len:{args.sliding_eval_window_len} stride:{args.sliding_eval_stride}"
+                )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 
@@ -1099,7 +1288,7 @@ def main() -> None:
     base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
-    q_val_loss, q_val_bpb = eval_val(
+    standard_q_val_loss, standard_q_val_bpb = eval_val(
         args,
         model,
         rank,
@@ -1112,11 +1301,68 @@ def main() -> None:
         is_boundary_token_lut,
     )
     torch.cuda.synchronize()
+    standard_q_eval_time_ms = 1000.0 * (time.perf_counter() - t_qeval)
     log0(
-        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
-        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+        f"final_int8_zlib_roundtrip_standard val_loss:{standard_q_val_loss:.4f} val_bpb:{standard_q_val_bpb:.4f} "
+        f"eval_time:{standard_q_eval_time_ms:.0f}ms"
     )
-    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+    log0(
+        f"final_int8_zlib_roundtrip_standard_exact val_loss:{standard_q_val_loss:.8f} "
+        f"val_bpb:{standard_q_val_bpb:.8f}"
+    )
+
+    use_sliding_roundtrip = args.enable_sliding_eval or args.final_roundtrip_use_sliding
+    sliding_q_val_loss: float | None = None
+    sliding_q_val_bpb: float | None = None
+    sliding_q_eval_time_ms: float | None = None
+    if use_sliding_roundtrip:
+        torch.cuda.synchronize()
+        t_qeval = time.perf_counter()
+        sliding_q_val_loss, sliding_q_val_bpb = eval_val_sliding(
+            args,
+            base_model,
+            rank,
+            world_size,
+            device,
+            grad_accum_steps,
+            val_tokens,
+            base_bytes_lut,
+            has_leading_space_lut,
+            is_boundary_token_lut,
+            window_len=args.sliding_eval_window_len,
+            stride=args.sliding_eval_stride,
+        )
+        torch.cuda.synchronize()
+        sliding_q_eval_time_ms = 1000.0 * (time.perf_counter() - t_qeval)
+        log0(
+            f"final_int8_zlib_roundtrip_sliding val_loss:{sliding_q_val_loss:.4f} val_bpb:{sliding_q_val_bpb:.4f} "
+            f"eval_time:{sliding_q_eval_time_ms:.0f}ms window_len:{args.sliding_eval_window_len} "
+            f"stride:{args.sliding_eval_stride}"
+        )
+        log0(
+            f"final_int8_zlib_roundtrip_sliding_exact val_loss:{sliding_q_val_loss:.8f} "
+            f"val_bpb:{sliding_q_val_bpb:.8f}"
+        )
+
+    selected_q_val_loss = standard_q_val_loss
+    selected_q_val_bpb = standard_q_val_bpb
+    selected_q_eval_time_ms = standard_q_eval_time_ms
+    selected_q_mode = "standard"
+    if args.final_roundtrip_use_sliding:
+        if sliding_q_val_loss is None or sliding_q_val_bpb is None or sliding_q_eval_time_ms is None:
+            raise RuntimeError("FINAL_ROUNDTRIP_USE_SLIDING=1 requires sliding roundtrip evaluation to run")
+        selected_q_val_loss = sliding_q_val_loss
+        selected_q_val_bpb = sliding_q_val_bpb
+        selected_q_eval_time_ms = sliding_q_eval_time_ms
+        selected_q_mode = "sliding"
+    log0(
+        f"final_int8_zlib_roundtrip eval_mode:{selected_q_mode} val_loss:{selected_q_val_loss:.4f} "
+        f"val_bpb:{selected_q_val_bpb:.4f} eval_time:{selected_q_eval_time_ms:.0f}ms"
+    )
+    log0(
+        f"final_int8_zlib_roundtrip_exact eval_mode:{selected_q_mode} val_loss:{selected_q_val_loss:.8f} "
+        f"val_bpb:{selected_q_val_bpb:.8f}"
+    )
 
     if distributed:
         dist.destroy_process_group()
