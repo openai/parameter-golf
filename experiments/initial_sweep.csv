@@ -1,0 +1,9 @@
+run_id,profile,stage,variant,focus,gpu_tier,env_overrides,promote_if
+pg_base_sp1024_l9_d512_h8_kv4_m2_tb524k_sl1024_ref_s1337,cuda-baseline-1x,base,sp1024,ref,1xh100,,baseline anchor
+pg_sweep_sp1024_l9_d512_h8_kv4_m2_tb524k_sl1024_qk125_s1337,cuda-baseline-1x,sweep,sp1024,qk125,1xh100,QK_GAIN_INIT=1.25,post_quant_bpb improves by >=0.003 or quant_delta shrinks by >=0.003
+pg_sweep_sp1024_l9_d512_h8_kv4_m2_tb524k_sl1024_qk175_s1337,cuda-baseline-1x,sweep,sp1024,qk175,1xh100,QK_GAIN_INIT=1.75,post_quant_bpb improves by >=0.003 or quant_delta shrinks by >=0.003
+pg_sweep_sp1024_l9_d512_h8_kv4_m2_tb524k_sl1024_soft20_s1337,cuda-baseline-1x,sweep,sp1024,soft20,1xh100,LOGIT_SOFTCAP=20,post_quant_bpb improves by >=0.003 or quant_delta shrinks by >=0.003
+pg_sweep_sp1024_l9_d512_h8_kv4_m2_tb524k_sl1024_soft40_s1337,cuda-baseline-1x,sweep,sp1024,soft40,1xh100,LOGIT_SOFTCAP=40,post_quant_bpb improves by >=0.003 or quant_delta shrinks by >=0.003
+pg_sweep_sp1024_l9_d512_h8_kv4_m2_tb524k_sl1024_tie003_s1337,cuda-baseline-1x,sweep,sp1024,tie003,1xh100,TIED_EMBED_LR=0.03,post_quant_bpb improves by >=0.003
+pg_sweep_sp1024_l9_d512_h8_kv4_m2_tb524k_sl1024_mlr005_s1337,cuda-baseline-1x,sweep,sp1024,mlr005,1xh100,MATRIX_LR=0.05,post_quant_bpb improves by >=0.003 or step_avg_ms improves by >=8 percent with regression <0.002
+pg_sweep_sp1024_l9_d512_h8_kv4_m2_tb524k_sl768_ctx_s1337,cuda-baseline-1x,sweep,sp1024,ctx,1xh100,TRAIN_SEQ_LEN=768,post_quant_bpb improves by >=0.003 or step_avg_ms improves by >=8 percent with regression <0.002
