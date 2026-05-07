@@ -1,0 +1,16 @@
+{
+  "author": "aamodbhatt",
+  "github_id": "aamodbhatt",
+  "name": "Compact 12x384 1xH100 10m",
+  "blurb": "Non-record 16MB track run on 1xH100 for 10 minutes using a smaller 12-layer 384-dim architecture with GQA (6 heads, 3 KV heads). This experiment targets a stronger size-quality tradeoff versus baseline, producing a 9.67MB total int8+zlib artifact and a final roundtrip score of 1.3693 val_bpb.",
+  "date": "2026-03-19T14:53:09Z",
+  "val_loss": 2.31202878,
+  "val_bpb": 1.36931367,
+  "pre_quant_val_loss": 2.3095,
+  "pre_quant_val_bpb": 1.3678,
+  "step_stop": 1029,
+  "wallclock_seconds": 600.027,
+  "bytes_total": 9668102,
+  "bytes_model_int8_zlib": 9620416,
+  "bytes_code": 47686
+}
