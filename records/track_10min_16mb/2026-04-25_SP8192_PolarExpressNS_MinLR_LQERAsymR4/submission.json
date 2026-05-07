@@ -1,0 +1,41 @@
+{
+  "author": "AjAnubolu",
+  "github_id": "AjAnubolu",
+  "name": "SP8192 + PR #1790 Base + Polar Express NS + MIN_LR + LQER Asym Rank-4",
+  "date": "2026-04-25",
+  "track": "10min_16mb",
+  "val_bpb": 1.06766,
+  "val_bpb_std": 0.00076,
+  "seeds": [1337, 42, 2025],
+  "seed_results": {
+    "1337": {"val_bpb": 1.06699, "artifact_bytes": 15953831},
+    "42":   {"val_bpb": 1.06751, "artifact_bytes": 15950901},
+    "2025": {"val_bpb": 1.06849, "artifact_bytes": 15948627}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu128",
+  "technique_summary": "PR #1790 base (SP8192 + SmearGate + AttnOutGate w24 + LoRA-TTT improvements + Phased TTT) + Polar Express Newton-Schulz coefficients (PR #1344) + MIN_LR=0.10 warmdown floor (PR #1787) + LQER asymmetric rank-4 GPTQ residual correction, top-K=3 (PR #1797)",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt_on_val": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true,
+    "no_text_normalization": true,
+    "bpb_on_original_bytes": true
+  },
+  "attribution": {
+    "pr1790_base": "@miaoyuxun (PR #1790)",
+    "sp8192_base": "@bigbag (PR #1493)",
+    "smeargate_attn_out_gate": "@MarioPaerle (PR #1667)",
+    "lora_ttt_improvements": "@renqianluo (PR #1767)",
+    "phased_ttt": "@jorge-asenjo (PR #1700)",
+    "polar_express_ns": "PR #1344",
+    "min_lr_warmdown_floor": "PR #1787",
+    "lqer_asymmetric_rank4": "PR #1797"
+  }
+}
