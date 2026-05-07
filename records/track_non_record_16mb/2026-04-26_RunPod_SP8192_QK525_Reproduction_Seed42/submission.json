@@ -1,0 +1,36 @@
+{
+  "author": "sricursion",
+  "github_id": "sricursion",
+  "name": "RunPod reproduction evidence: SP8192 QK-Gain 5.25 seed 42",
+  "date": "2026-04-26",
+  "track": "non_record_16mb",
+  "status": "non_record_reproduction_evidence",
+  "val_bpb": 1.09924840,
+  "val_bpb_type": "quantized_chunked_eval",
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "prequant_post_ema_bpb": 1.08710081,
+      "quantized_chunked_bpb": 1.09924840,
+      "artifact_bytes": 15992604,
+      "compressed_model_bytes": 15976010,
+      "train_time_ms": 588080,
+      "train_steps": 4575
+    }
+  },
+  "hardware": "8x NVIDIA H100 80GB HBM3",
+  "gpu_count": 8,
+  "volume_disk_gb": 200,
+  "container_disk_gb": 50,
+  "technique_summary": "Single-seed RunPod reproduction of the public SP8192 + 3-layer recurrence + parallel residual + QK-gain 5.25 + legal TTT record script.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": false,
+    "complete_sliding_window_eval": false,
+    "complete_ttt_eval": false,
+    "three_seeds": false,
+    "new_sota_claim": false
+  },
+  "notes": "The original run completed training and failed during packaging due to missing brotli. A recovery pass installed brotli, packaged an under-16MB artifact, and completed quantized chunked eval, then failed before sliding-window and TTT eval due to a temporary recovery-wrapper TorchDynamo import issue."
+}
