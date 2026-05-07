@@ -1,0 +1,244 @@
+Collecting zstandard
+  WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'ReadTimeoutError("HTTPSConnectionPool(host='files.pythonhosted.org', port=443): Read timed out. (read timeout=15)")': /packages/bb/1f/e9cfd801a3f9190bf3e759c422bbfd2247db9d7f3d54a56ecde70137791a/zstandard-0.25.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata
+  Downloading zstandard-0.25.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (3.3 kB)
+Requirement already satisfied: packaging in /usr/local/lib/python3.11/dist-packages (24.1)
+Collecting ninja
+  Downloading ninja-1.13.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (5.1 kB)
+Collecting sentencepiece
+  Downloading sentencepiece-0.2.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (10 kB)
+Collecting huggingface_hub
+  Downloading huggingface_hub-1.7.2-py3-none-any.whl.metadata (13 kB)
+Collecting datasets
+  Downloading datasets-4.8.4-py3-none-any.whl.metadata (19 kB)
+Requirement already satisfied: filelock>=3.10.0 in /usr/local/lib/python3.11/dist-packages (from huggingface_hub) (3.13.1)
+Requirement already satisfied: fsspec>=2023.5.0 in /usr/local/lib/python3.11/dist-packages (from huggingface_hub) (2024.2.0)
+Collecting hf-xet<2.0.0,>=1.4.2 (from huggingface_hub)
+  Downloading hf_xet-1.4.2-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Requirement already satisfied: httpx<1,>=0.23.0 in /usr/local/lib/python3.11/dist-packages (from huggingface_hub) (0.27.2)
+Requirement already satisfied: pyyaml>=5.1 in /usr/local/lib/python3.11/dist-packages (from huggingface_hub) (6.0.2)
+Collecting tqdm>=4.42.1 (from huggingface_hub)
+  Downloading tqdm-4.67.3-py3-none-any.whl.metadata (57 kB)
+Collecting typer (from huggingface_hub)
+  Downloading typer-0.24.1-py3-none-any.whl.metadata (16 kB)
+Requirement already satisfied: typing-extensions>=4.1.0 in /usr/local/lib/python3.11/dist-packages (from huggingface_hub) (4.9.0)
+Requirement already satisfied: numpy>=1.17 in /usr/local/lib/python3.11/dist-packages (from datasets) (1.26.3)
+Collecting pyarrow>=21.0.0 (from datasets)
+  Downloading pyarrow-23.0.1-cp311-cp311-manylinux_2_28_x86_64.whl.metadata (3.1 kB)
+Collecting dill<0.4.2,>=0.3.0 (from datasets)
+  Downloading dill-0.4.1-py3-none-any.whl.metadata (10 kB)
+Collecting pandas (from datasets)
+  Downloading pandas-3.0.1-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (79 kB)
+Requirement already satisfied: requests>=2.32.2 in /usr/local/lib/python3.11/dist-packages (from datasets) (2.32.3)
+Collecting xxhash (from datasets)
+  Downloading xxhash-3.6.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (13 kB)
+Collecting multiprocess<0.70.20 (from datasets)
+  Downloading multiprocess-0.70.19-py311-none-any.whl.metadata (7.5 kB)
+Collecting aiohttp!=4.0.0a0,!=4.0.0a1 (from fsspec[http]<=2026.2.0,>=2023.1.0->datasets)
+  Downloading aiohttp-3.13.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (8.1 kB)
+Requirement already satisfied: anyio in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface_hub) (4.6.0)
+Requirement already satisfied: certifi in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface_hub) (2024.8.30)
+Requirement already satisfied: httpcore==1.* in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface_hub) (1.0.5)
+Requirement already satisfied: idna in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface_hub) (3.10)
+Requirement already satisfied: sniffio in /usr/local/lib/python3.11/dist-packages (from httpx<1,>=0.23.0->huggingface_hub) (1.3.1)
+Requirement already satisfied: h11<0.15,>=0.13 in /usr/local/lib/python3.11/dist-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface_hub) (0.14.0)
+Requirement already satisfied: charset-normalizer<4,>=2 in /usr/local/lib/python3.11/dist-packages (from requests>=2.32.2->datasets) (3.3.2)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /usr/local/lib/python3.11/dist-packages (from requests>=2.32.2->datasets) (2.2.3)
+Requirement already satisfied: python-dateutil>=2.8.2 in /usr/local/lib/python3.11/dist-packages (from pandas->datasets) (2.9.0.post0)
+Collecting click>=8.2.1 (from typer->huggingface_hub)
+  Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+Collecting shellingham>=1.3.0 (from typer->huggingface_hub)
+  Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+Collecting rich>=12.3.0 (from typer->huggingface_hub)
+  Downloading rich-14.3.3-py3-none-any.whl.metadata (18 kB)
+Collecting annotated-doc>=0.0.2 (from typer->huggingface_hub)
+  Downloading annotated_doc-0.0.4-py3-none-any.whl.metadata (6.6 kB)
+Collecting aiohappyeyeballs>=2.5.0 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2026.2.0,>=2023.1.0->datasets)
+  Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl.metadata (5.9 kB)
+Collecting aiosignal>=1.4.0 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2026.2.0,>=2023.1.0->datasets)
+  Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+Requirement already satisfied: attrs>=17.3.0 in /usr/local/lib/python3.11/dist-packages (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2026.2.0,>=2023.1.0->datasets) (24.2.0)
+Collecting frozenlist>=1.1.1 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2026.2.0,>=2023.1.0->datasets)
+  Downloading frozenlist-1.8.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (20 kB)
+Collecting multidict<7.0,>=4.5 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2026.2.0,>=2023.1.0->datasets)
+  Downloading multidict-6.7.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.3 kB)
+Collecting propcache>=0.2.0 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2026.2.0,>=2023.1.0->datasets)
+  Downloading propcache-0.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (13 kB)
+Collecting yarl<2.0,>=1.17.0 (from aiohttp!=4.0.0a0,!=4.0.0a1->fsspec[http]<=2026.2.0,>=2023.1.0->datasets)
+  Downloading yarl-1.23.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (79 kB)
+Requirement already satisfied: six>=1.5 in /usr/lib/python3/dist-packages (from python-dateutil>=2.8.2->pandas->datasets) (1.16.0)
+Collecting markdown-it-py>=2.2.0 (from rich>=12.3.0->typer->huggingface_hub)
+  Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.11/dist-packages (from rich>=12.3.0->typer->huggingface_hub) (2.18.0)
+Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=12.3.0->typer->huggingface_hub)
+  Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+Downloading zstandard-0.25.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.6/5.6 MB 271.5 MB/s eta 0:00:00
+Downloading ninja-1.13.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (180 kB)
+Downloading sentencepiece-0.2.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (1.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.4/1.4 MB 249.4 MB/s eta 0:00:00
+Downloading huggingface_hub-1.7.2-py3-none-any.whl (618 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 618.0/618.0 kB 164.4 MB/s eta 0:00:00
+Downloading datasets-4.8.4-py3-none-any.whl (526 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 527.0/527.0 kB 115.9 MB/s eta 0:00:00
+Downloading dill-0.4.1-py3-none-any.whl (120 kB)
+Downloading hf_xet-1.4.2-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.2/4.2 MB 266.3 MB/s eta 0:00:00
+Downloading multiprocess-0.70.19-py311-none-any.whl (144 kB)
+Downloading pyarrow-23.0.1-cp311-cp311-manylinux_2_28_x86_64.whl (47.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 47.6/47.6 MB 290.3 MB/s eta 0:00:00
+Downloading tqdm-4.67.3-py3-none-any.whl (78 kB)
+Downloading pandas-3.0.1-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (11.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 11.3/11.3 MB 269.3 MB/s eta 0:00:00
+Downloading typer-0.24.1-py3-none-any.whl (56 kB)
+Downloading xxhash-3.6.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (193 kB)
+Downloading aiohttp-3.13.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (1.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 239.6 MB/s eta 0:00:00
+Downloading annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+Downloading click-8.3.1-py3-none-any.whl (108 kB)
+Downloading rich-14.3.3-py3-none-any.whl (310 kB)
+Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl (15 kB)
+Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+Downloading frozenlist-1.8.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (231 kB)
+Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+Downloading multidict-6.7.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (246 kB)
+Downloading propcache-0.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (210 kB)
+Downloading yarl-1.23.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (102 kB)
+Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+Installing collected packages: zstandard, xxhash, tqdm, shellingham, sentencepiece, pyarrow, propcache, ninja, multidict, mdurl, hf-xet, frozenlist, dill, click, annotated-doc, aiohappyeyeballs, yarl, pandas, multiprocess, markdown-it-py, aiosignal, rich, aiohttp, typer, huggingface_hub, datasets
+Successfully installed aiohappyeyeballs-2.6.1 aiohttp-3.13.3 aiosignal-1.4.0 annotated-doc-0.0.4 click-8.3.1 datasets-4.8.4 dill-0.4.1 frozenlist-1.8.0 hf-xet-1.4.2 huggingface_hub-1.7.2 markdown-it-py-4.0.0 mdurl-0.1.2 multidict-6.7.1 multiprocess-0.70.19 ninja-1.13.0 pandas-3.0.1 propcache-0.4.1 pyarrow-23.0.1 rich-14.3.3 sentencepiece-0.2.1 shellingham-1.5.4 tqdm-4.67.3 typer-0.24.1 xxhash-3.6.0 yarl-1.23.0 zstandard-0.25.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable.It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 24.2 -> 26.0.1
+[notice] To update, run: python3 -m pip install --upgrade pip
+fa3_prebuilt_downloaded:https://f005.backblazeb2.com/file/frozen2/fa3_h100_sxm_py311_torch24_cu124_20260324_155618.tar.gz
+fa3_prebuilt_import_ok:/workspace/prebuilt-fa3/lib.linux-x86_64-cpython-311/flash_attn_interface.py
+fa3_source:prebuilt
+find: 'data/datasets/fineweb10B_sp1024': No such file or directory
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+run_start:2026-03-24T17:27:40+00:00
+hostname:d9f16c3db648
+pwd:/workspace/parameter-golf
+python:Python 3.11.10
+git_head:630bb5ea65ef57eab0744a112b5a503fd7d461de
+fa3_lib:/workspace/prebuilt-fa3/lib.linux-x86_64-cpython-311
+disk_workspace:80G,17G,64G,22%
+disk_flash_attention:
+disk_prebuilt_fa3:1.5G
+NVIDIA H100 80GB HBM3, 0, 81559 MiB, 0 MiB, 0 %, 0 %
+NVIDIA H100 80GB HBM3, 1, 81559 MiB, 0 MiB, 0 %, 0 %
+NVIDIA H100 80GB HBM3, 2, 81559 MiB, 0 MiB, 0 %, 0 %
+NVIDIA H100 80GB HBM3, 3, 81559 MiB, 0 MiB, 0 %, 0 %
+NVIDIA H100 80GB HBM3, 4, 81559 MiB, 0 MiB, 0 %, 0 %
+NVIDIA H100 80GB HBM3, 5, 81559 MiB, 0 MiB, 0 %, 0 %
+NVIDIA H100 80GB HBM3, 6, 81559 MiB, 0 MiB, 0 %, 0 %
+NVIDIA H100 80GB HBM3, 7, 81559 MiB, 0 MiB, 0 %, 0 %
+{"fa3_import_ok": true, "module": "/workspace/prebuilt-fa3/lib.linux-x86_64-cpython-311/flash_attn_interface.py"}
+W0324 17:27:43.030000 139372727518336 torch/distributed/run.py:779] 
+W0324 17:27:43.030000 139372727518336 torch/distributed/run.py:779] *****************************************
+W0324 17:27:43.030000 139372727518336 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0324 17:27:43.030000 139372727518336 torch/distributed/run.py:779] *****************************************
+logs/a81cb836-33ed-4681-bbfd-cc1f142faa5a.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26993756
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[7, 8, 9, 10]
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+smear_init:-3.0 qat_settle_lr_mult:1.0
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9337 val_bpb:4.1065 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9354 train_time:283ms step_avg:283.25ms
+step:2/20000 train_loss:12.6333 train_time:374ms step_avg:186.85ms
+step:3/20000 train_loss:10.4231 train_time:468ms step_avg:156.15ms
+step:4/20000 train_loss:7.3692 train_time:563ms step_avg:140.81ms
+step:5/20000 train_loss:6.5023 train_time:657ms step_avg:131.47ms
+step:6/20000 train_loss:6.9233 train_time:752ms step_avg:125.28ms
+step:7/20000 train_loss:6.9716 train_time:846ms step_avg:120.88ms
+step:8/20000 train_loss:6.7814 train_time:940ms step_avg:117.54ms
+step:9/20000 train_loss:6.2291 train_time:1035ms step_avg:114.98ms
+step:10/20000 train_loss:5.9739 train_time:1130ms step_avg:113.01ms
+step:500/20000 train_loss:2.3774 train_time:48102ms step_avg:96.20ms
+step:1000/20000 train_loss:2.2601 train_time:96253ms step_avg:96.25ms
+step:1500/20000 train_loss:2.2055 train_time:144407ms step_avg:96.27ms
+step:2000/20000 train_loss:2.0557 train_time:192576ms step_avg:96.29ms
+step:2500/20000 train_loss:2.1543 train_time:240734ms step_avg:96.29ms
+step:3000/20000 train_loss:2.1460 train_time:288879ms step_avg:96.29ms
+step:3500/20000 train_loss:2.1532 train_time:337001ms step_avg:96.29ms
+step:4000/20000 train_loss:1.9480 train_time:385121ms step_avg:96.28ms
+step:4000/20000 val_loss:2.0351 val_bpb:1.2053 train_time:385126ms step_avg:96.28ms
+step:4500/20000 train_loss:2.0923 train_time:433236ms step_avg:96.27ms
+step:5000/20000 train_loss:2.0711 train_time:481351ms step_avg:96.27ms
+step:5500/20000 train_loss:1.9810 train_time:529448ms step_avg:96.26ms
+late_qat:enabled step:5709 scale:0.1498 qat_lr_mult:1.0000
+step:6000/20000 train_loss:1.9048 train_time:577554ms step_avg:96.26ms
+step:6233/20000 val_loss:1.9305 val_bpb:1.1433 train_time:600075ms step_avg:96.27ms
+stopping_early: wallclock_cap train_time:600075ms step:6233/20000
+peak memory allocated: 26552 MiB reserved: 27786 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9288 val_bpb:1.1424 eval_time:2021ms
+Serialized model: 106178100 bytes
+Code size: 80966 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 66 Hessians in 4.3s
+GPTQ:quantizing with Hessian error compensation...
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ quantization: 66 layers with full GPTQ, 0 fallback to clip-search
+GPTQ:total quantization time: 16.5s
+Serialized model int6+zstd: 15772843 bytes
+Total submission size int6+zstd: 15853809 bytes
+Total submission size int8+zlib: 15853809 bytes
+/workspace/parameter-golf/train_gpt.py:1641: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/workspace/parameter-golf/train_gpt.py:1641: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/workspace/parameter-golf/train_gpt.py:1641: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/workspace/parameter-golf/train_gpt.py:1641: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/workspace/parameter-golf/train_gpt.py:1641: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/workspace/parameter-golf/train_gpt.py:1641: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/workspace/parameter-golf/train_gpt.py:1641: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+/workspace/parameter-golf/train_gpt.py:1641: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  quant_state = torch.load(
+final_int6_roundtrip val_loss:1.9367 val_bpb:1.1470 eval_time:46867ms
+final_int6_roundtrip_exact val_loss:1.93673274 val_bpb:1.14704222
+final_int6_sliding_window val_loss:1.8968 val_bpb:1.1234 stride:64 eval_time:101665ms
+final_int6_sliding_window_exact val_loss:1.89675351 val_bpb:1.12336724
+final_int8_zlib_roundtrip_exact val_loss:1.89675351 val_bpb:1.12336724
+run_end:2026-03-24T17:43:27+00:00
+run_exit:0
