@@ -1,0 +1,11 @@
+{
+  "author": "Koei Yoshida",
+  "github_id": "ieuko",
+  "name": "Spatio-Temporal SNN Transformer",
+  "blurb": "10 Layers Spiking-MLP + ArcTan Surrogate Gradients + RBF Time Encoding on sp1024. Pushing the limits of biologically-inspired Spiking LLMs in a 10-minute constraint.",
+  "date": "2026-04-05T00:00:00Z",
+  "val_loss": 2.24877717,
+  "val_bpb": 1.33185251,
+  "bytes_total": 15794883,
+  "bytes_code": 51275
+}
