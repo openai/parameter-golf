@@ -1,0 +1,9 @@
+{
+  "name": "JEPA + AdamW TTT + Full GPTQ + FA3 + LZMA + XSA-All",
+  "val_bpb": 1.1085,
+  "bytes_total": 15977978,
+  "blurb": "Joint-Embedding Predictive Architecture (JEPA) auxiliary training signal + AdamW test-time training (pre-quantization, 3 epochs, cosine decay) + Full Hessian GPTQ int6 quantization + Flash-Attention 3 + LZMA compression + XSA on all 11 layers + LeakyReLU(0.5)^2 + BigramHash(2048) + SmearGate + EMA. Built from scratch with multi-AI collaboration (Claude, Codex, Gemini). Self-funded independent research across servers worldwide. Seed 1337, single run: 1.1085 BPB. 15,977,978 bytes total (under 16MB).",
+  "author": "NewyorkDev",
+  "github_id": "NewyorkDev",
+  "date": "2026-03-28"
+}
