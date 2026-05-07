@@ -1,0 +1,168 @@
+{
+  "cells": [
+    {
+      "name": "QAHSP \u03bb=0.3",
+      "size": 17028688,
+      "metrics": {
+        "pre-quantization post-ema": 1.07492939,
+        "quantized": 1.0894092,
+        "quantized_sliding_window": 1.07347521
+      }
+    },
+    {
+      "name": "ES \u03bb=0.05",
+      "size": 17022208,
+      "metrics": {
+        "pre-quantization post-ema": 1.07535789,
+        "quantized": 1.09022908,
+        "quantized_sliding_window": 1.07428482
+      }
+    },
+    {
+      "name": "AOS \u03bb=0.005",
+      "size": 17029456,
+      "metrics": {
+        "pre-quantization post-ema": 1.07579561,
+        "quantized": 1.09035483,
+        "quantized_sliding_window": 1.07445292
+      }
+    },
+    {
+      "name": "HSU \u03bb=0.1",
+      "size": 17030768,
+      "metrics": {
+        "pre-quantization post-ema": 1.07535949,
+        "quantized": 1.08993364,
+        "quantized_sliding_window": 1.07403453
+      }
+    },
+    {
+      "name": "WBC \u03bb=0.005",
+      "size": 17063164,
+      "metrics": {
+        "pre-quantization post-ema": 1.07646463,
+        "quantized": 1.09112469,
+        "quantized_sliding_window": 1.07521576
+      }
+    },
+    {
+      "name": "WOP \u03bb=0.5",
+      "size": 17029348,
+      "metrics": {
+        "pre-quantization post-ema": 1.07536867,
+        "quantized": 1.08962462,
+        "quantized_sliding_window": 1.07375795
+      }
+    },
+    {
+      "name": "PCS \u03bb=0.005",
+      "size": 17029124,
+      "metrics": {
+        "pre-quantization post-ema": 1.07595394,
+        "quantized": 1.09052669,
+        "quantized_sliding_window": 1.07462584
+      }
+    },
+    {
+      "name": "QAHSP+HSU pair",
+      "size": 17024280,
+      "metrics": {
+        "pre-quantization post-ema": 1.07532708,
+        "quantized": 1.08998156,
+        "quantized_sliding_window": 1.07408126
+      }
+    },
+    {
+      "name": "QAHSP+ES pair",
+      "size": 17027192,
+      "metrics": {
+        "pre-quantization post-ema": 1.07548971,
+        "quantized": 1.09006997,
+        "quantized_sliding_window": 1.07416475
+      }
+    },
+    {
+      "name": "HSU+ES pair",
+      "size": 17030228,
+      "metrics": {
+        "pre-quantization post-ema": 1.07558521,
+        "quantized": 1.09012842,
+        "quantized_sliding_window": 1.07422695
+      }
+    },
+    {
+      "name": "QAHSP+PCS pair",
+      "size": 17032068,
+      "metrics": {
+        "pre-quantization post-ema": 1.07614311,
+        "quantized": 1.09061423,
+        "quantized_sliding_window": 1.07474981
+      }
+    },
+    {
+      "name": "PQT + QAHSP \u03bb=0.3",
+      "size": 17023556,
+      "metrics": {
+        "pre-quantization post-ema": 1.07550024,
+        "post-prequant-ttt": 1.02901401,
+        "quantized": 1.05180787,
+        "quantized_sliding_window": 1.03985482
+      }
+    },
+    {
+      "name": "PQT + ES \u03bb=0.05",
+      "size": 17025048,
+      "metrics": {
+        "pre-quantization post-ema": 1.07516222,
+        "post-prequant-ttt": 1.02867971,
+        "quantized": 1.05144513,
+        "quantized_sliding_window": 1.03942213
+      }
+    },
+    {
+      "name": "Base B baseline (PR #1965)",
+      "size": 15977654,
+      "metrics": {
+        "pre-quantization post-ema": 1.06162051,
+        "quantized": 1.06995915,
+        "quantized_ttt_phased": 1.05822408
+      }
+    },
+    {
+      "name": "Base B + SimCTG+QAHSP \u03bb=0.3",
+      "size": 15972592,
+      "metrics": {
+        "pre-quantization post-ema": 1.06414265,
+        "quantized": 1.07235931,
+        "quantized_ttt_phased": 1.06047215
+      }
+    },
+    {
+      "name": "Base B + SimCTG+QAHSP \u03bb=0.1",
+      "size": 15974388,
+      "metrics": {
+        "pre-quantization post-ema": 1.06235812,
+        "quantized": 1.07065788,
+        "quantized_ttt_phased": 1.05880775
+      }
+    },
+    {
+      "name": "Base B + ES \u03bb=0.05",
+      "size": 15972817,
+      "metrics": {
+        "pre-quantization post-ema": 1.06333929,
+        "quantized": 1.07184449,
+        "quantized_ttt_phased": 1.05993433
+      }
+    },
+    {
+      "name": "Base B + bigram(1024\u00d78)",
+      "size": 16013368,
+      "metrics": {
+        "pre-quantization post-ema": 1.06223567,
+        "quantized": 1.07064692,
+        "quantized_ttt_phased": 1.05886441
+      }
+    }
+  ]
+}
