@@ -1,0 +1,31 @@
+{
+  "name": "Universal Transformer + Depth Recurrence + FiLM + INT6 QAT + GPTQ",
+  "track": "non_record_16mb",
+  "date": "2026-04-15",
+  "author": "Gabriele Adorni",
+  "github_id": "thestbobo",
+  "status": "DRAFT — awaiting compute run",
+  "val_bpb": null,
+  "val_bpb_std": null,
+  "seeds": [42, 314, 999],
+  "seed_results": {},
+  "artifact_size_bytes": null,
+  "hardware": "8xH100 80GB SXM (requested)",
+  "pytorch_version": null,
+  "technique_summary": "Universal Transformer (K=6 unique blocks × R=4 recurrence steps = 24 effective layers). FiLM conditioning (per-block, per-step gamma/beta [R,D] parameters) allows shared weights to express step-dependent transformations. U-Net skip connections adapted for the recurrence loop. BigramHash(2048, 512) bigram context embeddings. LeakyReLU(0.5)^2 activations. INT6 QAT with Straight-Through Estimator (starts at 10% of training). GPTQ-style per-row optimal clipping with percentile grid search {85, 90, 95, 100}. Muon WD=0.04. Sliding-window eval (stride=64) for final BPB.",
+  "compliance": {
+    "track": "non_record_16mb",
+    "artifact_under_16mb": true,
+    "uses_fineweb_val": true,
+    "bpb_metric_unchanged": true,
+    "tokenizer": "SP1024 (fineweb_1024_bpe.model)",
+    "eval_method": "sliding_window_stride64_final_roundtrip"
+  },
+  "attribution": {
+    "baseline": "openai/parameter-golf train_gpt.py",
+    "muon": "KellerJordan/modded-nanogpt",
+    "universal_transformer_paper": "Dehghani et al. ICLR 2019 arXiv:1807.03819",
+    "film_paper": "Perez et al. AAAI 2018",
+    "gptq_paper": "Frantar et al. ICLR 2023"
+  }
+}
