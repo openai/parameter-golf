@@ -1,0 +1,47 @@
+W0429 11:37:05.558000 226 torch/distributed/run.py:803] 
+W0429 11:37:05.558000 226 torch/distributed/run.py:803] *****************************************
+W0429 11:37:05.558000 226 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0429 11:37:05.558000 226 torch/distributed/run.py:803] *****************************************
+[Rank 4] CUDA_VISIBLE_DEVICES=4 (cuda:0 → physical GPU 4) | world_size=8
+[Rank 2] CUDA_VISIBLE_DEVICES=2 (cuda:0 → physical GPU 2) | world_size=8
+[Rank 5] CUDA_VISIBLE_DEVICES=5 (cuda:0 → physical GPU 5) | world_size=8
+[Rank 7] CUDA_VISIBLE_DEVICES=7 (cuda:0 → physical GPU 7) | world_size=8
+[Rank 3] CUDA_VISIBLE_DEVICES=3 (cuda:0 → physical GPU 3) | world_size=8
+[Rank 6] CUDA_VISIBLE_DEVICES=6 (cuda:0 → physical GPU 6) | world_size=8
+[Rank 1] CUDA_VISIBLE_DEVICES=1 (cuda:0 → physical GPU 1) | world_size=8
+[Rank 0] CUDA_VISIBLE_DEVICES=0 (cuda:0 → physical GPU 0) | world_size=8
+[Logger] Writing to: run_20260429T113714Z.record
+[SizeCheck] hidden=512 moe=1024 → est LZMA≈34.31 MB
+[SizeCheck] hidden=480 moe=960 → est LZMA≈30.33 MB
+[SizeCheck] hidden=448 moe=896 → est LZMA≈26.59 MB
+[SizeCheck] hidden=416 moe=832 → est LZMA≈23.10 MB
+[SizeCheck] hidden=384 moe=768 → est LZMA≈19.85 MB
+[rank4]:[W429 11:37:16.338264719 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+[SizeCheck] hidden=352 moe=704 → est LZMA≈16.85 MB
+[SizeCheck] hidden=344 moe=688 → est LZMA≈16.14 MB
+[rank5]:[W429 11:37:16.705048389 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+[SizeCheck] hidden=336 moe=672 → est LZMA≈15.44 MB
+=================================================================
+  DEEP MACARON — Competition Run — H100 8×
+  Macaron layer structure (FFN -> Attn -> FFN)
+  MQA Attention, SwiGLU, SiLU
+  WSD (Warmup-Stable-Decay) Learning Rate Schedule
+  vocab=8192 hidden=336 layers=12
+=================================================================
+Loading tokeniser from disk …
+[rank1]:[W429 11:37:16.848211213 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+Computing top-K bias tokens (5000 docs) …
+[rank3]:[W429 11:37:17.924075537 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+[rank2]:[W429 11:37:17.041460460 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+[rank7]:[W429 11:37:17.137768734 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+[rank6]:[W429 11:37:17.223251910 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+/usr/local/lib/python3.12/dist-packages/torch/distributed/distributed_c10d.py:4876: UserWarning: barrier(): using the device under current context. You can specify `device_id` in `init_process_group` to mute this warning.
+  warnings.warn(  # warn only once
+[rank0]:[W429 11:37:31.042983705 ProcessGroupNCCL.cpp:5072] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+Tokeniser ready in 20.95s
+[Data] Prefetching 250,000,000 tokens / rank …
+  [Data] 25.0M / 250.0M tok (10%) — 0.6M tok/s
+  [Data] 50.0M / 250.0M tok (20%) — 0.6M tok/s
+  [Data] 75.0M / 250.0M tok (30%) — 0.6M tok/s
+  [Data] 100.0M / 250.0M tok (40%) — 0.6M tok/s
+  [Data] 125.0M / 250.0M tok (50%) — 0.6M tok/s
