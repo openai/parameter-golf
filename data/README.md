@@ -50,6 +50,18 @@ python3 data/download_hf_docs_and_tokenize.py \
   --tokenizer-config ./data/tokenizer_specs.json
 ```
 
+If you only want the raw byte export and do not want to spend time downloading or training SentencePiece artifacts, use the dedicated byte-only config:
+
+```bash
+python3 data/download_hf_docs_and_tokenize.py \
+  --repo-id your-hf-username/your-dataset-repo \
+  --remote-root your_50B_export_root \
+  --output-root /tmp/my_byte260_export \
+  --tokenizer-config ./data/tokenizer_specs.byte260_only.json
+```
+
+The default `tokenizer_specs.json` includes both `sp_bpe_1024` and `pure_byte_260`, so it will build both exports. The byte-only config is the faster option when you are rebuilding `byte260` specifically for RunPod staging.
+
 The sidecar `docs_selected.source_manifest.json` includes `docs_sha256`, so users can verify they are rebuilding from the exact same document list and order as the baseline export.
 
 ## Useful Knobs
