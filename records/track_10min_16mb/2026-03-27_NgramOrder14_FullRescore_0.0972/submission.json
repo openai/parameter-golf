@@ -1,0 +1,20 @@
+{
+  "val_bpb": 0.09721629,
+  "val_loss": 0.16414564,
+  "neural_val_bpb": 1.17203940,
+  "seeds": [42],
+  "seeds_pending": [1337, 2024],
+  "artifact_bytes": 15897989,
+  "train_time_ms": 600041,
+  "eval_time_ms": 555432,
+  "steps": 4436,
+  "model_params": 26993756,
+  "hardware": "8xH100 SXM 80GB",
+  "pytorch_version": "2.4.1+cu124",
+  "ngram_max_order": 14,
+  "ngram_full_rescore": true,
+  "ngram_two_pass": true,
+  "ngram_alpha_max": 0.70,
+  "ngram_chunk_tokens": 262144,
+  "ngram_buckets": 4194304
+}
