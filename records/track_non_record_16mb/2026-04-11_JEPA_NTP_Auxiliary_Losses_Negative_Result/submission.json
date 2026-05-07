@@ -1,0 +1,14 @@
+{
+  "name": "JEPA-NTP: Auxiliary Latent Losses for Next-Token Prediction (Negative Result)",
+  "author": "Sidhanth Krishna",
+  "github_id": "sidhanth97",
+  "date": "2026-04-11",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_bpb": 1.4352,
+  "val_loss": 2.4222,
+  "pre_quant_val_bpb": 1.4170,
+  "pre_quant_val_loss": 2.3915,
+  "bytes_total": 9903685,
+  "bytes_model_int8_zlib": 9903685,
+  "blurb": "Negative result: JEPA-style auxiliary losses (spectral variance floor + cosine-MSE latent prediction from LeWM/LeWorldModel) do not improve next-token prediction in the parameter golf regime. Across 6 experiments on 2xRTX PRO 6000 Blackwell GPUs, the compiled baseline (val_bpb 1.4152) beats all JEPA variants (best: 1.4170, +0.0018 worse) while being 20% faster. Also tested MQA + Value Embeddings from modded-nanogpt (1.4277, worse) and MQA+VE+3xMLP (1.4190, worse). Key finding: the spectral floor loss mechanically prevents dimensional collapse (effective rank 424->445/512) but this doesn't translate to better language modeling at 17M params. An initial apparent improvement was traced to a torch.compile confound. Includes full experimental framework with WandB diagnostics."
+}
