@@ -1,0 +1,223 @@
+W0428 05:09:50.182000 1364 torch/distributed/run.py:803] 
+W0428 05:09:50.182000 1364 torch/distributed/run.py:803] *****************************************
+W0428 05:09:50.182000 1364 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0428 05:09:50.182000 1364 torch/distributed/run.py:803] *****************************************
+  downloading sp9000 data from HF (Idan3011/parameter-golf-sp9000)...
+
+Fetching 83 files:   0%|          | 0/83 [00:00<?, ?it/s]
+Fetching 83 files:   1%|          | 1/83 [00:03<05:20,  3.91s/it]
+Fetching 83 files:   2%|▏         | 2/83 [00:04<02:20,  1.73s/it]
+Fetching 83 files:   8%|▊         | 7/83 [00:04<00:26,  2.84it/s]
+Fetching 83 files:  12%|█▏        | 10/83 [00:06<00:38,  1.91it/s]
+Fetching 83 files:  14%|█▍        | 12/83 [00:06<00:28,  2.46it/s]
+Fetching 83 files:  17%|█▋        | 14/83 [00:06<00:21,  3.25it/s]
+Fetching 83 files:  20%|██        | 17/83 [00:09<00:30,  2.15it/s]
+Fetching 83 files:  22%|██▏       | 18/83 [00:09<00:30,  2.12it/s]
+Fetching 83 files:  28%|██▊       | 23/83 [00:09<00:14,  4.05it/s]
+Fetching 83 files:  30%|███       | 25/83 [00:11<00:22,  2.57it/s]
+Fetching 83 files:  31%|███▏      | 26/83 [00:11<00:21,  2.61it/s]
+Fetching 83 files:  34%|███▎      | 28/83 [00:12<00:18,  2.95it/s]
+Fetching 83 files:  36%|███▌      | 30/83 [00:12<00:14,  3.60it/s]
+Fetching 83 files:  39%|███▊      | 32/83 [00:12<00:10,  4.66it/s]
+Fetching 83 files:  40%|███▉      | 33/83 [00:14<00:21,  2.30it/s]
+Fetching 83 files:  41%|████      | 34/83 [00:14<00:18,  2.63it/s]
+Fetching 83 files:  42%|████▏     | 35/83 [00:14<00:19,  2.51it/s]
+Fetching 83 files:  43%|████▎     | 36/83 [00:14<00:15,  3.02it/s]
+Fetching 83 files:  47%|████▋     | 39/83 [00:15<00:09,  4.58it/s]
+Fetching 83 files:  49%|████▉     | 41/83 [00:16<00:15,  2.65it/s]
+Fetching 83 files:  51%|█████     | 42/83 [00:17<00:16,  2.45it/s]
+Fetching 83 files:  52%|█████▏    | 43/83 [00:17<00:16,  2.37it/s]
+Fetching 83 files:  57%|█████▋    | 47/83 [00:17<00:07,  4.68it/s]
+Fetching 83 files:  58%|█████▊    | 48/83 [00:18<00:07,  4.49it/s]
+Fetching 83 files:  59%|█████▉    | 49/83 [00:19<00:15,  2.23it/s]
+Fetching 83 files:  60%|██████    | 50/83 [00:19<00:13,  2.36it/s]
+Fetching 83 files:  61%|██████▏   | 51/83 [00:20<00:12,  2.56it/s]
+Fetching 83 files:  64%|██████▍   | 53/83 [00:20<00:08,  3.35it/s]
+Fetching 83 files:  67%|██████▋   | 56/83 [00:20<00:05,  4.79it/s]
+Fetching 83 files:  69%|██████▊   | 57/83 [00:21<00:10,  2.55it/s]
+Fetching 83 files:  70%|██████▉   | 58/83 [00:22<00:10,  2.39it/s]
+Fetching 83 files:  71%|███████   | 59/83 [00:22<00:09,  2.43it/s]
+Fetching 83 files:  76%|███████▌  | 63/83 [00:23<00:04,  4.23it/s]
+Fetching 83 files:  77%|███████▋  | 64/83 [00:23<00:04,  4.58it/s]
+Fetching 83 files:  78%|███████▊  | 65/83 [00:24<00:08,  2.22it/s]
+Fetching 83 files:  80%|███████▉  | 66/83 [00:25<00:08,  2.12it/s]
+Fetching 83 files:  83%|████████▎ | 69/83 [00:25<00:03,  3.68it/s]
+Fetching 83 files:  86%|████████▌ | 71/83 [00:26<00:03,  3.85it/s]
+Fetching 83 files:  87%|████████▋ | 72/83 [00:26<00:02,  3.86it/s]
+Fetching 83 files:  88%|████████▊ | 73/83 [00:27<00:04,  2.00it/s]
+Fetching 83 files:  89%|████████▉ | 74/83 [00:28<00:04,  2.10it/s]
+Fetching 83 files:  92%|█████████▏| 76/83 [00:28<00:02,  2.97it/s]
+Fetching 83 files:  95%|█████████▌| 79/83 [00:28<00:01,  3.76it/s]
+Fetching 83 files:  98%|█████████▊| 81/83 [00:29<00:00,  2.88it/s]
+Fetching 83 files: 100%|██████████| 83/83 [00:29<00:00,  2.77it/s]
+  copied fineweb_train_000003.bin
+  copied fineweb_train_000002.bin
+  copied fineweb_train_000000.bin
+  copied fineweb_train_000005.bin
+  copied fineweb_train_000001.bin
+  copied fineweb_train_000004.bin
+  copied fineweb_train_000007.bin
+  copied fineweb_train_000006.bin
+  copied fineweb_train_000008.bin
+  copied fineweb_train_000009.bin
+  copied fineweb_train_000011.bin
+  copied fineweb_train_000012.bin
+  copied fineweb_train_000010.bin
+  copied fineweb_train_000014.bin
+  copied fineweb_train_000013.bin
+  copied fineweb_train_000015.bin
+  copied fineweb_train_000016.bin
+  copied fineweb_train_000019.bin
+  copied fineweb_train_000018.bin
+  copied fineweb_train_000020.bin
+  copied fineweb_train_000017.bin
+  copied fineweb_train_000021.bin
+  copied fineweb_train_000022.bin
+  copied fineweb_train_000023.bin
+  copied fineweb_train_000024.bin
+  copied fineweb_train_000025.bin
+  copied fineweb_train_000026.bin
+  copied fineweb_train_000028.bin
+  copied fineweb_train_000027.bin
+  copied fineweb_train_000030.bin
+  copied fineweb_train_000029.bin
+  copied fineweb_train_000031.bin
+  copied fineweb_train_000032.bin
+  copied fineweb_train_000033.bin
+  copied fineweb_train_000036.bin
+  copied fineweb_train_000034.bin
+  copied fineweb_train_000037.bin
+  copied fineweb_train_000035.bin
+  copied fineweb_train_000039.bin
+  copied fineweb_train_000038.bin
+  copied fineweb_train_000040.bin
+  copied fineweb_train_000041.bin
+  copied fineweb_train_000043.bin
+  copied fineweb_train_000044.bin
+  copied fineweb_train_000045.bin
+  copied fineweb_train_000042.bin
+  copied fineweb_train_000046.bin
+  copied fineweb_train_000047.bin
+  copied fineweb_train_000048.bin
+  copied fineweb_train_000049.bin
+  copied fineweb_train_000051.bin
+  copied fineweb_train_000050.bin
+  copied fineweb_train_000053.bin
+  copied fineweb_train_000052.bin
+  copied fineweb_train_000054.bin
+  copied fineweb_train_000055.bin
+  copied fineweb_train_000056.bin
+  copied fineweb_train_000057.bin
+  copied fineweb_train_000059.bin
+  copied fineweb_train_000060.bin
+  copied fineweb_train_000058.bin
+  copied fineweb_train_000061.bin
+  copied fineweb_train_000062.bin
+  copied fineweb_train_000063.bin
+  copied fineweb_train_000064.bin
+  copied fineweb_train_000065.bin
+  copied fineweb_train_000069.bin
+  copied fineweb_train_000066.bin
+  copied fineweb_train_000067.bin
+  copied fineweb_train_000068.bin
+  copied fineweb_train_000070.bin
+  copied fineweb_train_000071.bin
+  copied fineweb_train_000072.bin
+  copied fineweb_train_000073.bin
+  copied fineweb_train_000074.bin
+  copied fineweb_train_000076.bin
+  copied fineweb_train_000077.bin
+  copied fineweb_train_000075.bin
+  copied fineweb_train_000079.bin
+  copied fineweb_train_000078.bin
+  copied fineweb_val_000000.bin
+  copied fineweb_9000_bpe.vocab
+  copied fineweb_9000_bpe.model
+logs/7e4215f5-cd34-4a41-8e96-16ab16b214db.txt
+data:fineweb10B_sp9000 train_shards:80 val_tokens:40007680
+model_params:36100333 world_size:8 grad_accum:1 FA3:True
+effective_schedule len:18 idx:[0, 1, 2, 3, 4, 5, 3, 4, 5, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+batch:786432 seq:2048 warmup:20 wallclock:600s
+pre-warming looped compile graph (forward+backward+opt.step, 2 iters)...
+looped pre-warm done in 93.1s
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:9.1052 val_bpb:3.4786 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:9.1054 train_time:139ms step_avg:138.80ms
+step:2/20000 train_loss:12.4309 train_time:222ms step_avg:111.06ms
+step:3/20000 train_loss:11.5950 train_time:330ms step_avg:110.10ms
+step:4/20000 train_loss:10.0723 train_time:438ms step_avg:109.57ms
+step:5/20000 train_loss:8.7529 train_time:546ms step_avg:109.21ms
+step:6/20000 train_loss:7.9821 train_time:654ms step_avg:109.02ms
+step:7/20000 train_loss:7.4708 train_time:763ms step_avg:108.95ms
+step:8/20000 train_loss:7.2488 train_time:871ms step_avg:108.85ms
+step:9/20000 train_loss:7.0298 train_time:980ms step_avg:108.84ms
+step:10/20000 train_loss:7.0671 train_time:1094ms step_avg:109.42ms
+step:200/20000 train_loss:3.6852 train_time:21886ms step_avg:109.43ms
+step:400/20000 train_loss:3.0294 train_time:43813ms step_avg:109.53ms
+step:600/20000 train_loss:3.3999 train_time:65764ms step_avg:109.61ms
+step:800/20000 train_loss:3.2753 train_time:87769ms step_avg:109.71ms
+step:1000/20000 train_loss:3.3894 train_time:109724ms step_avg:109.72ms
+step:1000/20000 val_loss:3.2816 val_bpb:1.2537 train_time:109750ms step_avg:109.75ms
+step:1200/20000 train_loss:3.0941 train_time:131700ms step_avg:109.75ms
+step:1400/20000 train_loss:3.2518 train_time:153656ms step_avg:109.75ms
+step:1600/20000 train_loss:3.2103 train_time:175572ms step_avg:109.73ms
+step:1800/20000 train_loss:3.1894 train_time:197508ms step_avg:109.73ms
+step:2000/20000 train_loss:3.1841 train_time:219393ms step_avg:109.70ms
+step:2000/20000 val_loss:3.1702 val_bpb:1.2112 train_time:219419ms step_avg:109.71ms
+step:2200/20000 train_loss:3.1966 train_time:241320ms step_avg:109.69ms
+step:2400/20000 train_loss:3.1443 train_time:263140ms step_avg:109.64ms
+loop_activated step:2463 frac:0.450
+step:2600/20000 train_loss:3.0692 train_time:291688ms step_avg:112.19ms
+step:2800/20000 train_loss:3.2227 train_time:323319ms step_avg:115.47ms
+step:3000/20000 train_loss:2.9679 train_time:354908ms step_avg:118.30ms
+step:3000/20000 val_loss:3.0539 val_bpb:1.1667 train_time:354930ms step_avg:118.31ms
+step:3200/20000 train_loss:3.0773 train_time:386531ms step_avg:120.79ms
+step:3400/20000 train_loss:2.9771 train_time:418193ms step_avg:123.00ms
+step:3600/20000 train_loss:3.0394 train_time:449911ms step_avg:124.98ms
+step:3800/20000 train_loss:3.0329 train_time:481594ms step_avg:126.74ms
+step:4000/20000 train_loss:2.9784 train_time:513351ms step_avg:128.34ms
+step:4000/20000 val_loss:2.9318 val_bpb:1.1201 train_time:513373ms step_avg:128.34ms
+step:4200/20000 train_loss:2.9031 train_time:545182ms step_avg:129.81ms
+step:4400/20000 train_loss:2.9401 train_time:577056ms step_avg:131.15ms
+step:4544/20000 val_loss:2.8546 val_bpb:1.0906 train_time:600035ms step_avg:132.05ms
+stopping_early: wallclock_cap train_time:600035ms step:4544/20000
+peak memory allocated: 37811 MiB reserved: 39116 MiB
+swa: averaging 271 checkpoints on top of EMA
+ema: loading weights
+saved pre-GPTQ float checkpoint: 135236035 bytes
+pre-quantization post-ema val_loss:2.862487 val_bpb:1.093596 eval_time:2508ms
+calib: using 64 windows from train shard fineweb_train_000000.bin (seq_len=2048)
+gptq: using provided calibration (64 seqs)
+gptq: collecting Hessians...
+gptq: Hessians for 86 layers in 1.9s
+wte_rank1: svd residual ||res||_F=31.7468  ||rank1||_F=19.9673  energy_ratio=0.6290
+gptq: pass1 quantized 86 layers in 5.0s, total 6.9s
+Serialized model: 135235177 bytes  Code: 85588  Total: 135320765
+wte_rank1: stored u (9000,) + v (512,) (19024 bytes fp16)
+Serialized model int6+brotli: 14938442 bytes (payload:36334676 raw:36399767)
+code: raw=85588 compressed=24494 (ratio=0.29)
+Total submission size (raw code): 15024030 bytes
+Total submission size (compressed code): 14962936 bytes
+final_int8_zlib_roundtrip val_loss:2.8966 val_bpb:1.1066 eval_time:2516ms
+final_int8_zlib_roundtrip_exact val_loss:2.89663332 val_bpb:1.10664123
+final_sliding_window val_bpb:1.0902 eval_time:155318ms
+final_sliding_window_exact val_bpb:1.09023610
