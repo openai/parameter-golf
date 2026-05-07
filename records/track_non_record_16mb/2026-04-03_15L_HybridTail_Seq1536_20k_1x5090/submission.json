@@ -1,0 +1,18 @@
+{
+  "author": "Shasank",
+  "github_id": "shasank0001",
+  "name": "15L Hybrid Tail Ternary + Seq1536 (20k, 1x5090)",
+  "blurb": "Unlimited compute non-record submission: 15-layer MLP-only ternary branch with targeted tail-block precision promotion and seq1536 training on 1xRTX5090. Final roundtrip reached 1.22833292 under the 16MB cap.",
+  "date": "2026-04-03T11:44:41Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.07398758,
+  "val_bpb": 1.22833292,
+  "pre_quant_val_loss": 2.07253893,
+  "pre_quant_val_bpb": 1.22747495,
+  "step_stop": 20000,
+  "wallclock_seconds": 11684.835,
+  "bytes_total": 15669833,
+  "bytes_model_int8_zlib": 15574237,
+  "bytes_code": 95596,
+  "gpu": "1xRTX5090"
+}
