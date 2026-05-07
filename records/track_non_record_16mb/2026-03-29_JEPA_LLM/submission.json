@@ -1,0 +1,12 @@
+{
+  "author": "gowtham0992",
+  "github_id": "gowtham0992",
+  "name": "JEPA: Joint Embedding Predictive Architecture for LLMs",
+  "blurb": "First JEPA submission. Auxiliary JEPA loss alongside NTP: two views via random token masking, cosine similarity between mean-pooled embeddings, stop-gradient on target. Following LLM-JEPA (Balestriero et al., 2509.14252). Sliding window eval only. 8xH100 SXM, 1790 steps at 310ms/step.",
+  "date": "2026-03-29T00:00:00Z",
+  "val_loss": 2.43931992,
+  "val_bpb": 1.44470265,
+  "bytes_total": 10054691,
+  "bytes_code": 72358,
+  "gpu": "8xH100 SXM"
+}
