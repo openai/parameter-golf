@@ -1,0 +1,10 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-05",
+  "name": "HybridMamba-11: SSM+Transformer with Parallel Associative Scan",
+  "author": "Jesus Perez Bazarot",
+  "github_id": "PersusUS",
+  "val_bpb": 2.1158,
+  "val_loss": null,
+  "bytes_total": 14253466
+}
