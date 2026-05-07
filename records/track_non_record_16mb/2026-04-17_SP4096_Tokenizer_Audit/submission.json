@@ -1,0 +1,8 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-17",
+  "name": "FineWeb SP4096 Tokenizer",
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "notes": "Tokenizer-only package with fineweb_4096_bpe.model, fineweb_4096_bpe.vocab, and rebuild scripts."
+}
