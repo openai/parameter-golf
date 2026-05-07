@@ -1,0 +1,59 @@
+{
+  "author": "kiyoaki",
+  "github_id": "kiyoaki",
+  "name": "Notable: SP8192 + 3-Layer Recurrence + Parallel Residuals - 5-Seed Quantization Reference and SDClip Ablations",
+  "date": "2026-04-19",
+  "track": "10min_16mb",
+  "val_bpb": 1.08180758,
+  "val_bpb_std": 0.0005232,
+  "seeds": [
+    42,
+    314,
+    999,
+    1234,
+    2025
+  ],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.08221297,
+      "artifact_bytes": 15991025
+    },
+    "314": {
+      "val_bpb": 1.08207213,
+      "artifact_bytes": 15992260
+    },
+    "999": {
+      "val_bpb": 1.08233139,
+      "artifact_bytes": 15988191
+    },
+    "1234": {
+      "val_bpb": 1.08093918,
+      "artifact_bytes": 15988803
+    },
+    "2025": {
+      "val_bpb": 1.08148221,
+      "artifact_bytes": 15986880
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu130",
+  "technique_summary": "SP8192 + 3-Layer Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + EMA 0.9965 + WD 0.095 + MATRIX_LR 0.026 + WARMDOWN 0.75 + GPTQ SDClip + No TTT + Brotli",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": false,
+    "three_seeds": true
+  },
+  "attribution": {
+    "sp8192_gptq_sdclip": "@clarkkev (PR #1394)",
+    "depth_recurrence": "@dexhunter (PR #1331, #1437)",
+    "parallel_residuals": "@Robby955 (PR #1412), @msisovic (PR #1204)",
+    "hyperparameter_tuning": "@X-Abhishek-X (PR #1445)"
+  }
+}
+
