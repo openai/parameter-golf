@@ -1,0 +1,17 @@
+{
+  "author": "Tahir Buyukhelvacigil",
+  "github_id": "mtb",
+  "name": "1xH200 FP16-Embed Baseline Sweep",
+  "blurb": "Non-record 1xH200 screening run using the published SP-1024 baseline layout plus fp16 passthrough for tok_emb.weight during int8 export; selected as the best completed branch from a controlled H200 sweep across clean baseline, sink tokens, and MTP variants while staying under the 16,000,000-byte cap.",
+  "date": "2026-03-21T10:04:24Z",
+  "track": "non-record-1xh200-10min-16mb",
+  "val_loss": 2.23008851,
+  "val_bpb": 1.32078403,
+  "pre_quant_val_loss": 2.2292,
+  "pre_quant_val_bpb": 1.3202,
+  "step_stop": 1503,
+  "wallclock_seconds": 600.243,
+  "bytes_total": 14327135,
+  "bytes_model_int8_zlib": 14269846,
+  "bytes_code": 57289
+}
