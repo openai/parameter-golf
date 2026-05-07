@@ -1,0 +1,43 @@
+{
+  "val_bpb": {
+    "seed_42": 1.11625848,
+    "seed_1337": 1.11604482,
+    "seed_2024": 1.11605138,
+    "mean": 1.11611823,
+    "std": 0.00012151
+  },
+  "val_loss": {
+    "seed_42": 1.88475069,
+    "seed_1337": 1.88438993,
+    "seed_2024": 1.88440101
+  },
+  "artifact_bytes": {
+    "seed_42": 15227040,
+    "seed_1337": 15427072,
+    "seed_2024": 15398172
+  },
+  "code_bytes": 129638,
+  "model_params": 27605108,
+  "training_steps": {
+    "seed_42": 8458,
+    "seed_1337": 8457,
+    "seed_2024": 8475
+  },
+  "training_time_ms": {
+    "seed_42": 586085,
+    "seed_1337": 586048,
+    "seed_2024": 586082
+  },
+  "eval_method": "legal_ttt_sliding_window",
+  "eval_stride": 64,
+  "ttt_enabled": true,
+  "ttt_lr": 0.002,
+  "ttt_epochs": 3,
+  "ttt_freeze_blocks": 2,
+  "novel_contributions": [
+    "EGGROLL: Antithetic Ternary Bin Search post-GPTQ refinement",
+    "TTT call integration (missing from PR #1130)"
+  ],
+  "base": "PR #1130 by @Gusanidas (Kitchen Sink V2)",
+  "foundation": "PR #549 by @abaybektursun"
+}
