@@ -1,0 +1,10 @@
+{
+    "author": "ibarrajo",
+    "github_id": "ibarrajo",
+    "name": "GQA + LZMA + Selective Pruning (SOTA-adopted stack)",
+    "blurb": "Adopts all safe innovations from merged SOTA #1019: GQA (4 KV heads for faster steps), LZMA compression (better ratio), selective pruning (only prune if needed), BigramHash 3072x112. GPTQ stays within training budget.",
+    "date": "2026-04-01",
+    "val_bpb": 0.0,
+    "val_loss": 0.0,
+    "bytes_total": 0
+}
