@@ -1,0 +1,37 @@
+{
+  "author": "abaybektursun",
+  "github_id": "abaybektursun",
+  "name": "MC Dropout Ensembling Is Negative for Small LMs",
+  "blurb": "MC Dropout (train with dropout, average K=16 softmax distributions at eval) does not improve BPB at 17M parameters. Tested dropout=0.30 (+0.005 BPB) and dropout=0.05 (+0.002 BPB). The deterministic single pass is strictly better. Sub-networks lack diversity at this scale.",
+  "date": "2026-03-28",
+  "track": "non_record_study",
+  "base_model_pr": 728,
+  "hardware": "1xH100 80GB SXM, 1xH200 NVL 141GB",
+  "experiments_run": [
+    "dropout_0.30_baseline",
+    "dropout_0.30_mc_k16",
+    "dropout_0.05_baseline",
+    "dropout_0.05_mc_k16"
+  ],
+  "scripts": [
+    "experiments/mc_dropout/train.py",
+    "experiments/mc_dropout/eval.py"
+  ],
+  "results": {
+    "dropout_0.30": {
+      "baseline_bpb": 1.3708,
+      "mc_k16_bpb": 1.3756,
+      "delta_bpb": 0.0049,
+      "steps": 1657,
+      "gpu": "1xH100 80GB SXM"
+    },
+    "dropout_0.05": {
+      "baseline_bpb": 1.3250,
+      "mc_k16_bpb": 1.3269,
+      "delta_bpb": 0.0019,
+      "steps": 1620,
+      "gpu": "1xH200 NVL 141GB"
+    }
+  },
+  "technique_summary": "MC Dropout: nn.Dropout in Block after attn+MLP, K=16 forward passes averaged at eval time"
+}
