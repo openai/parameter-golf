@@ -1,0 +1,11 @@
+{
+  "author": "Yevhen Shramov",
+  "github_id": "shram86",
+  "name": "Vocab1792 + FlashMuon + LinearScaleInit + XSA5LastGated + RReLU2 + Int6AWQMixedBits",
+  "blurb": "10-layer large-vocab branch with Flash Muon, XSA on the last 5 layers with only the final XSA layer gated, linear-by-depth scale init, RReLU2 MLP, late EMA plus post-train best-choice selection, and mixed-bit int6 AWQ + lzma export. The default path keeps most tensors at int6 and promotes selected sensitive tensors to int8 via QUANT_INT8_NAME_PATTERNS (default: tok_emb.weight,lm_head.weight). Final reported score uses the updated mixed-bit export under the 16 MB limit.",
+  "date": "2026-04-08T00:00:00Z",
+  "val_loss": 2.21939860,
+  "val_bpb": 1.14339483,
+  "bytes_total": 15859310,
+  "bytes_code": 80994
+}
