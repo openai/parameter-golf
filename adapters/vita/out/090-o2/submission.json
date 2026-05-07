@@ -1,0 +1,36 @@
+{
+  "name": "VITA-090 Objective-B package (090-o2)",
+  "author": "ever",
+  "github_id": "ever-oli",
+  "date": "2026-03-24T15:37:43.111160+00:00",
+  "track": "vita-objective-b",
+  "repo_id": "090",
+  "repo_name": "SFW Once-for-All Pruning",
+  "winner_config_id": "C2",
+  "objective": {
+    "type": "B",
+    "dataset": "cifar10",
+    "accuracy_floor_percent": 74.5
+  },
+  "score": {
+    "max_prune_ratio_passing_floor": 0.7,
+    "accuracy_at_max_ratio": 87.27,
+    "mean_accuracy_0_4_to_0_7": 87.3225,
+    "confirm_accuracy_percent": 87.37
+  },
+  "default_operating_point": {
+    "prune_ratio": 0.5,
+    "changed": false,
+    "reason": "held constant in O2 unless strong contradictory evidence"
+  },
+  "blurb": "Objective-B optimized package from O1/O2 for repo 090; winner=C2, max_ratio=0.7, acc@max=87.27",
+  "source_reports": {
+    "o1_results_json": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o1/reports/o1_results.json",
+    "o2_results_json": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o2/reports/o2_results.json"
+  },
+  "artifacts": {
+    "train_log": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o2/logs/C2_train.log",
+    "sweep_log": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o2/logs/C2_sweep.log",
+    "confirm_log": "/Users/ever/Documents/GitHub/vita-autoresearch/pass2/targeted/optimization/o2/logs/C2_confirm_p05.log"
+  }
+}

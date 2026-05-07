@@ -1,0 +1,13 @@
+{
+  "run": "VITA-090 Objective-B package (090-o2)",
+  "repo_id": "090",
+  "repo_name": "SFW Once-for-All Pruning",
+  "winner": "C2",
+  "max_ratio": 0.7,
+  "acc_at_max": 87.27,
+  "mean_0.4_0.7": 87.3225,
+  "confirm_0.5": 87.37,
+  "author": "ever",
+  "date": "2026-03-24T15:37:43.111160+00:00",
+  "info": "README.md"
+}
