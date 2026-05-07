@@ -1,0 +1,3 @@
+torch==2.9.1+cu128
+sentencepiece
+# flash_attn_3: pip install flash_attn_3 --find-links https://windreamer.github.io/flash-attention3-wheels/cu128_torch291

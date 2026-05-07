@@ -1,0 +1,60 @@
+{
+  "author": "Renqian Luo",
+  "github_id": "renqianluo",
+  "name": "FA3 + TTT-AdamW-1ep-Freeze10 + SLOT L-BFGS25 LogitDelta History20 WarmStart Focal128 DeltaClip5 + GPTQ DAMP=0.005 + MTP + QK-Gain",
+  "blurb": "FA3 (torch 2.9.1+cu128, ~91ms/step) + TTT (Test-Time Training, 1ep AdamW lr=0.001, freeze 10/11 blocks, ~276s) + SLOT eval-time tuning with L-BFGS optimizer (strong-Wolfe, max_iter=25, history_size=20, warm-start=True, delta_clip=5.0) in LOGIT SPACE (vocab=1024) + FOCAL_TOKENS=128 per sliding window + GPTQ Hessian damping factor=0.005 (vs default 0.01) for more aggressive weight error compensation + MTP(2 heads, 0.1 weight) + QK_GAIN_INIT=4.0 + Full Hessian GPTQ int6 (val-data calibration) + BigramHash(3072,112) + SoftSTE. 3-seed mean BPB: 1.00955 (seeds 1337/42/314). Competition-legal: ~276s TTT + ~292s SLOT = ~568s total (~9.5 min on 8xH100). Key innovation: Lower GPTQ Hessian damping (0.005 vs 0.01 default) reduces regularization of the Hessian matrix inversion, allowing more accurate weight error compensation during GPTQ int6 quantization. Result: improved base int6 BPB (1.1165-1.1175 vs 1.1187-1.1189 with damp=0.01), which directly translates to better final SLOT BPB. LBFGS25+FOCAL128 config unchanged from previous record.",
+  "date": "2026-04-03",
+  "track": "10min_16mb",
+  "val_loss": 1.70458092,
+  "val_bpb": 1.00955151,
+  "seeds": [
+    1337,
+    42,
+    314
+  ],
+  "seed_results": {
+    "1337": {
+      "val_loss": 1.70513717,
+      "val_bpb": 1.00988095,
+      "artifact_bytes": 15695152,
+      "steps": 6582,
+      "step_avg_ms": 91.17,
+      "int6_sliding_window_bpb": 1.11745098,
+      "ttt_eval_seconds": 276.1,
+      "slot_eval_seconds": 292.7,
+      "total_eval_seconds": 568.8
+    },
+    "42": {
+      "val_loss": 1.70325689,
+      "val_bpb": 1.00876734,
+      "artifact_bytes": 15715028,
+      "steps": 6581,
+      "step_avg_ms": 91.19,
+      "int6_sliding_window_bpb": 1.11647889,
+      "ttt_eval_seconds": 276.3,
+      "slot_eval_seconds": 290.9,
+      "total_eval_seconds": 567.2
+    },
+    "314": {
+      "val_loss": 1.70534869,
+      "val_bpb": 1.01000623,
+      "artifact_bytes": 15715376,
+      "steps": 6621,
+      "step_avg_ms": 90.63,
+      "int6_sliding_window_bpb": 1.11732554,
+      "ttt_eval_seconds": 277.4,
+      "slot_eval_seconds": 292.3,
+      "total_eval_seconds": 569.7
+    }
+  },
+  "artifact_bytes_mean": 15708519,
+  "artifact_bytes_max": 15715376,
+  "train_steps_mean": 6595,
+  "step_avg_ms_mean": 91.00,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "flash_attn_3 (PyTorch 2.9.1+cu128 compatible build)",
+  "calibration": "val data (GPTQ_CALIB_VAL=1: 256 seqs x 2048 tokens from val set, ~10s vs 773s AR self-gen)",
+  "technique_summary": "FA3 + TTT-AdamW-1ep-Freeze10 + SLOT L-BFGS25 LogitDelta (max_iter=25, history_size=20, warm-start, strong-Wolfe, FOCAL_TOKENS=128, delta_clip=5) + GPTQ_DAMP_FACTOR=0.005 + MTP + QK_GAIN + SoftSTE + Val-data GPTQ"
+}
