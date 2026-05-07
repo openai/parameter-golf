@@ -1,0 +1,15 @@
+{
+  "name": "GPTQ Hessian Int6",
+  "author": "arnavgarg",
+  "github_id": "arnavgarg",
+  "val_bpb": 1.15340230,
+  "base_submission": "2026-03-23_LeakyReLU_LegalTTT_ParallelMuon",
+  "date": "2026-03-28",
+  "description": "Replace GPTQ-lite clip-percentile quantizer with full Hessian-based GPTQ (Frantar et al., 2022) for int6 weight matrices. Calibration Hessians collected from 65k training tokens post-training. All other settings identical to SOTA PR #549 stack.",
+  "seeds": [
+    {"seed": 1337, "val_bpb": 1.15211440},
+    {"seed": 42,   "val_bpb": 1.15370799},
+    {"seed": 2025, "val_bpb": 1.15438452}
+  ],
+  "notes": "3-seed mean on 8xH100 SXM. TTT_ENABLED was not set; final metric is final_int6_roundtrip_exact. Non-record submission — GPTQ Hessian quantization proof-of-concept."
+}
