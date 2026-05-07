@@ -1,0 +1,39 @@
+{
+    "author": "X-Abhishek-X",
+    "github_id": "X-Abhishek-X",
+    "name": "Cautious Muon + SP4096 + Depth Recurrence + Parallel Residuals",
+    "blurb": "Non-record submission. Applies Cautious Muon (arXiv:2411.16085) to the Muon optimizer — masks Newton-Schulz updates where the orthogonalized direction disagrees with the raw gradient sign, providing ~1.47x effective convergence per step with zero parameter overhead. Built on PR #1334 (aryanbhosale) base with SP4096 vocabulary, depth recurrence (layers 4,5), parallel residuals (from layer 7), MuonEq-R, QK-Gain 5.0, and full GPTQ INT6 + Brotli compression. Mean val_bpb = 1.1604 (3 seeds, std = 0.0033).",
+    "date": "2026-04-05T00:00:00Z",
+    "track": "10min_16mb",
+    "val_loss": 2.67020395,
+    "val_bpb": 1.16043988,
+    "val_loss_std": 0.00764948,
+    "val_bpb_std": 0.00332438,
+    "seeds": [42, 314, 999],
+    "seed_results": {
+        "42": {
+            "val_loss": 2.66190192,
+            "val_bpb": 1.15683191,
+            "artifact_bytes": 15179504
+        },
+        "314": {
+            "val_loss": 2.67174312,
+            "val_bpb": 1.16110878,
+            "artifact_bytes": 15173470
+        },
+        "999": {
+            "val_loss": 2.67696681,
+            "val_bpb": 1.16337894,
+            "artifact_bytes": 15159223
+        }
+    },
+    "artifact_bytes_mean": 15170732,
+    "artifact_bytes_max": 15179504,
+    "bytes_total": 15179504,
+    "bytes_code": 24659,
+    "hardware": "8x H100 SXM (RunPod On-Demand)",
+    "pytorch_version": "2.9.1",
+    "cuda_version": "12.8",
+    "technique_summary": "Cautious Muon optimizer (arXiv:2411.16085), SP4096 BPE tokenizer, depth recurrence layers 4-5 (start step 3000), parallel residuals from layer 7, MuonEq-R row normalization, QK-Gain 5.0, EMA 0.997, full GPTQ INT6 quantization with selective pruning, Brotli compression",
+    "comparison_baseline_pr": 1334
+}
