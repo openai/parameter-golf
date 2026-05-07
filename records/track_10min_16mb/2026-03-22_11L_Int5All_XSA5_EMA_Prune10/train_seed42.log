@@ -1,0 +1,70 @@
+Warning: Permanently added '[87.120.211.207]:18277' (ED25519) to the list of known hosts.
+Sun Mar 22 01:37:44 UTC 2026 === SETUP ===
+8
+[notice] To update, run: python -m pip install --upgrade pip
+Branch 'submission/content-smeargate' set up to track remote branch 'submission/content-smeargate' from 'origin'.
+Sun Mar 22 01:39:42 UTC 2026 === DATA ===
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Sun Mar 22 01:41:33 UTC 2026 === TRAIN 11L int5-all 10%-prune 8xH100 ===
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+model_params:27092057
+world_size:8 grad_accum_steps:1
+seed:42
+step:0/20000 val_loss:6.9320 val_bpb:4.1055 train_time:0ms step_avg:0.01ms
+step:1/20000 train_loss:6.9336 train_time:148ms step_avg:148.32ms
+step:2/20000 train_loss:8.7679 train_time:229ms step_avg:114.46ms
+step:3/20000 train_loss:7.9516 train_time:325ms step_avg:108.22ms
+step:4/20000 train_loss:7.2398 train_time:420ms step_avg:105.02ms
+step:5/20000 train_loss:7.0360 train_time:515ms step_avg:103.10ms
+step:6/20000 train_loss:6.8903 train_time:611ms step_avg:101.86ms
+step:7/20000 train_loss:6.7571 train_time:707ms step_avg:100.97ms
+step:8/20000 train_loss:6.6881 train_time:802ms step_avg:100.23ms
+step:9/20000 train_loss:6.4062 train_time:897ms step_avg:99.70ms
+step:10/20000 train_loss:6.0746 train_time:993ms step_avg:99.31ms
+step:200/20000 train_loss:2.4256 train_time:19603ms step_avg:98.02ms
+step:400/20000 train_loss:2.4578 train_time:39374ms step_avg:98.43ms
+step:600/20000 train_loss:2.3599 train_time:59173ms step_avg:98.62ms
+step:800/20000 train_loss:2.2322 train_time:79099ms step_avg:98.87ms
+step:1000/20000 train_loss:2.2507 train_time:99007ms step_avg:99.01ms
+step:1000/20000 val_loss:2.2033 val_bpb:1.3049 train_time:99027ms step_avg:99.03ms
+step:1200/20000 train_loss:2.3182 train_time:119007ms step_avg:99.17ms
+step:1400/20000 train_loss:2.1433 train_time:139009ms step_avg:99.29ms
+step:1600/20000 train_loss:2.0328 train_time:158981ms step_avg:99.36ms
+step:1800/20000 train_loss:2.1186 train_time:179047ms step_avg:99.47ms
+step:2000/20000 train_loss:2.0357 train_time:199083ms step_avg:99.54ms
+step:2000/20000 val_loss:2.1028 val_bpb:1.2454 train_time:199103ms step_avg:99.55ms
+step:2200/20000 train_loss:2.1157 train_time:219186ms step_avg:99.63ms
+step:2400/20000 train_loss:2.0409 train_time:239286ms step_avg:99.70ms
+step:2600/20000 train_loss:2.0820 train_time:259413ms step_avg:99.77ms
+step:2800/20000 train_loss:2.1309 train_time:279539ms step_avg:99.84ms
+step:3000/20000 train_loss:2.1360 train_time:299610ms step_avg:99.87ms
+step:3000/20000 val_loss:2.0653 val_bpb:1.2232 train_time:299630ms step_avg:99.88ms
+step:3200/20000 train_loss:2.1457 train_time:319727ms step_avg:99.91ms
+step:3400/20000 train_loss:1.9864 train_time:339804ms step_avg:99.94ms
+step:3600/20000 train_loss:2.0579 train_time:359923ms step_avg:99.98ms
+step:3800/20000 train_loss:2.0316 train_time:380004ms step_avg:100.00ms
+step:4000/20000 train_loss:1.9324 train_time:400194ms step_avg:100.05ms
+step:4000/20000 val_loss:2.0232 val_bpb:1.1983 train_time:400214ms step_avg:100.05ms
+step:4200/20000 train_loss:2.1060 train_time:420300ms step_avg:100.07ms
+step:4400/20000 train_loss:1.9882 train_time:440388ms step_avg:100.09ms
+step:4600/20000 train_loss:1.7977 train_time:460516ms step_avg:100.11ms
+step:4800/20000 train_loss:2.3836 train_time:480611ms step_avg:100.13ms
+step:5000/20000 train_loss:2.0615 train_time:500749ms step_avg:100.15ms
+step:5000/20000 val_loss:1.9801 val_bpb:1.1727 train_time:500769ms step_avg:100.15ms
+step:5200/20000 train_loss:1.9968 train_time:520816ms step_avg:100.16ms
+step:5400/20000 train_loss:2.0091 train_time:540953ms step_avg:100.18ms
+step:5600/20000 train_loss:1.9120 train_time:561113ms step_avg:100.20ms
+step:5800/20000 train_loss:1.9518 train_time:581248ms step_avg:100.22ms
+step:5987/20000 val_loss:1.9424 val_bpb:1.1504 train_time:600118ms step_avg:100.24ms
+stopping_early: wallclock_cap train_time:600118ms step:5987/20000
+peak memory allocated: 22093 MiB reserved: 22162 MiB
+ema:applying EMA weights
+magnitude_pruning: 10.0% of large weights zeroed
+Serialized model: 106308095 bytes
+Serialized model int6+zstd: 14741613 bytes
+Total submission size int6+zstd: 14811335 bytes
+final_int6_roundtrip val_loss:1.9759 val_bpb:1.1703 eval_time:32208ms
+final_int6_roundtrip_exact val_loss:1.97593967 val_bpb:1.17026277
+final_int6_sliding_window val_loss:1.9360 val_bpb:1.1466 stride:64 eval_time:105220ms
+final_int6_sliding_window_exact val_loss:1.93599533 val_bpb:1.14660852
+Sun Mar 22 01:56:35 UTC 2026 === DONE ===
