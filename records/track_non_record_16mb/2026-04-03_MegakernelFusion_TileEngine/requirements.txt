@@ -1,0 +1,12 @@
+numpy
+tqdm
+torch
+huggingface-hub
+setuptools
+typing-extensions==4.15.0
+datasets
+tiktoken
+sentencepiece
+zstandard
+triton
+flash_attn_3
