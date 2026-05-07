@@ -1,0 +1,420 @@
+W0429 10:02:39.501000 1229688 torch/distributed/run.py:852] 
+W0429 10:02:39.501000 1229688 torch/distributed/run.py:852] *****************************************
+W0429 10:02:39.501000 1229688 torch/distributed/run.py:852] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0429 10:02:39.501000 1229688 torch/distributed/run.py:852] *****************************************
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_dir: 
+  attn_clip_sigmas: 13.0
+  attn_out_gate_enabled: False
+  attn_out_gate_src: proj
+  beta1: 0.9
+  beta2: 0.95
+  caseops_enabled: True
+  compressor: brotli
+  data_dir: ./data/
+  datasets_dir: /project/flame/xingyuad/parameter-golf/data/datasets/fineweb_sp8192_cap
+  distributed: True
+  ema_decay: 0.9965
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  enable_looping_at: 0.35
+  eval_seq_len: 2048
+  eval_stride: 64
+  fused_ce_enabled: True
+  gate_window: 12
+  gated_attn_enabled: False
+  gated_attn_init_std: 0.01
+  gated_attn_quant_gate: False
+  global_ttt_batch_seqs: 32
+  global_ttt_chunk_tokens: 32768
+  global_ttt_epochs: 1
+  global_ttt_grad_clip: 1.0
+  global_ttt_lr: 0.001
+  global_ttt_momentum: 0.9
+  global_ttt_respect_doc_boundaries: True
+  global_ttt_warmup_chunks: 0
+  global_ttt_warmup_start_lr: 0.0
+  gptq_calibration_batches: 16
+  gptq_reserve_seconds: 4.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  is_main_process: True
+  iterations: 20000
+  ln_scale: True
+  local_rank: 0
+  logfile: logs/s0pr1851_cap_seed42_8gpu_20260429_100236.txt
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  lqer_asym_enabled: True
+  lqer_asym_group: 64
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 3
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 4800.0
+  min_lr: 0.0
+  mlp_clip_sigmas: 10.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: final_model.pt
+  muon_backend_steps: 5
+  muon_momentum: 0.97
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_final_lane: mean
+  parallel_start_layer: 8
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2000
+  qk_gain_init: 5.0
+  quantized_model_path: final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  rope_yarn: False
+  run_id: s0pr1851_cap_seed42_8gpu_20260429_100236
+  scalar_lr: 0.02
+  seed: 42
+  skip_gates_enabled: True
+  smear_gate_enabled: False
+  sparse_attn_gate_enabled: False
+  sparse_attn_gate_init_std: 0.0
+  sparse_attn_gate_scale: 1.0
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: /project/flame/xingyuad/parameter-golf/data/tokenizers/fineweb_8192_cap_bpe.model
+  train_batch_tokens: 786432
+  train_files: /project/flame/xingyuad/parameter-golf/data/datasets/fineweb_sp8192_cap/fineweb_train_*.bin
+  train_log_every: 100
+  train_seq_len: 2048
+  ttt_batch_size: 64
+  ttt_beta1: 0.0
+  ttt_beta2: 0.999
+  ttt_chunk_size: 48
+  ttt_enabled: True
+  ttt_eval_batches: 
+  ttt_eval_seq_len: 2048
+  ttt_grad_steps: 1
+  ttt_k_lora: True
+  ttt_lora_lr: 0.0001
+  ttt_lora_rank: 96
+  ttt_mlp_lora: True
+  ttt_o_lora: True
+  ttt_optimizer: adam
+  ttt_weight_decay: 1.0
+  val_batch_tokens: 524288
+  val_bytes_files: /project/flame/xingyuad/parameter-golf/data/datasets/fineweb_sp8192_cap/fineweb_val_bytes_*.bin
+  val_doc_fraction: 1.0
+  val_files: /project/flame/xingyuad/parameter-golf/data/datasets/fineweb_sp8192_cap/fineweb_val_*.bin
+  val_loss_every: 500
+  vocab_size: 7972
+  warmdown_frac: 0.75
+  warmup_steps: 20
+  world_size: 8
+  xsa_last_n: 11
+train_shards: 128
+val_tokens: 40863744
+model_params:35831962
+gptq:reserving 4s, effective=4796000ms
+warmup_cu_buckets:64,128,192,256 iters_each:3
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+0/20000 val_loss: 8.9804 val_bpb: 3.5041
+1/20000 train_loss: 8.9807 train_time: 0.0m tok/s: 12999528
+2/20000 train_loss: 12.3324 train_time: 0.0m tok/s: 10925000
+3/20000 train_loss: 11.2624 train_time: 0.0m tok/s: 9622520
+4/20000 train_loss: 9.4269 train_time: 0.0m tok/s: 9066463
+5/20000 train_loss: 8.2189 train_time: 0.0m tok/s: 8848786
+100/20000 train_loss: 4.0249 train_time: 0.2m tok/s: 8147905
+200/20000 train_loss: 3.5882 train_time: 0.3m tok/s: 8007303
+300/20000 train_loss: 3.4670 train_time: 0.5m tok/s: 7967124
+400/20000 train_loss: 3.2057 train_time: 0.7m tok/s: 7941778
+500/20000 train_loss: 3.2772 train_time: 0.8m tok/s: 7972237
+500/20000 val_loss: 3.2914 val_bpb: 1.2843
+600/20000 train_loss: 3.3006 train_time: 1.0m tok/s: 7947117
+700/20000 train_loss: 3.2299 train_time: 1.2m tok/s: 7935360
+800/20000 train_loss: 3.0354 train_time: 1.3m tok/s: 7926072
+900/20000 train_loss: 3.3207 train_time: 1.5m tok/s: 7914124
+1000/20000 train_loss: 3.2338 train_time: 1.7m tok/s: 7932078
+1000/20000 val_loss: 3.1728 val_bpb: 1.2380
+1100/20000 train_loss: 3.2116 train_time: 1.8m tok/s: 7927372
+1200/20000 train_loss: 3.2421 train_time: 2.0m tok/s: 7922352
+1300/20000 train_loss: 3.1600 train_time: 2.2m tok/s: 7918514
+1400/20000 train_loss: 3.1160 train_time: 2.3m tok/s: 7929734
+1500/20000 train_loss: 3.1605 train_time: 2.5m tok/s: 7925245
+1500/20000 val_loss: 3.1328 val_bpb: 1.2224
+1600/20000 train_loss: 3.1763 train_time: 2.6m tok/s: 7920888
+1700/20000 train_loss: 3.1545 train_time: 2.8m tok/s: 7917349
+1800/20000 train_loss: 3.1055 train_time: 3.0m tok/s: 7914001
+1900/20000 train_loss: 2.9619 train_time: 3.1m tok/s: 7922545
+2000/20000 train_loss: 3.2103 train_time: 3.3m tok/s: 7919569
+2000/20000 val_loss: 3.0901 val_bpb: 1.2057
+2100/20000 train_loss: 3.0842 train_time: 3.5m tok/s: 7916783
+2200/20000 train_loss: 3.1180 train_time: 3.6m tok/s: 7914352
+2300/20000 train_loss: 3.0943 train_time: 3.8m tok/s: 7921969
+2400/20000 train_loss: 3.0474 train_time: 4.0m tok/s: 7919630
+2500/20000 train_loss: 3.0430 train_time: 4.1m tok/s: 7917352
+2500/20000 val_loss: 3.0729 val_bpb: 1.1990
+2600/20000 train_loss: 3.1100 train_time: 4.3m tok/s: 7914668
+2700/20000 train_loss: 3.0352 train_time: 4.5m tok/s: 7913084
+2800/20000 train_loss: 3.0813 train_time: 4.6m tok/s: 7918132
+2900/20000 train_loss: 3.0316 train_time: 4.8m tok/s: 7914680
+3000/20000 train_loss: 2.7043 train_time: 5.0m tok/s: 7912582
+3000/20000 val_loss: 3.0648 val_bpb: 1.1959
+3100/20000 train_loss: 3.0869 train_time: 5.1m tok/s: 7910704
+3200/20000 train_loss: 3.0761 train_time: 5.3m tok/s: 7915379
+3300/20000 train_loss: 2.9904 train_time: 5.5m tok/s: 7914873
+3400/20000 train_loss: 3.0462 train_time: 5.6m tok/s: 7913489
+3500/20000 train_loss: 3.0120 train_time: 5.8m tok/s: 7912046
+3500/20000 val_loss: 3.0537 val_bpb: 1.1915
+3600/20000 train_loss: 4.2328 train_time: 6.0m tok/s: 7910891
+3700/20000 train_loss: 3.1208 train_time: 6.1m tok/s: 7915868
+3800/20000 train_loss: 3.0904 train_time: 6.3m tok/s: 7914374
+3900/20000 train_loss: 3.1669 train_time: 6.5m tok/s: 7913035
+4000/20000 train_loss: 3.1185 train_time: 6.6m tok/s: 7911927
+4000/20000 val_loss: 3.0509 val_bpb: 1.1905
+4100/20000 train_loss: 3.0916 train_time: 6.8m tok/s: 7910681
+4200/20000 train_loss: 3.0130 train_time: 7.0m tok/s: 7914989
+4300/20000 train_loss: 2.9331 train_time: 7.1m tok/s: 7913684
+4400/20000 train_loss: 3.1038 train_time: 7.3m tok/s: 7912472
+4500/20000 train_loss: 3.0653 train_time: 7.5m tok/s: 7911365
+4500/20000 val_loss: 3.0487 val_bpb: 1.1896
+4600/20000 train_loss: 3.0657 train_time: 7.6m tok/s: 7915204
+4700/20000 train_loss: 3.1639 train_time: 7.8m tok/s: 7914414
+4800/20000 train_loss: 3.0622 train_time: 8.0m tok/s: 7912133
+4900/20000 train_loss: 2.9803 train_time: 8.1m tok/s: 7911427
+5000/20000 train_loss: 2.8869 train_time: 8.3m tok/s: 7910753
+5000/20000 val_loss: 3.0456 val_bpb: 1.1884
+5100/20000 train_loss: 3.2153 train_time: 8.4m tok/s: 7914204
+5200/20000 train_loss: 3.1103 train_time: 8.6m tok/s: 7913380
+5300/20000 train_loss: 3.1362 train_time: 8.8m tok/s: 7912403
+5400/20000 train_loss: 2.9348 train_time: 8.9m tok/s: 7911541
+5500/20000 train_loss: 3.4593 train_time: 9.1m tok/s: 7914774
+5500/20000 val_loss: 3.0480 val_bpb: 1.1893
+5600/20000 train_loss: 3.0947 train_time: 9.3m tok/s: 7913610
+5700/20000 train_loss: 3.1495 train_time: 9.4m tok/s: 7912680
+5800/20000 train_loss: 2.8745 train_time: 9.6m tok/s: 7911949
+5900/20000 train_loss: 2.9344 train_time: 9.8m tok/s: 7910885
+6000/20000 train_loss: 3.1542 train_time: 9.9m tok/s: 7913747
+6000/20000 val_loss: 3.0476 val_bpb: 1.1892
+6100/20000 train_loss: 3.1941 train_time: 10.1m tok/s: 7912811
+6200/20000 train_loss: 3.0409 train_time: 10.3m tok/s: 7912102
+6300/20000 train_loss: 2.8608 train_time: 10.4m tok/s: 7911512
+6400/20000 train_loss: 3.0380 train_time: 10.6m tok/s: 7913913
+6500/20000 train_loss: 2.9936 train_time: 10.8m tok/s: 7913529
+6500/20000 val_loss: 3.0417 val_bpb: 1.1869
+6600/20000 train_loss: 2.9793 train_time: 10.9m tok/s: 7912779
+6700/20000 train_loss: 3.0399 train_time: 11.1m tok/s: 7912037
+6800/20000 train_loss: 3.0994 train_time: 11.3m tok/s: 7911499
+6900/20000 train_loss: 3.1407 train_time: 11.4m tok/s: 7913989
+7000/20000 train_loss: 2.9670 train_time: 11.6m tok/s: 7913339
+7000/20000 val_loss: 3.0324 val_bpb: 1.1832
+7100/20000 train_loss: 2.9992 train_time: 11.8m tok/s: 7912621
+7200/20000 train_loss: 3.1361 train_time: 11.9m tok/s: 7911966
+7300/20000 train_loss: 3.0490 train_time: 12.1m tok/s: 7911290
+7400/20000 train_loss: 3.0368 train_time: 12.3m tok/s: 7913798
+7500/20000 train_loss: 3.0520 train_time: 12.4m tok/s: 7913030
+7500/20000 val_loss: 3.0392 val_bpb: 1.1859
+7600/20000 train_loss: 3.0933 train_time: 12.6m tok/s: 7912517
+7700/20000 train_loss: 2.9418 train_time: 12.8m tok/s: 7912022
+7800/20000 train_loss: 3.0964 train_time: 12.9m tok/s: 7914303
+7900/20000 train_loss: 3.0766 train_time: 13.1m tok/s: 7913839
+8000/20000 train_loss: 3.1250 train_time: 13.3m tok/s: 7912523
+8000/20000 val_loss: 3.0437 val_bpb: 1.1876
+8100/20000 train_loss: 3.0356 train_time: 13.4m tok/s: 7911958
+8200/20000 train_loss: 3.0111 train_time: 13.6m tok/s: 7911541
+8300/20000 train_loss: 3.0207 train_time: 13.7m tok/s: 7913591
+8400/20000 train_loss: 3.0655 train_time: 13.9m tok/s: 7913097
+8500/20000 train_loss: 3.0392 train_time: 14.1m tok/s: 7912499
+8500/20000 val_loss: 3.0366 val_bpb: 1.1849
+8600/20000 train_loss: 3.0334 train_time: 14.2m tok/s: 7911847
+8700/20000 train_loss: 3.0540 train_time: 14.4m tok/s: 7913961
+8800/20000 train_loss: 3.1136 train_time: 14.6m tok/s: 7913352
+8900/20000 train_loss: 2.9094 train_time: 14.7m tok/s: 7912900
+9000/20000 train_loss: 3.0722 train_time: 14.9m tok/s: 7912426
+9000/20000 val_loss: 3.0471 val_bpb: 1.1890
+9100/20000 train_loss: 3.0439 train_time: 15.1m tok/s: 7911657
+9200/20000 train_loss: 2.9863 train_time: 15.2m tok/s: 7913497
+9300/20000 train_loss: 2.9941 train_time: 15.4m tok/s: 7912966
+9400/20000 train_loss: 3.0140 train_time: 15.6m tok/s: 7912347
+9500/20000 train_loss: 3.1384 train_time: 15.7m tok/s: 7911889
+9500/20000 val_loss: 3.0500 val_bpb: 1.1901
+9600/20000 train_loss: 2.9470 train_time: 15.9m tok/s: 7913516
+9700/20000 train_loss: 3.1500 train_time: 16.1m tok/s: 7913201
+9800/20000 train_loss: 3.0430 train_time: 16.2m tok/s: 7912724
+9900/20000 train_loss: 3.0733 train_time: 16.4m tok/s: 7912316
+10000/20000 train_loss: 2.9718 train_time: 16.6m tok/s: 7911961
+10000/20000 val_loss: 3.0448 val_bpb: 1.1881
+10100/20000 train_loss: 3.1351 train_time: 16.7m tok/s: 7913783
+10200/20000 train_loss: 3.0258 train_time: 16.9m tok/s: 7913165
+10300/20000 train_loss: 3.0644 train_time: 17.1m tok/s: 7912788
+10400/20000 train_loss: 3.0183 train_time: 17.2m tok/s: 7912197
+10500/20000 train_loss: 3.2213 train_time: 17.4m tok/s: 7911783
+10500/20000 val_loss: 3.0336 val_bpb: 1.1837
+10600/20000 train_loss: 2.9952 train_time: 17.6m tok/s: 7913448
+10700/20000 train_loss: 3.1673 train_time: 17.7m tok/s: 7913034
+10800/20000 train_loss: 3.0527 train_time: 17.9m tok/s: 7912571
+10900/20000 train_loss: 3.0408 train_time: 18.1m tok/s: 7912264
+11000/20000 train_loss: 2.8417 train_time: 18.2m tok/s: 7913957
+11000/20000 val_loss: 3.0331 val_bpb: 1.1835
+11100/20000 train_loss: 3.1103 train_time: 18.4m tok/s: 7913473
+11200/20000 train_loss: 3.0481 train_time: 18.6m tok/s: 7912994
+11300/20000 train_loss: 3.1831 train_time: 18.7m tok/s: 7912548
+11400/20000 train_loss: 3.0685 train_time: 18.9m tok/s: 7912201
+11500/20000 train_loss: 2.9670 train_time: 19.0m tok/s: 7913526
+11500/20000 val_loss: 3.0456 val_bpb: 1.1884
+11600/20000 train_loss: 3.1668 train_time: 19.2m tok/s: 7913001
+11700/20000 train_loss: 2.8415 train_time: 19.4m tok/s: 7912603
+11800/20000 train_loss: 2.9919 train_time: 19.5m tok/s: 7912163
+11900/20000 train_loss: 3.0582 train_time: 19.7m tok/s: 7913609
+12000/20000 train_loss: 3.0740 train_time: 19.9m tok/s: 7913224
+12000/20000 val_loss: 3.0367 val_bpb: 1.1849
+12100/20000 train_loss: 3.1325 train_time: 20.0m tok/s: 7912804
+12200/20000 train_loss: 3.0109 train_time: 20.2m tok/s: 7911953
+12300/20000 train_loss: 3.0803 train_time: 20.4m tok/s: 7911501
+12400/20000 train_loss: 3.1112 train_time: 20.5m tok/s: 7912862
+12500/20000 train_loss: 2.9746 train_time: 20.7m tok/s: 7912541
+12500/20000 val_loss: 3.0254 val_bpb: 1.1805
+12600/20000 train_loss: 3.0120 train_time: 20.9m tok/s: 7912105
+12700/20000 train_loss: 3.0875 train_time: 21.0m tok/s: 7911711
+12800/20000 train_loss: 2.9378 train_time: 21.2m tok/s: 7912821
+12900/20000 train_loss: 3.0634 train_time: 21.4m tok/s: 7912564
+13000/20000 train_loss: 3.1177 train_time: 21.5m tok/s: 7912146
+13000/20000 val_loss: 3.0227 val_bpb: 1.1795
+13100/20000 train_loss: 2.9733 train_time: 21.7m tok/s: 7911854
+13200/20000 train_loss: 3.0503 train_time: 21.9m tok/s: 7911496
+13300/20000 train_loss: 3.0230 train_time: 22.0m tok/s: 7912838
+13400/20000 train_loss: 3.1039 train_time: 22.2m tok/s: 7912493
+13500/20000 train_loss: 2.9559 train_time: 22.4m tok/s: 7912177
+13500/20000 val_loss: 3.0201 val_bpb: 1.1784
+13600/20000 train_loss: 3.1444 train_time: 22.5m tok/s: 7911848
+13700/20000 train_loss: 2.8692 train_time: 22.7m tok/s: 7911483
+13800/20000 train_loss: 3.0230 train_time: 22.9m tok/s: 7912622
+13900/20000 train_loss: 3.0110 train_time: 23.0m tok/s: 7912108
+14000/20000 train_loss: 2.9907 train_time: 23.2m tok/s: 7911737
+14000/20000 val_loss: 3.0183 val_bpb: 1.1777
+14100/20000 train_loss: 2.9854 train_time: 23.4m tok/s: 7911396
+14200/20000 train_loss: 3.1228 train_time: 23.5m tok/s: 7912555
+14300/20000 train_loss: 2.9657 train_time: 23.7m tok/s: 7912289
+14400/20000 train_loss: 3.1422 train_time: 23.9m tok/s: 7911843
+14500/20000 train_loss: 3.0612 train_time: 24.0m tok/s: 7911554
+14500/20000 val_loss: 3.0194 val_bpb: 1.1782
+14600/20000 train_loss: 3.1449 train_time: 24.2m tok/s: 7911162
+14700/20000 train_loss: 2.9162 train_time: 24.4m tok/s: 7912304
+14800/20000 train_loss: 3.0116 train_time: 24.5m tok/s: 7911942
+14900/20000 train_loss: 2.9718 train_time: 24.7m tok/s: 7911620
+15000/20000 train_loss: 3.0911 train_time: 24.9m tok/s: 7911320
+15000/20000 val_loss: 3.0174 val_bpb: 1.1774
+15100/20000 train_loss: 2.9757 train_time: 25.0m tok/s: 7912487
+15200/20000 train_loss: 2.7002 train_time: 25.2m tok/s: 7912191
+15300/20000 train_loss: 3.0068 train_time: 25.3m tok/s: 7911901
+15400/20000 train_loss: 3.2013 train_time: 25.5m tok/s: 7911611
+15500/20000 train_loss: 2.9714 train_time: 25.7m tok/s: 7911152
+15500/20000 val_loss: 3.0119 val_bpb: 1.1752
+15600/20000 train_loss: 2.9716 train_time: 25.8m tok/s: 7912379
+15700/20000 train_loss: 3.0805 train_time: 26.0m tok/s: 7912190
+15800/20000 train_loss: 3.0605 train_time: 26.2m tok/s: 7911909
+15900/20000 train_loss: 3.2325 train_time: 26.3m tok/s: 7911663
+16000/20000 train_loss: 2.5966 train_time: 26.5m tok/s: 7912584
+16000/20000 val_loss: 3.0164 val_bpb: 1.1770
+16100/20000 train_loss: 3.0426 train_time: 26.7m tok/s: 7913820
+16200/20000 train_loss: 3.1279 train_time: 26.8m tok/s: 7913590
+16300/20000 train_loss: 3.1094 train_time: 27.0m tok/s: 7912632
+16400/20000 train_loss: 3.0782 train_time: 27.2m tok/s: 7912012
+16500/20000 train_loss: 2.9984 train_time: 27.3m tok/s: 7913100
+16500/20000 val_loss: 3.0083 val_bpb: 1.1738
+16600/20000 train_loss: 2.9081 train_time: 27.5m tok/s: 7912774
+16700/20000 train_loss: 3.2740 train_time: 27.7m tok/s: 7912328
+16800/20000 train_loss: 2.9807 train_time: 27.8m tok/s: 7911374
+layer_loop:enabled step:16888 frac:0.350 encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+16900/20000 train_loss: 3.1114 train_time: 28.0m tok/s: 7909616
+17000/20000 train_loss: 3.1185 train_time: 28.2m tok/s: 7888013
+17000/20000 val_loss: 3.0092 val_bpb: 1.1742
+17100/20000 train_loss: 2.9388 train_time: 28.5m tok/s: 7867397
+17200/20000 train_loss: 3.1095 train_time: 28.7m tok/s: 7846851
+17300/20000 train_loss: 2.9785 train_time: 29.0m tok/s: 7826809
+17400/20000 train_loss: 2.9397 train_time: 29.2m tok/s: 7808392
+17500/20000 train_loss: 3.2195 train_time: 29.4m tok/s: 7788934
+17500/20000 val_loss: 2.9734 val_bpb: 1.1602
+17600/20000 train_loss: 2.9732 train_time: 29.7m tok/s: 7769623
+17700/20000 train_loss: 2.8377 train_time: 29.9m tok/s: 7750578
+17800/20000 train_loss: 3.2691 train_time: 30.2m tok/s: 7733313
+17900/20000 train_loss: 3.0379 train_time: 30.4m tok/s: 7715035
+18000/20000 train_loss: 2.9529 train_time: 30.7m tok/s: 7696288
+18000/20000 val_loss: 2.9713 val_bpb: 1.1594
+18100/20000 train_loss: 2.9179 train_time: 30.9m tok/s: 7678622
+18200/20000 train_loss: 2.9059 train_time: 31.1m tok/s: 7661287
+18300/20000 train_loss: 3.0324 train_time: 31.4m tok/s: 7645436
+18400/20000 train_loss: 2.8314 train_time: 31.6m tok/s: 7628346
+18500/20000 train_loss: 2.9787 train_time: 31.9m tok/s: 7611890
+18500/20000 val_loss: 2.9542 val_bpb: 1.1527
+18600/20000 train_loss: 2.9182 train_time: 32.1m tok/s: 7595536
+18700/20000 train_loss: 3.0649 train_time: 32.3m tok/s: 7579616
+18800/20000 train_loss: 3.0156 train_time: 32.6m tok/s: 7564829
+18900/20000 train_loss: 3.0872 train_time: 32.8m tok/s: 7548907
+19000/20000 train_loss: 3.0243 train_time: 33.1m tok/s: 7533451
+19000/20000 val_loss: 2.9615 val_bpb: 1.1556
+19100/20000 train_loss: 2.9160 train_time: 33.3m tok/s: 7518242
+19200/20000 train_loss: 3.0268 train_time: 33.5m tok/s: 7504364
+19300/20000 train_loss: 2.8141 train_time: 33.8m tok/s: 7489578
+19400/20000 train_loss: 2.9603 train_time: 34.0m tok/s: 7474977
+19500/20000 train_loss: 2.9442 train_time: 34.3m tok/s: 7460569
+19500/20000 val_loss: 2.9452 val_bpb: 1.1492
+19600/20000 train_loss: 3.0015 train_time: 34.5m tok/s: 7446389
+19700/20000 train_loss: 3.1545 train_time: 34.7m tok/s: 7433518
+19800/20000 train_loss: 3.0352 train_time: 35.0m tok/s: 7419651
+19900/20000 train_loss: 2.9400 train_time: 35.2m tok/s: 7406199
+20000/20000 train_loss: 2.9560 train_time: 35.5m tok/s: 7392800
+20000/20000 val_loss: 2.9473 val_bpb: 1.1500
+peak memory allocated: 41470 MiB reserved: 47190 MiB
+ema:applying EMA weights
+diagnostic pre-quantization post-ema val_loss:2.80410325 val_bpb:1.09414884 eval_time:12471ms
+Serialized model: 135183856 bytes
+Code size (uncompressed): 270109 bytes
+Code size (compressed): 31255 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 3.6s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int8)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights
+Serialized model quantized+brotli: 16803046 bytes
+Total submission size quantized+brotli: 16834301 bytes
+diagnostic quantized val_loss:2.82163429 val_bpb:1.10098938 eval_time:108538ms
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (432.1s)
+
+beginning TTT eval timer
+ttt_phased: total_docs:50000 prefix_docs:2000 suffix_docs:48000 num_phases:1 boundaries:[2000]
+ttp: b778/782 bl:2.8034 bb:1.1263 rl:2.8034 rb:1.1263 dl:8022-9085 gd:0
