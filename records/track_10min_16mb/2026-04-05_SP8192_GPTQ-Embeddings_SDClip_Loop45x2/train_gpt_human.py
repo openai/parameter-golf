@@ -70,6 +70,11 @@ class Hyperparameters():
     num_loops = int(os.environ.get('NUM_LOOPS', 2))
     loop_start = int(os.environ.get('LOOP_START', 4))
     loop_end = int(os.environ.get('LOOP_END', 5))
+    recurrence_mode = os.environ.get('RECURRENCE_MODE', 'hard').strip().lower()
+    recurrence_ramp_start_frac = float(os.environ.get('RECURRENCE_RAMP_START_FRAC', 0.485))
+    recurrence_ramp_mid_frac = float(os.environ.get('RECURRENCE_RAMP_MID_FRAC', 0.50))
+    recurrence_ramp_end_frac = float(os.environ.get('RECURRENCE_RAMP_END_FRAC', 0.515))
+    # Legacy threshold retained for parity with prior hard-switch runs.
     enable_looping_at = float(os.environ.get('ENABLE_LOOPING_AT', 0.5))
 
     # Optimizer
@@ -146,6 +151,47 @@ def log(msg, console: bool = True) -> None:
         if _logger_hparams.logfile is not None:
             with open(_logger_hparams.logfile, "a", encoding="utf-8") as f:
                 print(msg, file=f)
+
+
+def recurrence_alpha_from_frac(progress_frac: float, h: Hyperparameters) -> float:
+    frac = min(max(progress_frac, 0.0), 1.0)
+    mode = h.recurrence_mode
+    if mode == "hard":
+        return 1.0 if frac >= h.enable_looping_at else 0.0
+    if mode != "ramp":
+        raise ValueError(f"RECURRENCE_MODE must be one of {{hard,ramp}}, got {mode!r}")
+    a = h.recurrence_ramp_start_frac
+    b = h.recurrence_ramp_mid_frac
+    c = h.recurrence_ramp_end_frac
+    if not (0.0 <= a <= b <= c <= 1.0):
+        raise ValueError(
+            "RECURRENCE_RAMP_* must satisfy 0 <= start <= mid <= end <= 1; "
+            f"got start={a} mid={b} end={c}"
+        )
+    if frac <= a:
+        return 0.0
+    if frac <= b:
+        denom = max(b - a, 1e-9)
+        return 0.5 * (frac - a) / denom
+    if frac <= c:
+        denom = max(c - b, 1e-9)
+        return 0.5 + 0.5 * (frac - b) / denom
+    return 1.0
+
+
+def recurrence_alpha(step: int, total_steps: int, h: Hyperparameters) -> float:
+    frac = float(step) / max(int(total_steps), 1)
+    return recurrence_alpha_from_frac(frac, h)
+
+
+def grad_global_norm(parameters) -> float:
+    total = 0.0
+    for p in parameters:
+        if p.grad is None:
+            continue
+        g = p.grad.detach().float()
+        total += float(torch.sum(g * g).item())
+    return total ** 0.5
 
 # ----------------------------------------
 # Data Loading
@@ -491,23 +537,44 @@ class GPT(nn.Module):
 
         # Layer looping
         self.looping_active: bool = False
+        self.recurrence_alpha: float = 0.0
+        self.register_buffer(
+            "recurrence_alpha_buf",
+            torch.tensor(0.0, dtype=torch.float32),
+            persistent=False,
+        )
         if h.num_loops > 0:
             loop_seg = list(range(h.loop_start, h.loop_end + 1))
             all_indices = list(range(h.loop_start))
             for _ in range(h.num_loops + 1):
                 all_indices.extend(loop_seg)
             all_indices.extend(range(h.loop_end + 1, h.num_layers))
+            seen_counts = collections.defaultdict(int)
+            recurrent_mask_all: list[bool] = []
+            for idx in all_indices:
+                is_recurrent_pass = idx in loop_seg and seen_counts[idx] >= 1
+                recurrent_mask_all.append(is_recurrent_pass)
+                seen_counts[idx] += 1
             num_enc = len(all_indices) // 2
             self.encoder_indices: list[int] = all_indices[:num_enc]
             self.decoder_indices: list[int] = all_indices[num_enc:]
+            self.encoder_recurrent_mask: list[bool] = recurrent_mask_all[:num_enc]
+            self.decoder_recurrent_mask: list[bool] = recurrent_mask_all[num_enc:]
         else:
             self.encoder_indices = list(range(self.num_encoder_layers))
             self.decoder_indices = list(range(self.num_encoder_layers, h.num_layers))
+            self.encoder_recurrent_mask = [False] * len(self.encoder_indices)
+            self.decoder_recurrent_mask = [False] * len(self.decoder_indices)
         self.num_skip_weights = min(len(self.encoder_indices), len(self.decoder_indices))
         self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, h.model_dim, dtype=torch.float32))
         self.skip_gates = nn.Parameter(torch.zeros(self.num_skip_weights, h.model_dim, dtype=torch.float32)) if h.skip_gates_enabled else None
 
         self._init_weights()
+
+    def set_recurrence_alpha(self, alpha: float) -> None:
+        a = min(max(float(alpha), 0.0), 1.0)
+        self.recurrence_alpha = a
+        self.recurrence_alpha_buf.fill_(a)
 
     def _init_weights(self) -> None:
         if self.tie_embeddings:
@@ -527,10 +594,26 @@ class GPT(nn.Module):
             x = self.embed_proj(x)
         x0 = x
         skips: list[Tensor] = []
-        enc_iter = self.encoder_indices if self.looping_active else range(self.num_encoder_layers)
-        dec_iter = self.decoder_indices if self.looping_active else range(self.num_encoder_layers, self.num_encoder_layers + self.num_decoder_layers)
-        for i in enc_iter:
-            x = self.blocks[i](x, x0)
+        # Keep control flow stable for torch.compile: gate recurrence by a boolean
+        # mode switch, and apply alpha only as tensor arithmetic.
+        use_recurrence = self.looping_active
+        alpha = self.recurrence_alpha_buf.to(dtype=x.dtype)
+        if use_recurrence:
+            enc_iter = self.encoder_indices
+            dec_iter = self.decoder_indices
+            enc_mask = self.encoder_recurrent_mask
+            dec_mask = self.decoder_recurrent_mask
+        else:
+            enc_iter = range(self.num_encoder_layers)
+            dec_iter = range(self.num_encoder_layers, self.num_encoder_layers + self.num_decoder_layers)
+            enc_mask = [False] * self.num_encoder_layers
+            dec_mask = [False] * self.num_decoder_layers
+        for idx, i in enumerate(enc_iter):
+            if enc_mask[idx]:
+                y = self.blocks[i](x, x0)
+                x = x + alpha * (y - x)
+            else:
+                x = self.blocks[i](x, x0)
             skips.append(x)
         for skip_idx, i in enumerate(dec_iter):
             if skip_idx < self.num_skip_weights and skips:
@@ -540,7 +623,11 @@ class GPT(nn.Module):
                     x = torch.lerp(scaled_skip, x, g)
                 else:
                     x = x + scaled_skip
-            x = self.blocks[i](x, x0)
+            if dec_mask[skip_idx]:
+                y = self.blocks[i](x, x0)
+                x = x + alpha * (y - x)
+            else:
+                x = self.blocks[i](x, x0)
         x = self.final_norm(x)
         if self.head_proj is not None:
             x = self.head_proj(x)
@@ -1154,6 +1241,63 @@ def timed_eval(label: str, fn, *args, **kwargs) -> tuple[float, float]:
     return val_loss, val_bpb
 
 
+def log_transition_spike_diagnostics(
+    progress_fracs: list[float],
+    loss_history: list[float],
+    transitions: list[tuple[str, float]],
+) -> None:
+    if not progress_fracs or not loss_history:
+        return
+    for label, target_frac in transitions:
+        hit_idx = next((i for i, frac in enumerate(progress_fracs) if frac >= target_frac), None)
+        if hit_idx is None:
+            log(f"transition_spike:{label} target_frac:{target_frac:.3f} not_reached")
+            continue
+        before = loss_history[max(0, hit_idx - 50):hit_idx]
+        after50 = loss_history[hit_idx:min(len(loss_history), hit_idx + 50)]
+        after100 = loss_history[hit_idx:min(len(loss_history), hit_idx + 100)]
+        if not before or not after50:
+            log(f"transition_spike:{label} step:{hit_idx + 1} insufficient_window")
+            continue
+        mean_before = sum(before) / len(before)
+        mean_after = sum(after50) / len(after50)
+        max_after = max(after100) if after100 else float("nan")
+        log(
+            f"transition_spike:{label} step:{hit_idx + 1} target_frac:{target_frac:.3f} "
+            f"mean_before50:{mean_before:.6f} mean_after50:{mean_after:.6f} "
+            f"delta:{(mean_after - mean_before):.6f} max_after100:{max_after:.6f}"
+        )
+
+
+def log_recurrence_throughput_by_regime(
+    h: Hyperparameters,
+    progress_fracs: list[float],
+    step_ms_history: list[float],
+) -> None:
+    if not progress_fracs or not step_ms_history:
+        return
+    if h.recurrence_mode == "hard":
+        t = h.enable_looping_at
+        early = [m for f, m in zip(progress_fracs, step_ms_history) if f < t]
+        full = [m for f, m in zip(progress_fracs, step_ms_history) if f >= t]
+        if early:
+            log(f"throughput_regime:no_recurrence mean_step_ms:{sum(early)/len(early):.3f}")
+        if full:
+            log(f"throughput_regime:full_recurrence mean_step_ms:{sum(full)/len(full):.3f}")
+    else:
+        s = h.recurrence_ramp_start_frac
+        e = h.recurrence_ramp_end_frac
+        early = [m for f, m in zip(progress_fracs, step_ms_history) if f < s]
+        ramp = [m for f, m in zip(progress_fracs, step_ms_history) if s <= f < e]
+        full = [m for f, m in zip(progress_fracs, step_ms_history) if f >= e]
+        if early:
+            log(f"throughput_regime:no_recurrence mean_step_ms:{sum(early)/len(early):.3f}")
+        if ramp:
+            log(f"throughput_regime:ramp mean_step_ms:{sum(ramp)/len(ramp):.3f}")
+        if full:
+            log(f"throughput_regime:full_recurrence mean_step_ms:{sum(full)/len(full):.3f}")
+
+
 # -----------------------------
 # Training
 # -----------------------------
@@ -1213,11 +1357,14 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
             for group in opt.param_groups:
                 group["lr"] = group["base_lr"] * lr_scale
 
+        grad_norm = 0.0
         if h.grad_clip_norm > 0:
-            torch.nn.utils.clip_grad_norm_(base_model.parameters(), h.grad_clip_norm)
+            grad_norm = float(torch.nn.utils.clip_grad_norm_(base_model.parameters(), h.grad_clip_norm).item())
+        else:
+            grad_norm = grad_global_norm(base_model.parameters())
 
         optimizers.step()
-        return train_loss
+        return train_loss, grad_norm
 
     # Model warmup
     if h.warmup_steps > 0:
@@ -1231,12 +1378,14 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
                 log(f"warmup_step: {warmup_step + 1}/{h.warmup_steps}")
         if h.num_loops > 0:
             base_model.looping_active = True
+            base_model.set_recurrence_alpha(1.0)
             log(f"loop_warmup:enabled encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}")
             for warmup_step in range(h.warmup_steps):
                 step_fn(warmup_step, 1.0)
                 if warmup_step <= 5 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == h.warmup_steps:
                     log(f"loop_warmup_step: {warmup_step + 1}/{h.warmup_steps}")
             base_model.looping_active = False
+            base_model.set_recurrence_alpha(0.0)
         base_model.load_state_dict(initial_model_state, strict=True)
         for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
             opt.load_state_dict(state)
@@ -1253,6 +1402,22 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
     stop_after_step: int | None = None
     torch.cuda.synchronize()
     t0 = time.perf_counter()
+    rolling_loss = collections.deque(maxlen=100)
+    rolling_step_ms = collections.deque(maxlen=100)
+    rolling_grad_norm = collections.deque(maxlen=100)
+    progress_frac_history: list[float] = []
+    loss_history: list[float] = []
+    step_ms_history: list[float] = []
+    transition_markers: list[tuple[str, float]] = (
+        [("full_on", h.enable_looping_at)]
+        if h.recurrence_mode == "hard"
+        else [
+            ("ramp_start", h.recurrence_ramp_start_frac),
+            ("ramp_mid", h.recurrence_ramp_mid_frac),
+            ("full_on", h.recurrence_ramp_end_frac),
+        ]
+    )
+    transition_logged: set[str] = set()
 
     step = 0
     while True:
@@ -1262,8 +1427,21 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
         if should_validate:
             torch.cuda.synchronize()
             training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            elapsed_s = max(training_time_ms / 1000.0, 1e-9)
+            val_train_frac = training_frac(step, training_time_ms)
+            avg_step_ms = (
+                sum(rolling_step_ms) / len(rolling_step_ms)
+                if rolling_step_ms
+                else float("nan")
+            )
+            tok_per_sec = step * h.train_batch_tokens / elapsed_s if step > 0 else 0.0
             val_loss, val_bpb = eval_val(h, device, val_data, model)
-            log(f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f}")
+            curr_alpha = base_model.recurrence_alpha
+            log(
+                f"{step}/{h.iterations} val_loss: {val_loss:.4f} val_bpb: {val_bpb:.4f} "
+                f"train_frac:{val_train_frac:.4f} recurrence_alpha:{curr_alpha:.4f} "
+                f"step_ms_avg100:{avg_step_ms:.3f} tok/s:{tok_per_sec:.0f}"
+            )
             torch.cuda.synchronize()
             t0 = time.perf_counter()
 
@@ -1278,15 +1456,27 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
         elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
         frac = training_frac(step, elapsed_ms)
         scale = lr_mul(frac)
-        if h.num_loops > 0 and not base_model.looping_active and frac >= h.enable_looping_at:
-            base_model.looping_active = True
-            log(f"layer_loop:enabled step:{step} frac:{frac:.3f} encoder:{base_model.encoder_indices} decoder:{base_model.decoder_indices}")
-        train_loss = step_fn(step, scale)
+        alpha = recurrence_alpha_from_frac(frac, h) if h.num_loops > 0 else 0.0
+        base_model.set_recurrence_alpha(alpha)
+        base_model.looping_active = h.num_loops > 0 and alpha > 0.0
+        for label, target in transition_markers:
+            if label not in transition_logged and frac >= target:
+                transition_logged.add(label)
+                log(f"layer_loop:{label} step:{step} frac:{frac:.3f} alpha:{alpha:.4f}")
+        step_t0 = time.perf_counter()
+        train_loss, grad_norm = step_fn(step, scale)
+        step_ms = 1000.0 * (time.perf_counter() - step_t0)
 
         with torch.no_grad():
             for name, t in base_model.state_dict().items():
                 ema_state[name].mul_(ema_decay).add_(t.detach().float(), alpha=1.0 - ema_decay)
 
+        rolling_loss.append(float(train_loss.item()))
+        rolling_step_ms.append(float(step_ms))
+        rolling_grad_norm.append(float(grad_norm))
+        progress_frac_history.append(float(frac))
+        loss_history.append(float(train_loss.item()))
+        step_ms_history.append(float(step_ms))
         step += 1
         approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
 
@@ -1296,9 +1486,15 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
         )
         if should_log_train:
             tok_per_sec = step * h.train_batch_tokens / (approx_training_time_ms / 1000.0)
+            avg_loss = sum(rolling_loss) / len(rolling_loss)
+            avg_step_ms = sum(rolling_step_ms) / len(rolling_step_ms)
+            avg_grad_norm = sum(rolling_grad_norm) / len(rolling_grad_norm)
             log(
-                f"{step}/{h.iterations} train_loss: {train_loss.item():.4f} "
-                f"train_time: {approx_training_time_ms / 60000:.1f}m tok/s: {tok_per_sec:.0f}"
+                f"{step}/{h.iterations} train_loss: {train_loss.item():.4f} train_loss_avg100:{avg_loss:.4f} "
+                f"step_ms_avg100:{avg_step_ms:.3f} grad_norm_avg100:{avg_grad_norm:.4f} "
+                f"train_frac:{frac:.4f} recurrence_alpha:{alpha:.4f} "
+                f"train_time: {approx_training_time_ms / 60000:.1f}m "
+                f"tok/s: {tok_per_sec:.0f}"
             )
 
         reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
@@ -1312,6 +1508,12 @@ def train_model(h: Hyperparameters, device: torch.device, val_data: ValidationDa
     log(
         f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+    )
+    log_recurrence_throughput_by_regime(h, progress_frac_history, step_ms_history)
+    log_transition_spike_diagnostics(
+        progress_frac_history,
+        loss_history,
+        [(name, frac) for name, frac in transition_markers if name != "ramp_mid"],
     )
 
     # Weight averaging
@@ -1335,7 +1537,8 @@ def train_and_eval(h: Hyperparameters, device: torch.device) -> None:
 
     base_model, compiled_model = train_model(h, device, val_data)
     torch._dynamo.reset()
-    timed_eval("pre-quantization post-ema", eval_val, h, device, val_data, compiled_model)
+    _, prequant_post_ema_val_bpb = timed_eval("pre-quantization post-ema", eval_val, h, device, val_data, compiled_model)
+    log(f"prequant_post_ema_val_bpb:{prequant_post_ema_val_bpb:.8f}")
 
     serialize(h, base_model, Path(__file__).read_text(encoding="utf-8"))
     if h.distributed:
@@ -1343,6 +1546,7 @@ def train_and_eval(h: Hyperparameters, device: torch.device) -> None:
     eval_model = deserialize(h, device)
     if h.num_loops > 0:
         eval_model.looping_active = True
+        eval_model.set_recurrence_alpha(1.0)
 
     compiled_model = torch.compile(eval_model, dynamic=False, fullgraph=True)
     timed_eval("quantized", eval_val, h, device, val_data, compiled_model)
