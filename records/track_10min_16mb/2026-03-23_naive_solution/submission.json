@@ -1,0 +1,11 @@
+{
+  "author": "Pavel Vasiliev",
+  "github_id": "PavelPaha",
+  "name": "Test submission",
+  "blurb": "Test run of the unmodified baseline for 100 steps to verify submission format.",
+  "date": "2026-03-23",
+  "val_loss": 3.32159321,
+  "val_bpb": 1.96723459,
+  "bytes_total": 10481651,
+  "bytes_code": 47686
+}
