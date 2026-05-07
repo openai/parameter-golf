@@ -1,0 +1,17 @@
+{
+  "name": "JKSNS",
+  "github_id": "JKSNS",
+  "val_bpb": 0.8503,
+  "val_loss": 1.4357,
+  "artifact_bytes": 13313662,
+  "training_time_seconds": 600,
+  "eval_time_seconds": 316,
+  "hardware": "8xH100 SXM",
+  "slot_steps": 32,
+  "slot_lr": 0.015,
+  "seed": 1337,
+  "num_layers": 11,
+  "model_dim": 512,
+  "vocab_size": 1024,
+  "summary": "Non-record: mean-delta SLOT warm-start + depth recurrence experiment"
+}
