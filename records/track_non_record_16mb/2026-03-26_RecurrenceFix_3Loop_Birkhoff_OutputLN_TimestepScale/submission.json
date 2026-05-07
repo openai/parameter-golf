@@ -1,0 +1,18 @@
+{
+    "author": "Alexandr Azizyan",
+    "github_id": "aazizyan",
+    "name": "First Viable 3-Loop Recurrence: Birkhoff + Output-LN + Timestep Scaling (1+4x3+1, 14 eff layers)",
+    "blurb": "Three novel techniques enabling the first viable 3-loop depth recurrence in competition history. Birkhoff-constrained mixing (spectral norm ≤ 1) eliminates exponential quantization blowup. Output-LN preserves magnitude signal across loop iterations. Capped timestep scaling reduces Q-gap by 26-30%. Config: 1 prelude + 4 shared x 3 loops + 1 coda = 14 effective layers from 6 unique blocks.",
+    "date": "2026-03-26T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 2.13735865,
+    "val_bpb": 1.26586418,
+    "pre_quant_val_loss": 2.1246,
+    "pre_quant_val_bpb": 1.2583,
+    "step_stop": 10122,
+    "wallclock_seconds": 600,
+    "bytes_total": 10774310,
+    "bytes_model_int8_zlib": 10717286,
+    "bytes_code": 57024,
+    "gpu": "8xH100"
+}
