@@ -1,0 +1,48 @@
+{
+  "author": "Arsenis Papachristos",
+  "github_id": "Areneu",
+  "name": "Verifily Three-Tier Token Weighting + DCLS Salience Reweighting",
+  "blurb": "Pure data-quality approach — zero architectural changes to the base GPT. Three components: (1) BigramStats-driven three-tier token weighting (Predictable=0.10, Frontier=1.0, Noise=0.70), (2) DCLS-inspired salience batch reweighting [0.85, 1.15], (3) quality-conditioned bigram mixer at eval. Demonstrates that training signal quality alone can improve BPB on an unchanged SP1024 11L 512d architecture. 2-seed mean: 1.13350264 BPB.",
+  "date": "2026-04-08",
+  "track": "non_record_10min_16mb",
+  "val_loss": 1.91386666,
+  "val_bpb": 1.13350264,
+  "val_loss_std": 0.00108758,
+  "val_bpb_std": 0.00064413,
+  "seeds": [314, 42],
+  "seed_results": {
+    "314": {
+      "val_loss": 1.91495424,
+      "val_bpb": 1.13414677,
+      "artifact_bytes": 15841796,
+      "steps": 6524,
+      "step_avg_ms": 92.0
+    },
+    "42": {
+      "val_loss": 1.91277908,
+      "val_bpb": 1.13285851,
+      "artifact_bytes": 15917868,
+      "steps": 6732,
+      "step_avg_ms": 89.2
+    }
+  },
+  "note": "Seed 999 not completed — pod terminated during run. Submitting as non-record with 2 seeds.",
+  "base_stack": "SP1024, 11 layers, 512d, 8 heads, 4 KV heads, XSA-all, BigramHash(2048,128), Parallel Muon+Adam, GPTQ-int6+LZMA",
+  "implementation_lineage_pr": 1402,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "2.8.3 (FA3 Hopper kernels)",
+  "verifily_components": {
+    "three_tier_weighting": "BigramStats P(curr|prev) — Predictable (>p95, w=0.10), Frontier (low ngram + high quality, w=1.0), Noise (low ngram + low quality, w=0.70)",
+    "salience_reweighting": "DCLS-inspired EMA loss tracking, surprise signal — per-batch multiplier [0.85, 1.15]",
+    "bigram_eval_mixer": "Quality-conditioned bigram interpolation at eval (alpha=0.30 if quality<0.6, else 0.15)"
+  },
+  "ablation_env_vars": {
+    "VERIFILY_ENABLED": "0 to disable all Verifily components",
+    "VERIFILY_THREE_TIER": "0 to disable token weighting",
+    "VERIFILY_SALIENCE": "0 to disable salience reweighting",
+    "VERIFILY_BIGRAM_EVAL": "0 to disable bigram mixer at eval"
+  },
+  "technique_summary": "Three-tier token weighting + DCLS salience + quality-conditioned bigram eval mixer"
+}
