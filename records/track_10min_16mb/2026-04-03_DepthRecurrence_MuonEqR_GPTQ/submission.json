@@ -1,0 +1,51 @@
+{
+  "author": "aryanbhosale",
+  "github_id": "aryanbhosale",
+  "name": "Depth Recurrence + MuonEq-R + AR Self-Gen GPTQ",
+  "blurb": "11L with depth recurrence (layers 4,5 repeated) + MuonEq-R optimizer (row-normalized Muon) + Full Hessian GPTQ with AR self-generated calibration on the PR #1019 stack. BigramHash(3072,112), warmdown=4000, XSA all 11 layers, LZMA preset=9. 3-seed exact mean: 1.11036981 BPB / 1.87480795 nats, beating PR #1019 exact 3-seed mean 1.11473509 BPB / 1.88217853 nats by 0.00737058 nats (Welch t=-7.73, df=2.59).",
+  "date": "2026-04-03",
+  "track": "10min_16mb",
+  "val_loss": 1.87480795,
+  "val_bpb": 1.11036981,
+  "val_loss_std": 0.00154055,
+  "val_bpb_std": 0.00091240,
+  "seeds": [42, 314, 999],
+  "seed_results": {
+    "42": {
+      "val_loss": 1.87509706,
+      "val_bpb": 1.11054104,
+      "artifact_bytes": 15974737,
+      "steps": 6204,
+      "step_avg_ms": 96.73
+    },
+    "314": {
+      "val_loss": 1.87314333,
+      "val_bpb": 1.10938392,
+      "artifact_bytes": 15972993,
+      "steps": 6205,
+      "step_avg_ms": 96.72
+    },
+    "999": {
+      "val_loss": 1.87618346,
+      "val_bpb": 1.11118446,
+      "artifact_bytes": 15969221,
+      "steps": 6205,
+      "step_avg_ms": 96.71
+    }
+  },
+  "comparison_baseline_pr": 1019,
+  "delta_vs_pr1019_nats": -0.00737058,
+  "delta_vs_pr1019_bpb": -0.00436528,
+  "t_statistic": -7.7261,
+  "welch_df": 2.5884,
+  "artifact_bytes_mean": 15972317,
+  "artifact_bytes_max": 15974737,
+  "train_steps_mean": 6205,
+  "step_avg_ms_mean": 96.72,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "cuda_version": "12.8",
+  "flash_attn_version": "FA3 Hopper kernels",
+  "calibration": "AR self-generated (64 seqs x 2048 tokens, temp=0.8, no external data)",
+  "technique_summary": "Depth Recurrence (layers 4,5) + MuonEq-R + AR Self-Gen GPTQ int6 + XSA-all + BigramHash 3072x112 + LZMA9"
+}
