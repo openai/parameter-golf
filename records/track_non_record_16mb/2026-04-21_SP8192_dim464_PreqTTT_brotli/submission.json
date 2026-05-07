@@ -1,0 +1,9 @@
+{
+  "name": "SP8192 + dim=464 + Pre-Quantization TTT + Brotli",
+  "val_bpb": 1.1863,
+  "bytes_total": 15915528,
+  "blurb": "Pre-quantization TTT: adapt FP32 weights on full val set before INT6 quantization, DDP-aware (interleaved chunks + all_reduce per epoch). Scaling law confirmed across 4 data points (0→3→5→7 epochs: 1.2347→1.2097→1.1968→1.1863 BPB). SP8192, dim=464, 11L, MLP 3× LeakyReLU(0.5)², depth recurrence, parallel residuals, QAT INT6, brotli. 21 epochs on 8×H100 ≈ 240s, estimated ~1.14 BPB.",
+  "author": "Christian Brandt",
+  "github_id": "BrandtChristian",
+  "date": "2026-04-22"
+}
