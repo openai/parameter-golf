@@ -1,0 +1,11 @@
+{
+  "author": "toto5",
+  "github_id": "oresamadom",
+  "name": "RTX2070 Smoke: Auditable Turtle Baseline",
+  "blurb": "Non-record local RTX2070 smoke run using smoke FineWeb SP-1024 data and RTX2070 compatibility changes; verifies train -> int8+zlib -> reload -> eval_val roundtrip, not an official score.",
+  "date": "2026-04-29T08:59:26Z",
+  "val_loss": 8.40257616,
+  "val_bpb": 4.91592263,
+  "bytes_total": 504009,
+  "bytes_code": 47847
+}
