@@ -1,0 +1,137 @@
+============================================================
+HybridQuantGPT Training — v61_10k (preset=small)
+============================================================
+Total params:       32,760,946
+Ternary params:     31,719,424
+Non-ternary:         1,041,522
+Effective layers: 11
+Est. artifact:    15.79 MB (OK)
+Iterations:       10000
+Batch tokens:     524288
+Seq len:          1024
+Device:           cuda:0
+World size:       1
+Grad accum steps: 32
+Micro batch seqs: 16
+EMA enabled: type=hma, decay=0.997
+Compiling model...
+
+Training started...
+step:1/10000 train_loss:6.9359 train_time:10652ms step_avg:10652.05ms
+step:2/10000 train_loss:6.9175 train_time:18944ms step_avg:9472.02ms
+step:3/10000 train_loss:6.8811 train_time:27236ms step_avg:9078.76ms
+step:4/10000 train_loss:6.8086 train_time:35612ms step_avg:8903.01ms
+step:5/10000 train_loss:6.7017 train_time:43992ms step_avg:8798.49ms
+step:6/10000 train_loss:6.5482 train_time:52411ms step_avg:8735.10ms
+step:7/10000 train_loss:6.3614 train_time:60839ms step_avg:8691.29ms
+step:8/10000 train_loss:6.1915 train_time:69272ms step_avg:8658.97ms
+step:9/10000 train_loss:6.0457 train_time:77654ms step_avg:8628.24ms
+step:10/10000 train_loss:5.9338 train_time:86049ms step_avg:8604.85ms
+step:200/10000 train_loss:2.8785 train_time:1698068ms step_avg:8490.34ms
+step:400/10000 train_loss:2.5344 train_time:3379570ms step_avg:8448.93ms
+  → val_loss:2.4532 val_bpb:1.4529 (ema:hma)
+step:600/10000 train_loss:2.4762 train_time:5335273ms step_avg:8892.12ms
+step:800/10000 train_loss:2.2969 train_time:7216786ms step_avg:9020.98ms
+step:1000/10000 train_loss:2.4519 train_time:9149854ms step_avg:9149.85ms
+  → val_loss:2.3209 val_bpb:1.3745 (ema:hma)
+step:1200/10000 train_loss:2.2672 train_time:11428938ms step_avg:9524.11ms
+step:1400/10000 train_loss:2.2498 train_time:13347238ms step_avg:9533.74ms
+  → val_loss:2.3592 val_bpb:1.3973 (ema:hma)
+step:1600/10000 train_loss:2.2974 train_time:15540475ms step_avg:9712.80ms
+step:1800/10000 train_loss:2.2214 train_time:17356702ms step_avg:9642.61ms
+step:2000/10000 train_loss:2.2392 train_time:19259443ms step_avg:9629.72ms
+  → val_loss:2.1900 val_bpb:1.2970 (ema:hma)
+step:2200/10000 train_loss:2.2133 train_time:21491088ms step_avg:9768.68ms
+step:2400/10000 train_loss:2.1640 train_time:23358638ms step_avg:9732.77ms
+  → val_loss:2.1642 val_bpb:1.2818 (ema:hma)
+  checkpoint: runs/v61_10k/step2500.pt
+step:2600/10000 train_loss:2.1917 train_time:25562544ms step_avg:9831.75ms
+step:2800/10000 train_loss:2.2317 train_time:27440246ms step_avg:9800.09ms
+step:3000/10000 train_loss:2.1009 train_time:29313418ms step_avg:9771.14ms
+  → val_loss:2.1541 val_bpb:1.2758 (ema:hma)
+step:3200/10000 train_loss:2.1722 train_time:31517459ms step_avg:9849.21ms
+step:3400/10000 train_loss:2.1309 train_time:33384521ms step_avg:9818.98ms
+  → val_loss:2.1463 val_bpb:1.2712 (ema:hma)
+step:3600/10000 train_loss:2.2022 train_time:35597501ms step_avg:9888.19ms
+step:3800/10000 train_loss:2.1159 train_time:37468980ms step_avg:9860.26ms
+step:4000/10000 train_loss:2.1244 train_time:39331150ms step_avg:9832.79ms
+  → val_loss:2.1399 val_bpb:1.2674 (ema:hma)
+step:4200/10000 train_loss:2.2257 train_time:41522706ms step_avg:9886.36ms
+step:4400/10000 train_loss:2.1260 train_time:43390530ms step_avg:9861.48ms
+  → val_loss:2.1371 val_bpb:1.2657 (ema:hma)
+step:4600/10000 train_loss:2.1420 train_time:45578860ms step_avg:9908.45ms
+step:4800/10000 train_loss:2.1159 train_time:47385304ms step_avg:9871.94ms
+step:5000/10000 train_loss:2.1023 train_time:49242963ms step_avg:9848.59ms
+  → val_loss:2.1329 val_bpb:1.2632 (ema:hma)
+  checkpoint: runs/v61_10k/step5000.pt
+step:5200/10000 train_loss:2.1485 train_time:51437243ms step_avg:9891.78ms
+step:5400/10000 train_loss:2.1795 train_time:53311491ms step_avg:9872.50ms
+  → val_loss:2.1288 val_bpb:1.2608 (ema:hma)
+step:5600/10000 train_loss:2.1517 train_time:55510229ms step_avg:9912.54ms
+step:5800/10000 train_loss:2.1738 train_time:57377709ms step_avg:9892.71ms
+step:6000/10000 train_loss:2.0781 train_time:59237138ms step_avg:9872.86ms
+  → val_loss:2.1257 val_bpb:1.2589 (ema:hma)
+step:6200/10000 train_loss:2.1175 train_time:61458592ms step_avg:9912.68ms
+step:6400/10000 train_loss:2.1357 train_time:63346745ms step_avg:9897.93ms
+  → val_loss:2.1234 val_bpb:1.2576 (ema:hma)
+step:6600/10000 train_loss:2.0483 train_time:65597268ms step_avg:9938.98ms
+step:6800/10000 train_loss:2.0869 train_time:67493460ms step_avg:9925.51ms
+step:7000/10000 train_loss:2.1325 train_time:69408253ms step_avg:9915.46ms
+  → val_loss:2.1203 val_bpb:1.2558 (ema:hma)
+step:7200/10000 train_loss:2.1510 train_time:71688124ms step_avg:9956.68ms
+step:7400/10000 train_loss:2.1205 train_time:73646000ms step_avg:9952.16ms
+  → val_loss:2.1187 val_bpb:1.2548 (ema:hma)
+  checkpoint: runs/v61_10k/step7500.pt
+step:7600/10000 train_loss:2.0723 train_time:75957459ms step_avg:9994.40ms
+step:7800/10000 train_loss:2.0591 train_time:77924662ms step_avg:9990.34ms
+step:8000/10000 train_loss:2.1013 train_time:79887928ms step_avg:9985.99ms
+  → val_loss:2.1173 val_bpb:1.2540 (ema:hma)
+step:8200/10000 train_loss:2.1037 train_time:82207432ms step_avg:10025.30ms
+step:8400/10000 train_loss:2.0695 train_time:84157796ms step_avg:10018.79ms
+  → val_loss:2.1136 val_bpb:1.2518 (ema:hma)
+step:8600/10000 train_loss:2.0418 train_time:86452110ms step_avg:10052.57ms
+step:8800/10000 train_loss:2.0833 train_time:88424816ms step_avg:10048.27ms
+step:9000/10000 train_loss:2.0484 train_time:90377619ms step_avg:10041.96ms
+  → val_loss:2.1102 val_bpb:1.2498 (ema:hma)
+step:9200/10000 train_loss:2.0507 train_time:92664078ms step_avg:10072.18ms
+step:9400/10000 train_loss:2.0516 train_time:94595758ms step_avg:10063.38ms
+  → val_loss:2.1141 val_bpb:1.2521 (ema:hma)
+step:9600/10000 train_loss:1.9717 train_time:96868162ms step_avg:10090.43ms
+  SWA snapshot #1 at step 9700 (scale=0.1720)
+  SWA snapshot #2 at step 9750 (scale=0.1434)
+  SWA snapshot #3 at step 9800 (scale=0.1149)
+step:9800/10000 train_loss:1.9339 train_time:98781141ms step_avg:10079.71ms
+  SWA snapshot #4 at step 9850 (scale=0.0863)
+  SWA snapshot #5 at step 9900 (scale=0.0577)
+  SWA snapshot #6 at step 9950 (scale=0.0291)
+  SWA snapshot #7 at step 10000 (scale=0.0006)
+step:10000/10000 train_loss:1.8835 train_time:100790035ms step_avg:10079.00ms
+  → val_loss:2.1331 val_bpb:1.2633 (ema:hma)
+  checkpoint: runs/v61_10k/step10000.pt
+
+Training done: 10000 steps, 101156.6s
+Peak memory: 9205 MiB
+
+=== Final Evaluation ===
+val_loss:2.1331 val_bpb:1.2633 (ema:hma)
+
+=== SWA Evaluation (7 snapshots) ===
+val_loss:2.0971 val_bpb:1.2420 (swa)
+  → SWA wins! (1.2420 < 1.2633)
+
+Best weights: swa (bpb=1.2420)
+
+=== Hybrid rANS Artifact Size ===
+  rans_compressed_bytes: 12,807,948
+  count_bytes: 9,372
+  scale_bytes: 90,112
+  passthrough_bytes: 2,083,044
+  estimated_overhead: 20,992
+  total_estimated_bytes: 15,011,468
+  total_estimated_mb: 15.01
+  under_16mb: 1
+  headroom_mb: 0.99
+
+Saved: runs/v61_10k/model.pt (131,083,747 bytes)
+Saved: runs/v61_10k/model.rans.ptz (15,066,137 bytes)
+Under 16MB: YES

@@ -1,0 +1,14 @@
+{
+  "author": "sisegod",
+  "github_id": "sisegod",
+  "name": "HybridQuantGPT v6.1 — Mixed-Precision rANS + SWA + Legal TTT",
+  "blurb": "11-layer HybridQuantGPT with mixed-precision quantization (Q/K:Int6, V/O:Int5, MLP-up:Pentanary, MLP-down:Int4, Embed:FP16). rANS entropy coding compression. SWA weight averaging over 10K steps with Muon optimizer + HMA. Legal Score-First TTT (lr=0.002, epochs=3, chunk=32K). U-Net skip connections, XSA-all, Value Residual, SmearGate, BigramHash, VE128, PartialRoPE(16), LN Scale, LeakyReLU(0.5)^2. Single RTX 3090, 28h training.",
+  "date": "2026-03-30T00:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.023720,
+  "val_bpb": 1.1986,
+  "step_stop": 10000,
+  "wallclock_seconds": 101156.6,
+  "bytes_total": 15132719,
+  "bytes_code": 66582
+}
