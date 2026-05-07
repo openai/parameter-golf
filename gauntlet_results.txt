@@ -1,0 +1,2 @@
+2026-04-23 01:42:16 | experiment=baseline | steps=2000 | vocab=sp1024 | gpus=1 | best_bpb=1.2964 | last_bpb=1.29774005 | elapsed=1263s | log=/workspace/parameter-golf/logs/gauntlet/gauntlet_baseline_012113.log
+2026-04-23 03:24:47 | experiment=incr_QK55_4loop | steps=2000 | vocab=sp1024 | gpus=1 | best_bpb=1.17158907 | last_bpb=1.17158907 | elapsed=5540s | log=/workspace/parameter-golf/logs/gauntlet/gauntlet_incr_QK55_4loop_015227.log
