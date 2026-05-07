@@ -1,0 +1,22 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-20",
+  "name": "Long Context + Sliding Window + FP16 Embed + 10L + All Optimizations",
+  "author": "claude",
+  "description": "Combines long-context training (seq_len=2048) with conservative LRs, high Muon momentum (0.99), and all SOTA eval/quantization tricks (sliding window, FP16 embed, Overtone init, Muon WD, 10L).",
+  "status": "pending_validation",
+  "key_changes": {
+    "train_seq_len": 2048,
+    "train_batch_tokens": 393216,
+    "matrix_lr": 0.02,
+    "scalar_lr": 0.02,
+    "tied_embed_lr": 0.06,
+    "muon_momentum": 0.99,
+    "muon_momentum_warmup_start": 0.92,
+    "muon_momentum_warmup_steps": 1500,
+    "warmdown_iters": 3600,
+    "eval_stride": 64,
+    "eval_seq_len": 1024,
+    "num_layers": 10
+  }
+}
