@@ -1,0 +1,11 @@
+{
+  "author": "brandonpf",
+  "github_id": "brandonpf",
+  "name": "Structured Embedding Init",
+  "blurb": "Pre-computed PCA token positions from corpus co-occurrence, Xavier-standardized, selectively overriding 665/1024 tokens. +0.001 BPB vs baseline — early convergence advantage doesn't persist. Framework for combining with bigram hash in future iterations.",
+  "date": "2026-03-28T21:38:00Z",
+  "val_loss": 2.07912909,
+  "val_bpb": 1.23137736,
+  "bytes_total": 15869384,
+  "bytes_code": 48200
+}
