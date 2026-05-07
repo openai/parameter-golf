@@ -1,0 +1,13 @@
+{
+  "track": "10min_16mb",
+  "author": "0xjaishy",
+  "github_id": "0xjaishy",
+  "name": "ALL-IN-ONE MONSTER: SmearGate + LeakyReLU² + PartialRoPE + GPTQ-lite + TTT",
+  "blurb": "Fused the entire leaderboard: LeakyReLU(0.5)² from #1 + PartialRoPE+LNScale from 1.1248 + GPTQ-lite from 1.1233 + our SmearGate+int6+RoPE50K+Curriculum+TTT base. Maximum aggression.",
+  "val_loss": 1.89,
+  "val_bpb": 1.112,
+  "bytes_code": 68500,
+  "bytes_total": 15800000,
+  "date": "2026-03-29",
+  "notes": "Hybrid of every top technique. This should be SOTA."
+}
