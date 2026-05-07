@@ -1,0 +1,605 @@
+dsw-396679-6cf94fb454-7jd6q:133868:133868 [0] NCCL INFO Bootstrap : Using net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133868:133868 [0] NCCL INFO NET/Plugin : dlerror=/newcpfs/user/qixuan1/310/miniforge3/envs/loongflow_ml/bin/../lib/libuct.so.0: undefined symbol: ucs_config_doc_nop No plugin found (libnccl-net.so), using internal implementation
+dsw-396679-6cf94fb454-7jd6q:133870:133870 [2] NCCL INFO cudaDriverVersion 12020
+dsw-396679-6cf94fb454-7jd6q:133870:133870 [2] NCCL INFO Bootstrap : Using net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133868:133868 [0] NCCL INFO cudaDriverVersion 12020
+NCCL version 2.20.5+cuda12.4
+dsw-396679-6cf94fb454-7jd6q:133869:133869 [1] NCCL INFO cudaDriverVersion 12020
+dsw-396679-6cf94fb454-7jd6q:133869:133869 [1] NCCL INFO Bootstrap : Using net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133872:133872 [4] NCCL INFO cudaDriverVersion 12020
+dsw-396679-6cf94fb454-7jd6q:133872:133872 [4] NCCL INFO Bootstrap : Using net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133871:133871 [3] NCCL INFO cudaDriverVersion 12020
+dsw-396679-6cf94fb454-7jd6q:133871:133871 [3] NCCL INFO Bootstrap : Using net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133875:133875 [7] NCCL INFO cudaDriverVersion 12020
+dsw-396679-6cf94fb454-7jd6q:133875:133875 [7] NCCL INFO Bootstrap : Using net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133873:133873 [5] NCCL INFO cudaDriverVersion 12020
+dsw-396679-6cf94fb454-7jd6q:133873:133873 [5] NCCL INFO Bootstrap : Using net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133874:133874 [6] NCCL INFO cudaDriverVersion 12020
+dsw-396679-6cf94fb454-7jd6q:133874:133874 [6] NCCL INFO Bootstrap : Using net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133870:133870 [2] NCCL INFO NET/Plugin : dlerror=/newcpfs/user/qixuan1/310/miniforge3/envs/loongflow_ml/bin/../lib/libuct.so.0: undefined symbol: ucs_config_doc_nop No plugin found (libnccl-net.so), using internal implementation
+dsw-396679-6cf94fb454-7jd6q:133869:133869 [1] NCCL INFO NET/Plugin : dlerror=/newcpfs/user/qixuan1/310/miniforge3/envs/loongflow_ml/bin/../lib/libuct.so.0: undefined symbol: ucs_config_doc_nop No plugin found (libnccl-net.so), using internal implementation
+dsw-396679-6cf94fb454-7jd6q:133871:133871 [3] NCCL INFO NET/Plugin : dlerror=/newcpfs/user/qixuan1/310/miniforge3/envs/loongflow_ml/bin/../lib/libuct.so.0: undefined symbol: ucs_config_doc_nop No plugin found (libnccl-net.so), using internal implementation
+dsw-396679-6cf94fb454-7jd6q:133872:133872 [4] NCCL INFO NET/Plugin : dlerror=/newcpfs/user/qixuan1/310/miniforge3/envs/loongflow_ml/bin/../lib/libuct.so.0: undefined symbol: ucs_config_doc_nop No plugin found (libnccl-net.so), using internal implementation
+dsw-396679-6cf94fb454-7jd6q:133875:133875 [7] NCCL INFO NET/Plugin : dlerror=/newcpfs/user/qixuan1/310/miniforge3/envs/loongflow_ml/bin/../lib/libuct.so.0: undefined symbol: ucs_config_doc_nop No plugin found (libnccl-net.so), using internal implementation
+dsw-396679-6cf94fb454-7jd6q:133874:133874 [6] NCCL INFO NET/Plugin : dlerror=/newcpfs/user/qixuan1/310/miniforge3/envs/loongflow_ml/bin/../lib/libuct.so.0: undefined symbol: ucs_config_doc_nop No plugin found (libnccl-net.so), using internal implementation
+dsw-396679-6cf94fb454-7jd6q:133873:133873 [5] NCCL INFO NET/Plugin : dlerror=/newcpfs/user/qixuan1/310/miniforge3/envs/loongflow_ml/bin/../lib/libuct.so.0: undefined symbol: ucs_config_doc_nop No plugin found (libnccl-net.so), using internal implementation
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [1]mlx5_1:1/RoCE [2]mlx5_2:1/RoCE [3]mlx5_3:1/RoCE [4]mlx5_4:1/RoCE [5]mlx5_5:1/RoCE [6]mlx5_6:1/RoCE [7]mlx5_7:1/RoCE [RO]; OOB net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [1]mlx5_1:1/RoCE [2]mlx5_2:1/RoCE [3]mlx5_3:1/RoCE [4]mlx5_4:1/RoCE [5]mlx5_5:1/RoCE [6]mlx5_6:1/RoCE [7]mlx5_7:1/RoCE [RO]; OOB net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Using non-device net plugin version 0
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Using network IB
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Using non-device net plugin version 0
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Using network IB
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [1]mlx5_1:1/RoCE [2]mlx5_2:1/RoCE [3]mlx5_3:1/RoCE [4]mlx5_4:1/RoCE [5]mlx5_5:1/RoCE [6]mlx5_6:1/RoCE [7]mlx5_7:1/RoCE [RO]; OOB net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [1]mlx5_1:1/RoCE [2]mlx5_2:1/RoCE [3]mlx5_3:1/RoCE [4]mlx5_4:1/RoCE [5]mlx5_5:1/RoCE [6]mlx5_6:1/RoCE [7]mlx5_7:1/RoCE [RO]; OOB net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [1]mlx5_1:1/RoCE [2]mlx5_2:1/RoCE [3]mlx5_3:1/RoCE [4]mlx5_4:1/RoCE [5]mlx5_5:1/RoCE [6]mlx5_6:1/RoCE [7]mlx5_7:1/RoCE [RO]; OOB net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Using non-device net plugin version 0
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Using network IB
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Using non-device net plugin version 0
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Using network IB
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Using non-device net plugin version 0
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Using network IB
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [1]mlx5_1:1/RoCE [2]mlx5_2:1/RoCE [3]mlx5_3:1/RoCE [4]mlx5_4:1/RoCE [5]mlx5_5:1/RoCE [6]mlx5_6:1/RoCE [7]mlx5_7:1/RoCE [RO]; OOB net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [1]mlx5_1:1/RoCE [2]mlx5_2:1/RoCE [3]mlx5_3:1/RoCE [4]mlx5_4:1/RoCE [5]mlx5_5:1/RoCE [6]mlx5_6:1/RoCE [7]mlx5_7:1/RoCE [RO]; OOB net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Using non-device net plugin version 0
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [1]mlx5_1:1/RoCE [2]mlx5_2:1/RoCE [3]mlx5_3:1/RoCE [4]mlx5_4:1/RoCE [5]mlx5_5:1/RoCE [6]mlx5_6:1/RoCE [7]mlx5_7:1/RoCE [RO]; OOB net0:10.39.27.28<0>
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Using network IB
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Using non-device net plugin version 0
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Using network IB
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Using non-device net plugin version 0
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Using network IB
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO comm 0x560639081d30 rank 6 nranks 8 cudaDev 6 nvmlDev 6 busId 28000 commId 0x3707f8a63bfd288a - Init START
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO comm 0x5631d8bbb7c0 rank 5 nranks 8 cudaDev 5 nvmlDev 5 busId 22000 commId 0x3707f8a63bfd288a - Init START
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO comm 0x564c42f6ae70 rank 7 nranks 8 cudaDev 7 nvmlDev 7 busId 2e000 commId 0x3707f8a63bfd288a - Init START
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO comm 0x562562dadfd0 rank 3 nranks 8 cudaDev 3 nvmlDev 3 busId 15000 commId 0x3707f8a63bfd288a - Init START
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO comm 0x55e154a82240 rank 2 nranks 8 cudaDev 2 nvmlDev 2 busId f000 commId 0x3707f8a63bfd288a - Init START
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO comm 0x5607e8712980 rank 1 nranks 8 cudaDev 1 nvmlDev 1 busId 9000 commId 0x3707f8a63bfd288a - Init START
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO comm 0x55ba70b1f4f0 rank 4 nranks 8 cudaDev 4 nvmlDev 4 busId 1c000 commId 0x3707f8a63bfd288a - Init START
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO comm 0x5585e63ed840 rank 0 nranks 8 cudaDev 0 nvmlDev 0 busId 3000 commId 0x3707f8a63bfd288a - Init START
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Setting affinity for GPU 6 to 3fff,ffffffff,ffffff80,00000000,00000000
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO NVLS multicast support is available on dev 6
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Setting affinity for GPU 7 to 3fff,ffffffff,ffffff80,00000000,00000000
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO NVLS multicast support is available on dev 7
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Setting affinity for GPU 4 to 3fff,ffffffff,ffffff80,00000000,00000000
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO NVLS multicast support is available on dev 4
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Setting affinity for GPU 0 to 7f,ffffffff,ffffffff
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO NVLS multicast support is available on dev 0
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Setting affinity for GPU 3 to 7f,ffffffff,ffffffff
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO NVLS multicast support is available on dev 3
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Setting affinity for GPU 1 to 7f,ffffffff,ffffffff
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO NVLS multicast support is available on dev 1
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Setting affinity for GPU 2 to 7f,ffffffff,ffffffff
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO NVLS multicast support is available on dev 2
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Setting affinity for GPU 5 to 3fff,ffffffff,ffffff80,00000000,00000000
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO NVLS multicast support is available on dev 5
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO comm 0x5631d8bbb7c0 rank 5 nRanks 8 nNodes 1 localRanks 8 localRank 5 MNNVL 0
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO comm 0x564c42f6ae70 rank 7 nRanks 8 nNodes 1 localRanks 8 localRank 7 MNNVL 0
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO comm 0x5585e63ed840 rank 0 nRanks 8 nNodes 1 localRanks 8 localRank 0 MNNVL 0
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Trees [0] 6/-1/-1->5->4 [1] 6/-1/-1->5->4 [2] 6/-1/-1->5->4 [3] 6/-1/-1->5->4 [4] 6/-1/-1->5->4 [5] 6/-1/-1->5->4 [6] 6/-1/-1->5->4 [7] 6/-1/-1->5->4 [8] 6/-1/-1->5->4 [9] 6/-1/-1->5->4 [10] 6/-1/-1->5->4 [11] 6/-1/-1->5->4 [12] 6/-1/-1->5->4 [13] 6/-1/-1->5->4 [14] 6/-1/-1->5->4 [15] 6/-1/-1->5->4 [16] 6/-1/-1->5->4 [17] 6/-1/-1->5->4 [18] 6/-1/-1->5->4 [19] 6/-1/-1->5->4 [20] 6/-1/-1->5->4 [21] 6/-1/-1->5->4 [22] 6/-1/-1->5->4 [23] 6/-1/-1->5->4
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO P2P Chunksize set to 524288
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 00/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO comm 0x562562dadfd0 rank 3 nRanks 8 nNodes 1 localRanks 8 localRank 3 MNNVL 0
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 01/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 02/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO comm 0x560639081d30 rank 6 nRanks 8 nNodes 1 localRanks 8 localRank 6 MNNVL 0
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 03/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Trees [0] -1/-1/-1->7->6 [1] -1/-1/-1->7->6 [2] -1/-1/-1->7->6 [3] -1/-1/-1->7->6 [4] -1/-1/-1->7->6 [5] -1/-1/-1->7->6 [6] -1/-1/-1->7->6 [7] -1/-1/-1->7->6 [8] -1/-1/-1->7->6 [9] -1/-1/-1->7->6 [10] -1/-1/-1->7->6 [11] -1/-1/-1->7->6 [12] -1/-1/-1->7->6 [13] -1/-1/-1->7->6 [14] -1/-1/-1->7->6 [15] -1/-1/-1->7->6 [16] -1/-1/-1->7->6 [17] -1/-1/-1->7->6 [18] -1/-1/-1->7->6 [19] -1/-1/-1->7->6 [20] -1/-1/-1->7->6 [21] -1/-1/-1->7->6 [22] -1/-1/-1->7->6 [23] -1/-1/-1->7->6
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO comm 0x5607e8712980 rank 1 nRanks 8 nNodes 1 localRanks 8 localRank 1 MNNVL 0
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 04/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO comm 0x55e154a82240 rank 2 nRanks 8 nNodes 1 localRanks 8 localRank 2 MNNVL 0
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO P2P Chunksize set to 524288
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 05/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 06/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 07/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 08/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 09/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 10/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Trees [0] 4/-1/-1->3->2 [1] 4/-1/-1->3->2 [2] 4/-1/-1->3->2 [3] 4/-1/-1->3->2 [4] 4/-1/-1->3->2 [5] 4/-1/-1->3->2 [6] 4/-1/-1->3->2 [7] 4/-1/-1->3->2 [8] 4/-1/-1->3->2 [9] 4/-1/-1->3->2 [10] 4/-1/-1->3->2 [11] 4/-1/-1->3->2 [12] 4/-1/-1->3->2 [13] 4/-1/-1->3->2 [14] 4/-1/-1->3->2 [15] 4/-1/-1->3->2 [16] 4/-1/-1->3->2 [17] 4/-1/-1->3->2 [18] 4/-1/-1->3->2 [19] 4/-1/-1->3->2 [20] 4/-1/-1->3->2 [21] 4/-1/-1->3->2 [22] 4/-1/-1->3->2 [23] 4/-1/-1->3->2
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 11/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO P2P Chunksize set to 524288
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 12/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Trees [0] 7/-1/-1->6->5 [1] 7/-1/-1->6->5 [2] 7/-1/-1->6->5 [3] 7/-1/-1->6->5 [4] 7/-1/-1->6->5 [5] 7/-1/-1->6->5 [6] 7/-1/-1->6->5 [7] 7/-1/-1->6->5 [8] 7/-1/-1->6->5 [9] 7/-1/-1->6->5 [10] 7/-1/-1->6->5 [11] 7/-1/-1->6->5 [12] 7/-1/-1->6->5 [13] 7/-1/-1->6->5 [14] 7/-1/-1->6->5 [15] 7/-1/-1->6->5 [16] 7/-1/-1->6->5 [17] 7/-1/-1->6->5 [18] 7/-1/-1->6->5 [19] 7/-1/-1->6->5 [20] 7/-1/-1->6->5 [21] 7/-1/-1->6->5 [22] 7/-1/-1->6->5 [23] 7/-1/-1->6->5
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 13/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO P2P Chunksize set to 524288
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 14/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Trees [0] 2/-1/-1->1->0 [1] 2/-1/-1->1->0 [2] 2/-1/-1->1->0 [3] 2/-1/-1->1->0 [4] 2/-1/-1->1->0 [5] 2/-1/-1->1->0 [6] 2/-1/-1->1->0 [7] 2/-1/-1->1->0 [8] 2/-1/-1->1->0 [9] 2/-1/-1->1->0 [10] 2/-1/-1->1->0 [11] 2/-1/-1->1->0 [12] 2/-1/-1->1->0 [13] 2/-1/-1->1->0 [14] 2/-1/-1->1->0 [15] 2/-1/-1->1->0 [16] 2/-1/-1->1->0 [17] 2/-1/-1->1->0 [18] 2/-1/-1->1->0 [19] 2/-1/-1->1->0 [20] 2/-1/-1->1->0 [21] 2/-1/-1->1->0 [22] 2/-1/-1->1->0 [23] 2/-1/-1->1->0
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Trees [0] 3/-1/-1->2->1 [1] 3/-1/-1->2->1 [2] 3/-1/-1->2->1 [3] 3/-1/-1->2->1 [4] 3/-1/-1->2->1 [5] 3/-1/-1->2->1 [6] 3/-1/-1->2->1 [7] 3/-1/-1->2->1 [8] 3/-1/-1->2->1 [9] 3/-1/-1->2->1 [10] 3/-1/-1->2->1 [11] 3/-1/-1->2->1 [12] 3/-1/-1->2->1 [13] 3/-1/-1->2->1 [14] 3/-1/-1->2->1 [15] 3/-1/-1->2->1 [16] 3/-1/-1->2->1 [17] 3/-1/-1->2->1 [18] 3/-1/-1->2->1 [19] 3/-1/-1->2->1 [20] 3/-1/-1->2->1 [21] 3/-1/-1->2->1 [22] 3/-1/-1->2->1 [23] 3/-1/-1->2->1
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 15/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO P2P Chunksize set to 524288
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 16/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO P2P Chunksize set to 524288
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 17/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 18/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 19/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 20/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 21/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 22/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 23/24 :    0   1   2   3   4   5   6   7
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Trees [0] 1/-1/-1->0->-1 [1] 1/-1/-1->0->-1 [2] 1/-1/-1->0->-1 [3] 1/-1/-1->0->-1 [4] 1/-1/-1->0->-1 [5] 1/-1/-1->0->-1 [6] 1/-1/-1->0->-1 [7] 1/-1/-1->0->-1 [8] 1/-1/-1->0->-1 [9] 1/-1/-1->0->-1 [10] 1/-1/-1->0->-1 [11] 1/-1/-1->0->-1 [12] 1/-1/-1->0->-1 [13] 1/-1/-1->0->-1 [14] 1/-1/-1->0->-1 [15] 1/-1/-1->0->-1 [16] 1/-1/-1->0->-1 [17] 1/-1/-1->0->-1 [18] 1/-1/-1->0->-1 [19] 1/-1/-1->0->-1 [20] 1/-1/-1->0->-1 [21] 1/-1/-1->0->-1 [22] 1/-1/-1->0->-1 [23] 1/-1/-1->0->-1
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO P2P Chunksize set to 524288
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO comm 0x55ba70b1f4f0 rank 4 nRanks 8 nNodes 1 localRanks 8 localRank 4 MNNVL 0
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Trees [0] 5/-1/-1->4->3 [1] 5/-1/-1->4->3 [2] 5/-1/-1->4->3 [3] 5/-1/-1->4->3 [4] 5/-1/-1->4->3 [5] 5/-1/-1->4->3 [6] 5/-1/-1->4->3 [7] 5/-1/-1->4->3 [8] 5/-1/-1->4->3 [9] 5/-1/-1->4->3 [10] 5/-1/-1->4->3 [11] 5/-1/-1->4->3 [12] 5/-1/-1->4->3 [13] 5/-1/-1->4->3 [14] 5/-1/-1->4->3 [15] 5/-1/-1->4->3 [16] 5/-1/-1->4->3 [17] 5/-1/-1->4->3 [18] 5/-1/-1->4->3 [19] 5/-1/-1->4->3 [20] 5/-1/-1->4->3 [21] 5/-1/-1->4->3 [22] 5/-1/-1->4->3 [23] 5/-1/-1->4->3
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO P2P Chunksize set to 524288
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 00/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 01/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 02/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 03/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 04/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 00/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 05/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 01/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 06/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 02/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 07/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 03/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 08/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 04/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 09/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 05/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 10/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 06/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 11/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 07/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 12/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 08/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 13/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 00/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 09/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 14/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 01/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 10/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 15/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 02/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 11/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 16/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 17/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 03/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 18/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 04/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 19/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 05/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 20/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 06/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 21/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 07/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 22/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 08/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 23/0 : 2[2] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 09/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 10/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 11/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 12/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 12/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 13/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 14/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 15/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 16/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 17/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 18/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 19/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 20/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 00/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 21/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 01/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 22/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 02/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 23/0 : 5[5] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 13/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 00/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 03/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 01/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 02/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 04/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 03/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 05/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 04/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 06/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 05/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 07/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 06/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 08/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 00/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 07/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 09/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 01/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 08/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 10/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 02/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 09/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 11/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 03/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 10/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 12/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 04/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 11/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 13/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 12/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 05/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 13/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 14/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 06/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 15/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 14/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 07/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 16/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 15/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 08/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 17/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 16/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 09/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 18/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 17/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 10/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 19/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 18/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 11/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 20/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 19/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 12/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 21/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 20/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 13/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 22/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 21/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 14/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 23/0 : 4[4] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 22/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 15/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 23/0 : 3[3] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 16/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 14/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 17/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 15/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 18/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 16/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 17/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 00/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 18/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 19/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 01/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 20/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 19/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 21/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 20/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 22/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 02/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 03/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 23/0 : 7[7] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 04/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 05/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 21/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 22/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Channel 23/0 : 0[0] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 06/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 07/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 00/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 08/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 01/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 09/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 02/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 10/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 03/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 11/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 12/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 04/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 05/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 13/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 06/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 14/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 07/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 08/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 15/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 16/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 09/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 17/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 10/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 18/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 19/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 11/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 20/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 12/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 21/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 13/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 22/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 14/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 23/0 : 1[1] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 15/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 16/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 17/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 18/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 19/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 20/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 21/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 22/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 23/0 : 6[6] -> 7[7] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Connected all rings
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Connected all rings
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Connected all rings
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 00/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 00/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 01/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 01/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 02/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 03/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 04/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 02/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 03/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 04/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 05/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 05/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 06/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 06/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 07/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Connected all rings
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 07/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 08/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 08/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 09/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 09/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 10/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 11/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 12/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 10/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 13/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 14/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 11/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 15/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 12/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 16/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 00/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 01/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 13/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 02/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 14/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 03/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 15/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 16/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 17/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 17/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 18/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 04/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 05/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 18/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 06/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 19/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 07/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 20/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 19/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 21/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 08/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 20/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 22/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 09/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 21/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Channel 23/0 : 3[3] -> 2[2] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 10/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 22/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 11/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Channel 23/0 : 2[2] -> 1[1] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Connected all rings
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 00/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 01/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 12/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 02/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 13/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 03/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 14/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 04/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 15/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 05/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 16/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 06/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Connected all rings
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Connected all rings
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Connected all rings
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 17/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 07/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 18/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 19/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 20/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 21/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 08/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 22/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 09/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Channel 23/0 : 1[1] -> 0[0] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 10/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 11/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 12/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 13/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 14/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 15/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 16/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 17/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 18/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 19/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 20/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 21/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 22/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Channel 23/0 : 7[7] -> 6[6] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 00/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 00/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 01/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 01/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 02/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 00/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 02/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 03/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 01/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 03/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 04/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 02/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 04/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 05/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 03/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 05/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 06/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 04/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 06/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 07/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 05/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 07/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 08/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 06/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 08/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 07/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 09/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 09/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 08/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 10/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 10/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 09/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 11/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 11/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 12/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 10/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 12/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 13/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 11/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 14/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 12/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 13/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 13/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 14/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 15/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 16/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 17/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 15/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 14/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 18/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 16/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 15/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 19/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 17/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 20/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 18/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 16/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 21/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 19/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 17/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 22/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 20/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 18/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Channel 23/0 : 4[4] -> 3[3] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 21/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 19/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 22/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 20/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 21/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 22/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Channel 23/0 : 6[6] -> 5[5] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Channel 23/0 : 5[5] -> 4[4] via P2P/CUMEM
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO Connected all trees
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO NVLS comm 0x5585e63ed840 headRank 0 nHeads 8 buffSize 4194304 memSize 2097152 nvlsPerRankSize 301989888 nvlsTotalSize 2415919104
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO Connected all trees
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO NVLS comm 0x5607e8712980 headRank 1 nHeads 8 buffSize 4194304 memSize 2097152 nvlsPerRankSize 301989888 nvlsTotalSize 2415919104
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO Connected all trees
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO Connected all trees
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO NVLS comm 0x55e154a82240 headRank 2 nHeads 8 buffSize 4194304 memSize 2097152 nvlsPerRankSize 301989888 nvlsTotalSize 2415919104
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO Connected all trees
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO NVLS comm 0x562562dadfd0 headRank 3 nHeads 8 buffSize 4194304 memSize 2097152 nvlsPerRankSize 301989888 nvlsTotalSize 2415919104
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO Connected all trees
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO Connected all trees
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO Connected all trees
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO NVLS comm 0x564c42f6ae70 headRank 7 nHeads 8 buffSize 4194304 memSize 2097152 nvlsPerRankSize 301989888 nvlsTotalSize 2415919104
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO NVLS comm 0x560639081d30 headRank 6 nHeads 8 buffSize 4194304 memSize 2097152 nvlsPerRankSize 301989888 nvlsTotalSize 2415919104
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO NVLS comm 0x5631d8bbb7c0 headRank 5 nHeads 8 buffSize 4194304 memSize 2097152 nvlsPerRankSize 301989888 nvlsTotalSize 2415919104
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO NVLS comm 0x55ba70b1f4f0 headRank 4 nHeads 8 buffSize 4194304 memSize 2097152 nvlsPerRankSize 301989888 nvlsTotalSize 2415919104
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO 24 coll channels, 0 collnet channels, 16 nvls channels, 32 p2p channels, 32 p2p channels per peer
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO 24 coll channels, 0 collnet channels, 16 nvls channels, 32 p2p channels, 32 p2p channels per peer
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO 24 coll channels, 0 collnet channels, 16 nvls channels, 32 p2p channels, 32 p2p channels per peer
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO 24 coll channels, 0 collnet channels, 16 nvls channels, 32 p2p channels, 32 p2p channels per peer
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO 24 coll channels, 0 collnet channels, 16 nvls channels, 32 p2p channels, 32 p2p channels per peer
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO 24 coll channels, 0 collnet channels, 16 nvls channels, 32 p2p channels, 32 p2p channels per peer
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO 24 coll channels, 0 collnet channels, 16 nvls channels, 32 p2p channels, 32 p2p channels per peer
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO threadThresholds 8/8/64 | 64/8/64 | 512 | 512
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO 24 coll channels, 0 collnet channels, 16 nvls channels, 32 p2p channels, 32 p2p channels per peer
+dsw-396679-6cf94fb454-7jd6q:133871:133964 [3] NCCL INFO comm 0x562562dadfd0 rank 3 nranks 8 cudaDev 3 nvmlDev 3 busId 15000 commId 0x3707f8a63bfd288a - Init COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133875:133966 [7] NCCL INFO comm 0x564c42f6ae70 rank 7 nranks 8 cudaDev 7 nvmlDev 7 busId 2e000 commId 0x3707f8a63bfd288a - Init COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133869:133963 [1] NCCL INFO comm 0x5607e8712980 rank 1 nranks 8 cudaDev 1 nvmlDev 1 busId 9000 commId 0x3707f8a63bfd288a - Init COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133868:133961 [0] NCCL INFO comm 0x5585e63ed840 rank 0 nranks 8 cudaDev 0 nvmlDev 0 busId 3000 commId 0x3707f8a63bfd288a - Init COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133874:133967 [6] NCCL INFO comm 0x560639081d30 rank 6 nranks 8 cudaDev 6 nvmlDev 6 busId 28000 commId 0x3707f8a63bfd288a - Init COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133872:133965 [4] NCCL INFO comm 0x55ba70b1f4f0 rank 4 nranks 8 cudaDev 4 nvmlDev 4 busId 1c000 commId 0x3707f8a63bfd288a - Init COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133870:133962 [2] NCCL INFO comm 0x55e154a82240 rank 2 nranks 8 cudaDev 2 nvmlDev 2 busId f000 commId 0x3707f8a63bfd288a - Init COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133873:133968 [5] NCCL INFO comm 0x5631d8bbb7c0 rank 5 nranks 8 cudaDev 5 nvmlDev 5 busId 22000 commId 0x3707f8a63bfd288a - Init COMPLETE
+logs/baseline_sp1024_8gpu_local.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/newcpfs/user/qixuan1/research_proposal_lab/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:1
+val_loader:shards pattern=/newcpfs/user/qixuan1/research_proposal_lab/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:16765000
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:1600 warmup_steps:20 max_wallclock_seconds:0.000
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/1600 train_loss:6.9362 train_time:150ms step_avg:150.07ms
+step:2/1600 train_loss:16.7008 train_time:243ms step_avg:121.31ms
+step:3/1600 train_loss:8.2418 train_time:333ms step_avg:111.13ms
+step:4/1600 train_loss:6.7079 train_time:431ms step_avg:107.84ms
+step:5/1600 train_loss:6.9015 train_time:523ms step_avg:104.69ms
+step:6/1600 train_loss:7.6420 train_time:620ms step_avg:103.37ms
+step:7/1600 train_loss:6.5188 train_time:722ms step_avg:103.17ms
+step:8/1600 train_loss:6.2443 train_time:820ms step_avg:102.52ms
+step:9/1600 train_loss:6.0666 train_time:918ms step_avg:101.95ms
+step:10/1600 train_loss:5.9853 train_time:1010ms step_avg:100.95ms
+step:200/1600 train_loss:2.8226 train_time:18330ms step_avg:91.65ms
+step:400/1600 train_loss:2.5868 train_time:36589ms step_avg:91.47ms
+step:600/1600 train_loss:2.3584 train_time:54794ms step_avg:91.32ms
+step:800/1600 train_loss:2.2191 train_time:72949ms step_avg:91.19ms
+step:1000/1600 train_loss:2.9257 train_time:90542ms step_avg:90.54ms
+step:1200/1600 train_loss:2.1547 train_time:108503ms step_avg:90.42ms
+step:1400/1600 train_loss:2.1293 train_time:126173ms step_avg:90.12ms
+step:1600/1600 train_loss:2.2377 train_time:143940ms step_avg:89.96ms
+step:1600/1600 val_loss:2.2773 val_bpb:1.3488 train_time:143948ms step_avg:89.97ms
+peak memory allocated: 13119 MiB reserved: 13170 MiB
+Serialized model: 66044930 bytes
+Code size: 65628 bytes
+Total submission size: 66110558 bytes
+Serialized model int8+zlib: 14358635 bytes (payload:17405664 raw_torch:17450062 payload_ratio:3.79x)
+Total submission size int8+zlib: 14424263 bytes
+final_eval_mode:sliding_window stride:64 batch_seqs:128
+final_int8_zlib_roundtrip val_loss:2.2223 val_bpb:1.3162 eval_time:138547ms
+final_int8_zlib_roundtrip_exact val_loss:2.22232137 val_bpb:1.31618558
+final_int8_ttt_lora skipped:SKIP_TTT_EVAL=1
+dsw-396679-6cf94fb454-7jd6q:133869:134574 [1] NCCL INFO [Service thread] Connection closed by localRank 1
+dsw-396679-6cf94fb454-7jd6q:133868:134564 [0] NCCL INFO [Service thread] Connection closed by localRank 0
+dsw-396679-6cf94fb454-7jd6q:133870:134566 [2] NCCL INFO [Service thread] Connection closed by localRank 2
+dsw-396679-6cf94fb454-7jd6q:133871:134569 [3] NCCL INFO [Service thread] Connection closed by localRank 3
+dsw-396679-6cf94fb454-7jd6q:133872:134576 [4] NCCL INFO [Service thread] Connection closed by localRank 4
+dsw-396679-6cf94fb454-7jd6q:133875:134572 [7] NCCL INFO [Service thread] Connection closed by localRank 7
+dsw-396679-6cf94fb454-7jd6q:133873:134562 [5] NCCL INFO [Service thread] Connection closed by localRank 5
+dsw-396679-6cf94fb454-7jd6q:133874:134568 [6] NCCL INFO [Service thread] Connection closed by localRank 6
+dsw-396679-6cf94fb454-7jd6q:133869:135246 [1] NCCL INFO comm 0x5607e8712980 rank 1 nranks 8 cudaDev 1 busId 9000 - Abort COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133868:135247 [0] NCCL INFO comm 0x5585e63ed840 rank 0 nranks 8 cudaDev 0 busId 3000 - Abort COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133871:135249 [3] NCCL INFO comm 0x562562dadfd0 rank 3 nranks 8 cudaDev 3 busId 15000 - Abort COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133875:135251 [7] NCCL INFO comm 0x564c42f6ae70 rank 7 nranks 8 cudaDev 7 busId 2e000 - Abort COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133872:135250 [4] NCCL INFO comm 0x55ba70b1f4f0 rank 4 nranks 8 cudaDev 4 busId 1c000 - Abort COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133870:135248 [2] NCCL INFO comm 0x55e154a82240 rank 2 nranks 8 cudaDev 2 busId f000 - Abort COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133874:135253 [6] NCCL INFO comm 0x560639081d30 rank 6 nranks 8 cudaDev 6 busId 28000 - Abort COMPLETE
+dsw-396679-6cf94fb454-7jd6q:133873:135252 [5] NCCL INFO comm 0x5631d8bbb7c0 rank 5 nranks 8 cudaDev 5 busId 22000 - Abort COMPLETE
