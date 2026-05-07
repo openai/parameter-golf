@@ -1,0 +1,29 @@
+{
+  "submission_name": "Lexis-E",
+  "team": "shasankp000",
+  "repository": "https://github.com/shasankp000/Lexis",
+  "branch": "lexis-e",
+  "description": "Lexis-E: a linguistics-driven text compressor combining morphological root coding, phonetic character classes, POS-delta arithmetic coding, coreference-based symbol substitution, and a context-mixing probability model. The LEXI binary format stores all reconstruction metadata with optional zstd post-compression.",
+  "model_parameters": 0,
+  "compression_results": {
+    "corpus": "moby500.txt",
+    "original_size_bytes": 3101,
+    "compressed_size_bytes": null,
+    "compression_ratio": null,
+    "bits_per_byte": null
+  },
+  "pipeline_stages": [
+    "Stage 1: normalize_text",
+    "Stage 2: MorphologicalAnalyser (spaCy + lemminflect)",
+    "Stage 3: analyse_sentence (POS / dependency syntax)",
+    "Stage 4: DiscourseAnalyser (coreference via f-coref)",
+    "Stage 5: encode_sentence_full (phonetic class + delta + case flags)",
+    "Stage 6: ContextMixingModel (char / morph / struct contexts)",
+    "Stage 7: ArithmeticEncoder / ArithmeticDecoder",
+    "Stage 8: _reconstruct_chars",
+    "Stage 9: morph decode + case restoration",
+    "Stage 10: metadata_codec (LEXI binary format)",
+    "Stage 11: compress_to_file + decompress (end-to-end)"
+  ],
+  "test_suite": "pipeline_trace.py -- all 12 stages, zero FAILs"
+}
