@@ -1,0 +1,42 @@
+# MoE Soft Routing Training Log (partial — pod died at step 2000)
+# Config: 2 experts, MLP 1.5x each, 9 layers, 512 dim
+# Hardware: 8xH100 SXM (RunPod)
+# Base: 2nd place code (SmearGate, BigramHash, OrthoInit, SWA, seq2048, int6+zstd)
+# Date: 2026-03-22
+
+step:0/20000 val_loss:6.9386 val_bpb:4.1094 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9406 train_time:142ms step_avg:142.46ms
+step:2/20000 train_loss:7.9959 train_time:220ms step_avg:109.91ms
+step:3/20000 train_loss:7.5944 train_time:306ms step_avg:101.97ms
+step:4/20000 train_loss:6.9493 train_time:392ms step_avg:98.06ms
+step:5/20000 train_loss:6.8076 train_time:478ms step_avg:95.68ms
+step:6/20000 train_loss:6.7114 train_time:565ms step_avg:94.10ms
+step:7/20000 train_loss:6.5846 train_time:651ms step_avg:92.95ms
+step:8/20000 train_loss:6.6038 train_time:737ms step_avg:92.10ms
+step:9/20000 train_loss:6.4116 train_time:823ms step_avg:91.43ms
+step:10/20000 train_loss:6.0942 train_time:909ms step_avg:90.89ms
+step:100/20000 train_loss:3.2143 train_time:8743ms step_avg:87.43ms
+step:200/20000 train_loss:2.4316 train_time:17529ms step_avg:87.64ms
+step:300/20000 train_loss:2.5700 train_time:26315ms step_avg:87.72ms
+step:400/20000 train_loss:2.4368 train_time:35115ms step_avg:87.79ms
+step:500/20000 train_loss:2.4217 train_time:43886ms step_avg:87.77ms
+step:500/20000 val_loss:2.3833 val_bpb:1.4115 train_time:43895ms step_avg:87.79ms
+step:600/20000 train_loss:2.3637 train_time:52720ms step_avg:87.87ms
+step:700/20000 train_loss:2.3786 train_time:61566ms step_avg:87.95ms
+step:800/20000 train_loss:2.2707 train_time:70421ms step_avg:88.03ms
+step:900/20000 train_loss:2.1624 train_time:79268ms step_avg:88.08ms
+step:1000/20000 train_loss:2.3079 train_time:88063ms step_avg:88.06ms
+step:1000/20000 val_loss:2.2602 val_bpb:1.3386 train_time:88072ms step_avg:88.07ms
+step:1100/20000 train_loss:2.3658 train_time:96909ms step_avg:88.10ms
+step:1200/20000 train_loss:2.3891 train_time:105749ms step_avg:88.12ms
+step:1300/20000 train_loss:2.1363 train_time:114582ms step_avg:88.14ms
+step:1400/20000 train_loss:2.2232 train_time:123422ms step_avg:88.16ms
+step:1500/20000 train_loss:2.2617 train_time:132194ms step_avg:88.13ms
+step:1500/20000 val_loss:2.2225 val_bpb:1.3163 train_time:132203ms step_avg:88.14ms
+step:1600/20000 train_loss:2.1159 train_time:141018ms step_avg:88.14ms
+step:1700/20000 train_loss:2.1805 train_time:149842ms step_avg:88.14ms
+step:1800/20000 train_loss:2.1953 train_time:158662ms step_avg:88.15ms
+step:1900/20000 train_loss:2.1659 train_time:167422ms step_avg:88.12ms
+step:2000/20000 train_loss:2.1063 train_time:176235ms step_avg:88.12ms
+step:2000/20000 val_loss:2.1724 val_bpb:1.2866 train_time:176246ms step_avg:88.12ms
+# Connection to 103.207.149.69 closed by remote host.
