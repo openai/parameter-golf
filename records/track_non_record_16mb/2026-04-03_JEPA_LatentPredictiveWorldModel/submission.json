@@ -1,0 +1,30 @@
+{
+    "author": "adi-suresh01",
+    "github_id": "adi-suresh01",
+    "val_bpb": 1.1740,
+    "val_bpb_mean_3seed": 1.1749,
+    "val_bpb_std_3seed": 0.001,
+    "artifact_bytes": 15962306,
+    "date": "2026-04-14",
+    "description": "JEPA-LM: First JEPA implementation for Parameter Golf. Hierarchical multi-horizon latent prediction + int6 mixed precision + sliding window eval.",
+    "track": "non_record_16mb",
+    "hardware": "8xH100 SXM",
+    "seeds": [1337, 7, 42],
+    "seed_bpbs": [1.17601731, 1.17471213, 1.17402625],
+    "config": {
+        "num_layers": 9,
+        "model_dim": 512,
+        "mlp_mult": 3,
+        "num_heads": 8,
+        "num_kv_heads": 4,
+        "jepa_loss_weight": 0.5,
+        "jepa_bottleneck": 128,
+        "jepa_horizons": 3,
+        "jepa_num_anchors": 1,
+        "quant_bits": 6,
+        "quant_keep_int8_patterns": "tok_emb,lm_head",
+        "sliding_stride": 256,
+        "grad_clip_norm": 1.0,
+        "warmdown_iters": 3000
+    }
+}
