@@ -1,0 +1,11 @@
+{
+  "author": "Jorge Asenjo",
+  "github_id": "jorge-asenjo",
+  "name": "GPTQ + EMA + XSA-all + BigramHash3072",
+  "blurb": "11L 512dim GQA8/4 MLP3x LeakyReLU^2 with BigramHash 3072x112, SmearGate, XSA on all 11 layers, Partial RoPE 16/64, LN Scale, U-Net skips, Value Embedding, EMA(0.997), Late QAT, GPTQ with Hessian-based quantization, zstd-22 compression, sliding window eval stride=32",
+  "date": "2026-04-04T19:30:00Z",
+  "val_loss": 1.89444390,
+  "val_bpb": 1.12200011,
+  "bytes_total": 15877304,
+  "bytes_code": 75729
+}
