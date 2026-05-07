@@ -1,0 +1,16 @@
+{
+  "author": "ciach",
+  "github_id": "ciach",
+  "name": "Quant-Quality First (MLP3 + BG2048, int8 embeds)",
+  "blurb": "11L/512d GQA model with MLP_MULT=3.0, BIGRAM_VOCAB_SIZE=2048, int6 quantization on mlp+attn (embeddings on int8 path), zstd selected by auto-compressor.",
+  "date": "2026-03-29T14:16:37Z",
+  "val_loss": 1.89573468,
+  "val_bpb": 1.12276383,
+  "pre_quant_val_loss": 1.9239,
+  "pre_quant_val_bpb": 1.1394,
+  "step_stop": 7020,
+  "wallclock_seconds": 600.071,
+  "bytes_total": 15561740,
+  "bytes_model_int6_zstd": 15487334,
+  "bytes_code": 74406
+}
