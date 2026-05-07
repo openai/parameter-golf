@@ -1,0 +1,11 @@
+{
+  "author": "Takhir Adilzhanov",
+  "github_id": "takhir-iota",
+  "name": "Seq4096 FP16 Tok Emb + Selective Coarsen",
+  "blurb": "A 9x512 GQA run trained at seq_len=4096 with tuned Muon hyperparameters and exported under the 16,000,000-byte cap by keeping tok_emb.weight in fp16 and coarsening only one middle block.",
+  "date": "2026-03-19T09:31:32Z",
+  "val_loss": 2.00654252,
+  "val_bpb": 1.18838751,
+  "bytes_total": 15937608,
+  "bytes_code": 55313
+}
