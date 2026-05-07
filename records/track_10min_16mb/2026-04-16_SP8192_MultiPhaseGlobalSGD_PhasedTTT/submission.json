@@ -1,0 +1,11 @@
+{
+  "author": "Jorge Asenjo",
+  "github_id": "jorge-asenjo",
+  "name": "SP8192 Multi-Phase Global SGD + Phased TTT",
+  "blurb": "Multi-phase global SGD at test time: score chunks, apply SGD to base weights, repeat for 3 phases. SP-8192 tokenizer, int7 embeddings, per-layer GPTQ with sigma clipping, Muon optimizer, depth recurrence, VarLen attention, fused MLP. 3-seed mean val_bpb 1.07219.",
+  "date": "2026-04-17T00:59:00Z",
+  "val_loss": 2.76812,
+  "val_bpb": 1.07219,
+  "bytes_total": 15933019,
+  "bytes_code": 27955
+}
