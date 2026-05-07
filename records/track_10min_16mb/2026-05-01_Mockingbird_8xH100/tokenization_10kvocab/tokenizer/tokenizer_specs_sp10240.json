@@ -1,0 +1,12 @@
+{
+  "tokenizer_specs": [
+    {
+      "name": "sp_bpe_10240",
+      "dataset_suffix": "sp10240",
+      "vocab_size": 10240,
+      "model_prefix": "fineweb_10240_bpe",
+      "tokenizer_skip_docs": 50000,
+      "_audit_note": "tokenizer_skip_docs=50000 excludes the canonical val docs [0, 50000) from BPE training. Train iterates docs [50000, end). Verified at download_hf_docs_and_tokenize.py _iter_sentencepiece_text skip_docs param."
+    }
+  ]
+}

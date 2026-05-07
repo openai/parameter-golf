@@ -1,0 +1,1720 @@
+[wrapper] backed up index files to /home/frosty40/parameter-golf-lab/data/manifest.json.bak.before_sp10240_20260429_110811 / /home/frosty40/parameter-golf-lab/data/tokenizer_config.export.json.bak.before_sp10240_20260429_110811
+[wrapper] starting sp10240 build at 20260429_110811
+sentencepiece_trainer.cc(78) LOG(INFO) Starts training with : 
+trainer_spec {
+  input_format: 
+  model_prefix: /home/frosty40/parameter-golf-lab/data/tokenizers/fineweb_10240_bpe
+  model_type: BPE
+  vocab_size: 10240
+  self_test_sample_size: 0
+  character_coverage: 0.999
+  input_sentence_size: 0
+  shuffle_input_sentence: 1
+  seed_sentencepiece_size: 1000000
+  shrinking_factor: 0.75
+  max_sentence_length: 4192
+  num_threads: 16
+  num_sub_iterations: 2
+  max_sentencepiece_length: 16
+  split_by_unicode_script: 1
+  split_by_number: 1
+  split_by_whitespace: 1
+  split_digits: 1
+  pretokenization_delimiter: 
+  treat_whitespace_as_suffix: 0
+  allow_whitespace_only_pieces: 0
+  required_chars: 
+  byte_fallback: 1
+  vocabulary_output_piece_score: 1
+  train_extremely_large_corpus: 0
+  seed_sentencepieces_file: 
+  hard_vocab_limit: 0
+  use_all_vocab: 0
+  unk_id: 3
+  bos_id: 1
+  eos_id: 2
+  pad_id: 0
+  unk_piece: <unk>
+  bos_piece: <s>
+  eos_piece: </s>
+  pad_piece: <pad>
+  unk_surface:  ⁇ 
+  enable_differential_privacy: 0
+  differential_privacy_noise_level: 0
+  differential_privacy_clipping_threshold: 0
+}
+normalizer_spec {
+  name: nmt_nfkc
+  add_dummy_prefix: 0
+  remove_extra_whitespaces: 1
+  escape_whitespaces: 1
+  normalization_rule_tsv: 
+}
+denormalizer_spec {}
+trainer_interface.cc(382) LOG(WARNING) Found too long line (6213 > 4192).
+trainer_interface.cc(384) LOG(WARNING) Too long lines are skipped in the training.
+trainer_interface.cc(385) LOG(WARNING) The maximum length can be changed with --max_sentence_length=<size> flag.
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: ▂▃▅▇▓ ▓<[o]>▓ ▓▇▅▃▂
+Circuit bent Chimp & Kitty birthday cards
+The Truckquencer! – 2 circuit bent tonka trucks, each connected to a sequencer reving, beeping, starting, reversing in harmony!!?!
+Mods – pitch control, loop switch, mangle switch, body contact distortion, jack socket out, trigger in.
+Circuit bent korg Monotron duo sequencer & unmodded boss dr-5 fed into 1 of my robot destruction fx boxes for a quick test….
+Robot destruction Mic check!!
+Based on a ring modulator ic, pitch intervals up/down, robot sound & lfo circuit.
+▇▅▃▂▓ ░[◣o◢]░ ▓▂▃▅▇
+trainer_interface.cc(148) LOG(INFO) Loaded 1000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 2000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: Walkera Vitus – Behind the Scenes
+Walkera Vitus tests log. A rare peek on “a day in the life at a drone factory” and footage from recent tests. First a tablet view of the AR games on a 3-axis gimbal. Next a test on the optical sensors and active track.
+Walkera Vitus 320, third release of the augmented reality flying game console. Designed as a convenient compact folding aerial filming 4K drone, with auto return home using dual GPS and an added gaming function. Vitus pairs with mobile devices for virtual games. Just find an open field, start the quadcopter, this will be your track or battlefield! In racing mode, set up a virtual track and begin racing. In battle mode, fighter pilot is engaged, locate your enemies, shooting down enemy drones.
+“A day in the life at a drone factory”, a rare look inside a drone factory that I thought would be interesting to share, archives from 2014-16. I like how everyone is going about their work, just candid shots, unscripted.
+Walkera Warehouse: www.ucdrone.com
+▇ ▆ ▅ ▄▐ ►DjLeo Rocks Z House◄▐ ▃ ▄ ▅ ▆
+…..|̲̅̅●̲̅̅|̲̅̅=̲̅̅|̲̅̅●̲̅̅| ιllιlı Subscribe For More ιllιlı |̲̅̅●̲̅̅|̲̅̅=̲̅̅|̲̅̅●̲̅̅|…..
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: Rosalba Va - Rosalba Vagge
+Report this image
+Email to a friend
+Add to list
+Toggle Worksafe Mode:
+Oct 30, 2007
+YOUR FACE MY ART
+Overpower the sun
+Animal modelling with Pretty Lady
+Time to Fall Back to Autumn
+Dean's List with Animals
+Modelling with Animals
+Shots I Want to recreate
+Try B4 I die
+Killer Photos I would like to try
+Ruben Vasquez's list of killer photos
+something about it...
+Renaissance Modeling, Style, Photography
+Anything Like This & You Can Count Me In!
+When it ALL comes together = Really GREAT SHOTS
+NST - Fashion!
+Some fashion favs...
+Shots i want to do
+OFF THE CHAIN
+killer/wanna try photos
+MY FAVORITE, CONCEPTS, POSES, ETC.
+Amazing and Inspiring
+Awesomeness with animals
+I wanna do this
+Animals as Props
+Emery Productions Creative Images
+Helsings list of great photos
+♥♥ Captivating Coastal Captures & Striking Sunsets ♥♥
+Concepts I'd love to try!!!
+<3...Models and animals,,,,<3
+i love this idea!
+badass people with badass dogs :)
+Shots I gotta try
+what i would like to have in my port
+"Los animales son buenos amigos, no hacen preguntas y tampoco critican"
+Damn! Wish I thought of this
+Now thats Awesome!
+▁▂▃▅▆▇█ Next Shoot Plan █▇▆▅▃▂▁
+Concept Ideas For Future Shoots
+Model with dogs
+Models and animals
+KELLIE'S LIST OF KILLER SHOTS
+Ashliia Jhanei's Favorite Photos on MM
+Shoots I'd like to do
+i am Telling a Story !!!
+The use of pets
+LOVE TO RE-CREATE
+Jonathan Hargrove's list of killer photos
+Sphive's list of killer photos
+Yannis Photography's list of killer photos
+This has been listed so many times it's almost pointless to add but SO AMAZING that I list it anyway
+Joanna Lynae's list of killer photos
+Concepts I'd like to do!
+SF- like this lighting
+Kia's Favourite Pix
+Love the Makeup! i wonder how it would look on me
+Shots and poses i want to do
+Photographers i would love to work with, or just have to work with
+Shoots I would love to do - with animals
+Awesome Animal Shots
+angelina_polska's list of killer photos
+14 photo Animals and Models
+Eleya Maureen's killer photo list
+Concepts and ideas I would love to try
+JUST 222222222 VICIOUS
+MY FAVORITE COLOR
+Favorite Nature/Animal Shots
+AR-Photos's list of killer photos
+Shaman Dreams list of killer photos.
+Haute Styling and Drobes of War!
+Mike Stalnaker's list of killer photos
+Favorite Pose Shots
+Killer Photos I'd Like to ReCreate
+I LOVE THOSE!!!!
+Concepts, poses, or shots to recreate!!
+LOVE the background!
+Great Glamour Shots
+Nicole's list of killer photos
+Gorgeous Captures with Beautiful Skies.. :)
+J'aime la mode!
+photos that make me go WOW!!!!
+I love those shots
+Tony Lipari's list of killer photos
+some more fav's
+Vancouver Models' Best Photo (female)
+Goldstock's list of killer photos
+Work From "The Masters Of Photo & Leader's Of The Power Of Image A-List:
+Beautiful Light and Colour
+Farrahs List Of Tasteful Photos
+Inspiring pictures !
+I WANT THIS SHOT!
+View All Comments
+February 20, 2012 8:40pm
+This photo is amazing!!!
+November 11, 2010 6:21am
+You are beautiful !!!!!!
+October 01, 2010 4:57pm
+June 07, 2010 11:37pm
+I love this shot!
+March 27, 2010 6:53pm
+:-) Love! You look awesome! And so do the dogs! :-)
+February 10, 2010 12:27pm
+Fantastic image! My favourite breed of dogs and you're pretty well bred too! ;-)
+February 10, 2010 11:34am
+Love everything about this! Good job!
+November 28, 2009 4:57pm
+D A V E C
+October 26, 2009 11:00pm
+This is really great. Love it!
+October 16, 2009 10:09am
+this is an amazing picture
+Jmay - Model
+October 11, 2009 5:50pm
+gorgeous...love everything about this!
+i am studios
+September 30, 2009 2:29pm
+Love this !!!
+September 29, 2009 8:32am
+Beyond excellent.... onall levels!
+September 19, 2009 7:31am
+September 05, 2009 4:29pm
+August 15, 2009 11:47pm
+One of the best shots I've seen in a while, so cool. The colors, edit, dogs, location.. outfit.. pose.. hair... beautiful
+June 28, 2009 12:15pm
+June 22, 2009 5:21am
+June 21, 2009 1:36pm
+This is very good work. Best of luck to you. Steve
+June 19, 2009 2:10am
+View All Comments
+Rosalba Va has set a password in order to view this album.
+Password is incorrect. If you would like to view this album, please contact Rosalba Va.
+trainer_interface.cc(148) LOG(INFO) Loaded 3000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 4000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 5000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: Daughter & mOmPosted: Wed. Jan. 9 05:07:25 2019
+▃▅▆█▒▓ Mom and daughter ( Toghather ) looking for older guy with nice cock.Looking for anything from oral to hookup or whatever you want. ▒▓█▆▅▃▂
+HIT mE HerE >>>> [email protected] "3x" as the subject line
+i did not get Ur msg.are u real?
+- Location: [email protected]
+- Age: 24
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: 2 Back to school is a 100% After Effects template (CS4 or higher). It’s time to go back to school. We are proud to introduce you to Adobe After Effects template. The project template comes with 25 placeholders for your photos / videos and 16 holders for texts plus logo, and the lower third of the bumper. Just import your media, type your text and you will be ready to render! The project can be used for a wide range of marketing campaigns, especially for schools participating in promotional, advertising and commercials. Student after parties, etc. Best of all, this project is easy to use for beginners and pros, just email your pictures to the designated privilege customize the color scheme to fit your needs, add text with a few simple clicks and display it in the desired resolution. Be creative and do not be afraid to experiment with new quick and simple system of color!
+After Effects template contains:
+Openere – 1:10 sec
+Bumper – 0:06 sec.
+Titer – 0:10 sec
+8 x Transfers – 0:04 sec
+! Come up with a new background and updates!
+22 + doodle silhouettes in AI & PSD and illustrations included
+15 photos / videos and 16 text placeholders
+All are easily replaced (100% After Effects). Drag and drop content and visualization! Text strip, media files (photo or video) and change the background color
+No external plugins required
+3 options resolution pre-defined, ready to assist you in this! 1080p, 720p, SDDV Widescreen
+The sound effects are included
+Visit website and download free project after effect : click Here or Here
+DEMO CLIP :
+Like facebook : https://www.facebook.com/fdownprojectae
+┊ ┊ ┊ ★
+┊ ┊ ☆
+▂ ▃ ▅ ▆ █ www.freeprojectae.com █ ▆ ▅ ▃ ▂
+☞ Link download 1: http://adf.ly/5786924/back-2-school
+☞ Link download 2: http://adf.ly/5786924/back-2-school2
+☞ Link download 3: http://adf.ly/5786924/back-2-school3
+☞ Link download 4:
+Pass winrar : freeprojectae.com
+trainer_interface.cc(148) LOG(INFO) Loaded 6000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 7000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: I updated my jekyll-co2 plugin (first written about here) that shows the change in atmospheric CO₂ at the Mauna Loa observatory in Hawaii. It used to just show three years of data as numbers, but now it shows 20 years in a little text (Unicode) sparkline. In text, it’s this: ▁▁▂▂▂▂▃▃▃▄▄▄▅▅▅▅▆▆▆▇▇.
+Graphically, it’s this:
+If you hover over a year it shows the exact number in a tooltip. The preventable but unstopping increase is what I want to show, though, and in plain (Unicode) text I think that comes across even without obvious numbers.
+I got the mechanism from a nice hack in this gist. I’d like to do more years in a prettier sparkline, but that would require some outside graphical library, and I don’t feel like getting into that right now.
+trainer_interface.cc(148) LOG(INFO) Loaded 8000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 9000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: You are using an outdated browser. Please
+upgrade your browser to improve your ReverbNation experience.
+I want to interview you! Please click "Become a fan" so I can interview you! The questionnaire get's send automatically to your mail inbox after you became a fan! Check my profile page for more informations! Looking really forward to hear your story and feature you!
+Booking Opening Acts for the Northern Hype & Blake Selby Midwest TOUR. Visit NorthernHype.net for all dates & submission info.
+That's what's up much respect ~
+Great music. Im Dame Stacks the Producer CEO of Ben&Frank Productions, and im on a networking mission. We are looking for new artists to listen to and you got some official content. Fan back and come check out my new Website for some of the hottest Beats underground and Free Promotion. And to get beats today contact us on facebook or twitter. #Respect and we also offer free downloads on our Site as well. http://www.benfrankproductions.com/the-beat-vault.html
+Artist send your hottest song to email@example.com For a chance to get on the #GrandHustleUnsignHype Mixtape!!! #GH #GN
+LET COLAB www.reverbnation.com/califiedmusic
+TIGHT MUSIC FAN BACK
+Yoooo...ay man I like dat 'Hol Up'
+Thank you for supporting my music. I appreciate it.
+Whaddup Louie...thnx 4 coming thru, u got some nice music (nice flow), keep up the grind aight.
+dropping by your page to say hello, showing support & wishing u the best in 2012!! <3
+LOUIE MF YOUNG
+I HEARD THAT KUSH HIT LIKE LEBRON
+TRACK AND THAT SONG IS
+CLEANER THAN A BAR OF SOAP
+KEEP MAKING MUSIC
+KEEP IT MOVING
+LIKE THE HANDS ON A CLOCK
+▂ ▃ ▅ ▆ █ G3KBEATS.COM █ ▆ ▅ ▃ ▂:
+© 2015 eMinor Incorporated
+All trademarks are the property of the respective owners. ReverbNation is not affiliated with the trademark owners.
+Not listening to anything?
+Try one of the ReverbNation Channels
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: Address: 6 supa square view
+Account name: ooxxmichelxxoo
+Last seen: 11February2019
+SWAT - ProCop - SAI - ZIP - ALT - SAFD - raceTECH - BRINKS
+▂▃▄▅▆▇█▓▒░Special Weapons and Tactics░▒▓█▇▆▅▄▃▂
+Add a screenshot that clearly shows the user's last login (/seen username)
+User has logged in today, request denied.
+trainer_interface.cc(148) LOG(INFO) Loaded 10000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 11000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 12000000 lines
+trainer_interface.cc(125) LOG(WARNING) Too many sentences are loaded! (12426626), which may slow down training.
+trainer_interface.cc(127) LOG(WARNING) Consider using --input_sentence_size=<size> and --shuffle_input_sentence=true.
+trainer_interface.cc(130) LOG(WARNING) They allow to randomly sample <size> sentences from the entire corpus.
+trainer_interface.cc(411) LOG(INFO) Loaded all 12426626 sentences
+trainer_interface.cc(418) LOG(INFO) Skipped 2942174 too long sentences.
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <pad>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <s>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: </s>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <unk>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x00>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x01>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x02>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x03>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x04>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x05>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x06>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x07>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x08>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x09>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x10>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x11>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x12>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x13>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x14>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x15>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x16>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x17>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x18>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x19>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x20>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x21>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x22>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x23>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x24>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x25>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x26>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x27>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x28>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x29>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x30>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x31>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x32>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x33>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x34>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x35>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x36>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x37>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x38>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x39>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x40>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x41>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x42>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x43>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x44>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x45>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x46>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x47>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x48>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x49>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x50>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x51>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x52>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x53>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x54>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x55>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x56>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x57>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x58>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x59>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x60>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x61>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x62>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x63>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x64>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x65>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x66>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x67>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x68>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x69>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x70>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x71>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x72>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x73>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x74>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x75>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x76>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x77>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x78>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x79>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x80>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x81>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x82>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x83>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x84>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x85>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x86>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x87>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x88>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x89>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x90>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x91>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x92>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x93>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x94>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x95>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x96>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x97>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x98>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x99>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xED>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFF>
+trainer_interface.cc(432) LOG(INFO) Normalizing sentences...
+trainer_interface.cc(541) LOG(INFO) all chars count=20477807321
+trainer_interface.cc(552) LOG(INFO) Done: 99.9034% characters are covered.
+trainer_interface.cc(562) LOG(INFO) Alphabet size=85
+trainer_interface.cc(563) LOG(INFO) Final character coverage=0.999034
+trainer_interface.cc(594) LOG(INFO) Done! preprocessed 12426626 sentences.
+trainer_interface.cc(600) LOG(INFO) Tokenizing input sentences with whitespace: 12426626
+[wrapper] build exited rc=0; restoring index files from backup
+[wrapper] index files restored. New tokenizer/dataset (if built) remain in place.
+[wrapper] backed up index files to /home/frosty40/parameter-golf-lab/data/manifest.json.bak.before_sp10240_20260429_121536 / /home/frosty40/parameter-golf-lab/data/tokenizer_config.export.json.bak.before_sp10240_20260429_121536
+[wrapper] starting sp10240 build at 20260429_121536
+sentencepiece_trainer.cc(78) LOG(INFO) Starts training with : 
+trainer_spec {
+  input_format: 
+  model_prefix: /home/frosty40/parameter-golf-lab/data/tokenizers/fineweb_10240_bpe
+  model_type: BPE
+  vocab_size: 10240
+  self_test_sample_size: 0
+  character_coverage: 0.999
+  input_sentence_size: 0
+  shuffle_input_sentence: 1
+  seed_sentencepiece_size: 1000000
+  shrinking_factor: 0.75
+  max_sentence_length: 4192
+  num_threads: 16
+  num_sub_iterations: 2
+  max_sentencepiece_length: 16
+  split_by_unicode_script: 1
+  split_by_number: 1
+  split_by_whitespace: 1
+  split_digits: 1
+  pretokenization_delimiter: 
+  treat_whitespace_as_suffix: 0
+  allow_whitespace_only_pieces: 0
+  required_chars: 
+  byte_fallback: 1
+  vocabulary_output_piece_score: 1
+  train_extremely_large_corpus: 0
+  seed_sentencepieces_file: 
+  hard_vocab_limit: 0
+  use_all_vocab: 0
+  unk_id: 3
+  bos_id: 1
+  eos_id: 2
+  pad_id: 0
+  unk_piece: <unk>
+  bos_piece: <s>
+  eos_piece: </s>
+  pad_piece: <pad>
+  unk_surface:  ⁇ 
+  enable_differential_privacy: 0
+  differential_privacy_noise_level: 0
+  differential_privacy_clipping_threshold: 0
+}
+normalizer_spec {
+  name: nmt_nfkc
+  add_dummy_prefix: 0
+  remove_extra_whitespaces: 1
+  escape_whitespaces: 1
+  normalization_rule_tsv: 
+}
+denormalizer_spec {}
+trainer_interface.cc(382) LOG(WARNING) Found too long line (4245 > 4192).
+trainer_interface.cc(384) LOG(WARNING) Too long lines are skipped in the training.
+trainer_interface.cc(385) LOG(WARNING) The maximum length can be changed with --max_sentence_length=<size> flag.
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: ▂▃▅▇▓ ▓<[o]>▓ ▓▇▅▃▂
+Circuit bent Chimp & Kitty birthday cards
+The Truckquencer! – 2 circuit bent tonka trucks, each connected to a sequencer reving, beeping, starting, reversing in harmony!!?!
+Mods – pitch control, loop switch, mangle switch, body contact distortion, jack socket out, trigger in.
+Circuit bent korg Monotron duo sequencer & unmodded boss dr-5 fed into 1 of my robot destruction fx boxes for a quick test….
+Robot destruction Mic check!!
+Based on a ring modulator ic, pitch intervals up/down, robot sound & lfo circuit.
+▇▅▃▂▓ ░[◣o◢]░ ▓▂▃▅▇
+trainer_interface.cc(148) LOG(INFO) Loaded 1000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 2000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: Walkera Vitus – Behind the Scenes
+Walkera Vitus tests log. A rare peek on “a day in the life at a drone factory” and footage from recent tests. First a tablet view of the AR games on a 3-axis gimbal. Next a test on the optical sensors and active track.
+Walkera Vitus 320, third release of the augmented reality flying game console. Designed as a convenient compact folding aerial filming 4K drone, with auto return home using dual GPS and an added gaming function. Vitus pairs with mobile devices for virtual games. Just find an open field, start the quadcopter, this will be your track or battlefield! In racing mode, set up a virtual track and begin racing. In battle mode, fighter pilot is engaged, locate your enemies, shooting down enemy drones.
+“A day in the life at a drone factory”, a rare look inside a drone factory that I thought would be interesting to share, archives from 2014-16. I like how everyone is going about their work, just candid shots, unscripted.
+Walkera Warehouse: www.ucdrone.com
+▇ ▆ ▅ ▄▐ ►DjLeo Rocks Z House◄▐ ▃ ▄ ▅ ▆
+…..|̲̅̅●̲̅̅|̲̅̅=̲̅̅|̲̅̅●̲̅̅| ιllιlı Subscribe For More ιllιlı |̲̅̅●̲̅̅|̲̅̅=̲̅̅|̲̅̅●̲̅̅|…..
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: Rosalba Va - Rosalba Vagge
+Report this image
+Email to a friend
+Add to list
+Toggle Worksafe Mode:
+Oct 30, 2007
+YOUR FACE MY ART
+Overpower the sun
+Animal modelling with Pretty Lady
+Time to Fall Back to Autumn
+Dean's List with Animals
+Modelling with Animals
+Shots I Want to recreate
+Try B4 I die
+Killer Photos I would like to try
+Ruben Vasquez's list of killer photos
+something about it...
+Renaissance Modeling, Style, Photography
+Anything Like This & You Can Count Me In!
+When it ALL comes together = Really GREAT SHOTS
+NST - Fashion!
+Some fashion favs...
+Shots i want to do
+OFF THE CHAIN
+killer/wanna try photos
+MY FAVORITE, CONCEPTS, POSES, ETC.
+Amazing and Inspiring
+Awesomeness with animals
+I wanna do this
+Animals as Props
+Emery Productions Creative Images
+Helsings list of great photos
+♥♥ Captivating Coastal Captures & Striking Sunsets ♥♥
+Concepts I'd love to try!!!
+<3...Models and animals,,,,<3
+i love this idea!
+badass people with badass dogs :)
+Shots I gotta try
+what i would like to have in my port
+"Los animales son buenos amigos, no hacen preguntas y tampoco critican"
+Damn! Wish I thought of this
+Now thats Awesome!
+▁▂▃▅▆▇█ Next Shoot Plan █▇▆▅▃▂▁
+Concept Ideas For Future Shoots
+Model with dogs
+Models and animals
+KELLIE'S LIST OF KILLER SHOTS
+Ashliia Jhanei's Favorite Photos on MM
+Shoots I'd like to do
+i am Telling a Story !!!
+The use of pets
+LOVE TO RE-CREATE
+Jonathan Hargrove's list of killer photos
+Sphive's list of killer photos
+Yannis Photography's list of killer photos
+This has been listed so many times it's almost pointless to add but SO AMAZING that I list it anyway
+Joanna Lynae's list of killer photos
+Concepts I'd like to do!
+SF- like this lighting
+Kia's Favourite Pix
+Love the Makeup! i wonder how it would look on me
+Shots and poses i want to do
+Photographers i would love to work with, or just have to work with
+Shoots I would love to do - with animals
+Awesome Animal Shots
+angelina_polska's list of killer photos
+14 photo Animals and Models
+Eleya Maureen's killer photo list
+Concepts and ideas I would love to try
+JUST 222222222 VICIOUS
+MY FAVORITE COLOR
+Favorite Nature/Animal Shots
+AR-Photos's list of killer photos
+Shaman Dreams list of killer photos.
+Haute Styling and Drobes of War!
+Mike Stalnaker's list of killer photos
+Favorite Pose Shots
+Killer Photos I'd Like to ReCreate
+I LOVE THOSE!!!!
+Concepts, poses, or shots to recreate!!
+LOVE the background!
+Great Glamour Shots
+Nicole's list of killer photos
+Gorgeous Captures with Beautiful Skies.. :)
+J'aime la mode!
+photos that make me go WOW!!!!
+I love those shots
+Tony Lipari's list of killer photos
+some more fav's
+Vancouver Models' Best Photo (female)
+Goldstock's list of killer photos
+Work From "The Masters Of Photo & Leader's Of The Power Of Image A-List:
+Beautiful Light and Colour
+Farrahs List Of Tasteful Photos
+Inspiring pictures !
+I WANT THIS SHOT!
+View All Comments
+February 20, 2012 8:40pm
+This photo is amazing!!!
+November 11, 2010 6:21am
+You are beautiful !!!!!!
+October 01, 2010 4:57pm
+June 07, 2010 11:37pm
+I love this shot!
+March 27, 2010 6:53pm
+:-) Love! You look awesome! And so do the dogs! :-)
+February 10, 2010 12:27pm
+Fantastic image! My favourite breed of dogs and you're pretty well bred too! ;-)
+February 10, 2010 11:34am
+Love everything about this! Good job!
+November 28, 2009 4:57pm
+D A V E C
+October 26, 2009 11:00pm
+This is really great. Love it!
+October 16, 2009 10:09am
+this is an amazing picture
+Jmay - Model
+October 11, 2009 5:50pm
+gorgeous...love everything about this!
+i am studios
+September 30, 2009 2:29pm
+Love this !!!
+September 29, 2009 8:32am
+Beyond excellent.... onall levels!
+September 19, 2009 7:31am
+September 05, 2009 4:29pm
+August 15, 2009 11:47pm
+One of the best shots I've seen in a while, so cool. The colors, edit, dogs, location.. outfit.. pose.. hair... beautiful
+June 28, 2009 12:15pm
+June 22, 2009 5:21am
+June 21, 2009 1:36pm
+This is very good work. Best of luck to you. Steve
+June 19, 2009 2:10am
+View All Comments
+Rosalba Va has set a password in order to view this album.
+Password is incorrect. If you would like to view this album, please contact Rosalba Va.
+trainer_interface.cc(148) LOG(INFO) Loaded 3000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 4000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: Daughter & mOmPosted: Wed. Jan. 9 05:07:25 2019
+▃▅▆█▒▓ Mom and daughter ( Toghather ) looking for older guy with nice cock.Looking for anything from oral to hookup or whatever you want. ▒▓█▆▅▃▂
+HIT mE HerE >>>> [email protected] "3x" as the subject line
+i did not get Ur msg.are u real?
+- Location: [email protected]
+- Age: 24
+trainer_interface.cc(148) LOG(INFO) Loaded 5000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: 2 Back to school is a 100% After Effects template (CS4 or higher). It’s time to go back to school. We are proud to introduce you to Adobe After Effects template. The project template comes with 25 placeholders for your photos / videos and 16 holders for texts plus logo, and the lower third of the bumper. Just import your media, type your text and you will be ready to render! The project can be used for a wide range of marketing campaigns, especially for schools participating in promotional, advertising and commercials. Student after parties, etc. Best of all, this project is easy to use for beginners and pros, just email your pictures to the designated privilege customize the color scheme to fit your needs, add text with a few simple clicks and display it in the desired resolution. Be creative and do not be afraid to experiment with new quick and simple system of color!
+After Effects template contains:
+Openere – 1:10 sec
+Bumper – 0:06 sec.
+Titer – 0:10 sec
+8 x Transfers – 0:04 sec
+! Come up with a new background and updates!
+22 + doodle silhouettes in AI & PSD and illustrations included
+15 photos / videos and 16 text placeholders
+All are easily replaced (100% After Effects). Drag and drop content and visualization! Text strip, media files (photo or video) and change the background color
+No external plugins required
+3 options resolution pre-defined, ready to assist you in this! 1080p, 720p, SDDV Widescreen
+The sound effects are included
+Visit website and download free project after effect : click Here or Here
+DEMO CLIP :
+Like facebook : https://www.facebook.com/fdownprojectae
+┊ ┊ ┊ ★
+┊ ┊ ☆
+▂ ▃ ▅ ▆ █ www.freeprojectae.com █ ▆ ▅ ▃ ▂
+☞ Link download 1: http://adf.ly/5786924/back-2-school
+☞ Link download 2: http://adf.ly/5786924/back-2-school2
+☞ Link download 3: http://adf.ly/5786924/back-2-school3
+☞ Link download 4:
+Pass winrar : freeprojectae.com
+trainer_interface.cc(148) LOG(INFO) Loaded 6000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 7000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: I updated my jekyll-co2 plugin (first written about here) that shows the change in atmospheric CO₂ at the Mauna Loa observatory in Hawaii. It used to just show three years of data as numbers, but now it shows 20 years in a little text (Unicode) sparkline. In text, it’s this: ▁▁▂▂▂▂▃▃▃▄▄▄▅▅▅▅▆▆▆▇▇.
+Graphically, it’s this:
+If you hover over a year it shows the exact number in a tooltip. The preventable but unstopping increase is what I want to show, though, and in plain (Unicode) text I think that comes across even without obvious numbers.
+I got the mechanism from a nice hack in this gist. I’d like to do more years in a prettier sparkline, but that would require some outside graphical library, and I don’t feel like getting into that right now.
+trainer_interface.cc(148) LOG(INFO) Loaded 8000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 9000000 lines
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: You are using an outdated browser. Please
+upgrade your browser to improve your ReverbNation experience.
+I want to interview you! Please click "Become a fan" so I can interview you! The questionnaire get's send automatically to your mail inbox after you became a fan! Check my profile page for more informations! Looking really forward to hear your story and feature you!
+Booking Opening Acts for the Northern Hype & Blake Selby Midwest TOUR. Visit NorthernHype.net for all dates & submission info.
+That's what's up much respect ~
+Great music. Im Dame Stacks the Producer CEO of Ben&Frank Productions, and im on a networking mission. We are looking for new artists to listen to and you got some official content. Fan back and come check out my new Website for some of the hottest Beats underground and Free Promotion. And to get beats today contact us on facebook or twitter. #Respect and we also offer free downloads on our Site as well. http://www.benfrankproductions.com/the-beat-vault.html
+Artist send your hottest song to email@example.com For a chance to get on the #GrandHustleUnsignHype Mixtape!!! #GH #GN
+LET COLAB www.reverbnation.com/califiedmusic
+TIGHT MUSIC FAN BACK
+Yoooo...ay man I like dat 'Hol Up'
+Thank you for supporting my music. I appreciate it.
+Whaddup Louie...thnx 4 coming thru, u got some nice music (nice flow), keep up the grind aight.
+dropping by your page to say hello, showing support & wishing u the best in 2012!! <3
+LOUIE MF YOUNG
+I HEARD THAT KUSH HIT LIKE LEBRON
+TRACK AND THAT SONG IS
+CLEANER THAN A BAR OF SOAP
+KEEP MAKING MUSIC
+KEEP IT MOVING
+LIKE THE HANDS ON A CLOCK
+▂ ▃ ▅ ▆ █ G3KBEATS.COM █ ▆ ▅ ▃ ▂:
+© 2015 eMinor Incorporated
+All trademarks are the property of the respective owners. ReverbNation is not affiliated with the trademark owners.
+Not listening to anything?
+Try one of the ReverbNation Channels
+trainer_interface.cc(393) LOG(INFO) Reserved chars are found. Skipped: Address: 6 supa square view
+Account name: ooxxmichelxxoo
+Last seen: 11February2019
+SWAT - ProCop - SAI - ZIP - ALT - SAFD - raceTECH - BRINKS
+▂▃▄▅▆▇█▓▒░Special Weapons and Tactics░▒▓█▇▆▅▄▃▂
+Add a screenshot that clearly shows the user's last login (/seen username)
+User has logged in today, request denied.
+trainer_interface.cc(148) LOG(INFO) Loaded 10000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 11000000 lines
+trainer_interface.cc(148) LOG(INFO) Loaded 12000000 lines
+trainer_interface.cc(125) LOG(WARNING) Too many sentences are loaded! (12386083), which may slow down training.
+trainer_interface.cc(127) LOG(WARNING) Consider using --input_sentence_size=<size> and --shuffle_input_sentence=true.
+trainer_interface.cc(130) LOG(WARNING) They allow to randomly sample <size> sentences from the entire corpus.
+trainer_interface.cc(411) LOG(INFO) Loaded all 12386083 sentences
+trainer_interface.cc(418) LOG(INFO) Skipped 2932717 too long sentences.
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <pad>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <s>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: </s>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <unk>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x00>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x01>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x02>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x03>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x04>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x05>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x06>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x07>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x08>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x09>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x0F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x10>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x11>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x12>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x13>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x14>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x15>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x16>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x17>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x18>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x19>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x1F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x20>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x21>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x22>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x23>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x24>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x25>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x26>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x27>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x28>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x29>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x2F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x30>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x31>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x32>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x33>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x34>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x35>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x36>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x37>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x38>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x39>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x3F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x40>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x41>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x42>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x43>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x44>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x45>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x46>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x47>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x48>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x49>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x4F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x50>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x51>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x52>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x53>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x54>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x55>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x56>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x57>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x58>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x59>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x5F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x60>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x61>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x62>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x63>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x64>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x65>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x66>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x67>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x68>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x69>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x6F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x70>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x71>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x72>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x73>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x74>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x75>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x76>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x77>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x78>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x79>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x7F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x80>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x81>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x82>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x83>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x84>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x85>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x86>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x87>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x88>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x89>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x8F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x90>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x91>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x92>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x93>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x94>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x95>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x96>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x97>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x98>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x99>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9A>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9B>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9C>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9D>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9E>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0x9F>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xA9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xAF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xB9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xBF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xC9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xCF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xD9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xDF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xE9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xED>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xEF>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF0>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF1>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF2>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF3>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF4>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF5>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF6>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF7>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF8>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xF9>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFA>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFB>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFC>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFD>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFE>
+trainer_interface.cc(427) LOG(INFO) Adding meta_piece: <0xFF>
+trainer_interface.cc(432) LOG(INFO) Normalizing sentences...
+trainer_interface.cc(541) LOG(INFO) all chars count=20411767669
+trainer_interface.cc(552) LOG(INFO) Done: 99.9034% characters are covered.
+trainer_interface.cc(562) LOG(INFO) Alphabet size=85
+trainer_interface.cc(563) LOG(INFO) Final character coverage=0.999034
+trainer_interface.cc(594) LOG(INFO) Done! preprocessed 12386083 sentences.
+trainer_interface.cc(600) LOG(INFO) Tokenizing input sentences with whitespace: 12386083
+trainer_interface.cc(611) LOG(INFO) Done! 37312115
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=407894956 min_freq=164114
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=123487622 size=20 all=5168 active=2820 piece=en
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=71043179 size=40 all=7308 active=4960 piece=ion
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=43362112 size=60 all=9591 active=7243 piece=▁C
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=32459932 size=80 all=12976 active=10628 piece=ver
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=23248197 size=100 all=16194 active=13846 piece=ul
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=23179296 min_freq=1990397
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=19808235 size=120 all=19569 active=4129 piece=pp
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=17028521 size=140 all=23497 active=8057 piece=▁se
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=14611725 size=160 all=27986 active=12546 piece=um
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=12936501 size=180 all=32159 active=16719 piece=nt
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=10742723 size=200 all=37347 active=21907 piece=ial
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=10590671 min_freq=842839
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=9513785 size=220 all=43109 active=7294 piece=▁do
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=8546571 size=240 all=48293 active=12478 piece=pt
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=7862672 size=260 all=54140 active=18325 piece=ood
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=7131750 size=280 all=60372 active=24557 piece=ike
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=6639898 size=300 all=66049 active=30234 piece=▁man
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=6614546 min_freq=376893
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=6292754 size=320 all=72671 active=9759 piece=▁Ch
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=5883450 size=340 all=78349 active=15437 piece=ven
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=5288910 size=360 all=83860 active=20948 piece=▁over
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=4841305 size=380 all=89648 active=26736 piece=▁kn
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=4584668 size=400 all=95845 active=32933 piece=▁acc
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=4542217 min_freq=210048
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=4284524 size=420 all=101055 active=9872 piece=▁into
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=3916445 size=440 all=107192 active=16009 piece=amp
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=3721144 size=460 all=113501 active=22318 piece=▁know
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=3514497 size=480 all=118423 active=27240 piece=▁most
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=3327533 size=500 all=124011 active=32828 piece=com
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=3325972 min_freq=135964
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=3173924 size=520 all=131212 active=12717 piece=enc
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2994868 size=540 all=137748 active=19253 piece=any
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2907511 size=560 all=143577 active=25082 piece=▁sm
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2802474 size=580 all=149268 active=30773 piece=▁rel
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2706311 size=600 all=154733 active=36238 piece=cess
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=2703033 min_freq=94805
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2639467 size=620 all=161194 active=13889 piece=▁ass
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2554740 size=640 all=167319 active=20014 piece=chool
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2458125 size=660 all=173237 active=25932 piece=▁att
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2348682 size=680 all=178230 active=30925 piece=gram
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2274463 size=700 all=183845 active=36540 piece=▁cre
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=2268137 min_freq=71554
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2213433 size=720 all=190942 active=16154 piece=▁diffe
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2147511 size=740 all=197559 active=22771 piece=ouse
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2063382 size=760 all=204632 active=29844 piece=akes
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=2006314 size=780 all=209764 active=34976 piece=ublic
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1962591 size=800 all=216848 active=42060 piece=roup
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=1960852 min_freq=53316
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1869476 size=820 all=221060 active=14841 piece=▁del
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1833281 size=840 all=227394 active=21175 piece=ute
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1788893 size=860 all=232859 active=26640 piece=▁different
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1712426 size=880 all=236907 active=30688 piece=▁report
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1662540 size=900 all=243671 active=37452 piece=▁sol
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=1659252 min_freq=43440
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1630272 size=920 all=248461 active=16768 piece=ized
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1587515 size=940 all=256125 active=24432 piece=▁next
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1537125 size=960 all=262119 active=30426 piece=▁var
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1493620 size=980 all=268834 active=37141 piece=▁Ind
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1465937 size=1000 all=273792 active=42099 piece=▁iss
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=1464266 min_freq=34697
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1423279 size=1020 all=278445 active=18251 piece=▁days
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1396937 size=1040 all=282148 active=21954 piece=▁second
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1360773 size=1060 all=287042 active=26848 piece=ER
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1333092 size=1080 all=293189 active=32995 piece=aj
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1311902 size=1100 all=300085 active=39891 piece=▁meet
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=1310941 min_freq=29587
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1275507 size=1120 all=303762 active=18585 piece=▁US
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1241548 size=1140 all=309214 active=24037 piece=ats
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1211067 size=1160 all=314161 active=28984 piece=▁let
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1187490 size=1180 all=317764 active=32587 piece=ording
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1168422 size=1200 all=322569 active=37392 piece=▁community
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=1165361 min_freq=25820
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1142489 size=1220 all=328715 active=22205 piece=ieve
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1117182 size=1240 all=335708 active=29198 piece=orm
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1096628 size=1260 all=343347 active=36837 piece=bo
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1070362 size=1280 all=348355 active=41845 piece=▁include
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1053042 size=1300 all=354268 active=47758 piece=▁course
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=1052324 min_freq=21858
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1037384 size=1320 all=361233 active=24615 piece=▁Am
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1020917 size=1340 all=368556 active=31938 piece=▁bas
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=1007661 size=1360 all=374877 active=38259 piece=▁opport
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=994370 size=1380 all=381997 active=45379 piece=veral
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=976625 size=1400 all=387651 active=51033 piece=▁Che
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=974114 min_freq=18384
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=962636 size=1420 all=392200 active=23642 piece=▁Your
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=942438 size=1440 all=399914 active=31356 piece=▁move
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=928605 size=1460 all=403255 active=34697 piece=▁already
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=913684 size=1480 all=407310 active=38752 piece=▁friends
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=897260 size=1500 all=412635 active=44077 piece=▁tre
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=896857 min_freq=16427
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=882461 size=1520 all=418904 active=26733 piece=app
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=867565 size=1540 all=425865 active=33694 piece=reet
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=852872 size=1560 all=431322 active=39151 piece=▁Comp
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=842665 size=1580 all=435809 active=43638 piece=ai
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=825531 size=1600 all=440325 active=48154 piece=ained
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=823066 min_freq=14666
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=811573 size=1620 all=446941 active=28418 piece=▁games
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=797128 size=1640 all=450556 active=32033 piece=▁doesn
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=785548 size=1660 all=454782 active=36259 piece=▁range
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=774584 size=1680 all=460137 active=41614 piece=▁early
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=762954 size=1700 all=465590 active=47067 piece=▁install
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=762922 min_freq=13261
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=754988 size=1720 all=470165 active=27755 piece=▁Pe
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=746788 size=1740 all=476509 active=34099 piece=resh
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=737539 size=1760 all=483361 active=40951 piece=▁companies
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=727502 size=1780 all=487281 active=44871 piece=▁environment
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=717756 size=1800 all=493638 active=51228 piece=ino
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=716781 min_freq=11869
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=708568 size=1820 all=499523 active=29764 piece=year
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=702017 size=1840 all=504989 active=35230 piece=▁Just
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=695282 size=1860 all=512112 active=42353 piece=▁Euro
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=685907 size=1880 all=515757 active=45998 piece=go
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=678258 size=1900 all=521174 active=51415 piece=ctor
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=678035 min_freq=10679
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=671246 size=1920 all=527182 active=31757 piece=▁Acc
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=659315 size=1940 all=530729 active=35304 piece=▁protect
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=652222 size=1960 all=539078 active=43653 piece=▁black
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=647864 size=1980 all=544402 active=48977 piece=▁further
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=639847 size=2000 all=548749 active=53324 piece=▁repl
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=639803 min_freq=9763
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=631402 size=2020 all=553038 active=31629 piece=▁Europe
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=622402 size=2040 all=556845 active=35436 piece=uation
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=610654 size=2060 all=562739 active=41330 piece=aching
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=604483 size=2080 all=566042 active=44633 piece=▁required
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=599729 size=2100 all=571631 active=50222 piece=▁sent
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=599717 min_freq=9088
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=595571 size=2120 all=577324 active=34139 piece=ffe
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=589503 size=2140 all=581907 active=38722 piece=▁yourself
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=582864 size=2160 all=585469 active=42284 piece=▁either
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=574977 size=2180 all=589449 active=46264 piece=▁via
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=567374 size=2200 all=592944 active=49759 piece=icro
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=566991 min_freq=8449
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=562101 size=2220 all=598739 active=35086 piece=cast
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=557024 size=2240 all=604407 active=40754 piece=▁problems
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=550881 size=2260 all=609541 active=45888 piece=itten
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=544792 size=2280 all=614811 active=51158 piece=▁stri
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=538488 size=2300 all=619638 active=55985 piece=▁Sunday
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=538475 min_freq=7790
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=533728 size=2320 all=624639 active=35922 piece=istration
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=526891 size=2340 all=629514 active=40797 piece=eter
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=520868 size=2360 all=633484 active=44767 piece=▁Are
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=516155 size=2380 all=638159 active=49442 piece=▁abs
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=511404 size=2400 all=641832 active=53115 piece=▁town
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=511247 min_freq=7224
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=506898 size=2420 all=646950 active=37117 piece=ession
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=503729 size=2440 all=651753 active=41920 piece=▁growth
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=495576 size=2460 all=656363 active=46530 piece=▁News
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=491784 size=2480 all=663200 active=53367 piece=▁wall
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=487464 size=2500 all=669061 active=59228 piece=ville
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=487200 min_freq=6682
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=482979 size=2520 all=673129 active=36613 piece=▁true
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=479086 size=2540 all=676927 active=40411 piece=▁regard
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=474162 size=2560 all=680758 active=44242 piece=▁quickly
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=469843 size=2580 all=686561 active=50045 piece=▁deep
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=465440 size=2600 all=692934 active=56418 piece=▁image
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=464894 min_freq=6259
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=460733 size=2620 all=696109 active=37704 piece=▁inde
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=453649 size=2640 all=699751 active=41346 piece=▁Tuesday
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=449200 size=2660 all=705579 active=47174 piece=▁campaign
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=444230 size=2680 all=707970 active=49565 piece=rown
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=439328 size=2700 all=712026 active=53621 piece=▁expected
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=439098 min_freq=5947
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=435786 size=2720 all=715379 active=38918 piece=▁save
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=430903 size=2740 all=720799 active=44338 piece=▁immedi
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=426503 size=2760 all=725802 active=49341 piece=▁emer
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=423427 size=2780 all=730773 active=54312 piece=zz
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=419023 size=2800 all=736918 active=60457 piece=▁myself
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=419006 min_freq=5573
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=415189 size=2820 all=742260 active=42152 piece=▁played
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=413132 size=2840 all=747259 active=47151 piece=▁prim
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=410399 size=2860 all=751185 active=51077 piece=▁door
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=406845 size=2880 all=754021 active=53913 piece=akers
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=403725 size=2900 all=757888 active=57780 piece=▁reach
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=403681 min_freq=5297
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=400847 size=2920 all=762726 active=42672 piece=bum
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=397499 size=2940 all=768628 active=48574 piece=▁remov
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=394317 size=2960 all=776731 active=56677 piece=ube
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=391149 size=2980 all=781721 active=61667 piece=▁Cle
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=387198 size=3000 all=786179 active=66125 piece=bit
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=387117 min_freq=4931
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=385791 size=3020 all=790774 active=43020 piece=▁band
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=382730 size=3040 all=794620 active=46866 piece=▁excellent
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=380185 size=3060 all=798093 active=50339 piece=▁hor
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=377024 size=3080 all=801805 active=54051 piece=▁Good
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=374089 size=3100 all=806632 active=58878 piece=BC
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=373983 min_freq=4699
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=371986 size=3120 all=811861 active=44954 piece=▁vehicle
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=368145 size=3140 all=815669 active=48762 piece=▁dead
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=364344 size=3160 all=821080 active=54173 piece=OL
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=361686 size=3180 all=825724 active=58817 piece=rote
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=358008 size=3200 all=828539 active=61632 piece=▁distrib
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=357927 min_freq=4491
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=355207 size=3220 all=835458 active=48322 piece=▁Mem
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=352817 size=3240 all=839710 active=52574 piece=yond
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=350349 size=3260 all=843691 active=56555 piece=▁jud
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=347752 size=3280 all=848017 active=60881 piece=▁wants
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=343744 size=3300 all=852126 active=64990 piece=▁nut
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=343657 min_freq=4260
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=341726 size=3320 all=855015 active=45343 piece=▁shop
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=338365 size=3340 all=858518 active=48846 piece=unte
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=335916 size=3360 all=862183 active=52511 piece=▁sports
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=333633 size=3380 all=866213 active=56541 piece=▁star
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=328762 size=3400 all=869847 active=60175 piece=▁demand
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=328643 min_freq=4098
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=325912 size=3420 all=876396 active=49962 piece=mitted
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=323378 size=3440 all=882119 active=55685 piece=▁Australia
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=321140 size=3460 all=886742 active=60308 piece=▁thous
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=318876 size=3480 all=890314 active=63880 piece=▁wedding
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=315552 size=3500 all=893412 active=66978 piece=▁supply
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=315514 min_freq=3888
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=313464 size=3520 all=899020 active=50217 piece=▁creative
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=311724 size=3540 all=903497 active=54694 piece=mod
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=309434 size=3560 all=911272 active=62469 piece=place
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=306714 size=3580 all=916819 active=68016 piece=▁analysis
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=303600 size=3600 all=921840 active=73037 piece=▁girls
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=303556 min_freq=3669
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=301613 size=3620 all=927217 active=51364 piece=▁dating
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=299670 size=3640 all=931689 active=55836 piece=anging
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=297803 size=3660 all=937752 active=61899 piece=▁lock
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=295582 size=3680 all=945690 active=69837 piece=▁fashion
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=293023 size=3700 all=952245 active=76392 piece=▁conference
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=292833 min_freq=3426
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=291164 size=3720 all=955522 active=50846 piece=▁increased
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=289802 size=3740 all=960108 active=55432 piece=▁General
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=288060 size=3760 all=965810 active=61134 piece=▁thanks
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=286160 size=3780 all=968230 active=63554 piece=▁selection
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=283907 size=3800 all=972211 active=67535 piece=▁shopping
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=283680 min_freq=3279
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=281641 size=3820 all=979148 active=55488 piece=▁aspect
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=279870 size=3840 all=983678 active=60018 piece=▁occur
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=278433 size=3860 all=986699 active=63039 piece=▁alone
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=275906 size=3880 all=991652 active=67992 piece=▁spring
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=273964 size=3900 all=994555 active=70895 piece=▁liter
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=273856 min_freq=3152
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=272898 size=3920 all=999621 active=54732 piece=uing
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=271685 size=3940 all=1002650 active=57761 piece=iture
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=269599 size=3960 all=1005781 active=60892 piece=rief
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=268068 size=3980 all=1010201 active=65312 piece=apter
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=265973 size=4000 all=1012951 active=68062 piece=osing
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=265931 min_freq=3043
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=263699 size=4020 all=1017565 active=55060 piece=▁Police
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=261769 size=4040 all=1023009 active=60504 piece=▁hom
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=259506 size=4060 all=1031257 active=68752 piece=▁professionals
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=257650 size=4080 all=1036670 active=74165 piece=▁covered
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=255599 size=4100 all=1039729 active=77224 piece=▁flex
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=255585 min_freq=2902
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=253908 size=4120 all=1044264 active=56340 piece=▁cars
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=252072 size=4140 all=1048662 active=60738 piece=▁England
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=250334 size=4160 all=1051799 active=63875 piece=▁Sl
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=249138 size=4180 all=1055189 active=67265 piece=▁rich
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=247671 size=4200 all=1060725 active=72801 piece=▁advent
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=247633 min_freq=2804
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=246113 size=4220 all=1065593 active=57844 piece=▁beat
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=244471 size=4240 all=1069382 active=61633 piece=night
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=242756 size=4260 all=1071586 active=63837 piece=▁bright
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=241595 size=4280 all=1074762 active=67013 piece=There
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=239877 size=4300 all=1081089 active=73340 piece=▁injury
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=239807 min_freq=2708
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=237104 size=4320 all=1086564 active=59490 piece=look
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=235957 size=4340 all=1092663 active=65589 piece=▁dinner
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=234157 size=4360 all=1096273 active=69199 piece=▁ship
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=232768 size=4380 all=1098893 active=71819 piece=▁sto
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=231526 size=4400 all=1103734 active=76660 piece=▁buying
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=231419 min_freq=2606
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=229962 size=4420 all=1107619 active=59051 piece=▁map
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=228199 size=4440 all=1111451 active=62883 piece=▁Ber
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=226206 size=4460 all=1114960 active=66392 piece=life
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=224965 size=4480 all=1120469 active=71901 piece=▁independent
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=223773 size=4500 all=1124416 active=75848 piece=▁Que
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=223631 min_freq=2521
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=222619 size=4520 all=1129559 active=61171 piece=▁designs
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=221320 size=4540 all=1133595 active=65207 piece=▁records
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=220126 size=4560 all=1140539 active=72151 piece=▁forms
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=218815 size=4580 all=1144573 active=76185 piece=▁menu
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=217697 size=4600 all=1147880 active=79492 piece=▁memory
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=217568 min_freq=2414
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=216370 size=4620 all=1151340 active=60783 piece=vere
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=215048 size=4640 all=1154846 active=64289 piece=fol
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=213372 size=4660 all=1159741 active=69184 piece=▁Its
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=211849 size=4680 all=1162417 active=71860 piece=lines
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=210244 size=4700 all=1166150 active=75593 piece=▁accident
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=210159 min_freq=2342
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=209012 size=4720 all=1171347 active=63447 piece=while
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=208056 size=4740 all=1174621 active=66721 piece=▁Lord
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=207041 size=4760 all=1178541 active=70641 piece=▁Virgin
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=205622 size=4780 all=1183293 active=75393 piece=▁Main
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=204230 size=4800 all=1188515 active=80615 piece=een
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=204139 min_freq=2254
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=203211 size=4820 all=1193715 active=64088 piece=ifying
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=202382 size=4840 all=1198218 active=68591 piece=▁Mike
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=201519 size=4860 all=1201581 active=71954 piece=▁joint
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=200348 size=4880 all=1205919 active=76292 piece=▁appeal
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=198840 size=4900 all=1210097 active=80470 piece=▁Contin
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=198837 min_freq=2190
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=197856 size=4920 all=1218512 active=68874 piece=▁Vict
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=196547 size=4940 all=1221355 active=71717 piece=icians
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=195667 size=4960 all=1225411 active=75773 piece=▁Fund
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=194635 size=4980 all=1229097 active=79459 piece=▁adults
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=193831 size=5000 all=1231185 active=81547 piece=▁chat
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=193785 min_freq=2114
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=192593 size=5020 all=1234178 active=64378 piece=▁websites
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=191458 size=5040 all=1238650 active=68850 piece=ef
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=190313 size=5060 all=1244456 active=74656 piece=azz
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=188921 size=5080 all=1248167 active=78367 piece=bu
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=187671 size=5100 all=1255778 active=85978 piece=▁therefore
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=187666 min_freq=2042
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=186880 size=5120 all=1259126 active=66114 piece=ifications
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=185544 size=5140 all=1262992 active=69980 piece=▁Test
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=184370 size=5160 all=1268270 active=75258 piece=▁Creat
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=183320 size=5180 all=1272899 active=79887 piece=▁comprehensive
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=182219 size=5200 all=1278696 active=85684 piece=Cl
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=182213 min_freq=1966
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=181033 size=5220 all=1287169 active=70215 piece=▁mur
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=180071 size=5240 all=1294087 active=77133 piece=▁meal
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=179139 size=5260 all=1298663 active=81709 piece=ENT
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=178481 size=5280 all=1302185 active=85231 piece=▁behavior
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=177526 size=5300 all=1306203 active=89249 piece=▁studio
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=177331 min_freq=1902
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=176590 size=5320 all=1309918 active=68971 piece=▁sides
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=175430 size=5340 all=1315057 active=74110 piece=▁species
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=174739 size=5360 all=1318893 active=77946 piece=▁Sar
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=173961 size=5380 all=1323587 active=82640 piece=ersey
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=172965 size=5400 all=1328321 active=87374 piece=▁revealed
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=172963 min_freq=1840
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=172157 size=5420 all=1332461 active=70534 piece=▁Academy
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=171023 size=5440 all=1338238 active=76311 piece=▁specifically
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=169845 size=5460 all=1342792 active=80865 piece=▁Lt
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=168585 size=5480 all=1346952 active=85025 piece=▁Boy
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=167699 size=5500 all=1349553 active=87626 piece=▁bread
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=167649 min_freq=1785
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=166695 size=5520 all=1354744 active=72583 piece=▁Carolina
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=165976 size=5540 all=1359276 active=77115 piece=▁fields
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=165133 size=5560 all=1363114 active=80953 piece=▁pock
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=164479 size=5580 all=1365473 active=83312 piece=▁arrived
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=163671 size=5600 all=1374991 active=92830 piece=▁broken
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=163660 min_freq=1723
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=162728 size=5620 all=1378787 active=72502 piece=▁Know
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=161900 size=5640 all=1384030 active=77745 piece=▁injuries
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=161374 size=5660 all=1387507 active=81222 piece=ibilities
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=160727 size=5680 all=1390474 active=84189 piece=▁appreciate
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=160217 size=5700 all=1394012 active=87727 piece=▁presentation
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=160215 min_freq=1678
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=159370 size=5720 all=1396871 active=72517 piece=hetic
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=158663 size=5740 all=1402469 active=78115 piece=weet
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=158046 size=5760 all=1406212 active=81858 piece=▁dates
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=157523 size=5780 all=1410096 active=85742 piece=.|
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=156800 size=5800 all=1414311 active=89957 piece=▁poly
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=156751 min_freq=1634
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=155751 size=5820 all=1417333 active=73446 piece=vell
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=155077 size=5840 all=1422385 active=78498 piece=▁Middle
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=154040 size=5860 all=1428032 active=84145 piece=▁violence
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=153146 size=5880 all=1432004 active=88117 piece=▁infrastructure
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=152344 size=5900 all=1434470 active=90583 piece=▁sam
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=152334 min_freq=1591
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=151597 size=5920 all=1437810 active=74763 piece=▁distribution
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=150671 size=5940 all=1440437 active=77390 piece=rum
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=150071 size=5960 all=1445489 active=82442 piece=GE
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=149121 size=5980 all=1447982 active=84935 piece=▁WH
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=148748 size=6000 all=1451681 active=88634 piece=▁subscrib
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=148747 min_freq=1557
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=148141 size=6020 all=1455656 active=76530 piece=arian
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=147473 size=6040 all=1458853 active=79727 piece=▁functions
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=146818 size=6060 all=1461515 active=82389 piece=▁complic
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=145867 size=6080 all=1466045 active=86919 piece=DS
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=145354 size=6100 all=1478120 active=98994 piece=▁password
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=145343 min_freq=1503
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=144045 size=6120 all=1486587 active=82312 piece=▁Hor
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=143650 size=6140 all=1491868 active=87593 piece=▁styles
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=142950 size=6160 all=1493482 active=89207 piece=liance
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=142427 size=6180 all=1498211 active=93936 piece=▁carried
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=141854 size=6200 all=1500535 active=96260 piece=▁domestic
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=141835 min_freq=1457
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=141201 size=6220 all=1503700 active=78152 piece=▁Perform
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=140817 size=6240 all=1506572 active=81024 piece=ployment
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=140239 size=6260 all=1508483 active=82935 piece=ingly
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=139667 size=6280 all=1510147 active=84599 piece=▁bottle
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=139024 size=6300 all=1514226 active=88678 piece=▁command
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=139001 min_freq=1431
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=138364 size=6320 all=1517625 active=79022 piece=▁OS
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=137742 size=6340 all=1520326 active=81723 piece=▁Heart
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=137083 size=6360 all=1524629 active=86026 piece=adium
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=136426 size=6380 all=1530981 active=92378 piece=▁landscape
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=135751 size=6400 all=1536502 active=97899 piece=▁attended
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=135733 min_freq=1396
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=135055 size=6420 all=1538192 active=78505 piece=▁anx
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=134616 size=6440 all=1541580 active=81893 piece=▁Writ
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=133911 size=6460 all=1545407 active=85720 piece=▁accessories
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=133376 size=6480 all=1548643 active=88956 piece=▁Ha
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=132772 size=6500 all=1551740 active=92053 piece=▁bags
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=132772 min_freq=1373
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=132155 size=6520 all=1554125 active=79925 piece=▁Bul
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=131630 size=6540 all=1558776 active=84576 piece=▁fuck
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=130916 size=6560 all=1565017 active=90817 piece=va
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=130045 size=6580 all=1568471 active=94271 piece=▁protein
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=129460 size=6600 all=1571662 active=97462 piece=▁taxes
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=129416 min_freq=1339
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=128837 size=6620 all=1574852 active=81753 piece=▁external
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=128240 size=6640 all=1579033 active=85934 piece=▁filed
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=127684 size=6660 all=1583980 active=90881 piece=▁fighting
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=127283 size=6680 all=1589360 active=96261 piece=▁vul
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=126597 size=6700 all=1593674 active=100575 piece=▁juice
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=126596 min_freq=1302
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=125967 size=6720 all=1601769 active=87732 piece=▁Ray
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=125513 size=6740 all=1608790 active=94753 piece=▁lucky
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=125069 size=6760 all=1612561 active=98524 piece=▁capture
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=124505 size=6780 all=1617865 active=103828 piece=▁privacy
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=123944 size=6800 all=1624453 active=110416 piece=▁charm
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=123893 min_freq=1253
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=123395 size=6820 all=1631620 active=88307 piece=▁bat
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=122976 size=6840 all=1634208 active=90895 piece=Read
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=122450 size=6860 all=1640200 active=96887 piece=▁)
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=121968 size=6880 all=1644129 active=100816 piece=▁stir
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=121255 size=6900 all=1649482 active=106169 piece=faction
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=121205 min_freq=1215
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=120746 size=6920 all=1655320 active=88215 piece=▁guidelines
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=120349 size=6940 all=1657449 active=90344 piece=▁memories
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=119642 size=6960 all=1660883 active=93778 piece=▁pin
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=118905 size=6980 all=1666965 active=99860 piece=ba
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=118510 size=7000 all=1672986 active=105881 piece=AA
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=118500 min_freq=1181
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=117981 size=7020 all=1675687 active=85771 piece=▁objects
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=117414 size=7040 all=1680464 active=90548 piece=▁visited
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=116851 size=7060 all=1684697 active=94781 piece=▁ceremony
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=116332 size=7080 all=1688028 active=98112 piece=▁recommendations
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=115897 size=7100 all=1691782 active=101866 piece=▁gallery
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=115882 min_freq=1158
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=115461 size=7120 all=1693717 active=86435 piece=▁mand
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=114992 size=7140 all=1697969 active=90687 piece=▁hidden
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=114626 size=7160 all=1706007 active=98725 piece=missions
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=114091 size=7180 all=1712313 active=105031 piece=▁legislation
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=113564 size=7200 all=1715880 active=108598 piece=▁communications
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=113536 min_freq=1129
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=113178 size=7220 all=1721195 active=91092 piece=▁Emer
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=112719 size=7240 all=1727233 active=97130 piece=ingu
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=112313 size=7260 all=1732481 active=102378 piece=odge
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=111785 size=7280 all=1736257 active=106154 piece=▁orange
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=111288 size=7300 all=1738197 active=108094 piece=▁Cro
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=111265 min_freq=1102
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=110733 size=7320 all=1743616 active=92064 piece=▁gym
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=110358 size=7340 all=1745435 active=93883 piece=▁singer
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=109749 size=7360 all=1750949 active=99397 piece=▁vegetables
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=109373 size=7380 all=1756180 active=104628 piece=▁meets
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=108810 size=7400 all=1758436 active=106884 piece=▁reducing
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=108747 min_freq=1077
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=108429 size=7420 all=1762071 active=91546 piece=▁Bell
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=108028 size=7440 all=1765486 active=94961 piece=▁DI
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=107541 size=7460 all=1770871 active=100346 piece=▁performances
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=107136 size=7480 all=1774611 active=104086 piece=▁seats
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=106700 size=7500 all=1780068 active=109543 piece=)||
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=106700 min_freq=1052
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=106332 size=7520 all=1782913 active=91783 piece=▁Following
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=105917 size=7540 all=1785210 active=94080 piece=▁Annual
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=105591 size=7560 all=1787651 active=96521 piece=being
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=105338 size=7580 all=1792857 active=101727 piece=▁Partners
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=104806 size=7600 all=1794947 active=103817 piece=▁Shipping
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=104798 min_freq=1033
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=104375 size=7620 all=1799023 active=93737 piece=▁Golden
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=104055 size=7640 all=1801614 active=96328 piece=▁singles
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=103683 size=7660 all=1805274 active=99988 piece=▁vice
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=103237 size=7680 all=1807297 active=102011 piece=▁designers
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=102984 size=7700 all=1811005 active=105719 piece=▁defined
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=102955 min_freq=1014
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=102611 size=7720 all=1814243 active=93773 piece=▁Dark
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=102303 size=7740 all=1818708 active=98238 piece=▁officially
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=101914 size=7760 all=1824210 active=103740 piece=▁unus
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=101405 size=7780 all=1826587 active=106117 piece=▁maintaining
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=101035 size=7800 all=1828336 active=107866 piece=jo
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=101030 min_freq=996
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=100687 size=7820 all=1832755 active=94693 piece=▁licensed
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=100419 size=7840 all=1836195 active=98133 piece=▁colours
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=100140 size=7860 all=1841288 active=103226 piece=▁tap
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=99668 size=7880 all=1843191 active=105129 piece=ilty
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=99239 size=7900 all=1846734 active=108672 piece=▁undert
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=99212 min_freq=977
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=98746 size=7920 all=1852742 active=98263 piece=etch
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=98422 size=7940 all=1854894 active=100415 piece=▁Lic
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=98116 size=7960 all=1859706 active=105227 piece=▁regardless
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=97870 size=7980 all=1863291 active=108812 piece=gent
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=97497 size=8000 all=1868707 active=114228 piece=▁Has
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=97462 min_freq=955
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=97157 size=8020 all=1872935 active=97375 piece=▁stations
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=96850 size=8040 all=1879003 active=103443 piece=▁Resources
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=96521 size=8060 all=1881506 active=105946 piece=▁warranty
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=96140 size=8080 all=1883530 active=107970 piece=▁factory
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=95850 size=8100 all=1885126 active=109566 piece=EST
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=95811 min_freq=941
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=95440 size=8120 all=1889237 active=97976 piece=inity
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=95123 size=8140 all=1896170 active=104909 piece=▁Edition
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=94856 size=8160 all=1900515 active=109254 piece=▁minister
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=94404 size=8180 all=1903047 active=111786 piece=▁puts
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=94189 size=8200 all=1906962 active=115701 piece=▁electricity
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=94170 min_freq=920
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=93756 size=8220 all=1911838 active=100206 piece=▁Hills
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=93265 size=8240 all=1914886 active=103254 piece=uminum
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=92896 size=8260 all=1917719 active=106087 piece=▁Father
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=92568 size=8280 all=1920014 active=108382 piece=▁vill
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=92217 size=8300 all=1924724 active=113092 piece=▁personnel
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=92196 min_freq=905
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=91876 size=8320 all=1927558 active=99053 piece=▁pig
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=91506 size=8340 all=1931383 active=102878 piece=acular
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=91197 size=8360 all=1934648 active=106143 piece=▁Ever
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=90795 size=8380 all=1941269 active=112764 piece=▁lake
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=90510 size=8400 all=1944623 active=116118 piece=▁Sport
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=90476 min_freq=888
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=90094 size=8420 all=1949359 active=101590 piece=▁languages
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=89718 size=8440 all=1953491 active=105722 piece=▁thinks
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=89405 size=8460 all=1956518 active=108749 piece=▁scores
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=89176 size=8480 all=1962182 active=114413 piece=▁repeated
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=88732 size=8500 all=1966120 active=118351 piece=▁complicated
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=88611 min_freq=869
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=88436 size=8520 all=1970077 active=102249 piece=▁struck
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=88225 size=8540 all=1972952 active=105124 piece=▁Var
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=87956 size=8560 all=1975213 active=107385 piece=▁newest
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=87630 size=8580 all=1978127 active=110299 piece=▁Championship
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=87246 size=8600 all=1982549 active=114721 piece=▁Reviews
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=87223 min_freq=855
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=86913 size=8620 all=1985768 active=102246 piece=enities
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=86622 size=8640 all=1991032 active=107510 piece=▁Donald
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=86258 size=8660 all=1994679 active=111157 piece=▁southern
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=86076 size=8680 all=1997179 active=113657 piece=▁frustr
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=85775 size=8700 all=1999512 active=115990 piece=▁prayer
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=85766 min_freq=842
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=85564 size=8720 all=2002081 active=102510 piece=▁gap
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=85396 size=8740 all=2006452 active=106881 piece=▁granted
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=85191 size=8760 all=2009628 active=110057 piece=ji
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=84949 size=8780 all=2016980 active=117409 piece=▁Large
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=84712 size=8800 all=2021289 active=121718 piece=▁Style
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=84711 min_freq=825
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=84165 size=8820 all=2024695 active=104276 piece=igious
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=83790 size=8840 all=2031413 active=110994 piece=▁attitude
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=83383 size=8860 all=2033911 active=113492 piece=▁Barn
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=83009 size=8880 all=2038908 active=118489 piece=▁sed
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=82767 size=8900 all=2041675 active=121256 piece=▁containing
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=82742 min_freq=810
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=82454 size=8920 all=2043201 active=103603 piece=▁telephone
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=82213 size=8940 all=2050959 active=111361 piece=▁subsid
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=81858 size=8960 all=2053959 active=114361 piece=▁floors
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=81461 size=8980 all=2058285 active=118687 piece=aga
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=81104 size=9000 all=2061468 active=121870 piece=▁beans
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=81087 min_freq=796
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=80899 size=9020 all=2064988 active=106561 piece=▁sear
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=80681 size=9040 all=2069157 active=110730 piece=oli
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=80416 size=9060 all=2073607 active=115180 piece=▁explan
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=80237 size=9080 all=2076283 active=117856 piece=SW
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=79999 size=9100 all=2079322 active=120895 piece=utor
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=79975 min_freq=782
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=79758 size=9120 all=2085307 active=109574 piece=▁importantly
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=79509 size=9140 all=2091968 active=116235 piece=▁letting
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=79298 size=9160 all=2095552 active=119819 piece=▁dess
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=79030 size=9180 all=2099098 active=123365 piece=▁por
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=78706 size=9200 all=2103411 active=127678 piece=ILL
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=78696 min_freq=766
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=78512 size=9220 all=2107701 active=109136 piece=▁hide
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=78214 size=9240 all=2112855 active=114290 piece=▁delighted
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=78007 size=9260 all=2118394 active=119829 piece=▁auction
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=77823 size=9280 all=2120416 active=121851 piece=▁therm
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=77661 size=9300 all=2122965 active=124400 piece=View
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=77661 min_freq=752
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=77421 size=9320 all=2128585 active=109256 piece=▁survive
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=77140 size=9340 all=2130533 active=111204 piece=▁coaches
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=76943 size=9360 all=2134520 active=115191 piece=▁pip
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=76678 size=9380 all=2138376 active=119047 piece=mouth
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=76441 size=9400 all=2145055 active=125726 piece=ussion
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=76430 min_freq=738
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=76203 size=9420 all=2151497 active=113523 piece=▁Commercial
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=75956 size=9440 all=2153880 active=115906 piece=▁championship
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=75648 size=9460 all=2160717 active=122743 piece=▁Harris
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=75351 size=9480 all=2166263 active=128289 piece=▁captured
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=75121 size=9500 all=2168439 active=130465 piece=gener
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=75105 min_freq=723
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=74907 size=9520 all=2170525 active=110002 piece=▁SO
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=74691 size=9540 all=2173676 active=113153 piece=▁Bab
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=74485 size=9560 all=2176375 active=115852 piece=enna
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=74214 size=9580 all=2180709 active=120186 piece=▁sleeping
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=74030 size=9600 all=2184379 active=123856 piece=▁races
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=74028 min_freq=714
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=73826 size=9620 all=2189551 active=114371 piece=▁compan
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=73559 size=9640 all=2194963 active=119783 piece=▁Democrats
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=73369 size=9660 all=2199417 active=124237 piece=▁existence
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=73206 size=9680 all=2204598 active=129418 piece=oper
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=73053 size=9700 all=2207422 active=132242 piece=▁celebrating
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=73033 min_freq=699
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=72874 size=9720 all=2210775 active=113720 piece=▁chairs
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=72638 size=9740 all=2216452 active=119397 piece=attan
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=72447 size=9760 all=2220547 active=123492 piece=▁engineers
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=72304 size=9780 all=2227532 active=130477 piece=▁Kentucky
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=72065 size=9800 all=2231080 active=134025 piece=▁latter
+bpe_model_trainer.cc(159) LOG(INFO) Updating active symbols. max_freq=72049 min_freq=685
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=71874 size=9820 all=2236461 active=116910 piece=▁vulnerable
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=71685 size=9840 all=2238799 active=119248 piece=▁spell
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=71419 size=9860 all=2242179 active=122628 piece=▁Tai
+bpe_model_trainer.cc(268) LOG(INFO) Added: freq=71176 size=9880 all=2245004 active=125453 piece=▁toler
+trainer_interface.cc(689) LOG(INFO) Saving model: /home/frosty40/parameter-golf-lab/data/tokenizers/fineweb_10240_bpe.model
+trainer_interface.cc(701) LOG(INFO) Saving vocabs: /home/frosty40/parameter-golf-lab/data/tokenizers/fineweb_10240_bpe.vocab
+Exporting dataset: fineweb10B_sp10240
+fineweb10B_sp10240: 3200000/15368808 docs
+fineweb10B_sp10240: 6400000/15368808 docs
+fineweb10B_sp10240: 9600000/15368808 docs
+fineweb10B_sp10240: 12800000/15368808 docs
+Done. Manifest: /home/frosty40/parameter-golf-lab/data/manifest.json
+[wrapper] build exited rc=0; restoring index files from backup
+[wrapper] index files restored. New tokenizer/dataset (if built) remain in place.

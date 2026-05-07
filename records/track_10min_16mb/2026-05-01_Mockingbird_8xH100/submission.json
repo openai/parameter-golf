@@ -1,0 +1,54 @@
+{
+  "author": "Frosty40",
+  "github_id": "newjordan",
+  "name": "Mockingbird",
+  "blurb": "10k-vocab CaseOps body on the SOTA architecture: SP10240 lossless-caps tokenizer with PR1855 LQER asym rank-4 + per-group + phased-TTT compression, 11L dim512 mlp_mult=3.75 with looping enabled at 0.45 of training.",
+  "date": "2026-05-01T00:00:00Z",
+  "track": "10min_16mb",
+  "record": false,
+  "val_bpb": 1.0624,
+  "val_bpb_exact": 1.06243460,
+  "val_bpb_std": 0.00040,
+  "seeds": [42, 0, 1],
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.0620,
+      "val_bpb_exact": 1.06204667,
+      "val_loss_exact": 2.38207881,
+      "steps": 5264,
+      "train_time_ms": 599612,
+      "eval_time_ms": 446734,
+      "bytes_total": 15816988,
+      "compressed_artifact_bytes": 15775768,
+      "compressed_artifact_sha256": "68f570ab2cccfa31ecc7064e68eada5fa83cc969c5267a6c74bfd4fe8d5835f9"
+    },
+    "0": {
+      "val_bpb": 1.0623,
+      "val_bpb_exact": 1.06226648,
+      "val_loss_exact": 2.38257182,
+      "steps": 5231,
+      "train_time_ms": 599626,
+      "eval_time_ms": 517991,
+      "bytes_total": 15818783,
+      "compressed_artifact_bytes": 15777612,
+      "compressed_artifact_sha256": "892f585d130801de2116aa3bfcd67aafc337119e1484c1b0f3a54d8e51bb6614"
+    },
+    "1": {
+      "val_bpb": 1.0630,
+      "val_bpb_exact": 1.06299064,
+      "val_loss_exact": 2.38419604,
+      "steps": 5221,
+      "train_time_ms": 599587,
+      "eval_time_ms": 510971,
+      "bytes_total": 15810544,
+      "compressed_artifact_bytes": 15769440,
+      "compressed_artifact_sha256": "46f1f5e5bb1dc67a29c1c88934910832855a0593a008da652a656da413ff2d23"
+    }
+  },
+  "bytes_total": 15818783,
+  "bytes_code": 163036,
+  "bytes_code_compressed": 41220,
+  "hardware": "8xH100 SXM",
+  "wallclock_train_s": 600,
+  "derives_from_pr": "openai/parameter-golf#1855"
+}
