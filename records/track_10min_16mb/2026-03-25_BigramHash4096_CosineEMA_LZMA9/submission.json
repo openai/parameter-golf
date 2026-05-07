@@ -1,0 +1,9 @@
+{
+  "name": "BigramHash(4096) + Cosine EMA + Earlier QAT + LZMA-9",
+  "val_bpb": 1.4775,
+  "bytes_total": 7896113,
+  "blurb": "Non-record submission (1xH100 only, 940 steps). Built on PR #549 stack with: BigramHash expanded 2048->4096, cosine EMA schedule (0.99->0.999), earlier late QAT (threshold 0.15->0.10), LZMA preset 6->9. Artifact 7.9MB (room for larger model). Developed using ShinkaEvolve (Sakana AI) evolutionary code optimization framework with GPT-5.4 and Gemini 3 Pro as mutation operators. 8xH100 evaluation pending.",
+  "author": "Alfaxad",
+  "github_id": "Alfaxad",
+  "date": "2026-03-25"
+}
