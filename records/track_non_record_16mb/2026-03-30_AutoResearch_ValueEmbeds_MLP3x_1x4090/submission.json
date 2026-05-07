@@ -1,0 +1,16 @@
+{
+  "author": "Ivan",
+  "github_id": "ivanontech",
+  "name": "AutoResearch: Value Embeddings + MLP3x (1x RTX 4090)",
+  "blurb": "Non-record submission (1x RTX 4090, 5-minute budget). 12L/640d with value embeddings (31.5M), MLP 3x, SSSL window, 8192 BPE, Muon optimizer. 91.1M params, 467 steps in 300s. Automated ablation across 50+ configs.",
+  "date": "2026-03-30T13:20:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_bpb": 1.180076,
+  "step_stop": 467,
+  "wallclock_seconds": 300.6,
+  "bytes_code": 26111,
+  "peak_vram_mb": 8833.4,
+  "mfu_percent": 4.47,
+  "hardware": "1x NVIDIA RTX 4090 (24GB GDDR6X)",
+  "num_params_M": 91.1
+}
