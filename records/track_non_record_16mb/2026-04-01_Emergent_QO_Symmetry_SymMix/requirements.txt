@@ -1,0 +1,4 @@
+torch>=2.9.0
+sentencepiece
+zstandard
+flash_attn_3
