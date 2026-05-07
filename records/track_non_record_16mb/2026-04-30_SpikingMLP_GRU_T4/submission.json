@@ -1,0 +1,18 @@
+{
+  "author": "Gary Yang",
+  "github_id": "",
+  "name": "SpikingMLP + GRU readout (T=4, H_GRU=64)",
+  "blurb": "Non-record 8xH100 submission. Replaces each Block's relu^2 MLP with a per-token T=4 LIF + GRUCell readout (zero-init output). Hits the 'adapter on random linear maps' and 'per-token state-space' wishlist items while keeping the rest of the root train_gpt.py (9x512, GQA 8/4, tied embeds, SP-1024) intact.",
+  "date": "2026-04-30T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.35354820,
+  "val_bpb": 1.39390381,
+  "pre_quant_val_loss": 2.3266,
+  "pre_quant_val_bpb": 1.3779,
+  "step_stop": 20000,
+  "wallclock_seconds": 7148.487,
+  "bytes_total": 13954474,
+  "bytes_model_int8_zlib": 13903183,
+  "bytes_code": 51291,
+  "gpu": "8xH100"
+}
