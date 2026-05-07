@@ -1,0 +1,6 @@
+{
+  "name": "Your Name",
+  "github_id": "your_github_username",
+  "val_bpb": 2.3517,
+  "notes": "Non-record submission. 10-layer, 3x MLP, int6 quant baseline run on Apple Silicon MLX. 200 iterations smoke test only \u2014 full H100 run pending compute grant."
+}
