@@ -1,0 +1,17 @@
+{
+  "author": "RAC",
+  "github_id": "andreanjos",
+  "name": "9L MLP3x LeakyReLU(0.5)^2 + QAT Int6 + zstd + Sliding Window Eval",
+  "blurb": "9-layer 512dim with 3x MLP expansion (hidden=1536), LeakyReLU(0.5)^2 activation, int6 QAT with STE fake-quantize, zstd-22 compression, fp16 embedding passthrough, and sliding window evaluation (stride=64). Post-quant int6+zstd roundtrip under the 16,000,000-byte cap.",
+  "date": "2026-03-27T03:00:00Z",
+  "val_loss": 1.96757851,
+  "val_bpb": 1.16531391,
+  "pre_quant_val_loss": 2.0041,
+  "pre_quant_val_bpb": 1.1869,
+  "step_stop": 10503,
+  "wallclock_seconds": 600.038,
+  "eval_time_seconds": 147.279,
+  "bytes_total": 15034033,
+  "bytes_model_int8_zlib": 14980068,
+  "bytes_code": 53965
+}
