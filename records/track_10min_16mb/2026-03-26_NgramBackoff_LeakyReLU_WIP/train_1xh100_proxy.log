@@ -1,0 +1,95 @@
+logs/c775137f-aa05-456a-ad13-4085aa0d4019.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:24730705
+world_size:1 grad_accum_steps:8
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.03 matrix_lr:0.03 scalar_lr:0.02
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:5 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/5
+warmup_step:2/5
+warmup_step:3/5
+warmup_step:4/5
+warmup_step:5/5
+step:1/20000 train_loss:6.9301 train_time:740ms step_avg:740.18ms
+step:2/20000 train_loss:7.9979 train_time:1423ms step_avg:711.48ms
+step:3/20000 train_loss:7.7429 train_time:2104ms step_avg:701.37ms
+step:4/20000 train_loss:7.2865 train_time:2787ms step_avg:696.72ms
+step:5/20000 train_loss:6.8208 train_time:3470ms step_avg:694.00ms
+step:6/20000 train_loss:6.4930 train_time:4152ms step_avg:692.05ms
+step:7/20000 train_loss:6.2159 train_time:4835ms step_avg:690.67ms
+step:8/20000 train_loss:6.0152 train_time:5517ms step_avg:689.66ms
+step:9/20000 train_loss:5.8839 train_time:6200ms step_avg:688.92ms
+step:10/20000 train_loss:5.7774 train_time:6887ms step_avg:688.69ms
+step:100/20000 train_loss:3.4297 train_time:68505ms step_avg:685.05ms
+step:200/20000 train_loss:2.8498 train_time:137061ms step_avg:685.31ms
+step:300/20000 train_loss:2.6534 train_time:205578ms step_avg:685.26ms
+step:400/20000 train_loss:2.5760 train_time:274072ms step_avg:685.18ms
+step:500/20000 train_loss:2.4309 train_time:342565ms step_avg:685.13ms
+step:600/20000 train_loss:2.3835 train_time:411070ms step_avg:685.12ms
+step:700/20000 train_loss:2.4191 train_time:479587ms step_avg:685.12ms
+step:800/20000 train_loss:2.3649 train_time:548238ms step_avg:685.30ms
+step:876/20000 val_loss:2.3293 val_bpb:1.3796 train_time:600321ms step_avg:685.30ms
+stopping_early: wallclock_cap train_time:600321ms step:876/20000
+peak memory allocated: 21118 MiB reserved: 21334 MiB
+ema:applying shadow model
+Serialized model: 96864555 bytes
+Code size: 68444 bytes
+Total submission size: 96932999 bytes
+Serialized model int6+zstd: 15114383 bytes
+Total submission size: 15182827 bytes (15.18 MB)
+SIZE CHECK PASSED: 15.18 MB < 16.00 MB
+final_eval_mode:sliding_ngram orders=2-7 alpha=0.4 entropy=True stride:64
+ngram_cache:enabled orders=2-7 backoff entropy=True alpha=0.4 ent_base=0.05 ent_range=0.55 min_count=2 buckets=4194304
+  ngram_eval [  1.3%] bpb=1.435111 t=22s
+  ngram_eval [  2.6%] bpb=1.402530 t=35s
+  ngram_eval [  4.0%] bpb=1.361849 t=47s
+  ngram_eval [  5.3%] bpb=1.320140 t=60s
+  ngram_eval [  6.6%] bpb=1.279959 t=72s
+  ngram_eval [  7.9%] bpb=1.241292 t=84s
+  ngram_eval [  9.3%] bpb=1.207860 t=97s
+  ngram_eval [ 10.6%] bpb=1.176798 t=109s
+  ngram_eval [ 11.9%] bpb=1.147068 t=121s
+  ngram_eval [ 13.2%] bpb=1.119773 t=134s
+  ngram_eval [ 14.5%] bpb=1.094718 t=146s
+  ngram_eval [ 15.9%] bpb=1.070849 t=158s
+  ngram_eval [ 17.2%] bpb=1.049488 t=171s
+  ngram_eval [ 18.5%] bpb=1.029457 t=183s
+  ngram_eval [ 19.8%] bpb=1.012787 t=195s
+  ngram_eval [ 21.1%] bpb=0.996054 t=207s
+  ngram_eval [ 22.5%] bpb=0.980828 t=220s
+  ngram_eval [ 23.8%] bpb=0.966282 t=232s
+  ngram_eval [ 25.1%] bpb=0.953015 t=244s
+  ngram_eval [ 26.4%] bpb=0.941106 t=256s
+  ngram_eval [ 27.7%] bpb=0.930342 t=268s
+  ngram_eval [ 29.1%] bpb=0.920125 t=281s
+  ngram_eval [ 30.4%] bpb=0.910740 t=293s
+  ngram_eval [ 31.7%] bpb=0.902184 t=305s
+  ngram_eval [ 33.0%] bpb=0.894142 t=317s
+  ngram_eval [ 34.3%] bpb=0.886139 t=329s
+  ngram_eval [ 35.7%] bpb=0.878789 t=341s
+  ngram_eval [ 37.0%] bpb=0.871667 t=353s
+  ngram_eval [ 38.3%] bpb=0.865602 t=366s
+  ngram_eval [ 39.6%] bpb=0.859789 t=378s
+  ngram_eval [ 41.0%] bpb=0.854720 t=390s
+  ngram_eval [ 42.3%] bpb=0.849776 t=402s
+  ngram_eval [ 43.6%] bpb=0.845097 t=414s
+  ngram_eval [ 44.9%] bpb=0.840780 t=426s
+  ngram_eval [ 46.2%] bpb=0.836903 t=438s
+  ngram_eval [ 47.6%] bpb=0.833217 t=450s
+  ngram_eval [ 48.9%] bpb=0.829542 t=462s
+  ngram_eval [ 50.2%] bpb=0.826147 t=474s
+  ngram_eval [ 51.5%] bpb=0.822454 t=486s
+  ngram_eval [ 52.8%] bpb=0.819000 t=498s
+  ngram_eval [ 54.2%] bpb=0.815742 t=511s
+  ngram_eval [ 55.5%] bpb=0.812363 t=523s
+  ngram_eval [ 56.8%] bpb=0.809277 t=535s
+  ngram_eval [ 58.1%] bpb=0.806136 t=547s
+  ngram_eval [ 59.4%] bpb=0.802990 t=559s
+  FAILSAFE: ngram eval time 570s exceeds budget
+  ngram_eval DONE: bpb=0.800415 tokens=37619648 t=570s
+  WARNING: eval used 570s of 570.0s budget — results may be from partial coverage
+final_int8_zlib_roundtrip val_loss:1.3482 val_bpb:0.8004 eval_time:570471ms
+final_int8_zlib_roundtrip_exact val_loss:1.34824811 val_bpb:0.80041516
