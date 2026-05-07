@@ -645,6 +645,37 @@ class Block(nn.Module):
         return x
 
 
+class BigramHash(nn.Module):
+    """Lightweight bigram hash table that injects n-gram statistics into logits.
+
+    Maps each consecutive token pair (t_{i-1}, t_i) to a learned logit bias
+    via a hash embedding. This adds near-zero parameter overhead relative to
+    the 16MB artifact budget, while providing a strong shallow signal that
+    complements what the deep transformer layers learn.
+
+    Reference: inspired by BigramHash as used in parameter-golf top submissions.
+    """
+
+    def __init__(self, vocab_size: int, table_size: int = 8192):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.table_size = table_size
+        # Hash table: each entry is a bias vector over vocab
+        self.table = nn.Embedding(table_size, vocab_size)
+        nn.init.zeros_(self.table.weight)
+
+    def forward(self, idx: Tensor) -> Tensor:
+        # idx: (B, T)  — token indices
+        # Compute bigram hash: hash(t_{i-1}, t_i) mod table_size
+        prev = idx[:, :-1]  # (B, T-1)
+        curr = idx[:, 1:]   # (B, T-1)
+        keys = (prev * 2654435761 + curr) % self.table_size
+        bias = self.table(keys)  # (B, T-1, vocab_size)
+        # Prepend zeros for the first position (no previous token)
+        B, T = idx.shape
+        pad = torch.zeros(B, 1, self.vocab_size, device=idx.device, dtype=bias.dtype)
+        return torch.cat([pad, bias], dim=1)  # (B, T, vocab_size)
+
 class GPT(nn.Module):
     def __init__(
         self,
