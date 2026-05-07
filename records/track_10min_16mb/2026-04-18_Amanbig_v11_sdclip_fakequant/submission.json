@@ -1,0 +1,13 @@
+{
+  "name": "Amanbig",
+  "github_id": "Amanbig",
+  "val_bpb": 1.2087,
+  "is_record": false,
+  "track": "track_10min_16mb",
+  "date": "2026-04-18",
+  "summary": "Non-record: SDClip-matched FakeQuantize eliminates QAT/post-quant distribution mismatch (+0.044 degradation vs +0.17 in naive baseline). 11L GQA + Parallel Residuals + 3-Layer Recurrence + Legal TTT.",
+  "compute": "1xH100 (Kaggle)",
+  "artifact_bytes": 16000000,
+  "num_seeds": 1,
+  "seed": 1337
+}
