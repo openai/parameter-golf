@@ -1,0 +1,16 @@
+{
+  "track": "10min_16mb",
+  "date": "2026-03-21",
+  "name": "11L Backout + Int6 + SWA",
+  "author": "sheeki03",
+  "blurb": "Learned residual subtraction (Backout Connection) from mid-network hidden state. Backout removes redundant mid-layer information, improving val_bpb by 0.0071 over PR #198 baseline with zero additional matrix parameters (one learned scalar). 11 layers, 3x MLP, int6 mixed quant + zstd, SmearGate, BigramHash(4096), SWA, FA3, sliding eval stride=64.",
+  "seed_results": {
+    "1337": {"val_loss": 1.91882594, "val_bpb": 1.13643981, "steps": 6642, "ms_per_step": 90.33}
+  },
+  "val_loss": 1.91882594,
+  "val_bpb": 1.13643981,
+  "artifact_bytes": 16170051,
+  "code_bytes": 70854,
+  "bytes_total": 16170051,
+  "known_issues": "Artifact is 16,170,051 bytes (170KB over 16MB cap). Fixable with INT5_MLP=1 which typically saves 1-2MB."
+}
