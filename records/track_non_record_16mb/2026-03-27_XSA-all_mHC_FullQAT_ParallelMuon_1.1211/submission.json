@@ -1,0 +1,12 @@
+{
+  "track": "10min_16mb",
+  "val_bpb": 1.1211,
+  "val_bpb_sliding_window": 1.1229,
+  "val_bpb_ttt": 1.1211,
+  "artifact_bytes": 15953842,
+  "training_seconds": 600,
+  "eval_seconds": 482,
+  "hardware": "8xH100 SXM 80GB",
+  "seeds": [1337],
+  "method": "XSA-all + mHC + Full-training QAT + LeakyReLU_LegalTTT_ParallelMuon"
+}

@@ -1,0 +1,6 @@
+torch>=2.11
+flash-attn-3>=3.0.0
+cuda-toolkit[cudart]==13.0.2
+sentencepiece
+numpy
+zstandard
