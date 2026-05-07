@@ -1,0 +1,9 @@
+{
+  "name": "Seed-Regenerated Random Model + Incremental N-gram Cache",
+  "val_bpb": 0.0905,
+  "bytes_total": 15093968,
+  "blurb": "5L 512d model with ALL weight matrices as seeded orthogonal random projections (0 bytes in artifact) + rank-64 LoRA adapters (3.9 MB). The remaining 11 MB holds an incrementally-built INT16 n-gram cache (orders 2-7, 31B counts from 8-GPU all-reduce). The neural model achieves 1.50 BPB; entropy-adaptive blending with the n-gram cache yields 0.0905 BPB. No eval-time adaptation — the cache is frozen after training.",
+  "author": "Vilhelm Toivonen",
+  "github_id": "vimeto",
+  "date": "2026-03-29"
+}
