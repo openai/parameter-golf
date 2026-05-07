@@ -1,0 +1,33 @@
+{
+  "author": "Jayaram Kuchibhotla",
+  "github_id": "jayaram1125",
+  "name": "PR1797Base + HadamardRotation + ValueResidualLearning",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "val_bpb": 1.06172,
+  "val_bpb_std": 0.00071,
+  "seeds": [314, 2025, 1],
+  "seed_results": {
+    "314": {"val_bpb": 1.06108, "artifact_bytes": 15968887},
+    "2025": {"val_bpb": 1.06159, "artifact_bytes": 15969700},
+    "1": {"val_bpb": 1.06249, "artifact_bytes": 15967906}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.11.0+cu128",
+  "technique_summary": "PR1797Base + HadamardRotation + ValueResidualLearning",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "base_code": "@dexhunter (PR #1797)",
+    "caseops_data": "@romeerp (PR #1530)"
+  }
+}
