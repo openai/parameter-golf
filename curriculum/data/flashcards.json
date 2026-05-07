@@ -1,0 +1,140 @@
+[
+  {
+    "cardId": "u1-shannon-entropy",
+    "unitId": 1,
+    "front": "What is Shannon entropy H(X)?",
+    "back": "H(X) = -\u03a3 p(x) log\u2082 p(x) \u2014 the minimum average bits per symbol to encode source X"
+  },
+  {
+    "cardId": "u1-cross-entropy",
+    "unitId": 1,
+    "front": "What is cross-entropy H(p, q)?",
+    "back": "H(p, q) = -\u03a3 p(x) log q(x) \u2014 average bits when using model q to encode source with true distribution p"
+  },
+  {
+    "cardId": "u1-kl-divergence",
+    "unitId": 1,
+    "front": "What is KL divergence D_KL(p || q)?",
+    "back": "D_KL(p || q) = \u03a3 p(x) log(p(x)/q(x)) = H(p,q) - H(p) \u2265 0. Extra bits from using q instead of p."
+  },
+  {
+    "cardId": "u1-perplexity",
+    "unitId": 1,
+    "front": "How is perplexity defined in terms of cross-entropy?",
+    "back": "PPL = e^(H(p,q)) in nats, or 2^(H) in bits. Lower perplexity = better model."
+  },
+  {
+    "cardId": "u1-bpb-formula",
+    "unitId": 1,
+    "front": "How is BPB (bits-per-byte) computed from val_loss?",
+    "back": "BPB = (val_loss / ln(2)) \u00d7 (tokens / bytes). Tokenizer-agnostic compression metric."
+  },
+  {
+    "cardId": "u1-compression-prediction",
+    "unitId": 1,
+    "front": "Why does compression = prediction?",
+    "back": "Source coding theorem: optimal compression needs H(X) bits/symbol. A model achieving H(p,q) = H(p) is a perfect predictor, yielding optimal compression."
+  },
+  {
+    "cardId": "u1-attention-formula",
+    "unitId": 1,
+    "front": "What is the scaled dot-product attention formula?",
+    "back": "Attn(Q,K,V) = softmax(QK\u1d40 / \u221ad_k) \u00b7 V"
+  },
+  {
+    "cardId": "u1-rope-property",
+    "unitId": 1,
+    "front": "What is the key property of RoPE (Rotary Position Embedding)?",
+    "back": "q_m\u1d40 k_n depends only on relative position (m-n), achieved by rotating Q/K vectors by position-dependent angles."
+  },
+  {
+    "cardId": "u1-rmsnorm",
+    "unitId": 1,
+    "front": "How does RMSNorm differ from LayerNorm?",
+    "back": "RMSNorm: x / RMS(x), no mean centering or learnable bias. Cheaper and equally effective. RMS(x) = \u221a(mean(x\u00b2))."
+  },
+  {
+    "cardId": "u1-relu-squared",
+    "unitId": 1,
+    "front": "What is the ReLU\u00b2 activation used in the baseline MLP?",
+    "back": "FFN(x) = W\u2082 \u00b7 (ReLU(W\u2081 x))\u00b2. Squaring after ReLU creates smoother, sparser activations."
+  },
+  {
+    "cardId": "u1-residual-why",
+    "unitId": 1,
+    "front": "Why are residual connections critical in deep transformers?",
+    "back": "They create a direct gradient path from output to input, preventing vanishing gradients. Output = x + F(x) means gradients always have a +1 component."
+  },
+  {
+    "cardId": "u1-causal-mask",
+    "unitId": 1,
+    "front": "What does the causal mask do in autoregressive attention?",
+    "back": "Sets attention weights to 0 for all positions j > i (future tokens). Token i can only attend to tokens 1..i. Enforced by masking QK\u1d40 with -\u221e before softmax."
+  },
+  {
+    "cardId": "u2-scaling-law-ln",
+    "unitId": 2,
+    "front": "What is the Kaplan scaling law L(N)?",
+    "back": "L(N) = (N_c / N)^alpha_N where alpha_N \u2248 0.076. Loss decreases as a power law with parameter count."
+  },
+  {
+    "cardId": "u2-chinchilla",
+    "unitId": 2,
+    "front": "What is the Chinchilla-optimal ratio of parameters to data?",
+    "back": "For fixed compute C: scale N \u221d C^0.5 and D \u221d C^0.5 (roughly equal scaling). Previous practice over-allocated to parameters."
+  },
+  {
+    "cardId": "u2-pgolf-as-ln",
+    "unitId": 2,
+    "front": "Why is Parameter Golf an L(N) optimization problem?",
+    "back": "Fixed N (16MB artifact), unconstrained D and C (8B+ tokens, 10 min 8xH100). Goal: minimize loss at fixed parameter count."
+  },
+  {
+    "cardId": "u2-depth-vs-width",
+    "unitId": 2,
+    "front": "At fixed param count, is deeper or wider generally better?",
+    "back": "Deeper (more layers, smaller dim) generally wins. Leaderboard evolved 9\u219211 layers. Depth recurrence takes this to its logical extreme."
+  },
+  {
+    "cardId": "u3-gqa-ratio",
+    "unitId": 3,
+    "front": "In the baseline GQA-4 (8 heads, 4 KV heads), what are the KV parameter savings?",
+    "back": "KV dim = 4\u00d764 = 256 instead of 512. Saves 50% of K+V projection parameters per layer (262K vs 524K)."
+  },
+  {
+    "cardId": "u3-flash-attn",
+    "unitId": 3,
+    "front": "How does Flash Attention reduce memory from O(T\u00b2) to O(T)?",
+    "back": "Tiles Q,K,V computation into SRAM-sized blocks. Computes partial softmax in tiles, accumulates without materializing the full T\u00d7T attention matrix in HBM."
+  },
+  {
+    "cardId": "u3-universal-transformer",
+    "unitId": 3,
+    "front": "What is the Universal Transformer's key idea?",
+    "back": "Share weights across layers, run K blocks N times each = K\u00d7N effective depth for cost of K layers. Requires per-iteration conditioning."
+  },
+  {
+    "cardId": "u3-bigramhash",
+    "unitId": 3,
+    "front": "What is BigramHash and why is it useful?",
+    "back": "Hash adjacent token pairs into an embedding table: hash(t[i-1], t[i]) = (36313*t[i] ^ 27191*t[i-1]) % vocab. Adds n-gram context cheaply for small vocabularies."
+  },
+  {
+    "cardId": "u3-xsa",
+    "unitId": 3,
+    "front": "What does XSA (Cross-Sequence Attention) do?",
+    "back": "Removes each token's self-value projection from attention output: y = y - proj(y onto v). Forces meaningful cross-token attention. Zero parameter cost."
+  },
+  {
+    "cardId": "u3-smeargate",
+    "unitId": 3,
+    "front": "How does SmearGate work?",
+    "back": "Per-dimension gate: out = (1-\u03c3(g))*x + \u03c3(g)*x_prev. Learnable temporal smoothing between positions. Init near zero (pass-through)."
+  },
+  {
+    "cardId": "u3-partial-rope",
+    "unitId": 3,
+    "front": "What is Partial RoPE and what ratio does the SOTA use?",
+    "back": "Apply RoPE to only a subset of head dimensions: 16 out of 64 (25%). Remaining dims attend purely by content. Saves compute, surprisingly effective."
+  }
+]

@@ -1,0 +1,506 @@
+<div class="content-inner">
+
+  <!-- Unit Header -->
+  <div class="unit-header">
+    <h1>Unit 3: Efficient Architectures</h1>
+    <div class="unit-meta">
+      <span class="badge badge-magenta">Weeks 4-6</span>
+      <span class="badge badge-cyan">~30 hours</span>
+      <span class="badge badge-violet">Prereq: Units 1-2</span>
+    </div>
+    <p style="color: var(--pg-text-muted); margin-top: var(--space-md); max-width: 700px;">
+      The heart of the challenge: architectural techniques that extract maximum performance from a fixed parameter budget.
+      From attention efficiency (GQA, Flash Attention) to parameter sharing (depth recurrence, MoE)
+      to specialized modules invented for this competition (BigramHash, XSA, SmearGate).
+    </p>
+  </div>
+
+  <!-- ==================== WEEK 4 ==================== -->
+  <div class="week-section" data-week="4">
+    <div class="week-title">
+      <span style="color: var(--pg-magenta);">\u{25B6}</span>
+      Week 4: Grouped Query Attention, Multi-Query Attention, and KV-Cache Efficiency
+    </div>
+
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span>
+      <h3>Topics</h3>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w4-mqa">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Multi-query attention (Shazeer 2019): shared K/V heads</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Standard multi-head attention: each head has its own Q, K, V projections.
+              Multi-query attention (MQA): all heads share a single K and V projection.
+              This reduces KV parameters by a factor of $h$ (number of heads), saving significant parameters
+              in the attention block.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              Parameter savings at 512d, 8 heads: standard attention K/V = $2 \times 512 \times 512 = 524K$ params.
+              MQA K/V = $2 \times 64 \times 512 = 65K$ params. That's an 8x reduction in KV parameters.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w4-gqa">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Grouped query attention (GQA): interpolating between MHA and MQA</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              GQA uses $g$ KV head groups where $1 \leq g \leq h$. Each group of $h/g$ query heads
+              shares a single K/V head. The baseline uses $h=8, g=4$ (GQA-4), so every 2 query heads
+              share one KV head. This is the sweet spot: nearly the quality of full MHA at half the KV parameter cost.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w4-param-cost">
+      <input type="checkbox">
+      <div class="check-label">Parameter cost analysis: how GQA reduces attention parameters</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w4-flash-attn">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Flash Attention: tiling, memory-efficient backward, IO complexity</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Standard attention materializes the $T \times T$ attention matrix in HBM, costing $O(T^2)$ memory.
+              Flash Attention tiles the computation: it loads blocks of Q, K, V into SRAM, computes partial
+              softmax outputs, and accumulates results without ever writing the full attention matrix.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              Result: exact attention (no approximation), $O(T)$ memory, and ~2-4x faster due to reduced HBM IO.
+              Flash Attention 3 adds Hopper-specific optimizations (warp specialization, TMA, FP8 accumulation).
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w4-fa23">
+      <input type="checkbox">
+      <div class="check-label">Flash Attention 2 and 3: Hopper-specific optimizations</div>
+    </div>
+
+    <!-- Readings -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span>
+      <h3>Readings</h3>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w4-shazeer-2019">
+      <input type="checkbox">
+      <div class="check-label">Shazeer, "Fast Transformer Decoding: One Write-Head is All You Need" (2019)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w4-ainslie-gqa-2023">
+      <input type="checkbox">
+      <div class="check-label">Ainslie et al., "GQA: Training Generalized Multi-Query Transformer Models" (2023)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w4-dao-fa1-2022">
+      <input type="checkbox">
+      <div class="check-label">Dao et al., "FlashAttention: Fast and Memory-Efficient Exact Attention" (2022)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w4-dao-fa2-2023">
+      <input type="checkbox">
+      <div class="check-label">Dao, "FlashAttention-2: Faster Attention with Better Parallelism" (2023)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w4-shah-fa3-2024">
+      <input type="checkbox">
+      <div class="check-label">Shah et al., "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision" (2024)</div>
+    </div>
+
+    <!-- Exercises -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span>
+      <h3>Exercises</h3>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w4-ex1-gqa">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Implement GQA from scratch and verify it matches standard MHA when num_kv_heads = num_heads</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Key: when num_kv_heads &lt; num_heads, repeat each KV head to match query heads using
+              <code>repeat_interleave</code> or reshape tricks. Pass <code>enable_gqa=True</code> to
+              <code>F.scaled_dot_product_attention</code> for the efficient path.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your implementation..." data-note-key="w4-ex1-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w4-ex2-memory">
+      <input type="checkbox">
+      <div class="check-label">Profile memory usage of standard attention vs Flash Attention at sequence length 2048</div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w4-ex3-param-savings">
+      <input type="checkbox">
+      <div class="check-label">Calculate exact parameter savings from GQA at various head ratios for the 512d/8-head baseline</div>
+    </div>
+
+    <!-- Quiz -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-magenta);">\u{2606}</span>
+      <h3>Week 4 Quiz</h3>
+    </div>
+    <div data-quiz="w4-attention"></div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 4 notes..." data-note-key="w4-general" data-note-type="week-note" style="min-height: 80px; margin-top: var(--space-lg);"></div>
+  </div>
+
+  <!-- ==================== WEEK 5 ==================== -->
+  <div class="week-section" data-week="5">
+    <div class="week-title">
+      <span style="color: var(--pg-magenta);">\u{25B6}</span>
+      Week 5: Parameter-Efficient Architecture Variants
+    </div>
+
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span>
+      <h3>Topics</h3>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w5-depth-recurrence">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Depth recurrence and the Universal Transformer (Dehghani et al.)</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              The Universal Transformer applies the <em>same</em> transformer block repeatedly instead
+              of having unique weights per layer. With $K$ shared blocks run $N$ times each,
+              you get $K \times N$ effective depth for the parameter cost of $K$ layers.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              Key challenges:
+            </p>
+            <ul style="color: var(--pg-text-muted); font-size: var(--font-size-sm); padding-left: var(--space-lg);">
+              <li><strong>Per-iteration conditioning</strong>: each pass needs to be distinct. Solutions: layer index embeddings, FiLM conditioning, learned gates</li>
+              <li><strong>Training stability</strong>: gradients through many iterations can explode. Solutions: per-iteration RMSNorm, gradient clipping, careful LR</li>
+              <li><strong>Wall-clock cost</strong>: more forward passes = slower steps = fewer total steps in 600s</li>
+              <li><strong>Adaptive Computation Time (ACT)</strong>: different tokens may need different iteration counts</li>
+            </ul>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              <strong>This is our primary research direction for the competition.</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w5-weight-sharing">
+      <input type="checkbox">
+      <div class="check-label">Weight sharing across layers: per-layer conditioning strategies</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w5-act">
+      <input type="checkbox">
+      <div class="check-label">Adaptive Computation Time (ACT): variable iteration counts per token</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w5-moe">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Mixture of Experts: sparse routing, top-k gating, load balancing</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              MoE replaces the dense MLP with $E$ expert MLPs and a gating network that routes each token
+              to its top-$k$ experts. Total parameters = $E \times$ MLP params, but active parameters per token = $k \times$ MLP params.
+              In Parameter Golf, MoE is tricky: all expert weights count toward the 16MB limit, but only $k$ are active.
+              The benefit is more total capacity per token, but the compression tax is steep.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w5-lora">
+      <input type="checkbox">
+      <div class="check-label">Low-rank factorization: LoRA and its variants</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w5-unet-skips">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">U-Net / encoder-decoder skip connections in transformers</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              The baseline splits layers into encoder (first half) and decoder (second half).
+              Encoder outputs are stored and added to corresponding decoder layers via learned skip weights:
+            </p>
+            <pre style="font-size: var(--font-size-xs); margin: var(--space-sm) 0;"><code># In GPT.forward():
+for i in range(num_encoder_layers):
+    x = blocks[i](x, x0)
+    skips.append(x)
+for i in range(num_decoder_layers):
+    x = x + skip_weights[i] * skips.pop()
+    x = blocks[encoder_layers + i](x, x0)</code></pre>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              This gives the decoder access to both high-level (late encoder) and low-level (early encoder) features.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Readings -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span>
+      <h3>Readings</h3>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w5-dehghani-2019">
+      <input type="checkbox">
+      <div class="check-label">Dehghani et al., "Universal Transformers" (2019)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w5-fedus-switch-2022">
+      <input type="checkbox">
+      <div class="check-label">Fedus et al., "Switch Transformers: Scaling to Trillion Parameter Models" (2022)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w5-hu-lora-2021">
+      <input type="checkbox">
+      <div class="check-label">Hu et al., "LoRA: Low-Rank Adaptation of Large Language Models" (2021)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w5-bao-unet-2023">
+      <input type="checkbox">
+      <div class="check-label">Bao et al., "All Are Worth Words: A ViT Backbone for Diffusion Models" (2023)</div>
+    </div>
+
+    <!-- Exercises -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span>
+      <h3>Exercises</h3>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w5-ex1-weight-shared">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Implement a weight-shared transformer (3 blocks x 4 iterations) with layer index conditioning</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Start from the baseline GPT class. Replace <code>nn.ModuleList([Block() for _ in range(N)])</code>
+              with <code>nn.ModuleList([Block() for _ in range(K)])</code> and loop each block $N/K$ times.
+              Add a learned <code>nn.Embedding(total_iterations, model_dim)</code> that's added to the input
+              at each iteration. Compare loss against a standard 12-layer model with the same total parameter count.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your implementation..." data-note-key="w5-ex1-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w5-ex2-compare">
+      <input type="checkbox">
+      <div class="check-label">Compare parameter count and loss: 12-layer standard vs 3-block x 4-iteration recurrent at same width</div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w5-ex3-conditioning">
+      <input type="checkbox">
+      <div class="check-label">Implement and ablate different per-layer conditioning: additive embedding, multiplicative gate, FiLM</div>
+    </div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 5 notes..." data-note-key="w5-general" data-note-type="week-note" style="min-height: 80px; margin-top: var(--space-lg);"></div>
+  </div>
+
+  <!-- ==================== WEEK 6 ==================== -->
+  <div class="week-section" data-week="6">
+    <div class="week-title">
+      <span style="color: var(--pg-magenta);">\u{25B6}</span>
+      Week 6: Specialized Modules for Small Models
+    </div>
+
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span>
+      <h3>Topics</h3>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w6-bigramhash">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">BigramHash embeddings: hash-based n-gram features for small vocabularies</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              With a 1024-token vocabulary, the embedding table is small (1024 x 512 = 524K params).
+              BigramHash adds n-gram context by hashing adjacent token pairs into a separate embedding table:
+            </p>
+            <pre style="font-size: var(--font-size-xs); margin: var(--space-sm) 0;"><code>hash(t[i-1], t[i]) = (36313 * t[i] ^ 27191 * t[i-1]) % bigram_vocab_size</code></pre>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              The SOTA uses 3072 bigram entries at 112 dimensions, adding ~344K params.
+              The embeddings are zero-initialized so they don't disrupt early training.
+              A learned scale parameter controls their contribution.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w6-smeargate">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">SmearGate: temporal smoothing via per-dimension gating</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <pre style="font-size: var(--font-size-xs); margin: var(--space-sm) 0;"><code>gate = sigmoid(learned_gate)  # per-dimension, init to ~0
+output = (1 - gate) * x + gate * x_prev</code></pre>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Creates a learnable temporal smoothing between adjacent positions.
+              Initialized near zero (pass-through) so it doesn't disrupt initial training.
+              The model learns which dimensions benefit from position mixing.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w6-ve">
+      <input type="checkbox">
+      <div class="check-label">Value Embeddings (VE): re-injecting token identity at deep layers</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w6-xsa">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Cross-Sequence Attention (XSA): removing self-value projection</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              XSA removes each token's self-value projection from its attention output.
+              This prevents the model from simply reading its own embedding and forces it to
+              attend meaningfully to other tokens in the context:
+            </p>
+            <pre style="font-size: var(--font-size-xs); margin: var(--space-sm) 0;"><code># Subtract self-value projection
+v_norm = F.normalize(v, dim=-1)
+self_proj = (y * v_norm).sum(-1, keepdim=True) * v_norm
+y = y - self_proj</code></pre>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Zero parameter cost. Applied to all 11 layers in the SOTA.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w6-partial-rope">
+      <input type="checkbox">
+      <div class="check-label">Partial RoPE: applying position encoding to a subset of dimensions (16/64)</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w6-logit-softcap">
+      <input type="checkbox">
+      <div class="check-label">Logit soft-capping: tanh-based logit range control</div>
+    </div>
+
+    <!-- Readings -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span>
+      <h3>Readings</h3>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w6-pr162-bigramhash">
+      <input type="checkbox">
+      <div class="check-label">Parameter Golf PR #162: BigramHash (Raahil Shah)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w6-pr65-smeargate">
+      <input type="checkbox">
+      <div class="check-label">Parameter Golf PR #65: SmearGate (aquariouseworkman)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w6-pr478-xsa">
+      <input type="checkbox">
+      <div class="check-label">Parameter Golf PR #478: XSA / Cross-Sequence Attention (gowtham0992)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w6-pr315-partial-rope">
+      <input type="checkbox">
+      <div class="check-label">Parameter Golf PR #315: Partial RoPE + LN Scale (jfprincz)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w6-pr374-ve128">
+      <input type="checkbox">
+      <div class="check-label">Parameter Golf PR #374: VE128 / Value Embeddings (unnir)</div>
+    </div>
+
+    <!-- Exercises -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span>
+      <h3>Exercises</h3>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w6-ex1-bigramhash">
+      <input type="checkbox">
+      <div class="check-label">Implement BigramHash with configurable vocabulary size and embedding dimension</div>
+    </div>
+    <div class="check-item" data-type="exercise" data-id="w6-ex2-ablation">
+      <input type="checkbox">
+      <div class="check-label">Ablation study: add/remove each module individually and measure BPB delta</div>
+    </div>
+    <div class="check-item" data-type="exercise" data-id="w6-ex3-collision">
+      <input type="checkbox">
+      <div class="check-label">Analyze BigramHash collision rates at vocabulary sizes 1024, 2048, 3072, 4096</div>
+    </div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 6 notes..." data-note-key="w6-general" data-note-type="week-note" style="min-height: 80px; margin-top: var(--space-lg);"></div>
+  </div>
+
+</div>

@@ -1,0 +1,156 @@
+<div class="content-inner">
+
+  <div class="unit-header">
+    <h1>Unit 4: Tokenization</h1>
+    <div class="unit-meta">
+      <span class="badge badge-amber">Week 7</span>
+      <span class="badge badge-cyan">~10 hours</span>
+      <span class="badge badge-violet">Prereq: Units 1-2</span>
+    </div>
+    <p style="color: var(--pg-text-muted); margin-top: var(--space-md); max-width: 700px;">
+      The tokenizer determines the fundamental unit of prediction. In a parameter-constrained setting,
+      vocabulary size directly trades off against model capacity. Understanding this tradeoff is critical.
+    </p>
+  </div>
+
+  <div class="week-section" data-week="7">
+    <div class="week-title">
+      <span style="color: var(--pg-amber);">\u{25B6}</span>
+      Week 7: Tokenizers and Their Impact on BPB
+    </div>
+
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span>
+      <h3>Topics</h3>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w7-bpe">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Byte Pair Encoding (BPE): algorithm, vocabulary construction, merge rules</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              BPE starts with individual bytes/characters and iteratively merges the most frequent pair
+              into a new token. After $V$ merges, you have a vocabulary of size $V + |\text{base}|$.
+              Each merge rule is deterministic: given the same text, the same tokenization results.
+              The baseline uses a 1024-token SentencePiece BPE vocabulary trained on FineWeb.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w7-sentencepiece">
+      <input type="checkbox">
+      <div class="check-label">SentencePiece: unigram model vs BPE mode</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w7-bpb-metric">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">The tokenizer-agnostic BPB metric: how token-level loss converts to byte-level compression</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              $\text{BPB} = \frac{\text{bits\_per\_token}}{\text{bytes\_per\_token}} = \frac{\text{val\_loss} / \ln 2}{\text{bytes} / \text{tokens}}$
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              A 1024-token vocab has ~2.5 bytes/token. A 32K vocab might have ~4.5 bytes/token.
+              The larger vocab model has lower bits/token (more info per token) but also higher bytes/token.
+              BPB normalizes this, making comparison fair.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w7-vocab-size-tradeoff">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Why vocabulary size matters in parameter-constrained settings</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Embedding table cost with tied embeddings: $V \times d$ params.
+              At $d = 512$: 1024 vocab = 524K params (3% of budget), 8192 vocab = 4.2M params (25% of budget).
+              Larger vocab captures more per token but leaves less room for the transformer body.
+              The SOTA uses 1024 + BigramHash(3072) as a compromise: tiny base vocab with learned bigram features.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w7-tied-embeddings">
+      <input type="checkbox">
+      <div class="check-label">Tied vs untied embeddings: parameter cost analysis</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w7-bigramhash-middle">
+      <input type="checkbox">
+      <div class="check-label">The BigramHash approach as a middle ground: small vocab + learned n-gram features</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w7-byte-level">
+      <input type="checkbox">
+      <div class="check-label">Byte-level tokenization and its tradeoffs</div>
+    </div>
+
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span>
+      <h3>Readings</h3>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w7-sennrich-bpe-2016">
+      <input type="checkbox">
+      <div class="check-label">Sennrich et al., "Neural Machine Translation of Rare Words with Subword Units" (BPE, 2016)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w7-kudo-subword-2018">
+      <input type="checkbox">
+      <div class="check-label">Kudo, "Subword Regularization" (2018)</div>
+    </div>
+    <div class="check-item" data-type="reading" data-id="w7-kudo-sp-2018">
+      <input type="checkbox">
+      <div class="check-label">Kudo & Richardson, "SentencePiece: A simple and language independent subword tokenizer" (2018)</div>
+    </div>
+
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span>
+      <h3>Exercises</h3>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w7-ex1-train-tokenizers">
+      <input type="checkbox">
+      <div class="check-label">Train BPE tokenizers at vocab sizes 512, 1024, 2048, 4096, 8192 on FineWeb</div>
+    </div>
+    <div class="check-item" data-type="exercise" data-id="w7-ex2-tokens-per-byte">
+      <input type="checkbox">
+      <div class="check-label">For each vocab size: compute tokens-per-byte ratio and estimate embedding parameter cost at 512d</div>
+    </div>
+    <div class="check-item" data-type="exercise" data-id="w7-ex3-optimal-vocab">
+      <input type="checkbox">
+      <div class="check-label">Find the vocab size that minimizes total model BPB under a 16MB budget constraint</div>
+    </div>
+
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-magenta);">\u{2606}</span>
+      <h3>Week 7 Quiz</h3>
+    </div>
+    <div data-quiz="w7-tokenization"></div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 7 notes..." data-note-key="w7-general" data-note-type="week-note" style="min-height: 80px; margin-top: var(--space-lg);"></div>
+  </div>
+</div>

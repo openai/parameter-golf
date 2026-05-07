@@ -1,0 +1,63 @@
+<div class="content-inner">
+
+  <div class="unit-header">
+    <h1>Unit 8: Systems & Performance</h1>
+    <div class="unit-meta">
+      <span class="badge badge-orange">Week 15</span>
+      <span class="badge badge-cyan">~10 hours</span>
+      <span class="badge badge-violet">Prereq: Units 5, 9</span>
+    </div>
+    <p style="color: var(--pg-text-muted); margin-top: var(--space-md); max-width: 700px;">
+      Every millisecond per step matters: faster steps = more training in 600 seconds = lower loss.
+      GPU architecture, kernel fusion, memory optimization, and profiling are the systems-level skills
+      that turn a good algorithm into a competitive submission.
+    </p>
+  </div>
+
+  <div class="week-section" data-week="15">
+    <div class="week-title"><span style="color: var(--pg-orange);">\u{25B6}</span> Week 15: GPU Programming, Kernels, and Training Throughput</div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span><h3>Topics</h3></div>
+
+    <div class="check-item" data-type="topic" data-id="w15-gpu-arch"><input type="checkbox"><div class="check-label">GPU architecture: SMs, warps, memory hierarchy (registers, shared memory, L2, HBM)</div></div>
+    <div class="check-item" data-type="topic" data-id="w15-hopper">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">The H100 Hopper architecture: TMA, warp specialization, FP8 tensor cores</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header"><span class="collapsible-arrow">\u{25B8}</span><span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span></div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              H100 SXM: 80GB HBM3 at 3.35 TB/s, 132 SMs, 989 TFLOPS BF16 tensor core.
+              Key Hopper features for Parameter Golf:
+            </p>
+            <ul style="color: var(--pg-text-muted); font-size: var(--font-size-sm); padding-left: var(--space-lg);">
+              <li><strong>TMA</strong>: Tensor Memory Accelerator handles async data movement, freeing SMs for compute</li>
+              <li><strong>Warp specialization</strong>: producer warps load data while consumer warps compute (Flash Attention 3 uses this)</li>
+              <li><strong>FP8 tensor cores</strong>: 2x throughput vs BF16 for matmuls</li>
+              <li><strong>NVLink 4.0</strong>: 900 GB/s bidirectional between GPUs in 8xH100 SXM</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="check-item" data-type="topic" data-id="w15-torch-compile"><input type="checkbox"><div class="check-label">torch.compile: tracing, graph breaks, fullgraph mode</div></div>
+    <div class="check-item" data-type="topic" data-id="w15-profiling"><input type="checkbox"><div class="check-label">Profiling training runs: torch.profiler, nsight systems, identifying bottlenecks</div></div>
+    <div class="check-item" data-type="topic" data-id="w15-memory-opt"><input type="checkbox"><div class="check-label">Memory optimization: activation checkpointing, mixed precision, Flash Attention memory savings</div></div>
+    <div class="check-item" data-type="topic" data-id="w15-tokens-per-sec"><input type="checkbox"><div class="check-label">Maximizing tokens/second: batch size tuning, compiled models, fused kernels, async data loading</div></div>
+    <div class="check-item" data-type="topic" data-id="w15-triton"><input type="checkbox"><div class="check-label">Custom CUDA kernels and Triton: fused operations, megakernels</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span><h3>Readings</h3></div>
+    <div class="check-item" data-type="reading" data-id="w15-h100-whitepaper"><input type="checkbox"><div class="check-label">NVIDIA, "H100 Tensor Core GPU Architecture" whitepaper (2022)</div></div>
+    <div class="check-item" data-type="reading" data-id="w15-pytorch2"><input type="checkbox"><div class="check-label">Ansel et al., "PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation" (2024)</div></div>
+    <div class="check-item" data-type="reading" data-id="w15-triton-paper"><input type="checkbox"><div class="check-label">Tillet et al., "Triton: An Intermediate Language and Compiler for Tiled Neural Network Computations" (2019)</div></div>
+
+    <div class="section-header"><span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span><h3>Exercises</h3></div>
+    <div class="check-item" data-type="exercise" data-id="w15-ex1-profile"><input type="checkbox"><div class="check-label">Profile a training step with torch.profiler: identify the top 5 time-consuming operations</div></div>
+    <div class="check-item" data-type="exercise" data-id="w15-ex2-checkpointing"><input type="checkbox"><div class="check-label">Implement activation checkpointing and measure memory savings</div></div>
+    <div class="check-item" data-type="exercise" data-id="w15-ex3-triton-kernel"><input type="checkbox"><div class="check-label">Write a Triton kernel for fused RMSNorm and benchmark against F.rms_norm</div></div>
+    <div class="check-item" data-type="exercise" data-id="w15-ex4-max-batch"><input type="checkbox"><div class="check-label">Find the maximum batch size that fits in 80GB H100 HBM for the baseline model</div></div>
+
+    <div class="note-area" contenteditable="true" data-placeholder="Week 15 notes..." data-note-key="w15-general" data-note-type="week-note" style="min-height: 80px; margin-top: var(--space-lg);"></div>
+  </div>
+</div>

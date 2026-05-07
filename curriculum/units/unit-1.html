@@ -1,0 +1,480 @@
+<div class="content-inner">
+
+  <!-- Unit Header -->
+  <div class="unit-header">
+    <h1>Unit 1: Foundations of Language Modeling</h1>
+    <div class="unit-meta">
+      <span class="badge badge-violet">Weeks 1-2</span>
+      <span class="badge badge-cyan">~20 hours</span>
+      <span class="badge badge-amber">Prerequisite: None</span>
+    </div>
+    <p style="color: var(--pg-text-muted); margin-top: var(--space-md); max-width: 700px;">
+      The mathematical and architectural foundations that every technique in this competition builds on.
+      Information theory tells us why compression equals prediction. The transformer is the machine that does it.
+    </p>
+  </div>
+
+  <!-- ==================== WEEK 1 ==================== -->
+  <div class="week-section" data-week="1">
+    <div class="week-title">
+      <span style="color: var(--pg-violet);">\u{25B6}</span>
+      Week 1: Statistical Language Models and Information Theory
+    </div>
+
+    <!-- Topics -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span>
+      <h3>Topics</h3>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w1-next-token-prediction">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Language modeling as next-token prediction</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              A language model assigns probabilities to sequences of tokens. Given a context
+              $x_1, x_2, \ldots, x_{t-1}$, the model predicts a distribution over the next token $x_t$.
+              The chain rule of probability decomposes any sequence probability as:
+            </p>
+            <p style="text-align: center; margin: var(--space-md) 0;">
+              $$P(x_1, \ldots, x_T) = \prod_{t=1}^{T} P(x_t \mid x_1, \ldots, x_{t-1})$$
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              This is the autoregressive factorization. The entire Parameter Golf challenge reduces to:
+              build the best next-token predictor that fits in 16MB.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w1-cross-entropy-bpb">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Cross-entropy loss, perplexity, and bits-per-byte (BPB)</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              <strong>Cross-entropy</strong> measures how well our model $q$ approximates the true distribution $p$:
+            </p>
+            <p style="text-align: center; margin: var(--space-md) 0;">
+              $$H(p, q) = -\sum_{x} p(x) \log q(x)$$
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              In practice, we compute the average negative log-likelihood over tokens (in nats when using $\ln$).
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              <strong>Perplexity</strong> = $e^{H(p,q)}$ (or $2^{H}$ in bits). Lower is better.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              <strong>Bits-per-byte (BPB)</strong> is the competition metric. It converts token-level loss to byte-level compression:
+            </p>
+            <p style="text-align: center; margin: var(--space-md) 0;">
+              $$\text{BPB} = \frac{\text{val\_loss}}{\ln 2} \times \frac{\text{tokens}}{\text{bytes}}$$
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              This makes the metric tokenizer-agnostic: a model with a 1024-token vocabulary and one with 32K tokens
+              are compared on the same byte-compression scale.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w1-shannon-entropy">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Shannon entropy, source coding theorem, and compression = prediction</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Shannon entropy $H(X) = -\sum p(x) \log_2 p(x)$ is the theoretical minimum bits needed to encode a source.
+              The source coding theorem says you cannot compress below $H(X)$ bits per symbol on average.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              The deep insight: <strong>optimal compression and optimal prediction are the same problem</strong>.
+              A model that perfectly predicts the next token achieves the best possible compression rate.
+              This is why the Parameter Golf metric (BPB) directly measures compression quality.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w1-kl-divergence">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">KL divergence and mutual information</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              KL divergence measures the extra bits needed when using $q$ instead of $p$:
+            </p>
+            <p style="text-align: center; margin: var(--space-md) 0;">
+              $$D_{KL}(p \| q) = \sum_x p(x) \log \frac{p(x)}{q(x)} = H(p, q) - H(p) \geq 0$$
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              Since $H(p)$ is fixed, minimizing cross-entropy $H(p,q)$ is equivalent to minimizing $D_{KL}(p \| q)$.
+              Our training loss is literally measuring how far our model is from the true distribution.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w1-why-bpb">
+      <input type="checkbox">
+      <div class="check-label">Why BPB is the right metric for tokenizer-agnostic evaluation</div>
+    </div>
+
+    <!-- Readings -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span>
+      <h3>Readings</h3>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w1-shannon-1948">
+      <input type="checkbox">
+      <div class="check-label">Shannon, "A Mathematical Theory of Communication" (1948), Sections I-III</div>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w1-jurafsky-ch3">
+      <input type="checkbox">
+      <div class="check-label">Jurafsky & Martin, <em>Speech and Language Processing</em>, Ch. 3</div>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w1-mackay-ch1-6">
+      <input type="checkbox">
+      <div class="check-label">MacKay, <em>Information Theory, Inference and Learning Algorithms</em>, Ch. 1-6</div>
+    </div>
+
+    <!-- Exercises -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span>
+      <h3>Exercises</h3>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w1-ex1-ngram">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Implement a character-level n-gram model and compute BPB on a text corpus</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Start with bigrams (n=2). Count all character pairs in a training text, normalize to get probabilities,
+              then compute $\text{BPB} = -\frac{1}{N} \sum \log_2 P(c_t | c_{t-1})$ on held-out text.
+              Use add-1 (Laplace) smoothing for unseen pairs.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your notes and solution..." data-note-key="w1-ex1-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w1-ex2-derive-bpb">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Derive the relationship between cross-entropy loss, perplexity, and bits-per-byte</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Start from the definition of cross-entropy in nats. Convert to bits (divide by $\ln 2$).
+              Perplexity is $e^{H}$ in nats or $2^{H}$ in bits. For BPB, you need to account for the
+              tokens-to-bytes ratio of the tokenizer.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your derivation..." data-note-key="w1-ex2-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w1-ex3-prove-ce">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Prove that cross-entropy is minimized when the model distribution equals the true distribution</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Use the Gibbs' inequality: $H(p, q) = H(p) + D_{KL}(p \| q) \geq H(p)$, with equality
+              iff $q = p$ everywhere. Since $D_{KL} \geq 0$ (prove via Jensen's inequality on $\log$).
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your proof..." data-note-key="w1-ex3-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Week 1 Quiz -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-magenta);">\u{2606}</span>
+      <h3>Week 1 Quiz</h3>
+    </div>
+    <div data-quiz="w1-info-theory"></div>
+
+    <!-- Week 1 Notes -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-amber);">\u{270E}</span>
+      <h3>Week 1 Notes</h3>
+    </div>
+    <div class="note-area" contenteditable="true" data-placeholder="Your general notes for Week 1..." data-note-key="w1-general" data-note-type="week-note" style="min-height: 100px;"></div>
+  </div>
+
+  <!-- ==================== WEEK 2 ==================== -->
+  <div class="week-section" data-week="2">
+    <div class="week-title">
+      <span style="color: var(--pg-violet);">\u{25B6}</span>
+      Week 2: The Transformer Architecture
+    </div>
+
+    <!-- Topics -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-violet);">\u{25CF}</span>
+      <h3>Topics</h3>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w2-self-attention">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Self-attention: queries, keys, values, scaled dot-product attention</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              The core operation of the transformer. Input $X \in \mathbb{R}^{T \times d}$ is projected into
+              queries, keys, and values:
+            </p>
+            <p style="text-align: center; margin: var(--space-md) 0;">
+              $$Q = XW_Q, \quad K = XW_K, \quad V = XW_V$$
+            </p>
+            <p style="text-align: center; margin: var(--space-md) 0;">
+              $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) V$$
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              The $\sqrt{d_k}$ scaling prevents the dot products from growing too large, keeping softmax
+              in a well-behaved regime. In the Parameter Golf baseline, $d_k = d_\text{model} / n_\text{heads} = 64$.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w2-multi-head">
+      <input type="checkbox">
+      <div class="check-label">Multi-head attention and why it works (subspace decomposition)</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w2-position-encodings">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Position encodings: sinusoidal, learned, RoPE</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              <strong>RoPE</strong> (Rotary Position Embedding) is used in the Parameter Golf baseline.
+              It encodes position by rotating query and key vectors in 2D subspaces:
+            </p>
+            <p style="text-align: center; margin: var(--space-md) 0;">
+              $$q_m = R_\Theta(m) \cdot W_q x_m, \quad k_n = R_\Theta(n) \cdot W_k x_n$$
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              where $R_\Theta(m)$ applies rotation by angle $m \cdot \theta_i$ to the $i$-th dimension pair.
+              The attention score $q_m^\top k_n$ depends only on the relative position $m - n$.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              The SOTA uses <strong>Partial RoPE</strong>: only 16 of 64 head dimensions get position encoding.
+              The other 48 dimensions attend purely by content similarity.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w2-layer-norm">
+      <input type="checkbox">
+      <div class="check-label">Layer normalization variants: LayerNorm, RMSNorm, pre-norm vs post-norm</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w2-ffn">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Feed-forward networks: expansion factor, activation functions (ReLU, GELU, SwiGLU, ReLU^2)</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Details</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm);">
+              The baseline uses <code>ReLU^2</code>: $\text{FFN}(x) = W_2 \cdot (\text{ReLU}(W_1 x))^2$.
+              Squaring after ReLU creates a smoother, sparser activation pattern.
+              The SOTA uses <code>LeakyReLU(0.5)^2</code> which allows small negative gradients to flow.
+            </p>
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-top: var(--space-sm);">
+              The MLP expansion factor in the baseline is 2x (hidden = 2 * model_dim).
+              The SOTA uses 3x (hidden = 3 * 512 = 1536) for more capacity per layer.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w2-residual">
+      <input type="checkbox">
+      <div class="check-label">Residual connections and signal propagation in deep networks</div>
+    </div>
+
+    <div class="check-item" data-type="topic" data-id="w2-autoregressive">
+      <input type="checkbox">
+      <div class="check-label">Autoregressive generation and causal masking</div>
+    </div>
+
+    <!-- Readings -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-cyan);">\u{25A0}</span>
+      <h3>Readings</h3>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w2-vaswani-2017">
+      <input type="checkbox">
+      <div class="check-label">Vaswani et al., "Attention Is All You Need" (2017)</div>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w2-su-rope-2021">
+      <input type="checkbox">
+      <div class="check-label">Su et al., "RoFormer: Enhanced Transformer with Rotary Position Embedding" (2021)</div>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w2-zhang-rmsnorm-2019">
+      <input type="checkbox">
+      <div class="check-label">Zhang & Sennrich, "Root Mean Square Layer Normalization" (2019)</div>
+    </div>
+
+    <div class="check-item" data-type="reading" data-id="w2-shazeer-glu-2020">
+      <input type="checkbox">
+      <div class="check-label">Shazeer, "GLU Variants Improve Transformer" (2020)</div>
+    </div>
+
+    <!-- Exercises -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-lime);">\u{25B2}</span>
+      <h3>Exercises</h3>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w2-ex1-transformer">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Implement a transformer decoder from scratch in PyTorch (no nn.Transformer)</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Build it layer by layer: <code>Embedding</code> -> <code>PositionalEncoding</code> ->
+              N x (<code>MultiHeadAttention</code> + <code>FeedForward</code> + <code>LayerNorm</code> + residuals) ->
+              <code>Linear</code> head. Use the causal mask in <code>scaled_dot_product_attention</code>.
+              Reference the baseline <code>train_gpt.py</code> for a clean implementation to compare against.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your implementation notes..." data-note-key="w2-ex1-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w2-ex2-rope">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Implement RoPE and verify it produces correct relative position attention patterns</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Compare your implementation against the baseline's <code>Rotary</code> class and
+              <code>apply_rotary_emb</code> function. Verify that $q_m^\top k_n$ only depends on $m-n$
+              by computing attention scores and checking the Toeplitz structure.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your implementation notes..." data-note-key="w2-ex2-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="check-item" data-type="exercise" data-id="w2-ex3-train-small">
+      <input type="checkbox">
+      <div>
+        <div class="check-label">Train a small (1-layer, 64-dim) language model on a toy corpus and verify convergence</div>
+        <div class="collapsible" style="margin-top: var(--space-sm);">
+          <div class="collapsible-header">
+            <span class="collapsible-arrow">\u{25B8}</span>
+            <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">Hints & workspace</span>
+          </div>
+          <div class="collapsible-body">
+            <p style="color: var(--pg-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+              Use a small text file (Shakespeare, Wikipedia excerpt). Tokenize with a character-level or
+              tiny BPE vocabulary. Train for ~1000 steps with Adam. Plot the loss curve.
+              The model should overfit the training set if it's small enough. That's fine, it proves your
+              architecture works.
+            </p>
+            <div class="note-area" contenteditable="true" data-placeholder="Your training notes..." data-note-key="w2-ex3-notes" data-note-type="exercise-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Week 2 Quiz -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-magenta);">\u{2606}</span>
+      <h3>Week 2 Quiz</h3>
+    </div>
+    <div data-quiz="w2-transformer"></div>
+
+    <!-- Week 2 Notes -->
+    <div class="section-header">
+      <span class="section-icon" style="color: var(--pg-amber);">\u{270E}</span>
+      <h3>Week 2 Notes</h3>
+    </div>
+    <div class="note-area" contenteditable="true" data-placeholder="Your general notes for Week 2..." data-note-key="w2-general" data-note-type="week-note" style="min-height: 100px;"></div>
+  </div>
+
+</div>

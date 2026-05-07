@@ -1,0 +1,301 @@
+{
+  "w1-info-theory": {
+    "weekId": 1,
+    "quizId": "w1-info-theory",
+    "title": "Week 1: Information Theory Foundations",
+    "questions": [
+      {
+        "id": "q1",
+        "question": "What does Shannon entropy H(X) represent?",
+        "options": [
+          "The maximum possible compression ratio",
+          "The minimum average bits per symbol to encode a source",
+          "The expected prediction accuracy of a model",
+          "The total information content of a dataset"
+        ],
+        "answer": 1,
+        "explanation": "Shannon entropy H(X) = -\u03a3 p(x) log\u2082 p(x) gives the theoretical minimum average bits per symbol needed to encode the source. This is the source coding theorem."
+      },
+      {
+        "id": "q2",
+        "question": "If H(p, q) is cross-entropy and H(p) is entropy, what is D_KL(p || q)?",
+        "options": [
+          "H(p) - H(p, q)",
+          "H(p, q) - H(p)",
+          "H(p) + H(p, q)",
+          "H(p, q) / H(p)"
+        ],
+        "answer": 1,
+        "explanation": "D_KL(p || q) = H(p, q) - H(p). It represents the extra bits needed when using model q instead of the true distribution p."
+      },
+      {
+        "id": "q3",
+        "question": "Why is BPB (bits-per-byte) used instead of cross-entropy loss for the Parameter Golf leaderboard?",
+        "options": [
+          "BPB is easier to compute",
+          "BPB is always lower than cross-entropy",
+          "BPB is tokenizer-agnostic, enabling fair comparison across different vocabularies",
+          "BPB accounts for model size in its calculation"
+        ],
+        "answer": 2,
+        "explanation": "Different tokenizers produce different numbers of tokens per document. BPB normalizes by bytes instead of tokens, so a 1024-vocab model and a 32K-vocab model are compared on the same scale."
+      },
+      {
+        "id": "q4",
+        "question": "What is perplexity in terms of cross-entropy H(p,q) (in nats)?",
+        "options": [
+          "2^H(p,q)",
+          "e^H(p,q)",
+          "log(H(p,q))",
+          "1 / H(p,q)"
+        ],
+        "answer": 1,
+        "explanation": "When cross-entropy is measured in nats (natural log), perplexity = e^H(p,q). When in bits (log base 2), perplexity = 2^H."
+      },
+      {
+        "id": "q5",
+        "question": "The statement 'compression = prediction' means:",
+        "options": [
+          "Compressed models are better predictors",
+          "A perfect next-token predictor achieves the optimal compression rate",
+          "You must compress the model before evaluating prediction quality",
+          "Prediction accuracy improves with smaller file sizes"
+        ],
+        "answer": 1,
+        "explanation": "The source coding theorem shows that a model achieving H(p,q) = H(p) is both a perfect predictor and an optimal compressor. Minimizing cross-entropy simultaneously optimizes both."
+      }
+    ]
+  },
+  "w2-transformer": {
+    "weekId": 2,
+    "quizId": "w2-transformer",
+    "title": "Week 2: Transformer Architecture",
+    "questions": [
+      {
+        "id": "q1",
+        "question": "In scaled dot-product attention, why do we divide by sqrt(d_k)?",
+        "options": [
+          "To normalize the output to unit variance",
+          "To prevent dot products from growing large, keeping softmax in a well-behaved regime",
+          "To make the computation faster on GPUs",
+          "To ensure the attention weights sum to 1"
+        ],
+        "answer": 1,
+        "explanation": "When d_k is large, the dot products QK^T can have large magnitude, pushing softmax into regions with vanishingly small gradients. Scaling by 1/sqrt(d_k) keeps the variance of the dot products around 1."
+      },
+      {
+        "id": "q2",
+        "question": "What is the key property of RoPE (Rotary Position Embedding)?",
+        "options": [
+          "It uses learned position embeddings that are added to the input",
+          "It makes the attention score q_m^T k_n depend only on relative position (m-n)",
+          "It applies different frequencies to different layers",
+          "It eliminates the need for position information entirely"
+        ],
+        "answer": 1,
+        "explanation": "RoPE rotates query and key vectors by position-dependent angles. The inner product q_m^T k_n depends on the angle difference, which is proportional to (m-n), making it a relative position encoding."
+      },
+      {
+        "id": "q3",
+        "question": "In the Parameter Golf baseline, what is the MLP activation function?",
+        "options": [
+          "GELU",
+          "SwiGLU",
+          "ReLU^2 (squared ReLU)",
+          "Sigmoid"
+        ],
+        "answer": 2,
+        "explanation": "The baseline uses ReLU^2: FFN(x) = W_2 * (ReLU(W_1 x))^2. The SOTA uses LeakyReLU(0.5)^2."
+      },
+      {
+        "id": "q4",
+        "question": "What does the causal mask enforce in autoregressive attention?",
+        "options": [
+          "Each token can only attend to itself",
+          "Each token can attend to all other tokens",
+          "Token at position i can only attend to positions 1 through i",
+          "Attention weights are uniformly distributed"
+        ],
+        "answer": 2,
+        "explanation": "The causal mask sets attention weights to 0 (via -infinity before softmax) for all future positions j > i. This ensures the model can only use past context for prediction."
+      },
+      {
+        "id": "q5",
+        "question": "Why are residual connections important in deep transformers?",
+        "options": [
+          "They reduce the number of parameters",
+          "They speed up inference",
+          "They create direct gradient paths preventing vanishing gradients",
+          "They improve the tokenizer's vocabulary coverage"
+        ],
+        "answer": 2,
+        "explanation": "With y = x + F(x), the gradient dy/dx = 1 + dF/dx always has a +1 component. This prevents gradients from vanishing through many layers, enabling training of deep networks."
+      }
+    ]
+  },
+  "w3-scaling-laws": {
+    "weekId": 3,
+    "quizId": "w3-scaling-laws",
+    "title": "Week 3: Scaling Laws & L(N)",
+    "questions": [
+      {
+        "id": "q1",
+        "question": "In Kaplan et al. scaling laws, L(N) represents:",
+        "options": [
+          "Loss as a function of training time",
+          "Loss as a function of parameter count, following a power law",
+          "Loss as a function of learning rate",
+          "Loss as a function of batch size"
+        ],
+        "answer": 1,
+        "explanation": "L(N) = (N_c / N)^alpha_N describes how loss decreases as a power law with increasing parameter count N, when data and compute are unconstrained."
+      },
+      {
+        "id": "q2",
+        "question": "What did the Chinchilla paper (Hoffmann et al.) demonstrate?",
+        "options": [
+          "Bigger models are always better",
+          "For a fixed compute budget, parameters and data should be scaled roughly equally",
+          "Small models cannot achieve good perplexity",
+          "Quantization is necessary for efficient training"
+        ],
+        "answer": 1,
+        "explanation": "Chinchilla showed that previous practice (GPT-3) over-allocated to parameters. For compute-optimal training, N and D should scale proportionally: N ~ C^0.5, D ~ C^0.5."
+      },
+      {
+        "id": "q3",
+        "question": "In Parameter Golf, why is the L(N) framing useful but incomplete?",
+        "options": [
+          "Because the dataset is too small",
+          "Because the architecture is fixed",
+          "Because N is measured in compressed bytes, not raw parameters, and architecture/quantization are free",
+          "Because there is no compute constraint"
+        ],
+        "answer": 2,
+        "explanation": "Standard scaling laws assume standard transformers. In Parameter Golf, N is measured as compressed artifact size, and techniques like quantization, weight sharing, and better compression shift the effective L(N) curve."
+      },
+      {
+        "id": "q4",
+        "question": "At fixed parameter count, which generally produces lower loss?",
+        "options": [
+          "Wider model (fewer layers, larger hidden dim)",
+          "Deeper model (more layers, smaller hidden dim)",
+          "They are always equivalent",
+          "It depends entirely on the dataset"
+        ],
+        "answer": 1,
+        "explanation": "Research and the Parameter Golf leaderboard show that deeper models are generally more parameter-efficient. The leaderboard evolved from 9 layers (baseline) to 11 layers, trading width for depth."
+      },
+      {
+        "id": "q5",
+        "question": "The 10-minute training constraint on 8xH100 means:",
+        "options": [
+          "You can only train for 10 steps",
+          "Faster architectures can fit more training steps, creating a training efficiency tradeoff",
+          "All submissions train for the same number of steps",
+          "The constraint only applies to evaluation"
+        ],
+        "answer": 1,
+        "explanation": "At ~87ms/step (SOTA), you get ~6900 steps in 600 seconds. A technique that improves loss-per-step but doubles step time may be net negative because you only get half as many steps."
+      }
+    ]
+  },
+  "w4-attention": {
+    "weekId": 4,
+    "quizId": "w4-attention",
+    "title": "Week 4: Attention Efficiency",
+    "questions": [
+      {
+        "id": "q1",
+        "question": "In GQA with 8 query heads and 4 KV heads, how many query heads share each KV head?",
+        "options": [
+          "1",
+          "2",
+          "4",
+          "8"
+        ],
+        "answer": 1,
+        "explanation": "With 8 query heads and 4 KV groups, each KV head is shared by 8/4 = 2 query heads. This halves the KV parameter cost compared to full multi-head attention."
+      },
+      {
+        "id": "q2",
+        "question": "What is the key advantage of Flash Attention over standard attention?",
+        "options": [
+          "It approximates attention for faster computation",
+          "It computes exact attention with O(T) memory instead of O(T^2) by tiling in SRAM",
+          "It reduces the number of attention heads needed",
+          "It eliminates the need for the causal mask"
+        ],
+        "answer": 1,
+        "explanation": "Flash Attention tiles the Q, K, V computation into blocks that fit in SRAM, computing partial softmax results without materializing the full T x T attention matrix in HBM. It is exact, not approximate."
+      },
+      {
+        "id": "q3",
+        "question": "For the 512d / 8-head baseline with GQA-4, how many parameters are in the K and V projections per layer?",
+        "options": [
+          "512 x 512 x 2 = 524,288",
+          "256 x 512 x 2 = 262,144",
+          "64 x 512 x 2 = 65,536",
+          "512 x 512 = 262,144"
+        ],
+        "answer": 1,
+        "explanation": "With 4 KV heads at head_dim=64, kv_dim = 4 x 64 = 256. So K and V each need 256 x 512 = 131,072 params. Total K+V = 262,144 params per layer."
+      },
+      {
+        "id": "q4",
+        "question": "Flash Attention 3 specifically targets which GPU architecture?",
+        "options": [
+          "NVIDIA Ampere (A100)",
+          "NVIDIA Hopper (H100) with warp specialization and TMA",
+          "NVIDIA Blackwell (B200)",
+          "AMD MI300X"
+        ],
+        "answer": 1,
+        "explanation": "Flash Attention 3 uses Hopper-specific features: warp specialization (producer-consumer warps), Tensor Memory Accelerator (TMA), and FP8 accumulation for maximum throughput on H100 GPUs."
+      }
+    ]
+  },
+  "w7-tokenization": {
+    "weekId": 7,
+    "quizId": "w7-tokenization",
+    "title": "Week 7: Tokenization",
+    "questions": [
+      {
+        "id": "q1",
+        "question": "With tied embeddings at d=512, how many parameters does a 1024-token vocabulary cost?",
+        "options": [
+          "524,288 (512 x 1024)",
+          "1,048,576 (512 x 1024 x 2)",
+          "262,144 (256 x 1024)",
+          "2,097,152 (512 x 4096)"
+        ],
+        "answer": 0,
+        "explanation": "With tied embeddings, the embedding table is shared with the output projection: V x d = 1024 x 512 = 524,288 params. Without tying, it would be 2x."
+      },
+      {
+        "id": "q2",
+        "question": "Why does the SOTA use a 1024-token vocabulary + BigramHash instead of a larger vocabulary?",
+        "options": [
+          "Larger vocabularies are not supported by SentencePiece",
+          "Small vocab saves embedding parameters, BigramHash adds n-gram context cheaply via hashing",
+          "Larger vocabularies always produce worse BPB",
+          "The rules prohibit vocabularies larger than 1024"
+        ],
+        "answer": 1,
+        "explanation": "A 1024-token vocab costs only 524K params (3% of budget). BigramHash adds 344K params for 3072 bigram entries at 112d. Together they approximate a much larger vocab at a fraction of the parameter cost."
+      },
+      {
+        "id": "q3",
+        "question": "What makes BPB tokenizer-agnostic?",
+        "options": [
+          "It only counts ASCII bytes",
+          "It normalizes by bytes instead of tokens, so different vocab sizes produce comparable scores",
+          "It uses a fixed reference tokenizer for all submissions",
+          "It ignores the tokenizer entirely"
+        ],
+        "answer": 1,
+        "explanation": "BPB = (bits_per_token) x (tokens/bytes). A large vocab has fewer tokens but more bits per token. Normalizing by bytes cancels out the tokenizer's effect on token count."
+      }
+    ]
+  }
+}

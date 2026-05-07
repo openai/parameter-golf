@@ -1,0 +1,17 @@
+{
+  "name": "SLOT-32 + Partial Depth Recurrence (Layers 4,5) + XSA-11",
+  "author": "Arnell Milhouse",
+  "github_id": "GitGeeks",
+  "val_loss_mean": 1.3063,
+  "val_bpb_mean": 0.7736,
+  "val_bpb_std": 0.0026,
+  "seeds": {
+    "42": {"val_loss": 1.3055, "val_bpb": 0.7732, "artifact_bytes": 15656490},
+    "1337": {"val_loss": 1.3109, "val_bpb": 0.7764, "artifact_bytes": 15725938},
+    "314": {"val_loss": 1.3024, "val_bpb": 0.7713, "artifact_bytes": 15733118}
+  },
+  "technique_summary": "SLOT-32 (32 AdamW steps, LR=0.015, cosine->0.001) + partial depth recurrence (layers 4,5) + per-iteration conditioning + XSA-11 + QK-Gain 4.0 + VRL + BigramHash + EMA/SWA + Late QAT + int6+LZMA",
+  "hardware": "8xH100 SXM (Vast.ai)",
+  "training_time_s": 600,
+  "eval_time_s": 304
+}

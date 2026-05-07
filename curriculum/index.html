@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parameter Golf Curriculum</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- KaTeX (math rendering) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/components.css">
+
+  <style>
+    /* Inline critical styles for immediate render */
+    .app-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: var(--pg-bg);
+      color: var(--pg-text-dim);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+    }
+    .app-loading .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid var(--pg-border);
+      border-top-color: var(--pg-violet);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: var(--space-sm);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- Loading state (replaced once JS initializes) -->
+  <div class="app-loading" id="app-loading">
+    <div class="spinner"></div>
+    <span>Loading curriculum...</span>
+  </div>
+
+  <!-- App Shell (hidden until init) -->
+  <div class="app-layout" id="app" style="display: none;">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">P<span>Golf</span></div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <!-- Dashboard -->
+        <div class="nav-item active" data-nav="dashboard" data-href="#/dashboard">
+          <span class="nav-icon">\u{25C9}</span>
+          <span class="nav-label">Dashboard</span>
+        </div>
+
+        <!-- Units -->
+        <div style="padding: var(--space-sm) var(--space-lg); margin-top: var(--space-sm);">
+          <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim); text-transform: uppercase; letter-spacing: 0.1em;">Units</span>
+        </div>
+
+        <!-- Unit 1 -->
+        <div class="nav-item" data-nav="unit-1" data-href="#/unit/1">
+          <span class="nav-icon" style="color: #6c5ce7;">01</span>
+          <span class="nav-label">Foundations</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="1">
+          <div class="nav-week" data-nav="week-1" data-href="#/unit/1/week/1">\u{2022} Wk 1: Info Theory</div>
+          <div class="nav-week" data-nav="week-2" data-href="#/unit/1/week/2">\u{2022} Wk 2: Transformers</div>
+        </div>
+
+        <!-- Unit 2 -->
+        <div class="nav-item" data-nav="unit-2" data-href="#/unit/2">
+          <span class="nav-icon" style="color: #00cec9;">02</span>
+          <span class="nav-label">Scaling Laws</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="2">
+          <div class="nav-week" data-nav="week-3" data-href="#/unit/2/week/3">\u{2022} Wk 3: L(N) Optimization</div>
+        </div>
+
+        <!-- Unit 3 -->
+        <div class="nav-item" data-nav="unit-3" data-href="#/unit/3">
+          <span class="nav-icon" style="color: #e84393;">03</span>
+          <span class="nav-label">Architectures</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="3">
+          <div class="nav-week" data-nav="week-4" data-href="#/unit/3/week/4">\u{2022} Wk 4: GQA & Flash Attn</div>
+          <div class="nav-week" data-nav="week-5" data-href="#/unit/3/week/5">\u{2022} Wk 5: Param-Efficient</div>
+          <div class="nav-week" data-nav="week-6" data-href="#/unit/3/week/6">\u{2022} Wk 6: Specialized Modules</div>
+        </div>
+
+        <!-- Unit 4 -->
+        <div class="nav-item" data-nav="unit-4" data-href="#/unit/4">
+          <span class="nav-icon" style="color: #fdcb6e;">04</span>
+          <span class="nav-label">Tokenization</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="4">
+          <div class="nav-week" data-nav="week-7" data-href="#/unit/4/week/7">\u{2022} Wk 7: Tokenizers & BPB</div>
+        </div>
+
+        <!-- Unit 5 -->
+        <div class="nav-item" data-nav="unit-5" data-href="#/unit/5">
+          <span class="nav-icon" style="color: #00b894;">05</span>
+          <span class="nav-label">Optimization</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="5">
+          <div class="nav-week" data-nav="week-8" data-href="#/unit/5/week/8">\u{2022} Wk 8: Muon & Adam</div>
+          <div class="nav-week" data-nav="week-9" data-href="#/unit/5/week/9">\u{2022} Wk 9: Distributed</div>
+          <div class="nav-week" data-nav="week-10" data-href="#/unit/5/week/10">\u{2022} Wk 10: Weight Avg</div>
+        </div>
+
+        <!-- Unit 6 -->
+        <div class="nav-item" data-nav="unit-6" data-href="#/unit/6">
+          <span class="nav-icon" style="color: #d63031;">06</span>
+          <span class="nav-label">Quantization</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="6">
+          <div class="nav-week" data-nav="week-11" data-href="#/unit/6/week/11">\u{2022} Wk 11: PTQ Basics</div>
+          <div class="nav-week" data-nav="week-12" data-href="#/unit/6/week/12">\u{2022} Wk 12: GPTQ & QAT</div>
+          <div class="nav-week" data-nav="week-13" data-href="#/unit/6/week/13">\u{2022} Wk 13: Compression</div>
+        </div>
+
+        <!-- Unit 7 -->
+        <div class="nav-item" data-nav="unit-7" data-href="#/unit/7">
+          <span class="nav-icon" style="color: #0984e3;">07</span>
+          <span class="nav-label">Evaluation</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="7">
+          <div class="nav-week" data-nav="week-14" data-href="#/unit/7/week/14">\u{2022} Wk 14: Eval & TTT</div>
+        </div>
+
+        <!-- Unit 8 -->
+        <div class="nav-item" data-nav="unit-8" data-href="#/unit/8">
+          <span class="nav-icon" style="color: #e17055;">08</span>
+          <span class="nav-label">Systems</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="8">
+          <div class="nav-week" data-nav="week-15" data-href="#/unit/8/week/15">\u{2022} Wk 15: GPU & Kernels</div>
+        </div>
+
+        <!-- Unit 9 -->
+        <div class="nav-item" data-nav="unit-9" data-href="#/unit/9">
+          <span class="nav-icon" style="color: #6c5ce7;">09</span>
+          <span class="nav-label">Integration</span>
+          <span class="nav-badge">--</span>
+        </div>
+        <div class="nav-weeks" data-unit-weeks="9">
+          <div class="nav-week" data-nav="week-16" data-href="#/unit/9/week/16">\u{2022} Wk 16: Capstone</div>
+        </div>
+
+        <!-- Divider -->
+        <div style="padding: var(--space-sm) var(--space-lg); margin-top: var(--space-md);">
+          <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim); text-transform: uppercase; letter-spacing: 0.1em;">Tools</span>
+        </div>
+
+        <div class="nav-item" data-nav="flashcards" data-href="#/flashcards">
+          <span class="nav-icon">\u{2660}</span>
+          <span class="nav-label">Flashcards</span>
+        </div>
+
+        <div class="nav-item" data-nav="settings" data-href="#/settings">
+          <span class="nav-icon">\u{2699}</span>
+          <span class="nav-label">Settings</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span style="font-size: var(--font-size-xs); color: var(--pg-text-dim);">v1.0</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-area">
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: var(--space-md);">
+          <button class="btn-icon" id="sidebar-toggle" title="Toggle sidebar">\u{2630}</button>
+          <div class="breadcrumb" id="breadcrumb">
+            <span>Dashboard</span>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode"></button>
+        </div>
+      </div>
+
+      <div class="content-scroll">
+        <div id="content">
+          <!-- Content injected by router -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Init -->
+  <script type="module">
+    import { initRouter, navigate } from './js/router.js';
+    import * as DB from './js/db.js';
+    import { updateSidebarProgress } from './js/progress.js';
+
+    async function init() {
+      await DB.ready;
+
+      // Theme
+      const savedTheme = await DB.getSetting('theme', 'dark');
+      document.documentElement.setAttribute('data-theme', savedTheme);
+
+      // Show app, hide loading
+      document.getElementById('app-loading').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+
+      // Sidebar nav clicks
+      document.querySelectorAll('.nav-item[data-href], .nav-week[data-href]').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigate(el.dataset.href);
+        });
+      });
+
+      // Theme toggle
+      document.getElementById('theme-toggle')?.addEventListener('click', async () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        await DB.setSetting('theme', next);
+      });
+
+      // Sidebar toggle (mobile)
+      document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+        document.getElementById('sidebar')?.classList.toggle('mobile-open');
+      });
+
+      // Update sidebar progress badges
+      await updateSidebarProgress();
+
+      // Start router
+      await initRouter();
+
+      // Render KaTeX after content loads
+      window.addEventListener('hashchange', () => {
+        setTimeout(() => {
+          if (window.renderMathInElement) {
+            renderMathInElement(document.getElementById('content'), {
+              delimiters: [
+                { left: '$$', right: '$$', display: true },
+                { left: '$', right: '$', display: false },
+              ],
+              throwOnError: false
+            });
+          }
+        }, 100);
+      });
+    }
+
+    init().catch(console.error);
+  </script>
+</body>
+</html>
