@@ -1,0 +1,17 @@
+{
+  "author": "aamodbhatt",
+  "github_id": "aamodbhatt",
+  "name": "AutoResearch Int6 Policy Sweep (1xH100 10m)",
+  "blurb": "Non-record 1xH100 policy-sweep experiment that adds an INT6_CATS control knob to mixed quantization and evaluates multiple quantization policies under identical 10-minute training budgets.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.57457951,
+  "val_bpb": 1.52481100,
+  "pre_quant_val_loss": 2.3526,
+  "pre_quant_val_bpb": 1.3934,
+  "step_stop": 1111,
+  "wallclock_seconds": 600.042,
+  "bytes_total": 13144462,
+  "bytes_model_int8_zlib": 13092044,
+  "bytes_code": 52418
+}
