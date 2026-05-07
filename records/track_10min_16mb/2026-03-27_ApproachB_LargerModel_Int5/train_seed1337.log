@@ -1,0 +1,9 @@
+# Approach B - Seed 1337 (fixed: s_0 only, 5% prune, GPTQ within budget)
+stopping_early: wallclock_cap train_time:590019ms step:6027/20000
+gptq:calibrated 68 layers in 3.8s (total train+gptq: 593.8s / 600s)
+Total submission size int6+zstd: 15535414 bytes
+artifact_headroom: 464586 bytes remaining
+final_int6_sliding_window val_loss:1.8988 val_bpb:1.1246 stride:64 eval_time:117501ms
+final_int6_sliding_window_exact val_loss:1.89876703 val_bpb:1.12455977
+final_ttt_s0 val_loss:1.8880 val_bpb:1.1182
+final_ttt_s0_exact val_loss:1.88800111 val_bpb:1.11818356
