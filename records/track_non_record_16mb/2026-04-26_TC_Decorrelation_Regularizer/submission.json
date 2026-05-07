@@ -1,0 +1,10 @@
+{
+  "name": "11L Int8 + Correlation Decorrelation Regularizer (val_bpb=1.1413)",
+  "val_loss": 1.9258,
+  "val_bpb": 1.1413,
+  "bytes_total": 15814813,
+  "blurb": "Novel information-theoretic decorrelation regularizer applied to the PR #236 stack. Penalizes mean squared off-diagonal correlations in hidden-state correlation matrices during training, encouraging statistical independence across hidden dimensions. Despite 6% step-time overhead (71ms vs 67ms, ~500 fewer steps), achieves comparable BPB to the unregularized baseline (1.1413 vs 1.1400 3-seed mean). The regularizer adds ~25 lines to train_gpt.py and is gated behind TC_ENABLED/TC_LAMBDA env vars.",
+  "author": "Gabriel Ketron",
+  "github_id": "gketronDS",
+  "date": "2026-04-26"
+}
