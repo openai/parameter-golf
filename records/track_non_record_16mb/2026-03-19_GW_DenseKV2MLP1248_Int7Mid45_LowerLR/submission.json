@@ -1,0 +1,11 @@
+{
+  "author": "George W.",
+  "github_id": "gwskier11-design",
+  "name": "GW Dense KV2 MLP1248 Int7Mid45 LowerLR",
+  "blurb": "Focused non-record candidate for Parameter Golf. It reduces KV heads from 4 to 2, reinvests the saved budget into MLP_HIDDEN=1248, uses the public lower-LR schedule, lowers the keep-float quantizer threshold so the smaller K/V matrices are actually quantized, and applies a gentler int7-style coarsening to layers 4 and 5. The staged metrics come from the best of three local Apple Silicon proxy seeds.",
+  "date": "2026-03-19T08:10:00Z",
+  "val_loss": 5.61485069,
+  "val_bpb": 3.31983927,
+  "bytes_total": 6791526,
+  "bytes_code": 47381
+}
