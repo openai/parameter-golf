@@ -1,0 +1,16 @@
+{
+  "author": "Jack Princz",
+  "github_id": "jfprincz",
+  "name": "OrthoInit + Muon + Int6 MLP3x + SmearGate + BigramHash",
+  "blurb": "Six improvements over baseline: (1) Orthogonal + muP-scaled init. (2) Int6 per-row on MLP+attention with zstd-22, int8 tok_emb and bigram embed. (3) 3x MLP. (4) Tuned Muon: matrix_lr=0.02, momentum 0.99, warmdown 3000, grad clip 0.3. (5) SmearGate + BigramHash(4096x128). (6) Sliding window eval stride=256, seq=2048.",
+  "date": "2026-03-20T03:30:00Z",
+  "val_loss": 1.94586255,
+  "val_bpb": 1.15244827,
+  "pre_quant_val_loss": 1.9686,
+  "pre_quant_val_bpb": 1.1659,
+  "int6_zstd_val_loss": 1.9830,
+  "int6_zstd_val_bpb": 1.1744,
+  "bytes_total": 15401594,
+  "bytes_model_int6_zstd": 15337471,
+  "bytes_code": 64123
+}
