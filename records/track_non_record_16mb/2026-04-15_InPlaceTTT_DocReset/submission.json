@@ -1,0 +1,12 @@
+{
+  "author": "Witold Czubala",
+  "github_id": "wczubal1",
+  "name": "In-Place TTT Doc Reset",
+  "blurb": "Experimental non-record submission: eval-only in-place TTT on mlp.proj with per-document reset from BOS boundaries; smoke run improved final int8+zlib roundtrip from 3.4407 to 3.3990 val_bpb, but eval remained too slow for the record track.",
+  "date": "2026-04-15T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 5.73910452,
+  "val_bpb": 3.39902097,
+  "bytes_total": 5086138,
+  "bytes_code": 55513
+}
