@@ -1,0 +1,11 @@
+{
+  "author": "rakeshk",
+  "github_id": "rakeshk",
+  "name": "Static-Unified Flash-Nitro (SUFN)",
+  "blurb": "Optimized modded-nanogpt with a perfectly static 1024-sequence graph. Uses native is_causal=True Flash Attention (SDPA) for O(n) efficiency and a robust distributed token loader to handle phase transitions without recompilation. Validated with high-stride TTT for sub-10 minute wallclock compliance.",
+  "date": "2026-04-04T20:00:00Z",
+  "val_loss": 4.1915,
+  "val_bpb": 2.5226,
+  "bytes_total": 15882446,
+  "bytes_code": 83301
+}

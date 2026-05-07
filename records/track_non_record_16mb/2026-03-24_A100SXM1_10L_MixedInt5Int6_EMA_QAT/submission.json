@@ -1,0 +1,18 @@
+{
+  "author": "rakeshk",
+  "github_id": "rakeshk",
+  "name": "10L Mixed Int5/Int6 + EMA + QAT(0.15) (1xA100 SXM)",
+  "blurb": "Non-record 16MB run on 1xA100 SXM using 10 layers, mixed int5/int6 quantization, EMA export weights, and late QAT. Final roundtrip score 1.42223098 val_bpb at 15,576,677 total bytes.",
+  "date": "2026-03-24T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.40137744,
+  "val_bpb": 1.42223098,
+  "pre_quant_val_loss": 2.3957,
+  "pre_quant_val_bpb": 1.4189,
+  "step_stop": 400,
+  "wallclock_seconds": 572.357,
+  "bytes_total": 15576677,
+  "bytes_model_int8_zlib": 15528991,
+  "bytes_code": 47686,
+  "gpu": "1xA100 SXM"
+}
