@@ -1,0 +1,10 @@
+{
+  "author": "Advait Jayant",
+  "github_id": "0xadvait",
+  "name": "11L LeakyReLU² + Early QAT@0.5 + GPTQ-lite + EMA",
+  "blurb": "11-layer 512-dim transformer with LeakyReLU(0.5)² 3x MLPs, early int6 STE-QAT at LR scale 0.5 (~1400 QAT steps vs typical ~1), GPTQ-lite per-row clip search, EMA(0.997), Muon+AdamW WD 0.04, warmdown 3500, stride-64 sliding eval. 3-seed mean 1.1387 (std 0.0005).",
+  "date": "2026-03-27T00:00:00Z",
+  "val_loss": 1.92373598,
+  "val_bpb": 1.13934782,
+  "bytes_total": 15591676
+}
