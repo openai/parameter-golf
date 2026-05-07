@@ -1,0 +1,11 @@
+{
+    "author": "AVINASH0052",
+    "github_id": "AVINASH0052",
+    "name": "SFT — Random Feature Adapters",
+    "blurb": "Stochastic Feature Transformer: replaces learned MLP input projections with FIXED random Gaussian matrices (regenerated from seed, 0 bytes stored). Only the output projection is learned, halving MLP storage cost. Based on Random Features theory (Rahimi & Recht 2007). First submission implementing 'Learning adapters on random linear maps' as requested in Requests for PRs. Architecture: SP8192, 11L×512d, GQA 8H/4KV, RandomFeatureMLP 4×, depth recurrence L3-5, parallel residuals, EMA, GPTQ int6 + Brotli.",
+    "date": "2026-04-17T00:00:00Z",
+    "val_loss": 0.0,
+    "val_bpb": 0.0,
+    "bytes_total": 0,
+    "bytes_code": 0
+}
