@@ -1,0 +1,23 @@
+{
+  "author": "Athenox14",
+  "github_id": "Athenox14",
+  "name": "BitNet b1.58 + Depth Recurrence + NorMuon",
+  "blurb": "BitNet b1.58 ternary weights with depth recurrence (4 unique blocks × 3 passes = 12 effective layers), U-Net skip connections, NorMuon optimizer, sequence length warmup with YaRN, and 2-bit ternary packing. 3.78 MB submission.",
+  "date": "2026-03-19T00:00:00Z",
+  "track": "non_record_unlimited_compute",
+  "val_bpb": 1.75095611,
+  "val_loss": 2.91930576,
+  "pre_quant_val_bpb": 1.4866,
+  "pre_quant_val_loss": 2.4786,
+  "bytes_total": 3782555,
+  "bytes_code": 45677,
+  "bytes_model_ternary_zlib": 3736878,
+  "step_stop": 10000,
+  "wallclock_seconds": 10873,
+  "unique_params": 12138272,
+  "unique_bitlinear_params": 11468800,
+  "effective_depth": 12,
+  "model_dim": 640,
+  "num_unique_layers": 4,
+  "recurrence_factor": 3
+}
