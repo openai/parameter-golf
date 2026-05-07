@@ -1,0 +1,19 @@
+{
+    "name": "SLOT24_LR012_Stride96",
+    "author": "Anthony Maio",
+    "github_id": "anthony-maio",
+    "date": "2026-04-03",
+    "track": "10min_16mb",
+    "num_gpus": 8,
+    "gpu_type": "H100 SXM",
+    "training_time_seconds": 600,
+    "seed_results": {
+        "1337": {"val_loss": 1.46609658, "val_bpb": 0.86830694, "steps": 6034, "ms_per_step": 99.5, "artifact_bytes": 15679900},
+        "42":   {"val_loss": 1.44895406, "val_bpb": 0.85815415, "steps": 6563, "ms_per_step": 91.4, "artifact_bytes": 15827704},
+        "2024": {"val_loss": 1.45994709, "val_bpb": 0.86466486, "steps": 6568, "ms_per_step": 91.3, "artifact_bytes": 15770916}
+    },
+    "mean_val_loss": 1.4583,
+    "mean_val_bpb": 0.8637,
+    "std_val_bpb": 0.0051,
+    "blurb": "Aggressive SLOT-24 with LR 0.012 (cosine to 0.001), stride=96, per-sample delta + logit bias, scored-position masked. Same architecture as PR #1303 (QK-Gain 4.0, XSA-11, VRL, LeakyReLU2, BigramHash 1024, int6+lzma)."
+}
