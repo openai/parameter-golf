@@ -1,0 +1,19 @@
+{
+  "author": "Wes",
+  "github_id": "wesunix",
+  "name": "MOEA Outer-Loop Proxy F2 on 1xRTX 3090",
+  "blurb": "Non-record 16MB proxy submission distilled from an offline MOEA search workflow. This artifact demonstrates a runnable train->export->roundtrip-eval handoff on 1x RTX 3090 with compile disabled and a reduced 1,048,576-token validation window.",
+  "date": "2026-03-25T00:00:00Z",
+  "track": "non-record-proxy-16mb",
+  "val_loss": 5.8026822,
+  "val_bpb": 3.47665807,
+  "pre_quant_val_loss": 5.8015,
+  "pre_quant_val_bpb": 3.4759,
+  "step_stop": 12,
+  "train_seconds": 7.879,
+  "eval_seconds": 9.729,
+  "validation_tokens": 1048576,
+  "bytes_total": 3283346,
+  "bytes_model_int8_zlib": 3234871,
+  "bytes_code": 48475
+}
