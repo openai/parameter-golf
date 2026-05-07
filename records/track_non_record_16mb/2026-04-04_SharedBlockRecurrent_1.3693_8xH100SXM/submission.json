@@ -1,0 +1,20 @@
+{
+  "author": "Goausd",
+  "github_id": "LocalX991",
+  "name": "HBT-T2 Single Seed (8xH100)",
+  "blurb": "Non-record single-seed 8xH100 RunPod submission using the HBT-T2 recurrent transformer with 8 passes, partial RoPE, LN scaling, depth modulation, BigramHash/SmearGate, EMA/SWA, and int6+zstd export. Reported score is final_int6_roundtrip_exact from seed 1337.",
+  "date": "2026-04-04T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.31193436,
+  "val_bpb": 1.36925776,
+  "pre_quant_val_loss": 2.2873,
+  "pre_quant_val_bpb": 1.3547,
+  "int6_zstd_val_loss": 2.31193436,
+  "int6_zstd_val_bpb": 1.36925776,
+  "step_stop": 7601,
+  "wallclock_seconds": 600,
+  "bytes_total": 3591303,
+  "bytes_model_int6_zstd": 3531468,
+  "bytes_code": 59835,
+  "gpu": "8xH100 80GB HBM3 (RunPod)"
+}
