@@ -1,0 +1,16 @@
+{
+  "author": "Aryan Bhosale",
+  "github_id": "aryanbhosale",
+  "name": "11L Parallel Muon + LN Scale + LeakyReLU² MLP3x + Legal TTT (mean val_bpb=1.1215)",
+  "blurb": "11-layer 512d transformer with Parallel Muon (parameter banking + batched NS5), LN Scale, LeakyReLU(0.5)² MLP 3x, SmearGate, BigramHash(1536), Value Residual, Gated Attention, XSA4, Partial RoPE(16/64), EMA(0.997)+SWA, Late QAT, GPTQ-lite int6+zstd-22, legal score-first TTT. 3-seed mean 1.1215 BPB (std=0.0002) on 8xH100 SXM.",
+  "date": "2026-03-26T12:00:00Z",
+  "val_loss": 1.8937,
+  "val_bpb": 1.1215,
+  "bytes_total": 15850000,
+  "bytes_code": 80000,
+  "seeds": {
+    "1337": {"val_bpb": 1.1217, "val_loss": 1.8940, "steps": 6759, "step_avg_ms": 88.8},
+    "42": {"val_bpb": 1.1213, "val_loss": 1.8933, "steps": 6757, "step_avg_ms": 88.8},
+    "2024": {"val_bpb": 1.1215, "val_loss": 1.8937, "steps": 6752, "step_avg_ms": 88.9}
+  }
+}
