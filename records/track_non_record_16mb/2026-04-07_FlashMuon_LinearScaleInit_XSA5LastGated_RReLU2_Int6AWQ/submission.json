@@ -1,0 +1,11 @@
+{
+  "author": "Yevhen Shramov",
+  "github_id": "shram86",
+  "name": "FlashMuon + LinearScaleInit + XSA5LastGated + RReLU2 + Int6AWQ",
+  "blurb": "10-layer SP-1024 run with Flash Muon, XSA on the last 5 layers with only the final XSA layer gated, linear-by-depth scale init, RReLU2 MLP, late EMA plus post-train best-choice selection, and int6 AWQ + lzma with val-tail calibration. Final reported score uses stride-64 sliding-window evaluation at 1.1834 bpb; the default contiguous roundtrip score is 1.2064 bpb. Total submission size is 15,361,671 bytes.",
+  "date": "2026-04-07T00:00:00Z",
+  "val_loss": 1.99807565,
+  "val_bpb": 1.18337608,
+  "bytes_total": 15361671,
+  "bytes_code": 47642
+}
