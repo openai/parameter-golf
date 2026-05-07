@@ -1,0 +1,48 @@
+{
+  "author": "OE-GOD",
+  "github_id": "OE-GOD",
+  "name": "NN + Byte-Level PPM Adaptive-λ Mixture (non-record demonstration)",
+  "date": "2026-04-22",
+  "track": "non_record_16mb",
+  "val_bpb": 1.41306,
+  "val_bpb_nn_only": 1.62394,
+  "val_bpb_delta": -0.21088,
+  "val_bpb_measurement_note": "val_bpb computed on the first 5,000,000 tokens of validation (12,120,410 bytes) rather than full val — pure-Python PPM is too slow for full val inside the eval budget; this is a non-record demonstration of the lever.",
+  "seeds": [1337],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.41306,
+      "val_bpb_nn_only": 1.62394,
+      "val_bpb_delta": -0.21088,
+      "artifact_bytes": 15870887,
+      "train_steps_completed": 5002,
+      "train_steps_stopped_reason": "wallclock_cap"
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "SP1024 + 9L baseline + byte-level PPM-D order-5 with adaptive-λ gate on PPM confidence. Mixture computed per-byte in probability space after spreading NN token logprob uniformly across token UTF-8 bytes.",
+  "mixture_technique": {
+    "predictor": "byte-level PPM-D order 5 (pure Python, online, legal TTT)",
+    "mixing": "adaptive λ gate: λ=0.05 when PPM max-symbol probability > 0.9, else λ=0.9",
+    "byte_marginalization": "spread token logprob uniformly across UTF-8 bytes (conserves total bits for NN)"
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": false,
+    "eval_under_600s_note": "Eval exceeds 10 min on full val due to pure-Python PPM; this submission subsamples 5M tokens so eval fits budget. Record-track integration requires a C/Numba PPM port.",
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": false,
+    "no_ngram_cache_note": "Intentionally uses a byte-level online PPM predictor (not a pre-computed n-gram cache in the artifact). PPM trains from scratch during eval on already-scored tokens, which the challenge explicitly permits as legal TTT.",
+    "single_seed_non_record": true
+  },
+  "supporting_measurements_across_baselines": [
+    {"nn_bpb": 2.540, "delta_lambda_099": -0.036, "delta_adaptive": -0.694, "family": "MLX SP1024 9L weak (100 steps)"},
+    {"nn_bpb": 1.354, "delta_lambda_099": -0.015, "delta_adaptive": -0.126, "family": "torch SP1024 9L (1 shard)"},
+    {"nn_bpb": 1.258, "delta_lambda_099": -0.011, "delta_adaptive": -0.123, "family": "torch SP1024 9L (4 shards, 3M tokens)"},
+    {"nn_bpb": 1.211, "delta_lambda_099": -0.009, "delta_adaptive": -0.137, "family": "torch SP8192 11L MLP4 (SOTA family, 2 shards)"}
+  ]
+}
