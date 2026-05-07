@@ -1,0 +1,11 @@
+{
+  "author": "Divyansh Agrawal",
+  "github_id": "divagr18",
+  "name": "Distill+IntraLoop SP1024 9x512",
+  "blurb": "SP-1024 9-layer 512-dim model with GQA (4 KV heads), SwiGLU, tied embeddings, partial depth recurrence (layers 3-4 looped 2x for 11 effective layers), EMA self-distillation (start_frac=0.70, weight=0.08, temp=2.0), Muon optimizer, QK-Gain 5.0, SWA (282 snapshots), GPTQ int8+zstd quantization.",
+  "date": "2026-04-15T00:00:00Z",
+  "val_loss": 2.01638266,
+  "val_bpb": 1.19421634,
+  "bytes_total": 15624290,
+  "bytes_code": 181005
+}
