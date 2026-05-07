@@ -1,0 +1,258 @@
+====================================================================================================
+Hyperparameters:
+  abort_on_nan: True
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  artifact_rank0_only: True
+  baseline_method: baseline_raw_qk525_calib64
+  beta1: 0.9
+  beta2: 0.95
+  brotli_quality: 11
+  budget_id: stage6_h100x8_nopqttt_speed_2m
+  compressor: brotli
+  data_dir: ./data/
+  dataset_name: fineweb10B_sp8192
+  datasets_dir: ./data/datasets/fineweb10B_sp8192
+  distributed: True
+  ema_decay: 0.9965
+  ema_enabled: False
+  embed_bits: 8
+  embed_clip_sigmas: 20.0
+  embed_lr: 0.6
+  embed_wd: 0.085
+  embedding_dim: 512
+  enable_looping_at: 0.35
+  etlb_clip: 3.0
+  etlb_enabled: False
+  etlb_lr: 0.05
+  etlb_steps: 5
+  eval_at_steps: set()
+  eval_seq_len: 2048
+  eval_stride: 512
+  final_eval_mode: official
+  final_score_mode: legal_ttt_only
+  gptq_calibration_batches: 64
+  gptq_reserve_seconds: 12.0
+  grad_accum_steps: 1
+  grad_clip_norm: 0.3
+  head_lr: 0.008
+  is_main_process: True
+  iterations: 360
+  ln_scale: True
+  local_rank: 0
+  local_val_offset_tokens: 0
+  local_val_tokens: 2097152
+  logfile: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/train.log
+  logit_softcap: 30.0
+  loop_end: 5
+  loop_start: 3
+  manifest_path: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/manifest.json
+  matrix_bits: 6
+  matrix_clip_sigmas: 15.0
+  matrix_lr: 0.022
+  max_artifact_bytes: 16000000
+  max_peak_mem_mib: 0
+  max_quant_bpb_gap: 0.0
+  max_wallclock_seconds: 600.0
+  method: qk525_nopqttt_clip1500_bq11_legal_s512e2_emaoff_speed
+  metrics_path: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/metrics.jsonl
+  min_lr: 0.0
+  min_tokens_per_sec: 0.0
+  mlp_mult: 4.0
+  model_dim: 512
+  model_path: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/final_model.pt
+  muon_backend_steps: 5
+  muon_beta2: 0.95
+  muon_momentum: 0.99
+  muon_momentum_warmup_start: 0.92
+  muon_momentum_warmup_steps: 1500
+  muon_row_normalize: True
+  muon_wd: 0.095
+  num_heads: 8
+  num_kv_heads: 4
+  num_layers: 11
+  num_loops: 2
+  parallel_residual_start: 7
+  perf_enabled: False
+  perf_force_steps: 
+  perf_log_dir: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/perf
+  perf_log_every: 100
+  perf_logfile: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/perf/perf_rank0.jsonl
+  perf_loop_dense_after: 200
+  perf_loop_dense_before: 200
+  perf_loop_dense_every: 20
+  perf_ranks: 0
+  perf_sample_every: 10
+  perf_ttt_chunk_every: 20
+  perf_window_size: 32
+  post_quant_eval_enabled: False
+  post_ttt_checkpoint_path: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/post_ttt_model.pt
+  pre_quant_ttt_anchor_lambda: 0.0
+  pre_quant_ttt_chunk_tokens: 32768
+  pre_quant_ttt_enabled: False
+  pre_quant_ttt_epochs: 21
+  pre_quant_ttt_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  pre_quant_ttt_freeze_blocks: 0
+  pre_quant_ttt_grad_clip_norm: 1.0
+  pre_quant_ttt_loop_mode: inactive
+  pre_quant_ttt_lr: 0.001
+  pre_quant_ttt_min_lr: 0.0001
+  pre_quant_ttt_qnoise_enabled: False
+  pre_quant_ttt_qnoise_prob: 0.5
+  pre_quant_ttt_qnoise_scale_mult: 0.5
+  pre_quant_ttt_qnoise_start_epoch: 2
+  pre_quant_ttt_selection_mode: contiguous
+  pre_quant_ttt_shard_limit: 0
+  pre_quant_ttt_source: val
+  pre_quant_ttt_token_limit: 262144
+  pre_quant_ttt_token_offset: None
+  pre_quant_ttt_weight_decay: 0.0
+  profiler_active_steps: 10
+  profiler_dir: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/perf/profiler_rank0
+  profiler_enabled: False
+  profiler_profile_memory: True
+  profiler_ranks: 0
+  profiler_record_shapes: True
+  profiler_steps: 
+  profiler_warmup_steps: 2
+  profiler_with_flops: True
+  profiler_with_stack: False
+  qk_gain_init: 5.25
+  quant_diagnostics_path: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/quant_diagnostics.json
+  quant_only_from_post_ttt: False
+  quantized_model_path: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/final_model.int6.ptz
+  rank: 0
+  rope_base: 10000.0
+  rope_dims: 16
+  rope_train_seq_len: 2048
+  run_dir: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0
+  run_group: h100x8-nopqttt-speed-2m-r2
+  run_id: h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0
+  save_post_ttt_checkpoint: False
+  scalar_lr: 0.02
+  seed: 0
+  skip_gates_enabled: True
+  sliding_window_enabled: False
+  stage: stage6_h100x8_nopqttt_speed_2m
+  summary_path: /workspace/parameter-golf/runs/h100x8-nopqttt-speed-2m-r2_stage6-h100x8-nopqttt-speed-2m_qk525-nopqttt-clip1500-bq11-legal-s512e2-emaoff-speed_s0/summary.json
+  tie_embeddings: True
+  tied_embed_init_std: 0.005
+  tied_embed_lr: 0.03
+  tokenizer_path: ./data/tokenizers/fineweb_8192_bpe.model
+  train_batch_tokens: 786432
+  train_files: ./data/datasets/fineweb10B_sp8192/fineweb_train_*.bin
+  train_log_every: 500
+  train_seq_len: 2048
+  train_shard_limit: 80
+  ttt_chunk_tokens: 32768
+  ttt_enabled: True
+  ttt_epochs: 2
+  ttt_lr: 0.005
+  ttt_momentum: 0.9
+  val_batch_tokens: 524288
+  val_byte_files: 
+  val_files: ./data/datasets/fineweb10B_sp8192/fineweb_val_*.bin
+  val_loss_every: 0
+  vocab_size: 8192
+  warmdown_frac: 0.72
+  warmup_steps: 20
+  world_size: 8
+  wrapper_code_bytes_estimate: 20000
+  xsa_last_n: 11
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Sat Apr 25 12:11:20 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:19:00.0 Off |                    0 |
+| N/A   34C    P0            117W /  700W |    1521MiB /  81559MiB |      7%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:3B:00.0 Off |                    0 |
+| N/A   32C    P0            118W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   31C    P0            116W /  700W |    1521MiB /  81559MiB |      7%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   34C    P0            115W /  700W |    1521MiB /  81559MiB |      7%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9B:00.0 Off |                    0 |
+| N/A   34C    P0            117W /  700W |    1521MiB /  81559MiB |      2%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:BB:00.0 Off |                    0 |
+| N/A   32C    P0            118W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   33C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   31C    P0            115W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+train_shards: 80
+val_tokens: 2097152
+model_params:35944536
+gptq:reserving 12s, effective=588000ms
+warmup_step: 1/20
+warmup_step: 2/20
+warmup_step: 3/20
+warmup_step: 4/20
+warmup_step: 5/20
+warmup_step: 6/20
+warmup_step: 10/20
+warmup_step: 20/20
+loop_warmup:enabled encoder:[0, 1, 2, 3, 4, 5, 3, 4] decoder:[5, 3, 4, 5, 6, 7, 8, 9, 10]
+loop_warmup_step: 1/20
+loop_warmup_step: 2/20
+loop_warmup_step: 3/20
+loop_warmup_step: 4/20
+loop_warmup_step: 5/20
+loop_warmup_step: 6/20
+loop_warmup_step: 10/20
+loop_warmup_step: 20/20
+1/360 train_loss: 9.0086 train_time: 0.0m tok/s: 7265381 rolling_tok/s: 7281164 step_ms: 108.0
+2/360 train_loss: 12.3279 train_time: 0.0m tok/s: 7428828 rolling_tok/s: 7470553 step_ms: 102.5
+3/360 train_loss: 11.0101 train_time: 0.0m tok/s: 7472125 rolling_tok/s: 7518454 step_ms: 103.3
+4/360 train_loss: 9.5067 train_time: 0.0m tok/s: 7491249 rolling_tok/s: 7541235 step_ms: 103.3
+5/360 train_loss: 8.3975 train_time: 0.0m tok/s: 7504693 rolling_tok/s: 7556994 step_ms: 103.2
+360/360 val_loss: 3.3780 val_bpb: 1.3328
+peak memory allocated: 38956 MiB reserved: 38996 MiB
+ema:disabled
+pre-ttt pre-quantization post-ema val_loss:3.37891602 val_bpb:1.33309349 eval_time:311ms
+post-ttt pre-quantization loop-inactive val_loss:3.37891602 val_bpb:1.33309349 eval_time:246ms
+post-ttt pre-quantization loop-active val_loss:3.73777768 val_bpb:1.47467621 eval_time:363ms
+Serialized model: 135431033 bytes
+Code size: 181984 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 8.4s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int8): tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, skip_gates, skip_weights
+Serialized model quantized+brotli: 15135511 bytes
+Total submission size quantized+brotli: 15317495 bytes
+ttt:start chunks=64 ttt_lr=0.005 ttt_epochs=2
+quantized_ttt val_loss:3.52699937 val_bpb:1.39151724 eval_time:47685ms

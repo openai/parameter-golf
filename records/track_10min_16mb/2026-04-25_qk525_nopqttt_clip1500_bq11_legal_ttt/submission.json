@@ -1,0 +1,37 @@
+{
+  "author": "JiajunDeng",
+  "github_id": "JiaJunDeng5930",
+  "name": "Draft non-record: qk525 nopqttt clip1500 BQ11 legal score-first TTT, pending 8xH100 multi-seed validation",
+  "date": "2026-04-25",
+  "track": "10min_16mb",
+  "status": "draft_non_record_compute_request",
+  "pr_link": "https://github.com/openai/parameter-golf/pull/1816",
+  "val_bpb": 1.3915172403965905,
+  "seeds": [0],
+  "seed_results": {
+    "0": {
+      "val_bpb": 1.3915172403965905,
+      "artifact_bytes": 15317495,
+      "validation_tokens": 2097152,
+      "iterations": 360,
+      "run_wallclock_total_ms": 288522.3573241383,
+      "ttt_eval_time_ms": 47685.00332720578
+    }
+  },
+  "hardware": "8xH100",
+  "technique_summary": "SP8192 + QK-Gain 5.25 + no pre-quant TTT + GPTQ SDClip clip1500 + Brotli-11 + legal score-first TTT",
+  "compliance": {
+    "artifact_under_16mb": true,
+    "train_under_600s": true,
+    "score_first_ttt": true,
+    "single_left_to_right_pass": true,
+    "multi_pass_rescore": false,
+    "strict_causal_prefix_only": true,
+    "three_seeds": false,
+    "full_validation_pending": true
+  },
+  "compute_request": {
+    "purpose": "Complete full 2400-iteration and 3-seed 8xH100 validation.",
+    "current_evidence": "Passed local, single-H100 proxy, and one 8xH100 2M seed0 dryrun."
+  }
+}
