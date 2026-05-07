@@ -1,0 +1,53 @@
+{
+  "name": "Pre-Quant TTT 11ep + Val-Calibrated GPTQ + SLOT-24 — Quad-Stack Synthesis",
+  "author": "owizdom",
+  "github_id": "owizdom",
+  "date": "2026-04-09",
+  "track": "10min_16mb",
+  "val_bpb": null,
+  "val_bpb_pending_compute": true,
+  "val_bpb_projected_range": [0.78, 0.86],
+  "val_bpb_projected_center": 0.82,
+  "bytes_total": null,
+  "blurb": "Four val-data adaptations stacked for the first time on this challenge. (1) Pre-Quant AdamW TTT pushed to 11 epochs / freeze_blocks=0 (Track A, baked into artifact). (2) Val-Calibrated GPTQ — Hessian H=X^T X computed from validation activations instead of training activations, aligning the one-shot quant decision with the eval distribution (Track A, novel on the modern stack). (3) SLOT-24 — per-window AdamW optimization of a hidden delta and logit bias on the frozen post-quant model, 24 cosine-decayed steps, throwaway parameters (frozen-model adaptation, ported from PR #1488 / #1313). (4) Optional eval-time legal score-first TTT, disabled by default (SLOT supersedes it within the eval budget). Architecture, optimizer, training loop, EMA, and quantization machinery are unchanged from the PR #1487 base. Code: ~470 added lines in 6 focused patches; py_compile clean.",
+  "base_pr": 1487,
+  "base_val_bpb": 1.0600,
+  "validation_status": "pending_compute",
+  "validation_cost_estimate_usd": [15, 25],
+  "compliance": {
+    "track_a_artifact_baked": true,
+    "slot_frozen_model_per_window": true,
+    "score_before_update": true,
+    "single_pass": true,
+    "no_ngram_cache": true,
+    "no_etlb": true,
+    "no_cross_window_leakage": true
+  },
+  "techniques": [
+    "Pre-Quant AdamW TTT (11 epochs, freeze_blocks=0)",
+    "Val-Calibrated GPTQ (Hessians from val activations)",
+    "SLOT-24 (per-window hidden delta + logit bias, 24 AdamW steps)",
+    "3-layer depth recurrence (layers 3,4,5 -> 13 virtual)",
+    "Parallel residuals from layer 7+",
+    "EMA decay 0.9965",
+    "QK-Gain 5.5 (per-head learnable)",
+    "MuonEq-R optimizer",
+    "SDClip GPTQ int6 + int8 embeddings + brotli compression",
+    "Selective +-1 pruning to fit 16 MB",
+    "Sliding window eval (stride=64) for baseline reporting"
+  ],
+  "credits": {
+    "pr1487": "ndokutovich — base train_gpt.py, Pre-Quant AdamW TTT, depth recurrence, parallel residuals, EMA, MuonEq-R, SDClip GPTQ machinery, 16 MB selective pruning",
+    "pr1485": "ndokutovich — predecessor stack",
+    "pr1488": "ndokutovich — SLOT + Pre-Quant TTT reference",
+    "pr1313": "anthony-maio — original SLOT-24 implementation",
+    "pr1019": "abaybektursun — val-calibrated GPTQ ablation; SDClip GPTQ + actorder + Cholesky machinery",
+    "pr1394": "clarkkev — SP8192 + GPTQ embeddings + MuonEq-R + depth recurrence",
+    "pr1413": "dexhunter — SP8192 base, legal score-first TTT framework",
+    "pr549": "abaybektursun — LeakyReLU2 + score-first TTT + Parallel Muon",
+    "pr1412": "Robby955 — parallel residuals",
+    "pr1204": "msisovic — parallel residuals",
+    "pr1423": "aryanbhosale — Pre-Quant AdamW TTT origin",
+    "pr1445": "X-Abhishek-X — hyperparameter tuning"
+  }
+}
