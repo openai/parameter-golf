@@ -1,0 +1,84 @@
+{
+  "author": "Hetul Patel",
+  "github_id": "Hetul803",
+  "name": "SP8192 SkipQuant Adapter TTT + Causal PPM-D",
+  "date": "2026-04-27",
+  "track": "10min_16mb",
+  "status": "experiment",
+  "validation": {
+    "type": "1M-token eval slice",
+    "eval_tokens": 1048576,
+    "seeds": [
+      42,
+      314,
+      999
+    ],
+    "control_bpb_mean": 1.3051516,
+    "variant_bpb_mean": 1.18765399,
+    "delta_bpb_mean": -0.1174976,
+    "seed_results": {
+      "42": {
+        "control_bpb": 1.30354672,
+        "variant_bpb": 1.18646113,
+        "delta_bpb": -0.11708559,
+        "runtime_seconds": 101.459,
+        "artifact_bytes": 15999393
+      },
+      "314": {
+        "control_bpb": 1.30570964,
+        "variant_bpb": 1.18796658,
+        "delta_bpb": -0.11774306,
+        "runtime_seconds": 95.583,
+        "artifact_bytes": 15998095
+      },
+      "999": {
+        "control_bpb": 1.30619843,
+        "variant_bpb": 1.18853427,
+        "delta_bpb": -0.11766416,
+        "runtime_seconds": 94.996,
+        "artifact_bytes": 15999189
+      }
+    }
+  },
+  "artifact_size": {
+    "code_bytes": 18550,
+    "max_observed_model_bytes": 15980843,
+    "max_observed_total_bytes": 15999393,
+    "under_16000000": true,
+    "tightest_margin_bytes": 607
+  },
+  "ppm_settings": {
+    "enabled_by_default": true,
+    "order": 5,
+    "confidence_threshold": 0.78,
+    "lambda_hi": 0.9,
+    "lambda_lo": 0.05,
+    "eval_ttt_epochs": 2,
+    "eval_ttt_chunk_tokens": 8192
+  },
+  "full_validation_estimate": {
+    "basis": "Prior SkipQuant Adapter TTT delta-transfer estimate 1.02370 plus measured improvement vs submitted 1M-slice mean -0.12405439",
+    "estimated_mean_bpb": 0.89965,
+    "measured_full_validation": false
+  },
+  "hardware": {
+    "validation_pod": "1xH100 80GB",
+    "official_target": "8xH100 80GB"
+  },
+  "technique_summary": "Adds a strict score-before-update causal byte-level PPM-D probability mixture on top of the SP8192 SkipQuant rank1024 Adapter TTT stack.",
+  "compliance": {
+    "train_under_600s_target": true,
+    "eval_under_600s_target_estimated": true,
+    "artifact_under_16mb": true,
+    "score_first_ttt": true,
+    "score_before_update_ppm": true,
+    "no_future_token_leakage": true,
+    "no_external_data": true,
+    "no_network": true,
+    "estimated_full_eval_seconds_8xh100": 490.33
+  },
+  "attribution": {
+    "base_stack": "records/track_10min_16mb/2026-04-26_Hetul_SkipQuantAdapterTTT",
+    "ppm_experiment": "Hetul Patel"
+  }
+}
