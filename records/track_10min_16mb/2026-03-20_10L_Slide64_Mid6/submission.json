@@ -1,0 +1,18 @@
+{
+  "author": "Nishchay M Chandra",
+  "github_id": "GLDRoger",
+  "name": "10L Slide64 Mid6 (TiedLR 0.08)",
+  "blurb": "10-layer 512-dim SP-1024 run with sliding-window exact eval at 1024/64, Muon crossover schedule, spectral embedding init, phase residual-mix init, fp16 tied-embedding passthrough, and mixed export with only middle blocks 3-6 at int6. Valid under the 16,000,000-byte cap.",
+  "date": "2026-03-20T06:15:00Z",
+  "val_loss": 1.98089037,
+  "val_bpb": 1.17319477,
+  "pre_quant_val_loss": 2.0328,
+  "pre_quant_val_bpb": 1.2039,
+  "standard_post_quant_val_loss": 2.03856633,
+  "standard_post_quant_val_bpb": 1.20735381,
+  "step_stop": 12428,
+  "wallclock_seconds": 600.018,
+  "bytes_total": 15846677,
+  "bytes_model_int8_zlib": 15781009,
+  "bytes_code": 65668
+}
