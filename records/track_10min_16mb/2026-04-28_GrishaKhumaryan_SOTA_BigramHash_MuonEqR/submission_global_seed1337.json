@@ -1,0 +1,11 @@
+{
+    "author": "GrishaKhumaryan",
+    "github_id": "GrishaKhumaryan",
+    "name": "GrishaKhumaryan - BigramHash4096 MuonEqR SDClip ScoreFirstTTT 3LayerRecurrence (Seed 1337)",
+    "blurb": "SOTA: Seed 1337. BigramHash(4096,32) skip, 3-Layer Progressive Recurrence [0,1,2,3,4,5,3,4,5], MuonEq-R Riemannian optimizer, STD-based Hessian-Aware SDClip INT6, legal Score-First TTT 2-pass, parallel residuals, QKGain=5.25, PartialRoPE=32, LeakyReLU(0.5)^2 SwiGLU, vocab=8192",
+    "date": "2026-04-28T01:18:43Z",
+    "val_loss": 0.649582,
+    "val_bpb": 0.937149,
+    "bytes_total": 26697135,
+    "bytes_code": 50523
+}
