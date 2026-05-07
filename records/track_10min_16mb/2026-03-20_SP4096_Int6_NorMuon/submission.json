@@ -1,0 +1,20 @@
+{
+  "name": "Chris Hasinski",
+  "github_id": "khasinski",
+  "val_bpb": 1.2012,
+  "val_loss": 2.7635,
+  "status": "complete",
+  "tokenizer": "sp4096_bpe",
+  "vocab_size": 4096,
+  "num_layers": 9,
+  "model_dim": 512,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "mlp_mult": 2,
+  "tie_embeddings": true,
+  "quantization": "int6+zstd",
+  "artifact_bytes": 14342773,
+  "steps": 11497,
+  "hardware": "8xH100 SXM 80GB",
+  "training_time_seconds": 600
+}
