@@ -1,0 +1,11 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-05",
+  "name": "Stack B + GPTQ-lite (Fixed Scale Clamp) + Depth Recurrence + 6-bit Packing",
+  "author": "Rome-1",
+  "github_id": "Rome-1",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Stack B foundation (11L/512d/4096vocab/4xMLP) with three quantization contributions: (1) fix for GPTQ-lite scale clamp bug that wastes 90% of dynamic range, (2) 6-bit packing (4 int6 values -> 3 bytes = 25% payload reduction), (3) forced int8 for depth-recurrence shared layers where quantization error amplifies through reuse. Non-record: no 8xH100 run yet, validated on 1xH100 NVL (717 steps, undertrained).",
+  "hardware": "1xH100 NVL (undertrained, 717 steps)"
+}
