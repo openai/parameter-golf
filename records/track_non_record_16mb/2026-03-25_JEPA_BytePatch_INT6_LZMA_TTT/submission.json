@@ -1,0 +1,17 @@
+{
+  "author": "John Tian",
+  "github_id": "gravelBridge",
+  "name": "JEPA Byte-Level Encoder-Decoder + INT6 Optimal-Clip + TTT",
+  "blurb": "Non-record submission using JEPA (Joint Embedding Predictive Architecture) encoder-decoder as an alternative to standard GPT for the 16MB track. Byte-level tokenizer (vocab 260), patched encoder (5x2 depth-recurrent) with latent predictor, 7-layer causal decoder. INT6 optimal-clip quantization with LZMA compression, STE QAT during warmdown, and test-time training. Final TTT val_bpb: 1.2622.",
+  "date": "2026-03-25T06:30:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 0.87456928,
+  "val_bpb": 1.26215432,
+  "pre_quant_val_loss": 0.8978,
+  "pre_quant_val_bpb": 1.2957,
+  "step_stop": 10635,
+  "wallclock_seconds": 599.732,
+  "bytes_total": 15691627,
+  "bytes_model_int6_lzma": 15625312,
+  "bytes_code": 66315
+}
