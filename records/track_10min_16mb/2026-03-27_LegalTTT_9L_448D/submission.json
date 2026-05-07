@@ -1,0 +1,16 @@
+{
+  "name": "Legal TTT + Temperature Calibration (9L/448D)",
+  "github_id": "Vibes-me",
+  "val_bpb": 1.20576485,
+  "val_loss": 2.03588345,
+  "total_bytes": 15867270,
+  "comment": "SP-1024 9x512 KV4 run at TRAIN_SEQ_LEN=2048 with Legal TTT and Post-TTT Temperature Calibration (T=0.98).",
+  "num_layers": 9,
+  "model_dim": 448,
+  "num_heads": 8,
+  "num_kv_heads": 4,
+  "mlp_mult": 3.0,
+  "ttt_enabled": true,
+  "ttt_temp": 0.98,
+  "max_wallclock_seconds": 600
+}
