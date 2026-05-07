@@ -1,0 +1,8 @@
+{
+  "name": "Kshitij",
+  "github": "singhaikshitijjain",
+  "val_bpb": 1.4315,
+  "description": "High-throughput compact transformer with Muon optimizer, EMA, flash attention, sliding-window validation, and int8 quantization",
+  "hardware": "1x H100 SXM",
+  "notes": "This submission implements multiple advanced techniques: Muon optimizer with Newton-Schulz orthogonalization, int8 post-training quantization with per-row scaling and zlib compression, tokenizer-agnostic BPB evaluation, U-Net style encoder-decoder transformer with skip connections, tied embeddings with custom LR, RMSNorm + rotary embeddings + GQA, SwiGLU MLP, distributed token streaming loader, EMA weight averaging, AdamW-style decoupled weight decay, gradient clipping, cosine warmup-warmdown LR schedule, flash attention, and sliding-window validation. Hyperparameters are passed via environment variables (visible in logs). Current run was executed on 1x H100 due to resource constraints; full intended configuration and performance scaling require 8x H100 SXM to maximize throughput, achieve lower BPB, and fully utilize distributed training optimizations."
+}
