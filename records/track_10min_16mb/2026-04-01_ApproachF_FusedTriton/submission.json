@@ -1,0 +1,9 @@
+{
+  "name": "Approach F: Fused Triton MLP Activation Kernel",
+  "val_bpb": null,
+  "bytes_total": null,
+  "blurb": "Fused Triton kernel for relu(x).square() activation eliminates intermediate HBM write in MLP forward+backward across 11 layers. Combined with Int5 GPTQ, 33.6M params, U-Net skips, XSA, BigramHash, SmearGate, value embeddings, SWA, EMA, and score-first TTT.",
+  "author": "Alex Ibarra",
+  "github_id": "elninja",
+  "date": "2026-04-01"
+}
