@@ -1,0 +1,9 @@
+{
+  "name": "7-gram N-gram Cache + XSA-All + LeakyReLU² + Parallel Muon",
+  "val_bpb": 0.8960,
+  "bytes_total": 15921427,
+  "blurb": "Eval-time 7-gram n-gram cache with near-zero backoff beta and fixed 80/20 cache/neural blending, delivering -0.2234 bpb over merged SOTA. No TTT, no online mixer -- a single-pass streaming cache does all the work. Built on PR #549 stack (LeakyReLU², XSA-all, Parallel Muon). 3-seed mean: 0.8960 (std 0.0004). All artifacts under 16MB, all eval under 3 min.",
+  "author": "armantsaturian",
+  "github_id": "armantsaturian",
+  "date": "2026-03-26"
+}
