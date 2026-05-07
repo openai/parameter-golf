@@ -1,0 +1,18 @@
+{
+  "author": "frido22",
+  "github_id": "frido22",
+  "name": "Mac mini M4 16GB Staged Reverse-Tail Recurrence Curriculum",
+  "blurb": "Apple Silicon / MLX non-record submission: compact 9x512 SP1024 recurrent-tail model with reverse tail traversal, decoder-output anchoring, staged recurrence curriculum, learned output calibration, rank-64 bigram adapter, and quant-aware int8+zlib endgame.",
+  "date": "2026-04-25T01:13:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 3.40875376,
+  "val_bpb": 1.51106031,
+  "pre_quant_val_loss": 3.4601,
+  "pre_quant_val_bpb": 1.5338,
+  "step_stop": 773,
+  "wallclock_seconds": 542.283,
+  "bytes_total": 15754935,
+  "bytes_model_int8_zlib": 15674932,
+  "bytes_code": 80003,
+  "hardware": "Mac mini M4 16GB"
+}
