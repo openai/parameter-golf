@@ -1,0 +1,6 @@
+{
+  "name": "10L-512dim-scaled",
+  "github_id": "vikrant-akavaram",
+  "val_bpb": 2.0630,
+  "notes": "10-layer baseline with 1000 iterations on 1xGB10. Exploring depth scaling within 16MB constraint."
+}
