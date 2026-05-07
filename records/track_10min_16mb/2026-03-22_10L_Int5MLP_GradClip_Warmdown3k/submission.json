@@ -1,0 +1,6 @@
+{
+  "val_bpb": 1.20262,
+  "val_bpb_seeds": [1.20375402, 1.20134663, 1.20275459],
+  "artifact_bytes": 15727520,
+  "technique": "10L Int5-MLP + Int6-Attn + FP16-Emb + GradClip + Warmdown3k"
+}
