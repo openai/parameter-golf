@@ -1,0 +1,16 @@
+{
+    "name": "Legend 128C",
+    "github_id": "weidi",
+    "val_bpb": 1.2331,
+    "model_config": {
+        "num_layers": 8,
+        "model_dim": 640,
+        "num_heads": 10,
+        "num_clusters": 128
+    },
+    "training_config": {
+        "iterations": 9200,
+        "train_batch_tokens": 262144,
+        "optimizer": "Muon + Adam"
+    }
+}

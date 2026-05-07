@@ -1,0 +1,185 @@
+--- Run started at 2026-04-06 13:23:24.573293 ---
+Config: {'cluster_lambda': 0.05, 'cluster_lr': 0.005, 'cluster_temp': 1.0, 'data_path': '/workspace/parameter-golf/data/datasets/fineweb10B_sp1024', 'embed_lr': 0.4, 'grad_clip_norm': 1.0, 'iterations': 9200, 'logit_softcap': 30.0, 'matrix_lr': 0.02, 'max_wallclock_seconds': 600, 'mlp_mult': 1.2, 'model_dim': 640, 'muon_backend_steps': 5, 'muon_momentum': 0.95, 'muon_momentum_warmup_start': 0.85, 'muon_momentum_warmup_steps': 500, 'num_clusters': 128, 'num_heads': 10, 'num_kv_heads': 1, 'num_layers': 8, 'rope_base': 10000.0, 'run_id': '0ab1d29c-2e5c-472b-9dd7-d9d6fc9a1538', 'scalar_lr': 0.04, 'seed': 1337, 'swa_enabled': True, 'tied_embed_init_std': 0.005, 'tokenizer_path': '/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model', 'train_batch_tokens': 262144, 'train_files': '/workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_train_*.bin', 'train_log_every': 100, 'train_seq_len': 1024, 'use_compile': True, 'val_batch_size': 2048, 'val_files': '/workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin', 'val_loss_every': 10000, 'vocab_size': 1024, 'warmdown_iters': 3500, 'warmup_iters': 100}
+
+[13:23:24] ====================================================================================================
+[13:23:24] Running Python 3.11.10 (main, Sep  7 2024, 18:35:41) [GCC 11.4.0]
+[13:23:24] Running PyTorch 2.4.1+cu124
+[13:23:24] --- NVIDIA-SMI LOG START ---
+[13:23:25] Mon Apr  6 13:23:24 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:18:00.0 Off |                    0 |
+| N/A   24C    P0             70W /  700W |       4MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:2A:00.0 Off |                    0 |
+| N/A   28C    P0            116W /  700W |     529MiB /  81559MiB |      1%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:3A:00.0 Off |                    0 |
+| N/A   30C    P0            117W /  700W |     549MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   25C    P0            119W /  700W |     529MiB /  81559MiB |      2%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:84:00.0 Off |                    0 |
+| N/A   25C    P0            117W /  700W |     551MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:8B:00.0 Off |                    0 |
+| N/A   28C    P0            120W /  700W |     613MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:91:00.0 Off |                    0 |
+| N/A   25C    P0            111W /  700W |     591MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:E4:00.0 Off |                    0 |
+| N/A   24C    P0            113W /  700W |     613MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    1   N/A  N/A           37104      C   /usr/bin/python                         604MiB |
+|    2   N/A  N/A           37105      C   /usr/bin/python                         604MiB |
+|    3   N/A  N/A           37106      C   /usr/bin/python                         562MiB |
+|    4   N/A  N/A           37107      C   /usr/bin/python                         604MiB |
+|    5   N/A  N/A           37108      C   /usr/bin/python                         604MiB |
+|    6   N/A  N/A           37109      C   /usr/bin/python                         604MiB |
+|    7   N/A  N/A           37110      C   /usr/bin/python                         604MiB |
++-----------------------------------------------------------------------------------------+
+
+[13:23:25] --- NVIDIA-SMI LOG END ---
+[13:23:25] ====================================================================================================
+[13:23:25] Compiling model for server speedup...
+[13:23:30] Loading validation tokens...
+[13:23:30] Loaded 62021846 tokens.
+[13:23:30] Run configuration: TRAIN (9200 steps)
+[13:23:30] Building LUTs...
+[13:23:30] Warming up torch.compile (~90s)...
+[13:23:57] Warmup complete. Official Marathon Timer starts NOW.
+[13:24:02] Step 1/9200 | loss:22.9760 | lr:0.000000 | step:4999ms | total:31.9s | ETA:12:46:21
+[13:24:02] Step 2/9200 | loss:22.9670 | lr:0.000200 | step:54ms | total:32.0s | ETA:0:08:19
+[13:24:02] Step 3/9200 | loss:22.4400 | lr:0.000400 | step:54ms | total:32.1s | ETA:0:08:14
+[13:24:02] Step 4/9200 | loss:21.3413 | lr:0.000600 | step:54ms | total:32.2s | ETA:0:08:18
+[13:24:02] Step 5/9200 | loss:20.8987 | lr:0.000800 | step:54ms | total:32.2s | ETA:0:08:16
+[13:24:02] Step 6/9200 | loss:20.3001 | lr:0.001000 | step:54ms | total:32.3s | ETA:0:08:17
+[13:24:03] Step 7/9200 | loss:18.6724 | lr:0.001200 | step:54ms | total:32.4s | ETA:0:08:16
+[13:24:03] Step 8/9200 | loss:17.3903 | lr:0.001400 | step:55ms | total:32.4s | ETA:0:08:21
+[13:24:03] Step 9/9200 | loss:15.0818 | lr:0.001600 | step:54ms | total:32.5s | ETA:0:08:16
+[13:24:03] Step 10/9200 | loss:13.8451 | lr:0.001800 | step:54ms | total:32.6s | ETA:0:08:17
+[13:24:08] Step 100/9200 | loss:4.0089 | lr:0.019800 | step:55ms | total:38.0s | ETA:0:08:23
+[13:24:14] Step 200/9200 | loss:3.2197 | lr:0.020000 | step:54ms | total:43.5s | ETA:0:08:09
+[13:24:19] Step 300/9200 | loss:2.5885 | lr:0.020000 | step:53ms | total:48.9s | ETA:0:07:52
+[13:24:24] Step 400/9200 | loss:2.4415 | lr:0.020000 | step:53ms | total:54.3s | ETA:0:07:42
+[13:24:30] Step 500/9200 | loss:2.4853 | lr:0.020000 | step:55ms | total:59.5s | ETA:0:07:59
+[13:24:35] Step 600/9200 | loss:2.5277 | lr:0.020000 | step:53ms | total:64.8s | ETA:0:07:32
+[13:24:40] Step 700/9200 | loss:2.3764 | lr:0.020000 | step:52ms | total:70.1s | ETA:0:07:26
+[13:24:46] Step 800/9200 | loss:2.3193 | lr:0.020000 | step:53ms | total:75.4s | ETA:0:07:21
+[13:24:51] Step 900/9200 | loss:2.2053 | lr:0.020000 | step:53ms | total:80.7s | ETA:0:07:15
+[13:24:56] Step 1000/9200 | loss:2.2522 | lr:0.020000 | step:53ms | total:86.0s | ETA:0:07:10
+[13:25:01] Step 1100/9200 | loss:2.1387 | lr:0.020000 | step:53ms | total:91.3s | ETA:0:07:06
+[13:25:07] Step 1200/9200 | loss:2.1625 | lr:0.020000 | step:53ms | total:96.6s | ETA:0:07:00
+[13:25:12] Step 1300/9200 | loss:2.0374 | lr:0.020000 | step:53ms | total:101.9s | ETA:0:06:54
+[13:25:17] Step 1400/9200 | loss:2.0473 | lr:0.020000 | step:55ms | total:107.2s | ETA:0:07:05
+[13:25:23] Step 1500/9200 | loss:1.9826 | lr:0.020000 | step:53ms | total:112.6s | ETA:0:06:44
+[13:25:28] Step 1600/9200 | loss:2.0806 | lr:0.020000 | step:55ms | total:118.0s | ETA:0:06:54
+[13:25:34] Step 1700/9200 | loss:2.2491 | lr:0.020000 | step:52ms | total:123.4s | ETA:0:06:33
+[13:25:39] Step 1800/9200 | loss:2.0874 | lr:0.020000 | step:53ms | total:128.7s | ETA:0:06:28
+[13:25:44] Step 1900/9200 | loss:2.0504 | lr:0.020000 | step:53ms | total:133.9s | ETA:0:06:23
+[13:25:53] Step 2000/9200 | loss:2.1220 | lr:0.020000 | step:55ms | total:143.0s | ETA:0:06:34
+[13:25:59] Step 2100/9200 | loss:2.1903 | lr:0.020000 | step:55ms | total:148.5s | ETA:0:06:28
+[13:26:04] Step 2200/9200 | loss:1.9119 | lr:0.020000 | step:55ms | total:154.0s | ETA:0:06:22
+[13:26:13] Step 2300/9200 | loss:2.1079 | lr:0.020000 | step:55ms | total:162.6s | ETA:0:06:17
+[13:26:18] Step 2400/9200 | loss:2.0002 | lr:0.020000 | step:56ms | total:168.1s | ETA:0:06:17
+[13:26:24] Step 2500/9200 | loss:1.9407 | lr:0.020000 | step:55ms | total:173.6s | ETA:0:06:05
+[13:26:29] Step 2600/9200 | loss:1.9086 | lr:0.020000 | step:55ms | total:179.1s | ETA:0:06:00
+[13:26:39] Step 2700/9200 | loss:2.1545 | lr:0.020000 | step:55ms | total:188.6s | ETA:0:05:56
+[13:26:44] Step 2800/9200 | loss:1.9754 | lr:0.020000 | step:55ms | total:194.1s | ETA:0:05:50
+[13:26:50] Step 2900/9200 | loss:1.9502 | lr:0.020000 | step:55ms | total:199.6s | ETA:0:05:44
+[13:26:55] Step 3000/9200 | loss:1.9818 | lr:0.020000 | step:55ms | total:205.1s | ETA:0:05:38
+[13:27:04] Step 3100/9200 | loss:1.9853 | lr:0.020000 | step:55ms | total:213.5s | ETA:0:05:35
+[13:27:09] Step 3200/9200 | loss:1.9684 | lr:0.020000 | step:55ms | total:219.0s | ETA:0:05:28
+[13:27:15] Step 3300/9200 | loss:1.9221 | lr:0.020000 | step:55ms | total:224.5s | ETA:0:05:22
+[13:27:20] Step 3400/9200 | loss:1.9467 | lr:0.020000 | step:55ms | total:230.0s | ETA:0:05:16
+[13:27:29] Step 3500/9200 | loss:2.1431 | lr:0.020000 | step:55ms | total:239.2s | ETA:0:05:12
+[13:27:35] Step 3600/9200 | loss:2.1240 | lr:0.020000 | step:55ms | total:244.6s | ETA:0:05:06
+[13:27:40] Step 3700/9200 | loss:1.9856 | lr:0.020000 | step:55ms | total:250.1s | ETA:0:05:00
+[13:27:46] Step 3800/9200 | loss:1.9574 | lr:0.020000 | step:54ms | total:255.6s | ETA:0:04:53
+[13:27:56] Step 3900/9200 | loss:1.8764 | lr:0.020000 | step:55ms | total:265.7s | ETA:0:04:49
+[13:28:01] Step 4000/9200 | loss:1.9292 | lr:0.020000 | step:55ms | total:271.2s | ETA:0:04:47
+[13:28:07] Step 4100/9200 | loss:1.9766 | lr:0.020000 | step:55ms | total:276.7s | ETA:0:04:39
+[13:28:16] Step 4200/9200 | loss:1.9692 | lr:0.020000 | step:55ms | total:285.7s | ETA:0:04:37
+[13:28:21] Step 4300/9200 | loss:1.9102 | lr:0.020000 | step:55ms | total:291.2s | ETA:0:04:28
+[13:28:27] Step 4400/9200 | loss:2.4180 | lr:0.020000 | step:55ms | total:296.6s | ETA:0:04:21
+[13:28:32] Step 4500/9200 | loss:2.0018 | lr:0.020000 | step:55ms | total:302.1s | ETA:0:04:16
+[13:28:42] Step 4600/9200 | loss:2.0034 | lr:0.020000 | step:55ms | total:311.7s | ETA:0:04:13
+[13:28:47] Step 4700/9200 | loss:1.9941 | lr:0.020000 | step:55ms | total:317.2s | ETA:0:04:07
+[13:28:53] Step 4800/9200 | loss:1.9226 | lr:0.020000 | step:55ms | total:322.7s | ETA:0:04:02
+[13:28:58] Step 4900/9200 | loss:2.0037 | lr:0.020000 | step:55ms | total:328.2s | ETA:0:03:54
+[13:29:08] Step 5000/9200 | loss:1.8534 | lr:0.020000 | step:55ms | total:337.5s | ETA:0:03:49
+[13:29:13] Step 5100/9200 | loss:1.9516 | lr:0.020000 | step:55ms | total:343.0s | ETA:0:03:43
+[13:29:19] Step 5200/9200 | loss:1.8150 | lr:0.020000 | step:55ms | total:348.4s | ETA:0:03:38
+[13:29:24] Step 5300/9200 | loss:1.8934 | lr:0.020000 | step:55ms | total:353.9s | ETA:0:03:33
+[13:29:33] Step 5400/9200 | loss:1.8308 | lr:0.020000 | step:54ms | total:362.6s | ETA:0:03:26
+[13:29:38] Step 5500/9200 | loss:2.0960 | lr:0.020000 | step:54ms | total:368.0s | ETA:0:03:21
+[13:29:44] Step 5600/9200 | loss:2.1237 | lr:0.020000 | step:54ms | total:373.5s | ETA:0:03:15
+[13:29:49] Step 5700/9200 | loss:2.0007 | lr:0.020000 | step:55ms | total:378.9s | ETA:0:03:12
+[13:29:59] Step 5800/9200 | loss:1.9819 | lr:0.019434 | step:55ms | total:388.6s | ETA:0:03:06
+[13:30:05] Step 5900/9200 | loss:1.9845 | lr:0.018863 | step:55ms | total:394.4s | ETA:0:03:01
+[13:30:10] Step 6000/9200 | loss:1.8900 | lr:0.018291 | step:55ms | total:400.2s | ETA:0:02:55
+[13:30:16] Step 6100/9200 | loss:1.8358 | lr:0.017720 | step:55ms | total:406.0s | ETA:0:02:49
+[13:30:26] Step 6200/9200 | loss:1.8952 | lr:0.017149 | step:55ms | total:415.7s | ETA:0:02:46
+[13:30:32] Step 6300/9200 | loss:1.9875 | lr:0.016577 | step:55ms | total:421.5s | ETA:0:02:39
+[13:30:37] Step 6400/9200 | loss:2.1584 | lr:0.016006 | step:55ms | total:427.3s | ETA:0:02:33
+[13:30:47] Step 6500/9200 | loss:1.9329 | lr:0.015434 | step:55ms | total:436.5s | ETA:0:02:27
+[13:30:52] Step 6600/9200 | loss:1.9495 | lr:0.014863 | step:55ms | total:442.3s | ETA:0:02:22
+[13:30:58] Step 6700/9200 | loss:1.7623 | lr:0.014291 | step:55ms | total:448.1s | ETA:0:02:16
+[13:31:04] Step 6800/9200 | loss:1.9802 | lr:0.013720 | step:55ms | total:453.9s | ETA:0:02:11
+[13:31:13] Step 6900/9200 | loss:2.1421 | lr:0.013149 | step:55ms | total:463.2s | ETA:0:02:05
+[13:31:19] Step 7000/9200 | loss:1.8181 | lr:0.012577 | step:53ms | total:468.9s | ETA:0:01:55
+[13:31:25] Step 7100/9200 | loss:2.0031 | lr:0.012006 | step:55ms | total:474.5s | ETA:0:01:54
+[13:31:30] Step 7200/9200 | loss:1.8211 | lr:0.011434 | step:55ms | total:480.2s | ETA:0:01:49
+[13:31:40] Step 7300/9200 | loss:2.1056 | lr:0.010863 | step:55ms | total:489.8s | ETA:0:01:43
+[13:31:46] Step 7400/9200 | loss:2.0691 | lr:0.010291 | step:55ms | total:495.5s | ETA:0:01:38
+[13:31:51] Step 7500/9200 | loss:1.8672 | lr:0.009720 | step:55ms | total:501.3s | ETA:0:01:33
+[13:31:57] Step 7600/9200 | loss:1.8610 | lr:0.009149 | step:53ms | total:506.9s | ETA:0:01:24
+[13:32:06] Step 7700/9200 | loss:1.9112 | lr:0.008577 | step:53ms | total:516.0s | ETA:0:01:18
+[13:32:12] Step 7800/9200 | loss:1.9010 | lr:0.008006 | step:53ms | total:521.5s | ETA:0:01:13
+[13:32:17] Step 7900/9200 | loss:1.9491 | lr:0.007434 | step:55ms | total:527.0s | ETA:0:01:11
+[13:32:23] Step 8000/9200 | loss:1.7622 | lr:0.006863 | step:55ms | total:532.7s | ETA:0:01:05
+[13:32:33] Step 8100/9200 | loss:1.8433 | lr:0.006291 | step:55ms | total:542.5s | ETA:0:01:00
+[13:32:38] Step 8200/9200 | loss:1.8227 | lr:0.005720 | step:54ms | total:548.3s | ETA:0:00:54
+[13:32:44] Step 8300/9200 | loss:2.1418 | lr:0.005149 | step:55ms | total:554.0s | ETA:0:00:49
+[13:32:52] Step 8400/9200 | loss:1.8478 | lr:0.004577 | step:55ms | total:561.6s | ETA:0:00:43
+[13:32:58] Step 8500/9200 | loss:1.8905 | lr:0.004006 | step:55ms | total:567.4s | ETA:0:00:38
+[13:33:08] Step 8600/9200 | loss:1.7028 | lr:0.003434 | step:55ms | total:577.5s | ETA:0:00:32
+[13:33:13] Step 8700/9200 | loss:1.8648 | lr:0.002863 | step:55ms | total:583.3s | ETA:0:00:27
+[13:33:19] Step 8800/9200 | loss:1.7048 | lr:0.002291 | step:55ms | total:589.0s | ETA:0:00:21
+[13:33:25] Step 8900/9200 | loss:1.9188 | lr:0.001720 | step:53ms | total:594.7s | ETA:0:00:15
+[13:33:35] Step 9000/9200 | loss:1.7943 | lr:0.001149 | step:55ms | total:604.5s | ETA:0:00:10
+[13:33:40] Step 9100/9200 | loss:1.7359 | lr:0.000577 | step:55ms | total:610.3s | ETA:0:00:05
+[13:33:46] Step 9200/9200 | loss:1.8834 | lr:0.000006 | step:55ms | total:616.1s | ETA:0:00:00
+[13:33:46] Step 9200/9200 validation...
+[13:34:29] Validation took 42.89s
+Step 9200/9200 | val_loss:2.0659 | val_bpb:1.2251 | train_time:616082ms
+[13:34:38] Quantizing and checking submission size...
+[13:34:40] Final Submission Stats:
+ - Compressed model: 12971408 bytes
+ - Code: 29164 bytes
+ - TOTAL: 13.00 MB
+[13:34:40] Success: Submission file saved as final_model.int8.ptz
+[13:34:40] Final Roundtrip validation...
+[13:34:49] Roundtrip check took 8.6748s
+[13:34:49] FINAL QUANTIZED - val_loss:2.0795 val_bpb:1.2331
