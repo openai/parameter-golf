@@ -1,0 +1,9 @@
+{
+  "name": "Ternary Koopman-Attention Hybrid (TKA-H) v5",
+  "blurb": "Pareto-optimal hybrid reasoner alternating 4 Attention and 4 Koopman-SSM layers using Shared-Block Recurrence (2 unique blocks tiled across depth). Employs an 8-stage convergence stack including 3-Phase Curriculum Sequencer (256->1024), Stochastic Depth (0.1), Ternary Noise Injection (0.02), and Self-Distillation KL-anchoring. Features EngramHash v2, EMA shadow weights (start@40%), NeoMuon with tuned LR (0.035/matrix, 0.052/embed), fast curriculum (15/40 phase split), and shortened warmdown (35%). Tuned via systematic 15-min ablation sweep across curriculum timing, LR, and noise.",
+  "date": "2026-04-02T00:00:00Z",
+  "val_loss": 3.3091,
+  "val_bpb": 1.9538,
+  "bytes_total": 990894,
+  "bytes_code": 124566
+}
