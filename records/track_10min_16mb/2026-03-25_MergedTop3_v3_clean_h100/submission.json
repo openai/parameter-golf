@@ -1,0 +1,16 @@
+{
+  "author": "Hael",
+  "github_id": "hesong0222-dev",
+  "name": "11L XSA4 + EMA + BigramHash + GPTQ-lite",
+  "blurb": "11 layers with XSA on the last 4 layers, EMA, 3x MLP, SmearGate, BigramHash(2048), mixed int6 + zstd, Partial RoPE, LN scale, and GPTQ-lite clip search. Single-seed 8xH100 run from March 25, 2026.",
+  "date": "2026-03-25T00:00:00Z",
+  "track": "track_10min_16mb",
+  "val_loss": 1.96565872,
+  "val_bpb": 1.16417381,
+  "step_stop": 5347,
+  "wallclock_seconds": 580.213,
+  "eval_time_seconds": 44.398,
+  "bytes_total": 15635201,
+  "bytes_model_int6_zstd": 15562277,
+  "bytes_code": 72924
+}
