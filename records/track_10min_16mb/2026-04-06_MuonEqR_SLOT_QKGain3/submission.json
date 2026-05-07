@@ -1,0 +1,10 @@
+{
+  "author": "taehwan",
+  "github_id": "taehwan",
+  "name": "Autoresearch-Guided Optimization: 100+ Experiments + Negative Results",
+  "track": "10min_16mb",
+  "val_bpb": null,
+  "val_loss": null,
+  "submission_type": "non-record",
+  "technique_summary": "Systematic autoresearch: 100+ experiments (80 Mac + 10 H100) testing hyperparameters with real Muon optimizer. Key findings: QK-Gain=3.0 helps (-0.002 BPB), MuonEq-R hurts with Parallel Muon, int4/Hadamard not viable, init_std tuning doesn't transfer from AdamW to Muon."
+}
