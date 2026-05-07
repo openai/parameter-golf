@@ -1,0 +1,21 @@
+{
+  "author": "Danilo Canivel",
+  "github_id": "canivel",
+  "name": "Record: 11L LeakyReLU² + XSA-all + Full GPTQ + SLOT(64) + AR-calib + BigramHash(3072,112)",
+  "blurb": "11L 512d GQA(8h/4kv). LeakyReLU(0.5)² MLP 3x. XSA on all 11 layers. Full Hessian GPTQ (Cholesky+column-reorder) with AR self-generated calibration (64×2048 tokens, temp=0.8). Int6 MLP+attn, Int8 embed, lzma preset=9. SLOT eval: 64 AdamW steps, cosine LR 0.010→0.001, warmstart=0.85. BigramHash(3072,112). Focal loss γ=1.0. Sqrt warmdown. Parallel Muon + EMA + SWA.",
+  "date": "2026-04-03T00:00:00Z",
+  "val_loss": 1.17365611,
+  "val_bpb": 0.69510710,
+  "pre_quant_val_bpb": 1.0508,
+  "sliding_window_val_bpb": 1.13158760,
+  "int6_lzma_roundtrip_val_bpb": 1.15488609,
+  "bytes_total": 15690779,
+  "bytes_model_int6_lzma": 15611244,
+  "bytes_code": 79535,
+  "training_steps": 5684,
+  "training_time_ms": 595081,
+  "slot_steps": 64,
+  "slot_eval_time_ms": 825384,
+  "seeds": [1337],
+  "notes": "Single seed run. SLOT eval takes 825s on 8×H100 SXM (above 600s). Seed 42 training completed (pre-quant 1.0525 BPB) but pod terminated before GPTQ finished. Will follow up with 3-seed validation and reduced SLOT_STEPS to fit eval budget."
+}
