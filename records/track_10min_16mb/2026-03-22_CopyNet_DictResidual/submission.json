@@ -1,0 +1,11 @@
+{
+  "author": "pinnerwt",
+  "github_id": "pinnerwt",
+  "name": "Copy Network + Dict Residual (LZ77 + Brotli inspired)",
+  "blurb": "Compression-theory-inspired architecture: LZ77 pointer mechanism for copying repeated tokens + frozen n-gram dictionary with neural residual correction. dim=640, 11 layers, tied embeddings.",
+  "date": "2026-03-22",
+  "val_loss": 0.0,
+  "val_bpb": 0.0,
+  "bytes_total": 0,
+  "bytes_code": 0
+}
