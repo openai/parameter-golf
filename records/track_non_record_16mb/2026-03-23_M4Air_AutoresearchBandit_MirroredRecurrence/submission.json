@@ -1,0 +1,18 @@
+{
+    "author": "Anirudha Ramesh",
+    "github_id": "AnirudhaRamesh",
+    "name": "M4 Air Autoresearch Bandit — Mirrored Recurrence + SwiGLU",
+    "blurb": "Distributed autoresearch with evolutionary bandit over 14 candidate architectures on M4 Air (16GB). 84 experiments overnight, 3.226 → 1.926 bpb. Best M4 Air score we're aware of. Key discoveries: warmdown schedule fix (-0.98 bpb), mirrored recurrence (4 unique blocks / 8 logical layers), SwiGLU, cross-pollination between candidates.",
+    "date": "2026-03-23T00:00:00Z",
+    "track": "non-record-16mb",
+    "val_loss": 3.2525,
+    "val_bpb": 1.9263,
+    "pre_quant_val_loss": null,
+    "pre_quant_val_bpb": null,
+    "step_stop": 807,
+    "wallclock_seconds": 600,
+    "bytes_total": null,
+    "bytes_model_int8_zlib": 5958856,
+    "bytes_code": null,
+    "gpu": "M4 Air (16GB)"
+}
