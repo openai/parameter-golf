@@ -1,0 +1,16 @@
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+step:0/20000 val_loss:6.9309 val_bpb:4.1049 train_time:0ms step_avg:0.02ms
+swa:start step:250
+late_qat:enabled step:416 scale:0.1499
+step:500/20000 train_loss:2.4300 train_time:318487ms step_avg:636.97ms
+step:943/20000 val_loss:2.3041 val_bpb:1.3646 train_time:600509ms step_avg:636.81ms
+stopping_early: wallclock_cap train_time:600509ms step:943/20000
+DIAGNOSTIC post_ema val_loss:2.4761 val_bpb:1.4665 eval_time:15592ms
+Serialized model: 106158518 bytes
+Serialized model int6+lzma: 7200188 bytes
+Total submission size int6+lzma: 7303141 bytes
+final_int6_roundtrip val_loss:3.9539 val_bpb:2.3417 eval_time:28383ms
+final_int6_roundtrip_exact val_loss:3.95388609 val_bpb:2.34171405
+final_int6_sliding_window val_loss:3.9528 val_bpb:2.3411 stride:64 eval_time:565334ms
+final_int6_sliding_window_exact val_loss:3.95279298 val_bpb:2.34107285
+final_int8_zlib_roundtrip_exact val_loss:3.95279298 val_bpb:2.34107285
