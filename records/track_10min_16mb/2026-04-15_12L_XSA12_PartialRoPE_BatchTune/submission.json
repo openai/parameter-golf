@@ -1,0 +1,22 @@
+{
+  "author": "KevinChunye",
+  "github_id": "KevinChunye",
+  "name": "12L XSA-all + Partial RoPE + Batch 786K",
+  "blurb": "12-layer architecture with XSA on all 12 layers, partial RoPE (16/64 dims), and 786K batch size. Systematic ablation across 11 experiments on 1xH100 identified 3 complementary improvements stacking to -0.0152 BPB. Full stack: SmearGate, BigramHash, EMA, GPTQ-lite int6 + zstd-22, Late QAT. 8xH100 results pending.",
+  "date": "2026-04-15",
+  "track": "10min_16mb",
+  "val_loss": null,
+  "val_bpb": null,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {},
+  "bytes_total": null,
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "12L+3x MLP, XSA all 12 layers, Partial RoPE 16/64, Batch 786K, SmearGate, BigramHash 2048x128, EMA 0.997, GPTQ-lite int6 + zstd-22, Late QAT",
+  "dev_results_1xH100_5K": {
+    "val_bpb": 1.1412,
+    "val_loss": 1.9269,
+    "artifact_bytes": 13492359,
+    "step_avg_ms": 886.55,
+    "steps": 5000
+  }
+}
