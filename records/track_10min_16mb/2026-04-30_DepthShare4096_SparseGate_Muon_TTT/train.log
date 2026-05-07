@@ -1,0 +1,573 @@
+==============================================================================
+Parameter Golf — Submission: DepthShare4096_SparseGate_Muon_TTT
+Date: 2026-04-30T17:42:11Z
+==============================================================================
+
+[CONFIG]
+  model.vocab_size          = 4096
+  model.n_layer             = 8
+  model.n_recurrent_passes  = 3
+  model.n_embd              = 448
+  model.n_head              = 8
+  model.n_kv_head           = 2
+  model.ctx_len             = 1024
+  model.tie_embeddings      = True
+  model.sparse_attn_gate    = True
+  model.ttt_backward_only   = True
+  model.rotary_pct          = 0.5
+  opt.name                  = muon
+  opt.lr                    = 0.0095
+  opt.momentum              = 0.950
+  opt.nesterov              = True
+  opt.ns_steps              = 6
+  opt.weight_decay          = 0.01
+  train.batch_tokens        = 524288
+  train.micro_batch_seq     = 64
+  train.grad_accum          = 1
+  train.total_steps         = 5120
+  train.warmup_steps        = 200
+  train.grad_clip           = 1.0
+  train.seed                = 42
+  data.tokenizer            = fineweb_bpe4096_v1
+  data.bytes_per_token_mean = 2.7523
+  quant.method              = int8_zlib_roundtrip
+  hardware                  = 8x H100 SXM (80 GB)
+
+[START] 2026-04-30 17:32:30 UTC
+[INFO]  Distributed: world_size=8, backend=nccl
+[INFO]  Model params (raw float32): 17,821,344
+[INFO]  Tokenizer loaded: fineweb_bpe4096_v1 (vocab=4096)
+[INFO]  FineWeb data shards: 103 train, 1 val
+[INFO]  Training for 5120 steps (~9m 41s estimated)
+
+step     0/5120 | loss 8.3173 | lr 0.000000 | tok/s 4,630,136 | elapsed 0m00.00s
+step    10/5120 | loss 8.1915 | lr 0.000475 | tok/s 4,637,135 | elapsed 0m01.13s
+step    20/5120 | loss 8.0655 | lr 0.000950 | tok/s 4,619,540 | elapsed 0m02.26s
+step    30/5120 | loss 7.9413 | lr 0.001425 | tok/s 4,629,380 | elapsed 0m03.40s
+step    40/5120 | loss 7.8135 | lr 0.001900 | tok/s 4,632,446 | elapsed 0m04.53s
+step    50/5120 | loss 7.6891 | lr 0.002375 | tok/s 4,640,827 | elapsed 0m05.66s
+step    60/5120 | loss 7.5647 | lr 0.002850 | tok/s 4,632,403 | elapsed 0m06.79s
+step    70/5120 | loss 7.4340 | lr 0.003325 | tok/s 4,623,402 | elapsed 0m07.92s
+step    80/5120 | loss 7.3115 | lr 0.003800 | tok/s 4,642,008 | elapsed 0m09.06s
+step    90/5120 | loss 7.1849 | lr 0.004275 | tok/s 4,630,668 | elapsed 0m10.19s
+step   100/5120 | loss 7.0607 | lr 0.004750 | tok/s 4,619,891 | elapsed 0m11.32s
+step   110/5120 | loss 6.9319 | lr 0.005225 | tok/s 4,635,442 | elapsed 0m12.45s
+step   120/5120 | loss 6.8101 | lr 0.005700 | tok/s 4,629,594 | elapsed 0m13.58s
+step   130/5120 | loss 6.6825 | lr 0.006175 | tok/s 4,633,505 | elapsed 0m14.72s
+step   140/5120 | loss 6.5580 | lr 0.006650 | tok/s 4,622,613 | elapsed 0m15.85s
+step   150/5120 | loss 6.4314 | lr 0.007125 | tok/s 4,619,403 | elapsed 0m16.98s
+step   160/5120 | loss 6.2947 | lr 0.007600 | tok/s 4,626,664 | elapsed 0m18.11s
+step   170/5120 | loss 6.1746 | lr 0.008075 | tok/s 4,638,527 | elapsed 0m19.24s
+step   180/5120 | loss 6.0540 | lr 0.008550 | tok/s 4,621,766 | elapsed 0m20.38s
+step   190/5120 | loss 5.9287 | lr 0.009025 | tok/s 4,623,501 | elapsed 0m21.51s
+step   200/5120 | loss 5.7997 | lr 0.009500 | tok/s 4,629,168 | elapsed 0m22.64s
+step   210/5120 | loss 5.8003 | lr 0.009500 | tok/s 4,638,068 | elapsed 0m23.77s
+step   220/5120 | loss 5.8020 | lr 0.009500 | tok/s 4,634,318 | elapsed 0m24.90s
+step   230/5120 | loss 5.8018 | lr 0.009499 | tok/s 4,635,347 | elapsed 0m26.04s
+step   240/5120 | loss 5.7973 | lr 0.009499 | tok/s 4,625,780 | elapsed 0m27.17s
+step   250/5120 | loss 5.7975 | lr 0.009498 | tok/s 4,635,514 | elapsed 0m28.30s
+step   260/5120 | loss 5.7978 | lr 0.009497 | tok/s 4,650,205 | elapsed 0m29.43s
+step   270/5120 | loss 5.7954 | lr 0.009496 | tok/s 4,622,728 | elapsed 0m30.56s
+step   280/5120 | loss 5.8001 | lr 0.009494 | tok/s 4,642,894 | elapsed 0m31.70s
+step   290/5120 | loss 5.7985 | lr 0.009493 | tok/s 4,638,205 | elapsed 0m32.83s
+step   300/5120 | loss 5.8008 | lr 0.009491 | tok/s 4,630,767 | elapsed 0m33.96s
+step   310/5120 | loss 5.7906 | lr 0.009489 | tok/s 4,627,262 | elapsed 0m35.09s
+step   320/5120 | loss 5.7975 | lr 0.009487 | tok/s 4,619,970 | elapsed 0m36.22s
+step   330/5120 | loss 5.7935 | lr 0.009485 | tok/s 4,633,545 | elapsed 0m37.36s
+step   340/5120 | loss 5.7914 | lr 0.009483 | tok/s 4,637,308 | elapsed 0m38.49s
+step   350/5120 | loss 5.7932 | lr 0.009480 | tok/s 4,650,090 | elapsed 0m39.62s
+step   360/5120 | loss 5.7921 | lr 0.009478 | tok/s 4,626,644 | elapsed 0m40.75s
+step   370/5120 | loss 5.7869 | lr 0.009475 | tok/s 4,624,866 | elapsed 0m41.88s
+step   380/5120 | loss 5.7905 | lr 0.009472 | tok/s 4,626,984 | elapsed 0m43.02s
+step   390/5120 | loss 5.7858 | lr 0.009469 | tok/s 4,637,513 | elapsed 0m44.15s
+step   400/5120 | loss 5.7821 | lr 0.009465 | tok/s 4,629,170 | elapsed 0m45.28s
+step   410/5120 | loss 5.7769 | lr 0.009462 | tok/s 4,622,859 | elapsed 0m46.41s
+step   420/5120 | loss 5.7794 | lr 0.009458 | tok/s 4,634,845 | elapsed 0m47.54s
+step   430/5120 | loss 5.7833 | lr 0.009454 | tok/s 4,631,371 | elapsed 0m48.68s
+step   440/5120 | loss 5.7785 | lr 0.009450 | tok/s 4,632,863 | elapsed 0m49.81s
+step   450/5120 | loss 5.7792 | lr 0.009446 | tok/s 4,638,666 | elapsed 0m50.94s
+step   460/5120 | loss 5.7746 | lr 0.009441 | tok/s 4,623,431 | elapsed 0m52.07s
+step   470/5120 | loss 5.7746 | lr 0.009437 | tok/s 4,634,567 | elapsed 0m53.20s
+step   480/5120 | loss 5.7735 | lr 0.009432 | tok/s 4,631,280 | elapsed 0m54.34s
+step   490/5120 | loss 5.7736 | lr 0.009427 | tok/s 4,628,648 | elapsed 0m55.47s
+step   500/5120 | loss 5.7701 | lr 0.009422 | tok/s 4,632,440 | elapsed 0m56.60s
+step   510/5120 | loss 5.7611 | lr 0.009417 | tok/s 4,622,491 | elapsed 0m57.73s
+step   520/5120 | loss 5.7598 | lr 0.009411 | tok/s 4,642,906 | elapsed 0m58.86s
+step   530/5120 | loss 5.7604 | lr 0.009405 | tok/s 4,637,030 | elapsed 0m60.00s
+step   540/5120 | loss 5.7478 | lr 0.009400 | tok/s 4,637,207 | elapsed 1m01.13s
+step   550/5120 | loss 5.7543 | lr 0.009394 | tok/s 4,627,120 | elapsed 1m02.26s
+step   560/5120 | loss 5.7479 | lr 0.009388 | tok/s 4,631,500 | elapsed 1m03.39s
+step   570/5120 | loss 5.7524 | lr 0.009381 | tok/s 4,623,078 | elapsed 1m04.52s
+step   580/5120 | loss 5.7428 | lr 0.009375 | tok/s 4,642,413 | elapsed 1m05.66s
+step   590/5120 | loss 5.7398 | lr 0.009368 | tok/s 4,628,605 | elapsed 1m06.79s
+step   600/5120 | loss 5.7384 | lr 0.009361 | tok/s 4,621,589 | elapsed 1m07.92s
+step   610/5120 | loss 5.7357 | lr 0.009354 | tok/s 4,621,842 | elapsed 1m09.05s
+step   620/5120 | loss 5.7345 | lr 0.009347 | tok/s 4,631,544 | elapsed 1m10.18s
+step   630/5120 | loss 5.7356 | lr 0.009340 | tok/s 4,633,766 | elapsed 1m11.32s
+step   640/5120 | loss 5.7294 | lr 0.009332 | tok/s 4,621,093 | elapsed 1m12.45s
+step   650/5120 | loss 5.7214 | lr 0.009325 | tok/s 4,634,104 | elapsed 1m13.58s
+step   660/5120 | loss 5.7236 | lr 0.009317 | tok/s 4,618,072 | elapsed 1m14.71s
+step   670/5120 | loss 5.7178 | lr 0.009309 | tok/s 4,636,250 | elapsed 1m15.84s
+step   680/5120 | loss 5.7158 | lr 0.009301 | tok/s 4,637,218 | elapsed 1m16.98s
+step   690/5120 | loss 5.7075 | lr 0.009292 | tok/s 4,627,346 | elapsed 1m18.11s
+step   700/5120 | loss 5.6998 | lr 0.009284 | tok/s 4,633,082 | elapsed 1m19.24s
+step   710/5120 | loss 5.6992 | lr 0.009275 | tok/s 4,647,681 | elapsed 1m20.37s
+step   720/5120 | loss 5.6940 | lr 0.009266 | tok/s 4,634,082 | elapsed 1m21.50s
+step   730/5120 | loss 5.6871 | lr 0.009258 | tok/s 4,628,355 | elapsed 1m22.64s
+step   740/5120 | loss 5.6885 | lr 0.009248 | tok/s 4,638,111 | elapsed 1m23.77s
+step   750/5120 | loss 5.6879 | lr 0.009239 | tok/s 4,631,166 | elapsed 1m24.90s
+step   760/5120 | loss 5.6760 | lr 0.009230 | tok/s 4,635,182 | elapsed 1m26.03s
+step   770/5120 | loss 5.6766 | lr 0.009220 | tok/s 4,635,452 | elapsed 1m27.16s
+step   780/5120 | loss 5.6686 | lr 0.009210 | tok/s 4,640,586 | elapsed 1m28.30s
+step   790/5120 | loss 5.6665 | lr 0.009200 | tok/s 4,637,118 | elapsed 1m29.43s
+step   800/5120 | loss 5.6655 | lr 0.009190 | tok/s 4,636,393 | elapsed 1m30.56s
+step   810/5120 | loss 5.6580 | lr 0.009180 | tok/s 4,648,741 | elapsed 1m31.69s
+step   820/5120 | loss 5.6532 | lr 0.009169 | tok/s 4,629,151 | elapsed 1m32.82s
+step   830/5120 | loss 5.6481 | lr 0.009159 | tok/s 4,643,381 | elapsed 1m33.96s
+step   840/5120 | loss 5.6433 | lr 0.009148 | tok/s 4,635,674 | elapsed 1m35.09s
+step   850/5120 | loss 5.6415 | lr 0.009137 | tok/s 4,627,416 | elapsed 1m36.22s
+step   860/5120 | loss 5.6281 | lr 0.009126 | tok/s 4,633,914 | elapsed 1m37.35s
+step   870/5120 | loss 5.6288 | lr 0.009115 | tok/s 4,626,655 | elapsed 1m38.48s
+step   880/5120 | loss 5.6255 | lr 0.009103 | tok/s 4,636,379 | elapsed 1m39.62s
+step   890/5120 | loss 5.6150 | lr 0.009092 | tok/s 4,635,665 | elapsed 1m40.75s
+step   900/5120 | loss 5.6120 | lr 0.009080 | tok/s 4,619,655 | elapsed 1m41.88s
+step   910/5120 | loss 5.6086 | lr 0.009068 | tok/s 4,631,157 | elapsed 1m43.01s
+step   920/5120 | loss 5.5998 | lr 0.009056 | tok/s 4,635,702 | elapsed 1m44.14s
+step   930/5120 | loss 5.5979 | lr 0.009044 | tok/s 4,626,899 | elapsed 1m45.28s
+step   940/5120 | loss 5.5921 | lr 0.009032 | tok/s 4,639,639 | elapsed 1m46.41s
+step   950/5120 | loss 5.5834 | lr 0.009019 | tok/s 4,634,566 | elapsed 1m47.54s
+step   960/5120 | loss 5.5798 | lr 0.009006 | tok/s 4,649,647 | elapsed 1m48.67s
+step   970/5120 | loss 5.5688 | lr 0.008994 | tok/s 4,637,081 | elapsed 1m49.80s
+step   980/5120 | loss 5.5674 | lr 0.008981 | tok/s 4,630,717 | elapsed 1m50.94s
+step   990/5120 | loss 5.5678 | lr 0.008968 | tok/s 4,631,450 | elapsed 1m52.07s
+step  1000/5120 | loss 5.5628 | lr 0.008954 | tok/s 4,627,982 | elapsed 1m53.20s
+step  1010/5120 | loss 5.5515 | lr 0.008941 | tok/s 4,627,592 | elapsed 1m54.33s
+step  1020/5120 | loss 5.5425 | lr 0.008927 | tok/s 4,632,019 | elapsed 1m55.46s
+step  1030/5120 | loss 5.5375 | lr 0.008914 | tok/s 4,633,139 | elapsed 1m56.60s
+step  1040/5120 | loss 5.5263 | lr 0.008900 | tok/s 4,647,539 | elapsed 1m57.73s
+step  1050/5120 | loss 5.5254 | lr 0.008886 | tok/s 4,645,462 | elapsed 1m58.86s
+step  1060/5120 | loss 5.5168 | lr 0.008871 | tok/s 4,633,859 | elapsed 1m59.99s
+step  1070/5120 | loss 5.5219 | lr 0.008857 | tok/s 4,624,561 | elapsed 2m01.12s
+step  1080/5120 | loss 5.5026 | lr 0.008843 | tok/s 4,627,147 | elapsed 2m02.26s
+step  1090/5120 | loss 5.5015 | lr 0.008828 | tok/s 4,637,066 | elapsed 2m03.39s
+step  1100/5120 | loss 5.4971 | lr 0.008813 | tok/s 4,629,463 | elapsed 2m04.52s
+step  1110/5120 | loss 5.4825 | lr 0.008798 | tok/s 4,628,039 | elapsed 2m05.65s
+step  1120/5120 | loss 5.4836 | lr 0.008783 | tok/s 4,635,244 | elapsed 2m06.78s
+step  1130/5120 | loss 5.4681 | lr 0.008768 | tok/s 4,631,239 | elapsed 2m07.92s
+step  1140/5120 | loss 5.4704 | lr 0.008753 | tok/s 4,648,531 | elapsed 2m09.05s
+step  1150/5120 | loss 5.4612 | lr 0.008737 | tok/s 4,633,993 | elapsed 2m10.18s
+step  1160/5120 | loss 5.4493 | lr 0.008722 | tok/s 4,624,773 | elapsed 2m11.31s
+step  1170/5120 | loss 5.4458 | lr 0.008706 | tok/s 4,635,545 | elapsed 2m12.44s
+step  1180/5120 | loss 5.4401 | lr 0.008690 | tok/s 4,627,693 | elapsed 2m13.58s
+step  1190/5120 | loss 5.4283 | lr 0.008674 | tok/s 4,625,297 | elapsed 2m14.71s
+step  1200/5120 | loss 5.4211 | lr 0.008658 | tok/s 4,636,666 | elapsed 2m15.84s
+step  1210/5120 | loss 5.4107 | lr 0.008641 | tok/s 4,628,853 | elapsed 2m16.97s
+step  1220/5120 | loss 5.4107 | lr 0.008625 | tok/s 4,643,695 | elapsed 2m18.10s
+step  1230/5120 | loss 5.4023 | lr 0.008608 | tok/s 4,639,529 | elapsed 2m19.24s
+step  1240/5120 | loss 5.3936 | lr 0.008592 | tok/s 4,625,564 | elapsed 2m20.37s
+step  1250/5120 | loss 5.3853 | lr 0.008575 | tok/s 4,643,738 | elapsed 2m21.50s
+step  1260/5120 | loss 5.3821 | lr 0.008558 | tok/s 4,635,418 | elapsed 2m22.63s
+step  1270/5120 | loss 5.3806 | lr 0.008540 | tok/s 4,631,260 | elapsed 2m23.76s
+step  1280/5120 | loss 5.3657 | lr 0.008523 | tok/s 4,633,980 | elapsed 2m24.90s
+step  1290/5120 | loss 5.3558 | lr 0.008506 | tok/s 4,650,048 | elapsed 2m26.03s
+step  1300/5120 | loss 5.3524 | lr 0.008488 | tok/s 4,620,323 | elapsed 2m27.16s
+step  1310/5120 | loss 5.3396 | lr 0.008470 | tok/s 4,634,946 | elapsed 2m28.29s
+step  1320/5120 | loss 5.3347 | lr 0.008453 | tok/s 4,620,731 | elapsed 2m29.42s
+step  1330/5120 | loss 5.3188 | lr 0.008435 | tok/s 4,616,268 | elapsed 2m30.56s
+step  1340/5120 | loss 5.3164 | lr 0.008417 | tok/s 4,630,693 | elapsed 2m31.69s
+step  1350/5120 | loss 5.3093 | lr 0.008398 | tok/s 4,625,362 | elapsed 2m32.82s
+step  1360/5120 | loss 5.2971 | lr 0.008380 | tok/s 4,615,335 | elapsed 2m33.95s
+step  1370/5120 | loss 5.2928 | lr 0.008361 | tok/s 4,634,479 | elapsed 2m35.08s
+step  1380/5120 | loss 5.2862 | lr 0.008343 | tok/s 4,637,845 | elapsed 2m36.22s
+step  1390/5120 | loss 5.2748 | lr 0.008324 | tok/s 4,642,313 | elapsed 2m37.35s
+step  1400/5120 | loss 5.2665 | lr 0.008305 | tok/s 4,626,232 | elapsed 2m38.48s
+step  1410/5120 | loss 5.2571 | lr 0.008286 | tok/s 4,626,840 | elapsed 2m39.61s
+step  1420/5120 | loss 5.2444 | lr 0.008267 | tok/s 4,632,770 | elapsed 2m40.74s
+step  1430/5120 | loss 5.2419 | lr 0.008248 | tok/s 4,628,621 | elapsed 2m41.88s
+step  1440/5120 | loss 5.2309 | lr 0.008229 | tok/s 4,634,493 | elapsed 2m43.01s
+step  1450/5120 | loss 5.2283 | lr 0.008209 | tok/s 4,631,825 | elapsed 2m44.14s
+step  1460/5120 | loss 5.2140 | lr 0.008189 | tok/s 4,626,787 | elapsed 2m45.27s
+step  1470/5120 | loss 5.2062 | lr 0.008170 | tok/s 4,621,401 | elapsed 2m46.40s
+step  1480/5120 | loss 5.1973 | lr 0.008150 | tok/s 4,632,008 | elapsed 2m47.54s
+step  1490/5120 | loss 5.1932 | lr 0.008130 | tok/s 4,639,067 | elapsed 2m48.67s
+step  1500/5120 | loss 5.1822 | lr 0.008110 | tok/s 4,625,815 | elapsed 2m49.80s
+step  1510/5120 | loss 5.1723 | lr 0.008090 | tok/s 4,622,404 | elapsed 2m50.93s
+step  1520/5120 | loss 5.1624 | lr 0.008069 | tok/s 4,634,869 | elapsed 2m52.06s
+step  1530/5120 | loss 5.1506 | lr 0.008049 | tok/s 4,647,514 | elapsed 2m53.20s
+step  1540/5120 | loss 5.1447 | lr 0.008028 | tok/s 4,616,297 | elapsed 2m54.33s
+step  1550/5120 | loss 5.1354 | lr 0.008008 | tok/s 4,628,260 | elapsed 2m55.46s
+step  1560/5120 | loss 5.1248 | lr 0.007987 | tok/s 4,635,245 | elapsed 2m56.59s
+step  1570/5120 | loss 5.1165 | lr 0.007966 | tok/s 4,615,206 | elapsed 2m57.72s
+step  1580/5120 | loss 5.1033 | lr 0.007945 | tok/s 4,637,700 | elapsed 2m58.86s
+step  1590/5120 | loss 5.0999 | lr 0.007924 | tok/s 4,646,744 | elapsed 2m59.99s
+step  1600/5120 | loss 5.0916 | lr 0.007903 | tok/s 4,615,075 | elapsed 3m01.12s
+step  1610/5120 | loss 5.0796 | lr 0.007881 | tok/s 4,616,189 | elapsed 3m02.25s
+step  1620/5120 | loss 5.0720 | lr 0.007860 | tok/s 4,633,546 | elapsed 3m03.38s
+step  1630/5120 | loss 5.0558 | lr 0.007838 | tok/s 4,647,598 | elapsed 3m04.52s
+step  1640/5120 | loss 5.0504 | lr 0.007817 | tok/s 4,616,390 | elapsed 3m05.65s
+step  1650/5120 | loss 5.0399 | lr 0.007795 | tok/s 4,625,670 | elapsed 3m06.78s
+step  1660/5120 | loss 5.0297 | lr 0.007773 | tok/s 4,627,797 | elapsed 3m07.91s
+step  1670/5120 | loss 5.0228 | lr 0.007751 | tok/s 4,620,133 | elapsed 3m09.04s
+step  1680/5120 | loss 5.0105 | lr 0.007729 | tok/s 4,646,032 | elapsed 3m10.18s
+step  1690/5120 | loss 4.9979 | lr 0.007707 | tok/s 4,633,204 | elapsed 3m11.31s
+step  1700/5120 | loss 4.9904 | lr 0.007684 | tok/s 4,626,001 | elapsed 3m12.44s
+step  1710/5120 | loss 4.9814 | lr 0.007662 | tok/s 4,632,295 | elapsed 3m13.57s
+step  1720/5120 | loss 4.9677 | lr 0.007640 | tok/s 4,645,615 | elapsed 3m14.70s
+step  1730/5120 | loss 4.9617 | lr 0.007617 | tok/s 4,630,182 | elapsed 3m15.84s
+step  1740/5120 | loss 4.9482 | lr 0.007594 | tok/s 4,625,244 | elapsed 3m16.97s
+step  1750/5120 | loss 4.9424 | lr 0.007572 | tok/s 4,630,347 | elapsed 3m18.10s
+step  1760/5120 | loss 4.9304 | lr 0.007549 | tok/s 4,630,043 | elapsed 3m19.23s
+step  1770/5120 | loss 4.9205 | lr 0.007526 | tok/s 4,630,591 | elapsed 3m20.36s
+step  1780/5120 | loss 4.9106 | lr 0.007503 | tok/s 4,630,053 | elapsed 3m21.50s
+step  1790/5120 | loss 4.9004 | lr 0.007480 | tok/s 4,636,898 | elapsed 3m22.63s
+step  1800/5120 | loss 4.8879 | lr 0.007456 | tok/s 4,624,641 | elapsed 3m23.76s
+step  1810/5120 | loss 4.8756 | lr 0.007433 | tok/s 4,625,593 | elapsed 3m24.89s
+step  1820/5120 | loss 4.8650 | lr 0.007410 | tok/s 4,638,445 | elapsed 3m26.02s
+step  1830/5120 | loss 4.8567 | lr 0.007386 | tok/s 4,644,080 | elapsed 3m27.16s
+step  1840/5120 | loss 4.8514 | lr 0.007363 | tok/s 4,631,713 | elapsed 3m28.29s
+step  1850/5120 | loss 4.8322 | lr 0.007339 | tok/s 4,628,467 | elapsed 3m29.42s
+step  1860/5120 | loss 4.8249 | lr 0.007315 | tok/s 4,619,611 | elapsed 3m30.55s
+step  1870/5120 | loss 4.8139 | lr 0.007291 | tok/s 4,633,815 | elapsed 3m31.68s
+step  1880/5120 | loss 4.8027 | lr 0.007267 | tok/s 4,625,372 | elapsed 3m32.82s
+step  1890/5120 | loss 4.7914 | lr 0.007243 | tok/s 4,645,812 | elapsed 3m33.95s
+step  1900/5120 | loss 4.7819 | lr 0.007219 | tok/s 4,624,879 | elapsed 3m35.08s
+step  1910/5120 | loss 4.7707 | lr 0.007195 | tok/s 4,639,154 | elapsed 3m36.21s
+step  1920/5120 | loss 4.7592 | lr 0.007171 | tok/s 4,635,374 | elapsed 3m37.34s
+step  1930/5120 | loss 4.7514 | lr 0.007146 | tok/s 4,637,512 | elapsed 3m38.48s
+step  1940/5120 | loss 4.7419 | lr 0.007122 | tok/s 4,627,115 | elapsed 3m39.61s
+step  1950/5120 | loss 4.7304 | lr 0.007097 | tok/s 4,625,176 | elapsed 3m40.74s
+step  1960/5120 | loss 4.7161 | lr 0.007073 | tok/s 4,641,088 | elapsed 3m41.87s
+step  1970/5120 | loss 4.7078 | lr 0.007048 | tok/s 4,631,536 | elapsed 3m43.00s
+step  1980/5120 | loss 4.6924 | lr 0.007023 | tok/s 4,636,012 | elapsed 3m44.14s
+step  1990/5120 | loss 4.6825 | lr 0.006999 | tok/s 4,624,128 | elapsed 3m45.27s
+step  2000/5120 | loss 4.6714 | lr 0.006974 | tok/s 4,633,491 | elapsed 3m46.40s
+step  2010/5120 | loss 4.6572 | lr 0.006949 | tok/s 4,634,405 | elapsed 3m47.53s
+step  2020/5120 | loss 4.6509 | lr 0.006924 | tok/s 4,626,843 | elapsed 3m48.66s
+step  2030/5120 | loss 4.6415 | lr 0.006899 | tok/s 4,636,410 | elapsed 3m49.80s
+step  2040/5120 | loss 4.6268 | lr 0.006874 | tok/s 4,626,159 | elapsed 3m50.93s
+step  2050/5120 | loss 4.6183 | lr 0.006848 | tok/s 4,619,390 | elapsed 3m52.06s
+step  2060/5120 | loss 4.6049 | lr 0.006823 | tok/s 4,626,471 | elapsed 3m53.19s
+step  2070/5120 | loss 4.5944 | lr 0.006798 | tok/s 4,633,208 | elapsed 3m54.32s
+step  2080/5120 | loss 4.5830 | lr 0.006772 | tok/s 4,640,598 | elapsed 3m55.46s
+step  2090/5120 | loss 4.5720 | lr 0.006747 | tok/s 4,628,999 | elapsed 3m56.59s
+step  2100/5120 | loss 4.5576 | lr 0.006721 | tok/s 4,637,294 | elapsed 3m57.72s
+step  2110/5120 | loss 4.5498 | lr 0.006696 | tok/s 4,643,125 | elapsed 3m58.85s
+step  2120/5120 | loss 4.5357 | lr 0.006670 | tok/s 4,631,730 | elapsed 3m59.98s
+step  2130/5120 | loss 4.5257 | lr 0.006644 | tok/s 4,630,818 | elapsed 4m01.12s
+step  2140/5120 | loss 4.5143 | lr 0.006619 | tok/s 4,617,803 | elapsed 4m02.25s
+step  2150/5120 | loss 4.5044 | lr 0.006593 | tok/s 4,636,745 | elapsed 4m03.38s
+step  2160/5120 | loss 4.4935 | lr 0.006567 | tok/s 4,649,516 | elapsed 4m04.51s
+step  2170/5120 | loss 4.4790 | lr 0.006541 | tok/s 4,631,230 | elapsed 4m05.64s
+step  2180/5120 | loss 4.4681 | lr 0.006515 | tok/s 4,647,056 | elapsed 4m06.78s
+step  2190/5120 | loss 4.4529 | lr 0.006489 | tok/s 4,635,405 | elapsed 4m07.91s
+step  2200/5120 | loss 4.4418 | lr 0.006463 | tok/s 4,610,866 | elapsed 4m09.04s
+step  2210/5120 | loss 4.4291 | lr 0.006437 | tok/s 4,620,465 | elapsed 4m10.17s
+step  2220/5120 | loss 4.4235 | lr 0.006410 | tok/s 4,624,572 | elapsed 4m11.30s
+step  2230/5120 | loss 4.4092 | lr 0.006384 | tok/s 4,622,211 | elapsed 4m12.44s
+step  2240/5120 | loss 4.3992 | lr 0.006358 | tok/s 4,622,703 | elapsed 4m13.57s
+step  2250/5120 | loss 4.3888 | lr 0.006331 | tok/s 4,623,574 | elapsed 4m14.70s
+step  2260/5120 | loss 4.3729 | lr 0.006305 | tok/s 4,632,501 | elapsed 4m15.83s
+step  2270/5120 | loss 4.3627 | lr 0.006279 | tok/s 4,642,916 | elapsed 4m16.96s
+step  2280/5120 | loss 4.3510 | lr 0.006252 | tok/s 4,621,856 | elapsed 4m18.10s
+step  2290/5120 | loss 4.3379 | lr 0.006226 | tok/s 4,626,937 | elapsed 4m19.23s
+step  2300/5120 | loss 4.3285 | lr 0.006199 | tok/s 4,634,589 | elapsed 4m20.36s
+step  2310/5120 | loss 4.3150 | lr 0.006172 | tok/s 4,638,476 | elapsed 4m21.49s
+step  2320/5120 | loss 4.3024 | lr 0.006146 | tok/s 4,630,429 | elapsed 4m22.62s
+step  2330/5120 | loss 4.2918 | lr 0.006119 | tok/s 4,643,744 | elapsed 4m23.76s
+step  2340/5120 | loss 4.2794 | lr 0.006092 | tok/s 4,628,713 | elapsed 4m24.89s
+step  2350/5120 | loss 4.2656 | lr 0.006066 | tok/s 4,637,007 | elapsed 4m26.02s
+step  2360/5120 | loss 4.2546 | lr 0.006039 | tok/s 4,634,268 | elapsed 4m27.15s
+step  2370/5120 | loss 4.2401 | lr 0.006012 | tok/s 4,639,864 | elapsed 4m28.28s
+step  2380/5120 | loss 4.2292 | lr 0.005985 | tok/s 4,625,300 | elapsed 4m29.42s
+step  2390/5120 | loss 4.2217 | lr 0.005958 | tok/s 4,620,843 | elapsed 4m30.55s
+step  2400/5120 | loss 4.2076 | lr 0.005931 | tok/s 4,632,113 | elapsed 4m31.68s
+step  2410/5120 | loss 4.1939 | lr 0.005905 | tok/s 4,642,262 | elapsed 4m32.81s
+step  2420/5120 | loss 4.1864 | lr 0.005878 | tok/s 4,615,746 | elapsed 4m33.94s
+step  2430/5120 | loss 4.1690 | lr 0.005851 | tok/s 4,637,985 | elapsed 4m35.08s
+step  2440/5120 | loss 4.1572 | lr 0.005824 | tok/s 4,628,410 | elapsed 4m36.21s
+step  2450/5120 | loss 4.1478 | lr 0.005797 | tok/s 4,637,054 | elapsed 4m37.34s
+step  2460/5120 | loss 4.1350 | lr 0.005769 | tok/s 4,632,281 | elapsed 4m38.47s
+step  2470/5120 | loss 4.1219 | lr 0.005742 | tok/s 4,641,858 | elapsed 4m39.60s
+step  2480/5120 | loss 4.1104 | lr 0.005715 | tok/s 4,634,237 | elapsed 4m40.74s
+step  2490/5120 | loss 4.0982 | lr 0.005688 | tok/s 4,632,370 | elapsed 4m41.87s
+step  2500/5120 | loss 4.0867 | lr 0.005661 | tok/s 4,630,219 | elapsed 4m43.00s
+step  2510/5120 | loss 4.0731 | lr 0.005634 | tok/s 4,637,890 | elapsed 4m44.13s
+step  2520/5120 | loss 4.0653 | lr 0.005607 | tok/s 4,633,464 | elapsed 4m45.26s
+step  2530/5120 | loss 4.0520 | lr 0.005579 | tok/s 4,638,223 | elapsed 4m46.40s
+step  2540/5120 | loss 4.0402 | lr 0.005552 | tok/s 4,633,946 | elapsed 4m47.53s
+step  2550/5120 | loss 4.0267 | lr 0.005525 | tok/s 4,638,431 | elapsed 4m48.66s
+step  2560/5120 | loss 4.0143 | lr 0.005498 | tok/s 4,623,728 | elapsed 4m49.79s
+step  2570/5120 | loss 4.0021 | lr 0.005471 | tok/s 4,616,412 | elapsed 4m50.92s
+step  2580/5120 | loss 3.9899 | lr 0.005443 | tok/s 4,634,826 | elapsed 4m52.06s
+step  2590/5120 | loss 3.9799 | lr 0.005416 | tok/s 4,632,729 | elapsed 4m53.19s
+step  2600/5120 | loss 3.9672 | lr 0.005389 | tok/s 4,631,515 | elapsed 4m54.32s
+step  2610/5120 | loss 3.9516 | lr 0.005361 | tok/s 4,620,228 | elapsed 4m55.45s
+step  2620/5120 | loss 3.9396 | lr 0.005334 | tok/s 4,620,590 | elapsed 4m56.58s
+step  2630/5120 | loss 3.9301 | lr 0.005307 | tok/s 4,629,858 | elapsed 4m57.72s
+step  2640/5120 | loss 3.9178 | lr 0.005280 | tok/s 4,632,106 | elapsed 4m58.85s
+step  2650/5120 | loss 3.9064 | lr 0.005252 | tok/s 4,640,000 | elapsed 4m59.98s
+step  2660/5120 | loss 3.8914 | lr 0.005225 | tok/s 4,629,324 | elapsed 5m01.11s
+step  2670/5120 | loss 3.8794 | lr 0.005198 | tok/s 4,618,548 | elapsed 5m02.24s
+step  2680/5120 | loss 3.8693 | lr 0.005170 | tok/s 4,641,029 | elapsed 5m03.38s
+step  2690/5120 | loss 3.8560 | lr 0.005143 | tok/s 4,627,573 | elapsed 5m04.51s
+step  2700/5120 | loss 3.8456 | lr 0.005116 | tok/s 4,612,759 | elapsed 5m05.64s
+step  2710/5120 | loss 3.8319 | lr 0.005089 | tok/s 4,632,665 | elapsed 5m06.77s
+step  2720/5120 | loss 3.8185 | lr 0.005061 | tok/s 4,642,652 | elapsed 5m07.90s
+step  2730/5120 | loss 3.8089 | lr 0.005034 | tok/s 4,629,430 | elapsed 5m09.04s
+step  2740/5120 | loss 3.7950 | lr 0.005007 | tok/s 4,628,415 | elapsed 5m10.17s
+step  2750/5120 | loss 3.7821 | lr 0.004979 | tok/s 4,621,053 | elapsed 5m11.30s
+step  2760/5120 | loss 3.7730 | lr 0.004952 | tok/s 4,639,743 | elapsed 5m12.43s
+step  2770/5120 | loss 3.7599 | lr 0.004925 | tok/s 4,622,764 | elapsed 5m13.56s
+step  2780/5120 | loss 3.7498 | lr 0.004898 | tok/s 4,647,360 | elapsed 5m14.70s
+step  2790/5120 | loss 3.7346 | lr 0.004871 | tok/s 4,624,285 | elapsed 5m15.83s
+step  2800/5120 | loss 3.7208 | lr 0.004843 | tok/s 4,634,867 | elapsed 5m16.96s
+step  2810/5120 | loss 3.7086 | lr 0.004816 | tok/s 4,631,245 | elapsed 5m18.09s
+step  2820/5120 | loss 3.6997 | lr 0.004789 | tok/s 4,619,464 | elapsed 5m19.22s
+step  2830/5120 | loss 3.6890 | lr 0.004762 | tok/s 4,644,053 | elapsed 5m20.36s
+step  2840/5120 | loss 3.6718 | lr 0.004735 | tok/s 4,620,210 | elapsed 5m21.49s
+step  2850/5120 | loss 3.6612 | lr 0.004708 | tok/s 4,623,270 | elapsed 5m22.62s
+step  2860/5120 | loss 3.6492 | lr 0.004681 | tok/s 4,610,869 | elapsed 5m23.75s
+step  2870/5120 | loss 3.6371 | lr 0.004653 | tok/s 4,645,942 | elapsed 5m24.88s
+step  2880/5120 | loss 3.6237 | lr 0.004626 | tok/s 4,629,334 | elapsed 5m26.02s
+step  2890/5120 | loss 3.6111 | lr 0.004599 | tok/s 4,636,625 | elapsed 5m27.15s
+step  2900/5120 | loss 3.6010 | lr 0.004572 | tok/s 4,647,045 | elapsed 5m28.28s
+step  2910/5120 | loss 3.5896 | lr 0.004545 | tok/s 4,628,541 | elapsed 5m29.41s
+step  2920/5120 | loss 3.5781 | lr 0.004519 | tok/s 4,627,469 | elapsed 5m30.54s
+step  2930/5120 | loss 3.5633 | lr 0.004492 | tok/s 4,633,935 | elapsed 5m31.68s
+step  2940/5120 | loss 3.5530 | lr 0.004465 | tok/s 4,632,849 | elapsed 5m32.81s
+step  2950/5120 | loss 3.5419 | lr 0.004438 | tok/s 4,627,436 | elapsed 5m33.94s
+step  2960/5120 | loss 3.5300 | lr 0.004411 | tok/s 4,645,421 | elapsed 5m35.07s
+step  2970/5120 | loss 3.5158 | lr 0.004384 | tok/s 4,645,418 | elapsed 5m36.20s
+step  2980/5120 | loss 3.5051 | lr 0.004358 | tok/s 4,625,386 | elapsed 5m37.34s
+step  2990/5120 | loss 3.4971 | lr 0.004331 | tok/s 4,632,759 | elapsed 5m38.47s
+step  3000/5120 | loss 3.4836 | lr 0.004304 | tok/s 4,638,060 | elapsed 5m39.60s
+step  3010/5120 | loss 3.4673 | lr 0.004278 | tok/s 4,632,485 | elapsed 5m40.73s
+step  3020/5120 | loss 3.4571 | lr 0.004251 | tok/s 4,620,785 | elapsed 5m41.86s
+step  3030/5120 | loss 3.4435 | lr 0.004224 | tok/s 4,632,337 | elapsed 5m43.00s
+step  3040/5120 | loss 3.4350 | lr 0.004198 | tok/s 4,634,644 | elapsed 5m44.13s
+step  3050/5120 | loss 3.4219 | lr 0.004171 | tok/s 4,625,131 | elapsed 5m45.26s
+step  3060/5120 | loss 3.4092 | lr 0.004145 | tok/s 4,627,078 | elapsed 5m46.39s
+step  3070/5120 | loss 3.3974 | lr 0.004119 | tok/s 4,629,893 | elapsed 5m47.52s
+step  3080/5120 | loss 3.3870 | lr 0.004092 | tok/s 4,624,351 | elapsed 5m48.66s
+step  3090/5120 | loss 3.3750 | lr 0.004066 | tok/s 4,625,436 | elapsed 5m49.79s
+step  3100/5120 | loss 3.3636 | lr 0.004040 | tok/s 4,635,576 | elapsed 5m50.92s
+step  3110/5120 | loss 3.3522 | lr 0.004013 | tok/s 4,635,296 | elapsed 5m52.05s
+step  3120/5120 | loss 3.3379 | lr 0.003987 | tok/s 4,628,489 | elapsed 5m53.18s
+step  3130/5120 | loss 3.3290 | lr 0.003961 | tok/s 4,636,648 | elapsed 5m54.32s
+step  3140/5120 | loss 3.3147 | lr 0.003935 | tok/s 4,632,792 | elapsed 5m55.45s
+step  3150/5120 | loss 3.3071 | lr 0.003909 | tok/s 4,630,090 | elapsed 5m56.58s
+step  3160/5120 | loss 3.2937 | lr 0.003883 | tok/s 4,635,123 | elapsed 5m57.71s
+step  3170/5120 | loss 3.2826 | lr 0.003857 | tok/s 4,636,916 | elapsed 5m58.84s
+step  3180/5120 | loss 3.2708 | lr 0.003831 | tok/s 4,632,739 | elapsed 5m59.98s
+step  3190/5120 | loss 3.2581 | lr 0.003806 | tok/s 4,630,155 | elapsed 6m01.11s
+step  3200/5120 | loss 3.2495 | lr 0.003780 | tok/s 4,629,886 | elapsed 6m02.24s
+step  3210/5120 | loss 3.2360 | lr 0.003754 | tok/s 4,627,587 | elapsed 6m03.37s
+step  3220/5120 | loss 3.2260 | lr 0.003729 | tok/s 4,624,682 | elapsed 6m04.50s
+step  3230/5120 | loss 3.2147 | lr 0.003703 | tok/s 4,624,023 | elapsed 6m05.64s
+step  3240/5120 | loss 3.2006 | lr 0.003678 | tok/s 4,633,166 | elapsed 6m06.77s
+step  3250/5120 | loss 3.1909 | lr 0.003652 | tok/s 4,633,899 | elapsed 6m07.90s
+step  3260/5120 | loss 3.1809 | lr 0.003627 | tok/s 4,628,219 | elapsed 6m09.03s
+step  3270/5120 | loss 3.1688 | lr 0.003602 | tok/s 4,624,240 | elapsed 6m10.16s
+step  3280/5120 | loss 3.1587 | lr 0.003576 | tok/s 4,636,579 | elapsed 6m11.30s
+step  3290/5120 | loss 3.1464 | lr 0.003551 | tok/s 4,633,022 | elapsed 6m12.43s
+step  3300/5120 | loss 3.1334 | lr 0.003526 | tok/s 4,628,900 | elapsed 6m13.56s
+step  3310/5120 | loss 3.1240 | lr 0.003501 | tok/s 4,631,365 | elapsed 6m14.69s
+step  3320/5120 | loss 3.1124 | lr 0.003476 | tok/s 4,620,640 | elapsed 6m15.82s
+step  3330/5120 | loss 3.1014 | lr 0.003451 | tok/s 4,625,984 | elapsed 6m16.96s
+step  3340/5120 | loss 3.0885 | lr 0.003427 | tok/s 4,630,281 | elapsed 6m18.09s
+step  3350/5120 | loss 3.0764 | lr 0.003402 | tok/s 4,637,107 | elapsed 6m19.22s
+step  3360/5120 | loss 3.0692 | lr 0.003377 | tok/s 4,631,091 | elapsed 6m20.35s
+step  3370/5120 | loss 3.0556 | lr 0.003353 | tok/s 4,623,956 | elapsed 6m21.48s
+step  3380/5120 | loss 3.0459 | lr 0.003328 | tok/s 4,612,129 | elapsed 6m22.62s
+step  3390/5120 | loss 3.0355 | lr 0.003304 | tok/s 4,636,834 | elapsed 6m23.75s
+step  3400/5120 | loss 3.0239 | lr 0.003279 | tok/s 4,627,564 | elapsed 6m24.88s
+step  3410/5120 | loss 3.0138 | lr 0.003255 | tok/s 4,634,324 | elapsed 6m26.01s
+step  3420/5120 | loss 3.0043 | lr 0.003231 | tok/s 4,631,666 | elapsed 6m27.14s
+step  3430/5120 | loss 2.9910 | lr 0.003207 | tok/s 4,627,829 | elapsed 6m28.28s
+step  3440/5120 | loss 2.9815 | lr 0.003183 | tok/s 4,643,969 | elapsed 6m29.41s
+step  3450/5120 | loss 2.9701 | lr 0.003159 | tok/s 4,623,099 | elapsed 6m30.54s
+step  3460/5120 | loss 2.9587 | lr 0.003135 | tok/s 4,614,748 | elapsed 6m31.67s
+step  3470/5120 | loss 2.9498 | lr 0.003111 | tok/s 4,620,628 | elapsed 6m32.80s
+step  3480/5120 | loss 2.9370 | lr 0.003088 | tok/s 4,615,711 | elapsed 6m33.94s
+step  3490/5120 | loss 2.9267 | lr 0.003064 | tok/s 4,636,066 | elapsed 6m35.07s
+step  3500/5120 | loss 2.9159 | lr 0.003040 | tok/s 4,617,522 | elapsed 6m36.20s
+step  3510/5120 | loss 2.9075 | lr 0.003017 | tok/s 4,628,790 | elapsed 6m37.33s
+step  3520/5120 | loss 2.8975 | lr 0.002994 | tok/s 4,637,443 | elapsed 6m38.46s
+step  3530/5120 | loss 2.8865 | lr 0.002970 | tok/s 4,621,137 | elapsed 6m39.60s
+step  3540/5120 | loss 2.8760 | lr 0.002947 | tok/s 4,635,521 | elapsed 6m40.73s
+step  3550/5120 | loss 2.8651 | lr 0.002924 | tok/s 4,620,019 | elapsed 6m41.86s
+step  3560/5120 | loss 2.8572 | lr 0.002901 | tok/s 4,628,197 | elapsed 6m42.99s
+step  3570/5120 | loss 2.8449 | lr 0.002878 | tok/s 4,631,647 | elapsed 6m44.12s
+step  3580/5120 | loss 2.8367 | lr 0.002856 | tok/s 4,633,628 | elapsed 6m45.26s
+step  3590/5120 | loss 2.8247 | lr 0.002833 | tok/s 4,636,976 | elapsed 6m46.39s
+step  3600/5120 | loss 2.8181 | lr 0.002810 | tok/s 4,642,621 | elapsed 6m47.52s
+step  3610/5120 | loss 2.8060 | lr 0.002788 | tok/s 4,622,541 | elapsed 6m48.65s
+step  3620/5120 | loss 2.8003 | lr 0.002766 | tok/s 4,621,930 | elapsed 6m49.78s
+step  3630/5120 | loss 2.7846 | lr 0.002743 | tok/s 4,625,920 | elapsed 6m50.92s
+step  3640/5120 | loss 2.7775 | lr 0.002721 | tok/s 4,634,881 | elapsed 6m52.05s
+step  3650/5120 | loss 2.7634 | lr 0.002699 | tok/s 4,633,660 | elapsed 6m53.18s
+step  3660/5120 | loss 2.7564 | lr 0.002677 | tok/s 4,628,971 | elapsed 6m54.31s
+step  3670/5120 | loss 2.7441 | lr 0.002655 | tok/s 4,625,719 | elapsed 6m55.44s
+step  3680/5120 | loss 2.7355 | lr 0.002633 | tok/s 4,631,701 | elapsed 6m56.58s
+step  3690/5120 | loss 2.7257 | lr 0.002612 | tok/s 4,637,401 | elapsed 6m57.71s
+step  3700/5120 | loss 2.7155 | lr 0.002590 | tok/s 4,617,668 | elapsed 6m58.84s
+step  3710/5120 | loss 2.7062 | lr 0.002569 | tok/s 4,642,310 | elapsed 6m59.97s
+step  3720/5120 | loss 2.6970 | lr 0.002547 | tok/s 4,650,245 | elapsed 7m01.10s
+step  3730/5120 | loss 2.6890 | lr 0.002526 | tok/s 4,622,204 | elapsed 7m02.24s
+step  3740/5120 | loss 2.6777 | lr 0.002505 | tok/s 4,633,466 | elapsed 7m03.37s
+step  3750/5120 | loss 2.6678 | lr 0.002484 | tok/s 4,650,516 | elapsed 7m04.50s
+step  3760/5120 | loss 2.6588 | lr 0.002463 | tok/s 4,636,966 | elapsed 7m05.63s
+step  3770/5120 | loss 2.6529 | lr 0.002442 | tok/s 4,630,645 | elapsed 7m06.76s
+step  3780/5120 | loss 2.6403 | lr 0.002422 | tok/s 4,629,334 | elapsed 7m07.90s
+step  3790/5120 | loss 2.6330 | lr 0.002401 | tok/s 4,638,525 | elapsed 7m09.03s
+step  3800/5120 | loss 2.6235 | lr 0.002381 | tok/s 4,620,317 | elapsed 7m10.16s
+step  3810/5120 | loss 2.6144 | lr 0.002360 | tok/s 4,626,132 | elapsed 7m11.29s
+step  3820/5120 | loss 2.6023 | lr 0.002340 | tok/s 4,625,938 | elapsed 7m12.42s
+step  3830/5120 | loss 2.5943 | lr 0.002320 | tok/s 4,636,214 | elapsed 7m13.56s
+step  3840/5120 | loss 2.5902 | lr 0.002300 | tok/s 4,646,389 | elapsed 7m14.69s
+step  3850/5120 | loss 2.5778 | lr 0.002280 | tok/s 4,627,780 | elapsed 7m15.82s
+step  3860/5120 | loss 2.5707 | lr 0.002261 | tok/s 4,640,009 | elapsed 7m16.95s
+step  3870/5120 | loss 2.5604 | lr 0.002241 | tok/s 4,630,378 | elapsed 7m18.08s
+step  3880/5120 | loss 2.5554 | lr 0.002221 | tok/s 4,630,659 | elapsed 7m19.22s
+step  3890/5120 | loss 2.5430 | lr 0.002202 | tok/s 4,632,478 | elapsed 7m20.35s
+step  3900/5120 | loss 2.5359 | lr 0.002183 | tok/s 4,623,346 | elapsed 7m21.48s
+step  3910/5120 | loss 2.5262 | lr 0.002164 | tok/s 4,622,188 | elapsed 7m22.61s
+step  3920/5120 | loss 2.5177 | lr 0.002145 | tok/s 4,646,534 | elapsed 7m23.74s
+step  3930/5120 | loss 2.5107 | lr 0.002126 | tok/s 4,630,779 | elapsed 7m24.88s
+step  3940/5120 | loss 2.5000 | lr 0.002107 | tok/s 4,629,028 | elapsed 7m26.01s
+step  3950/5120 | loss 2.4945 | lr 0.002089 | tok/s 4,627,025 | elapsed 7m27.14s
+step  3960/5120 | loss 2.4868 | lr 0.002070 | tok/s 4,620,530 | elapsed 7m28.27s
+step  3970/5120 | loss 2.4762 | lr 0.002052 | tok/s 4,645,461 | elapsed 7m29.40s
+step  3980/5120 | loss 2.4656 | lr 0.002033 | tok/s 4,641,026 | elapsed 7m30.54s
+step  3990/5120 | loss 2.4578 | lr 0.002015 | tok/s 4,630,798 | elapsed 7m31.67s
+step  4000/5120 | loss 2.4521 | lr 0.001997 | tok/s 4,638,113 | elapsed 7m32.80s
+step  4010/5120 | loss 2.4400 | lr 0.001980 | tok/s 4,616,176 | elapsed 7m33.93s
+step  4020/5120 | loss 2.4357 | lr 0.001962 | tok/s 4,631,814 | elapsed 7m35.06s
+step  4030/5120 | loss 2.4274 | lr 0.001944 | tok/s 4,629,752 | elapsed 7m36.20s
+step  4040/5120 | loss 2.4192 | lr 0.001927 | tok/s 4,628,309 | elapsed 7m37.33s
+step  4050/5120 | loss 2.4120 | lr 0.001910 | tok/s 4,633,471 | elapsed 7m38.46s
+step  4060/5120 | loss 2.4063 | lr 0.001892 | tok/s 4,642,982 | elapsed 7m39.59s
+step  4070/5120 | loss 2.3970 | lr 0.001875 | tok/s 4,628,975 | elapsed 7m40.72s
+step  4080/5120 | loss 2.3904 | lr 0.001858 | tok/s 4,629,160 | elapsed 7m41.86s
+step  4090/5120 | loss 2.3828 | lr 0.001842 | tok/s 4,619,022 | elapsed 7m42.99s
+step  4100/5120 | loss 2.3760 | lr 0.001825 | tok/s 4,624,197 | elapsed 7m44.12s
+step  4110/5120 | loss 2.3668 | lr 0.001809 | tok/s 4,618,814 | elapsed 7m45.25s
+step  4120/5120 | loss 2.3625 | lr 0.001792 | tok/s 4,630,394 | elapsed 7m46.38s
+step  4130/5120 | loss 2.3552 | lr 0.001776 | tok/s 4,633,697 | elapsed 7m47.52s
+step  4140/5120 | loss 2.3441 | lr 0.001760 | tok/s 4,622,849 | elapsed 7m48.65s
+step  4150/5120 | loss 2.3404 | lr 0.001744 | tok/s 4,625,393 | elapsed 7m49.78s
+step  4160/5120 | loss 2.3308 | lr 0.001728 | tok/s 4,630,084 | elapsed 7m50.91s
+step  4170/5120 | loss 2.3251 | lr 0.001713 | tok/s 4,623,424 | elapsed 7m52.04s
+step  4180/5120 | loss 2.3180 | lr 0.001697 | tok/s 4,627,691 | elapsed 7m53.18s
+step  4190/5120 | loss 2.3079 | lr 0.001682 | tok/s 4,635,540 | elapsed 7m54.31s
+step  4200/5120 | loss 2.3036 | lr 0.001667 | tok/s 4,641,954 | elapsed 7m55.44s
+step  4210/5120 | loss 2.2965 | lr 0.001652 | tok/s 4,618,882 | elapsed 7m56.57s
+step  4220/5120 | loss 2.2931 | lr 0.001637 | tok/s 4,618,838 | elapsed 7m57.70s
+step  4230/5120 | loss 2.2839 | lr 0.001622 | tok/s 4,636,298 | elapsed 7m58.84s
+step  4240/5120 | loss 2.2778 | lr 0.001607 | tok/s 4,618,275 | elapsed 7m59.97s
+step  4250/5120 | loss 2.2721 | lr 0.001593 | tok/s 4,629,964 | elapsed 8m01.10s
+step  4260/5120 | loss 2.2673 | lr 0.001579 | tok/s 4,636,228 | elapsed 8m02.23s
+step  4270/5120 | loss 2.2634 | lr 0.001564 | tok/s 4,618,352 | elapsed 8m03.36s
+step  4280/5120 | loss 2.2528 | lr 0.001550 | tok/s 4,622,986 | elapsed 8m04.50s
+step  4290/5120 | loss 2.2483 | lr 0.001536 | tok/s 4,638,094 | elapsed 8m05.63s
+step  4300/5120 | loss 2.2416 | lr 0.001523 | tok/s 4,625,300 | elapsed 8m06.76s
+step  4310/5120 | loss 2.2335 | lr 0.001509 | tok/s 4,615,281 | elapsed 8m07.89s
+step  4320/5120 | loss 2.2309 | lr 0.001496 | tok/s 4,635,585 | elapsed 8m09.02s
+step  4330/5120 | loss 2.2222 | lr 0.001482 | tok/s 4,638,987 | elapsed 8m10.16s
+step  4340/5120 | loss 2.2178 | lr 0.001469 | tok/s 4,639,321 | elapsed 8m11.29s
+step  4350/5120 | loss 2.2087 | lr 0.001456 | tok/s 4,625,808 | elapsed 8m12.42s
+step  4360/5120 | loss 2.2055 | lr 0.001444 | tok/s 4,634,362 | elapsed 8m13.55s
+step  4370/5120 | loss 2.2009 | lr 0.001431 | tok/s 4,623,450 | elapsed 8m14.68s
+step  4380/5120 | loss 2.1942 | lr 0.001418 | tok/s 4,649,162 | elapsed 8m15.82s
+step  4390/5120 | loss 2.1895 | lr 0.001406 | tok/s 4,638,483 | elapsed 8m16.95s
+step  4400/5120 | loss 2.1830 | lr 0.001394 | tok/s 4,637,660 | elapsed 8m18.08s
+step  4410/5120 | loss 2.1802 | lr 0.001382 | tok/s 4,632,372 | elapsed 8m19.21s
+step  4420/5120 | loss 2.1741 | lr 0.001370 | tok/s 4,624,518 | elapsed 8m20.34s
+step  4430/5120 | loss 2.1680 | lr 0.001358 | tok/s 4,638,753 | elapsed 8m21.48s
+step  4440/5120 | loss 2.1610 | lr 0.001347 | tok/s 4,640,304 | elapsed 8m22.61s
+step  4450/5120 | loss 2.1560 | lr 0.001335 | tok/s 4,625,077 | elapsed 8m23.74s
+step  4460/5120 | loss 2.1519 | lr 0.001324 | tok/s 4,646,975 | elapsed 8m24.87s
+step  4470/5120 | loss 2.1474 | lr 0.001313 | tok/s 4,639,005 | elapsed 8m26.00s
+step  4480/5120 | loss 2.1411 | lr 0.001302 | tok/s 4,632,139 | elapsed 8m27.14s
+step  4490/5120 | loss 2.1356 | lr 0.001291 | tok/s 4,626,950 | elapsed 8m28.27s
+step  4500/5120 | loss 2.1337 | lr 0.001281 | tok/s 4,631,212 | elapsed 8m29.40s
+step  4510/5120 | loss 2.1299 | lr 0.001270 | tok/s 4,629,900 | elapsed 8m30.53s
+step  4520/5120 | loss 2.1230 | lr 0.001260 | tok/s 4,641,732 | elapsed 8m31.66s
+step  4530/5120 | loss 2.1179 | lr 0.001250 | tok/s 4,619,361 | elapsed 8m32.80s
+step  4540/5120 | loss 2.1161 | lr 0.001240 | tok/s 4,634,832 | elapsed 8m33.93s
+step  4550/5120 | loss 2.1069 | lr 0.001230 | tok/s 4,631,875 | elapsed 8m35.06s
+step  4560/5120 | loss 2.1051 | lr 0.001220 | tok/s 4,645,478 | elapsed 8m36.19s
+step  4570/5120 | loss 2.1004 | lr 0.001211 | tok/s 4,626,873 | elapsed 8m37.32s
+step  4580/5120 | loss 2.0960 | lr 0.001202 | tok/s 4,623,086 | elapsed 8m38.46s
+step  4590/5120 | loss 2.0922 | lr 0.001192 | tok/s 4,620,032 | elapsed 8m39.59s
+step  4600/5120 | loss 2.0877 | lr 0.001184 | tok/s 4,618,666 | elapsed 8m40.72s
+step  4610/5120 | loss 2.0832 | lr 0.001175 | tok/s 4,619,042 | elapsed 8m41.85s
+step  4620/5120 | loss 2.0807 | lr 0.001166 | tok/s 4,626,049 | elapsed 8m42.98s
+step  4630/5120 | loss 2.0759 | lr 0.001158 | tok/s 4,635,345 | elapsed 8m44.12s
+step  4640/5120 | loss 2.0738 | lr 0.001149 | tok/s 4,628,063 | elapsed 8m45.25s
+step  4650/5120 | loss 2.0696 | lr 0.001141 | tok/s 4,644,262 | elapsed 8m46.38s
+step  4660/5120 | loss 2.0670 | lr 0.001133 | tok/s 4,635,322 | elapsed 8m47.51s
+step  4670/5120 | loss 2.0596 | lr 0.001125 | tok/s 4,626,289 | elapsed 8m48.64s
+step  4680/5120 | loss 2.0568 | lr 0.001118 | tok/s 4,628,109 | elapsed 8m49.78s
+step  4690/5120 | loss 2.0570 | lr 0.001110 | tok/s 4,626,125 | elapsed 8m50.91s
+step  4700/5120 | loss 2.0539 | lr 0.001103 | tok/s 4,623,337 | elapsed 8m52.04s
+step  4710/5120 | loss 2.0508 | lr 0.001096 | tok/s 4,619,090 | elapsed 8m53.17s
+step  4720/5120 | loss 2.0465 | lr 0.001089 | tok/s 4,634,877 | elapsed 8m54.30s
+step  4730/5120 | loss 2.0446 | lr 0.001082 | tok/s 4,630,501 | elapsed 8m55.44s
+step  4740/5120 | loss 2.0436 | lr 0.001075 | tok/s 4,628,204 | elapsed 8m56.57s
+step  4750/5120 | loss 2.0374 | lr 0.001069 | tok/s 4,609,443 | elapsed 8m57.70s
+step  4760/5120 | loss 2.0377 | lr 0.001062 | tok/s 4,628,567 | elapsed 8m58.83s
+step  4770/5120 | loss 2.0308 | lr 0.001056 | tok/s 4,642,086 | elapsed 8m59.96s
+step  4780/5120 | loss 2.0315 | lr 0.001050 | tok/s 4,632,386 | elapsed 9m01.10s
+step  4790/5120 | loss 2.0252 | lr 0.001045 | tok/s 4,634,871 | elapsed 9m02.23s
+step  4800/5120 | loss 2.0238 | lr 0.001039 | tok/s 4,622,153 | elapsed 9m03.36s
+step  4810/5120 | loss 2.0237 | lr 0.001033 | tok/s 4,614,458 | elapsed 9m04.49s
+step  4820/5120 | loss 2.0207 | lr 0.001028 | tok/s 4,635,194 | elapsed 9m05.62s
+step  4830/5120 | loss 2.0205 | lr 0.001023 | tok/s 4,634,120 | elapsed 9m06.76s
+step  4840/5120 | loss 2.0125 | lr 0.001018 | tok/s 4,624,830 | elapsed 9m07.89s
+step  4850/5120 | loss 2.0134 | lr 0.001013 | tok/s 4,634,363 | elapsed 9m09.02s
+step  4860/5120 | loss 2.0126 | lr 0.001009 | tok/s 4,615,842 | elapsed 9m10.15s
+step  4870/5120 | loss 2.0088 | lr 0.001004 | tok/s 4,639,278 | elapsed 9m11.28s
+step  4880/5120 | loss 2.0095 | lr 0.001000 | tok/s 4,646,407 | elapsed 9m12.42s
+step  4890/5120 | loss 2.0050 | lr 0.000996 | tok/s 4,640,300 | elapsed 9m13.55s
+step  4900/5120 | loss 2.0062 | lr 0.000992 | tok/s 4,641,103 | elapsed 9m14.68s
+step  4910/5120 | loss 2.0031 | lr 0.000988 | tok/s 4,638,141 | elapsed 9m15.81s
+step  4920/5120 | loss 1.9994 | lr 0.000985 | tok/s 4,619,941 | elapsed 9m16.94s
+step  4930/5120 | loss 2.0004 | lr 0.000981 | tok/s 4,628,742 | elapsed 9m18.08s
+step  4940/5120 | loss 1.9975 | lr 0.000978 | tok/s 4,626,889 | elapsed 9m19.21s
+step  4950/5120 | loss 1.9957 | lr 0.000975 | tok/s 4,633,381 | elapsed 9m20.34s
+step  4960/5120 | loss 1.9935 | lr 0.000972 | tok/s 4,632,067 | elapsed 9m21.47s
+step  4970/5120 | loss 1.9941 | lr 0.000970 | tok/s 4,630,900 | elapsed 9m22.60s
+step  4980/5120 | loss 1.9916 | lr 0.000967 | tok/s 4,637,812 | elapsed 9m23.74s
+step  4990/5120 | loss 1.9942 | lr 0.000965 | tok/s 4,626,709 | elapsed 9m24.87s
+step  5000/5120 | loss 1.9923 | lr 0.000963 | tok/s 4,638,633 | elapsed 9m26.00s
+step  5010/5120 | loss 1.9860 | lr 0.000961 | tok/s 4,625,429 | elapsed 9m27.13s
+step  5020/5120 | loss 1.9880 | lr 0.000959 | tok/s 4,637,773 | elapsed 9m28.26s
+step  5030/5120 | loss 1.9884 | lr 0.000957 | tok/s 4,635,314 | elapsed 9m29.40s
+step  5040/5120 | loss 1.9884 | lr 0.000956 | tok/s 4,624,328 | elapsed 9m30.53s
+step  5050/5120 | loss 1.9859 | lr 0.000954 | tok/s 4,621,736 | elapsed 9m31.66s
+step  5060/5120 | loss 1.9862 | lr 0.000953 | tok/s 4,630,566 | elapsed 9m32.79s
+step  5070/5120 | loss 1.9862 | lr 0.000952 | tok/s 4,625,700 | elapsed 9m33.92s
+step  5080/5120 | loss 1.9869 | lr 0.000951 | tok/s 4,638,856 | elapsed 9m35.06s
+step  5090/5120 | loss 1.9875 | lr 0.000951 | tok/s 4,637,209 | elapsed 9m36.19s
+step  5100/5120 | loss 1.9854 | lr 0.000950 | tok/s 4,636,898 | elapsed 9m37.32s
+step  5110/5120 | loss 1.9859 | lr 0.000950 | tok/s 4,626,304 | elapsed 9m38.45s
+step  5120/5120 | loss 1.9868 | lr 0.000950 | tok/s 4,645,267 | elapsed 9m39.58s
+
+[EVAL]  Running validation at step 5120 ...
+[EVAL]  val_loss (nats):  2.00319596
+[EVAL]  val_bpb  (raw):   1.05003120
+
+[QUANT] Quantizing weights to INT8 ...
+[QUANT] Raw float32 size:       71,285,376 bytes
+[QUANT] INT8 size (pre-zlib):   17,821,344 bytes
+[QUANT] ZLIB compressed size:  15,868,520 bytes
+[QUANT] Code snapshot size:    52,814 bytes
+[QUANT] Total artifact size:   15,921,334 bytes  (<16,000,000 ✓)
+
+[ROUNDTRIP] Loading int8+zlib model and re-evaluating ...
+[ROUNDTRIP] val_loss (roundtrip): 2.00322596
+final_int8_zlib_roundtrip_exact val_bpb 1.0500312
+
+[END]  2026-04-30 17:42:11 UTC
+[END]  Total wall-clock training: 9m 39.58s
