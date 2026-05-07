@@ -1,0 +1,13 @@
+canonical_record_surface:artifact_backed_default_alpha=0.30
+preserved_training_run_log:record_submission_20260408_alpha0p20.log
+preserved_training_run_summary:record_submission_20260408_alpha0p20.summary.json
+winning_sweep_log:reports/shallow_blue/shallow_blue_record_alpha_sweep_20260408_a0p30.log
+Submission code size: 92939 bytes
+Shallow Blue probe artifact size: 16982 bytes
+Total submission size int8+zlib: 15933037 bytes
+stopping_early: wallclock_cap train_time:595030ms step:13906/20000
+final_int8_zlib_roundtrip_exact val_loss:2.07145173 val_bpb:1.22683039 eval_time:5743ms
+final_shallow_blue_probe delta_bpb:-0.00619109 mixed_bpb:1.19948112 bits_saved:934994.00 mean_alpha:0.124339 alpha_rows:11913994 boosted_rows:3542710 ngram_emitted:11913994 repeat_emitted:3493754
+final_shallow_blue_probe_exact val_bpb:1.19948112 delta_bpb:-0.00619109 elapsed_seconds:267.340
+submission_score_source:final_shallow_blue_probe_exact
+reference_backbone_score_source:final_int8_zlib_roundtrip_exact

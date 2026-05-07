@@ -1,0 +1,18 @@
+{
+  "artifact_bytes": 15823116,
+  "artifact_path": "records/track_10min_16mb/2026-04-07_Shallow_Blue_Probe_BOS/final_model.int8.ptz",
+  "artifact_under_16mb": true,
+  "folder": "records/track_10min_16mb/2026-04-07_Shallow_Blue_Probe_BOS",
+  "log": "records/track_10min_16mb/2026-04-07_Shallow_Blue_Probe_BOS/record_submission_20260408_alpha0p20.log",
+  "probe_artifact_bytes": 16982,
+  "roundtrip_val_bpb": 1.22683039,
+  "roundtrip_val_loss": 2.07145173,
+  "shallow_blue_delta_bpb": -0.00591724,
+  "shallow_blue_elapsed_seconds": 283.935,
+  "shallow_blue_val_bpb": 1.19975497,
+  "step_stop": 13906,
+  "submission_code_bytes": 92939,
+  "submission_total_bytes_from_log": 15933037,
+  "submission_under_16mb": true,
+  "wallclock_stop_ms": 595030
+}
