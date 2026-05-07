@@ -1,0 +1,38 @@
+RECOVERED SUMMARY LOG
+source: JarvisLabs remote log was not copied before the instance paused.
+source_program_path: records/track_10min_16mb/2026-04-30_PR1855_PairGeomV_Clean/train_gpt.py
+hardware_note: JarvisLabs 8xH100
+recovery_note: Metrics below were captured from the live terminal polling output before the remote volume became inaccessible.
+
+iterations: 20000
+max_wallclock_seconds: 600.0
+num_layers: 11
+model_dim: 512
+num_heads: 8
+num_kv_heads: 4
+mlp_mult: 4
+matrix_lr: 0.026
+train_batch_tokens: 786432
+train_seq_len: 2048
+grad_accum_steps: 1
+eval_stride: 64
+ttt_enabled: True
+ttt_lr: 0.0001
+ttt_lora_lr: 0.0001
+ttt_lora_rank: 80
+pairgeom_v_absdiff: False
+pairgeom_v_collapse: True
+pairgeom_v_enabled: True
+pairgeom_v_rms: True
+seed: 43
+compute_dtype: bfloat16
+model_params:34515143
+
+stopping_early: wallclock_cap train_time: 599490ms step: 4996/20000
+diagnostic pre-quantization post-ema val_loss:2.3400 val_bpb:1.07519691 eval_time:0ms
+Serialized model quantized+pergroup: 15280239 bytes
+Total submission size quantized+pergroup: 15312945 bytes
+diagnostic quantized val_loss:2.3500 val_bpb:1.08481881 eval_time:0ms
+ttt_phased: total_docs:41597 prefix_docs:2500 suffix_docs:39097 num_phases:3 boundaries:[833,1666,2500]
+quantized_ttt_phased val_loss:2.34223850 val_bpb:1.07031169 eval_time:708421ms
+total_eval_time:708.4s
