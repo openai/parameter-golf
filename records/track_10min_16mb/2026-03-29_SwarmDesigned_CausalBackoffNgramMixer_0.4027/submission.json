@@ -1,0 +1,23 @@
+{
+  "author": "michaelwinczuk",
+  "github_id": "michaelwinczuk",
+  "val_bpb": 0.3958,
+  "val_bpb_std": 0.0011,
+  "seeds": {
+    "1337": 0.3957,
+    "7": 0.3948,
+    "2024": 0.3969
+  },
+  "artifact_bytes": {
+    "1337": 15943009,
+    "7": 15940706,
+    "2024": 15957577
+  },
+  "eval_time_seconds": {
+    "1337": 594,
+    "7": 583,
+    "2024": 596
+  },
+  "approach": "Causal BackoffNgramMixer with sliding-window eval",
+  "hardware": "8xH100 SXM"
+}
