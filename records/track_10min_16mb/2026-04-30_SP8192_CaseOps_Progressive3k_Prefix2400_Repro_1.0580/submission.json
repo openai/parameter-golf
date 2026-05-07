@@ -1,0 +1,61 @@
+{
+  "author": "Young Jae Koh",
+  "github_id": "hi-aduek",
+  "name": "Independent PR2014 prefix-2400 reproduction support",
+  "blurb": "Independent seed-42 support reproduction of PR #2014's SP8192 CaseOps progressive-3k stack. The saved artifact is evaluated with PHASED_TTT_PREFIX_DOCS=2400 to keep the validation-data TTT pass under 600s on this 8xH100 SXM node while preserving full validation target coverage.",
+  "date": "2026-04-30",
+  "track": "10min_16mb",
+  "result_type": "single_seed_reproduction_support",
+  "record_claim": false,
+  "support_package_for_pr": 2014,
+  "val_loss": 2.31538446,
+  "val_bpb": 1.05803761,
+  "seeds": [42],
+  "seed_results": {
+    "42": {
+      "val_loss": 2.31538446,
+      "val_bpb": 1.05803761,
+      "artifact_bytes": 15989499,
+      "compressed_model_bytes": 15951365,
+      "code_size_uncompressed": 191812,
+      "code_size_compressed": 38134,
+      "steps": 4703,
+      "train_wallclock_ms": 596137,
+      "eval_time_s": 591.4,
+      "eval_time_ms": 591446,
+      "val_tokens": 47853343,
+      "target_tokens": 47853343,
+      "pre_quant_val_loss": 2.32112568,
+      "pre_quant_val_bpb": 1.06066112,
+      "phased_ttt_prefix_docs": 2400,
+      "phased_ttt_num_phases": 1,
+      "final_model_int6_ptz_sha256": "BDA94161B07A2C0AC8917F2DDF82FFCDC78CD1EBDFE344BA95B1B7C0E3E726F4"
+    }
+  },
+  "comparison_baseline": "PR #1855 merged leaderboard record",
+  "comparison_baseline_bpb": 1.06107587,
+  "comparison_baseline_loss": 2.32202732,
+  "delta_vs_leaderboard_bpb": -0.00303826,
+  "delta_vs_leaderboard_nats": -0.00664286,
+  "artifact_bytes_max": 15989499,
+  "bytes_total": 15989499,
+  "train_wallclock_ms_max": 596137,
+  "eval_time_s_max": 591.4,
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.8.0+cu128",
+  "technique_summary": "PR #2014 SP8192 CaseOps progressive-3k stack with the same no_qv score-first TTT path, rerun at PHASED_TTT_PREFIX_DOCS=2400 for local eval-time compliance.",
+  "compliance": {
+    "artifact_under_16mb": true,
+    "train_under_600s_strict": true,
+    "eval_under_600s": true,
+    "three_seeds": false,
+    "full_validation_targets": true,
+    "score_before_update": "Quantized phased TTT scores each validation chunk before applying that chunk's LoRA update; this support run only changes the prefix document budget to 2400.",
+    "no_validation_training_leak": true,
+    "val_tokens_equal_target_tokens": true
+  },
+  "logs": {
+    "seed42_train_artifact": "train_seed42_repro.log",
+    "seed42_prefix2400_eval": "eval_seed42_prefix2400.log"
+  }
+}
