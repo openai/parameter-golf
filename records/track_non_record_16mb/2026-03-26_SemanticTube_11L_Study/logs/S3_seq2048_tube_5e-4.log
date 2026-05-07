@@ -1,0 +1,78 @@
+W0326 15:11:37.339000 137564363829888 torch/distributed/run.py:779] 
+W0326 15:11:37.339000 137564363829888 torch/distributed/run.py:779] *****************************************
+W0326 15:11:37.339000 137564363829888 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 15:11:37.339000 137564363829888 torch/distributed/run.py:779] *****************************************
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+logs/197dd7ef-9fe6-4ba2-b9e5-9b02e98d5a3b.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26502232
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=True flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:524288 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+ema:initialized from model init (alpha=0.997)
+step:0/20000 val_loss:6.9418 val_bpb:4.1113 train_time:0ms step_avg:0.03ms
+trajectory_metrics: drift_cos:0.8476 curvature:1.825506 isotropy:0.0104
+step:1/20000 train_loss:6.9406 train_time:236ms step_avg:236.07ms
+grad_guided_quant: started accumulating (79 tensors)
+step:2/20000 train_loss:7.9883 train_time:506ms step_avg:253.17ms
+step:3/20000 train_loss:7.9214 train_time:751ms step_avg:250.33ms
+step:4/20000 train_loss:7.2045 train_time:997ms step_avg:249.14ms
+step:5/20000 train_loss:6.5435 train_time:1241ms step_avg:248.30ms
+step:6/20000 train_loss:6.8249 train_time:1497ms step_avg:249.44ms
+step:7/20000 train_loss:6.4202 train_time:1740ms step_avg:248.59ms
+step:8/20000 train_loss:6.2716 train_time:1996ms step_avg:249.51ms
+step:9/20000 train_loss:6.1786 train_time:2243ms step_avg:249.17ms
+step:10/20000 train_loss:6.0504 train_time:2498ms step_avg:249.78ms
+step:200/20000 train_loss:2.7079 train_time:50076ms step_avg:250.38ms
+step:400/20000 train_loss:2.2279 train_time:100377ms step_avg:250.94ms
+step:600/20000 train_loss:2.4291 train_time:151257ms step_avg:252.10ms
+step:800/20000 train_loss:2.1806 train_time:201853ms step_avg:252.32ms
+step:1000/20000 train_loss:2.2839 train_time:252542ms step_avg:252.54ms
+step:1000/20000 val_loss:2.2297 val_bpb:1.3206 train_time:252571ms step_avg:252.57ms
+trajectory_metrics: drift_cos:0.8754 curvature:0.882596 isotropy:0.0132
+step:1200/20000 train_loss:2.2952 train_time:303588ms step_avg:252.99ms
+step:1400/20000 train_loss:2.3257 train_time:353566ms step_avg:252.55ms
+step:1600/20000 train_loss:1.9816 train_time:403732ms step_avg:252.33ms
+step:1800/20000 train_loss:2.0880 train_time:454357ms step_avg:252.42ms
+step:2000/20000 train_loss:2.0960 train_time:504356ms step_avg:252.18ms
+step:2000/20000 val_loss:2.0976 val_bpb:1.2423 train_time:504384ms step_avg:252.19ms
+trajectory_metrics: drift_cos:0.8785 curvature:0.734441 isotropy:0.0110
+step:2200/20000 train_loss:2.1879 train_time:554803ms step_avg:252.18ms
+step:2380/20000 val_loss:2.0560 val_bpb:1.2177 train_time:600127ms step_avg:252.15ms
+trajectory_metrics: drift_cos:0.8800 curvature:0.618301 isotropy:0.0094
+stopping_early: wallclock_cap train_time:600127ms step:2380/20000
+peak memory allocated: 26482 MiB reserved: 28134 MiB
+ema:loading shadow weights (alpha=0.997)
+skip_quant=True: skipping serialization and roundtrip validation

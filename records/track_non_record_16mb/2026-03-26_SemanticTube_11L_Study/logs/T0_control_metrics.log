@@ -1,0 +1,73 @@
+W0326 12:54:53.580000 131049213178496 torch/distributed/run.py:779] 
+W0326 12:54:53.580000 131049213178496 torch/distributed/run.py:779] *****************************************
+W0326 12:54:53.580000 131049213178496 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 12:54:53.580000 131049213178496 torch/distributed/run.py:779] *****************************************
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+logs/8bbb5530-71e5-4f23-9afa-937638a6c38e.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26502232
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=True flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+ema:initialized from model init (alpha=0.997)
+step:0/20000 val_loss:6.9410 val_bpb:4.1108 train_time:0ms step_avg:0.03ms
+trajectory_metrics: drift_cos:0.8443 curvature:1.820615 isotropy:0.0108
+step:1/20000 train_loss:6.9404 train_time:328ms step_avg:327.61ms
+grad_guided_quant: started accumulating (79 tensors)
+step:2/20000 train_loss:8.1056 train_time:679ms step_avg:339.31ms
+step:3/20000 train_loss:7.9810 train_time:1012ms step_avg:337.30ms
+step:4/20000 train_loss:7.3332 train_time:1379ms step_avg:344.67ms
+step:5/20000 train_loss:6.6028 train_time:1711ms step_avg:342.28ms
+step:6/20000 train_loss:6.3545 train_time:2094ms step_avg:348.93ms
+step:7/20000 train_loss:6.1758 train_time:2428ms step_avg:346.79ms
+step:8/20000 train_loss:6.1605 train_time:2771ms step_avg:346.38ms
+step:9/20000 train_loss:6.0645 train_time:3103ms step_avg:344.80ms
+step:10/20000 train_loss:5.9522 train_time:3436ms step_avg:343.65ms
+step:200/20000 train_loss:2.4886 train_time:69037ms step_avg:345.19ms
+step:400/20000 train_loss:2.4566 train_time:141231ms step_avg:353.08ms
+step:600/20000 train_loss:2.3552 train_time:210285ms step_avg:350.48ms
+step:800/20000 train_loss:2.2491 train_time:283964ms step_avg:354.95ms
+step:1000/20000 train_loss:2.2683 train_time:353068ms step_avg:353.07ms
+step:1000/20000 val_loss:2.2308 val_bpb:1.3212 train_time:353083ms step_avg:353.08ms
+trajectory_metrics: drift_cos:0.7314 curvature:27.696085 isotropy:0.0166
+step:1200/20000 train_loss:2.3428 train_time:425384ms step_avg:354.49ms
+step:1400/20000 train_loss:2.1981 train_time:497220ms step_avg:355.16ms
+step:1600/20000 train_loss:2.1538 train_time:566247ms step_avg:353.90ms
+step:1692/20000 val_loss:2.1266 val_bpb:1.2595 train_time:600003ms step_avg:354.61ms
+trajectory_metrics: drift_cos:0.7361 curvature:20.576153 isotropy:0.0135
+stopping_early: wallclock_cap train_time:600003ms step:1692/20000
+peak memory allocated: 39490 MiB reserved: 41862 MiB
+ema:loading shadow weights (alpha=0.997)
+skip_quant=True: skipping serialization and roundtrip validation

@@ -1,0 +1,73 @@
+W0326 13:29:37.116000 127681025135232 torch/distributed/run.py:779] 
+W0326 13:29:37.116000 127681025135232 torch/distributed/run.py:779] *****************************************
+W0326 13:29:37.116000 127681025135232 torch/distributed/run.py:779] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0326 13:29:37.116000 127681025135232 torch/distributed/run.py:779] *****************************************
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+flash_attention: requested=fa3 strict=1 active=fa3
+logs/e4a7e637-b391-476f-aacd-ddb4813de5e4.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:10
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26502232
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=True flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:42
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+ema:initialized from model init (alpha=0.997)
+step:0/20000 val_loss:6.9413 val_bpb:4.1110 train_time:0ms step_avg:0.05ms
+trajectory_metrics: drift_cos:0.8443 curvature:1.820615 isotropy:0.0108
+step:1/20000 train_loss:6.9407 train_time:341ms step_avg:341.19ms
+grad_guided_quant: started accumulating (79 tensors)
+step:2/20000 train_loss:8.1037 train_time:685ms step_avg:342.31ms
+step:3/20000 train_loss:7.9750 train_time:1030ms step_avg:343.38ms
+step:4/20000 train_loss:7.3156 train_time:1376ms step_avg:344.11ms
+step:5/20000 train_loss:6.6457 train_time:1721ms step_avg:344.16ms
+step:6/20000 train_loss:6.4068 train_time:2063ms step_avg:343.77ms
+step:7/20000 train_loss:6.2007 train_time:2416ms step_avg:345.07ms
+step:8/20000 train_loss:6.1445 train_time:2759ms step_avg:344.87ms
+step:9/20000 train_loss:6.0364 train_time:3113ms step_avg:345.88ms
+step:10/20000 train_loss:5.9461 train_time:3457ms step_avg:345.71ms
+step:200/20000 train_loss:2.4375 train_time:69605ms step_avg:348.02ms
+step:400/20000 train_loss:2.4294 train_time:142827ms step_avg:357.07ms
+step:600/20000 train_loss:2.3344 train_time:212371ms step_avg:353.95ms
+step:800/20000 train_loss:2.2348 train_time:286347ms step_avg:357.93ms
+step:1000/20000 train_loss:2.2550 train_time:356006ms step_avg:356.01ms
+step:1000/20000 val_loss:2.2190 val_bpb:1.3142 train_time:356021ms step_avg:356.02ms
+trajectory_metrics: drift_cos:0.7820 curvature:2.060524 isotropy:0.0152
+step:1200/20000 train_loss:2.3342 train_time:429677ms step_avg:358.06ms
+step:1400/20000 train_loss:2.1908 train_time:502399ms step_avg:358.86ms
+step:1600/20000 train_loss:2.1366 train_time:572136ms step_avg:357.58ms
+step:1671/20000 val_loss:2.1195 val_bpb:1.2553 train_time:599935ms step_avg:359.03ms
+trajectory_metrics: drift_cos:0.7770 curvature:1.518946 isotropy:0.0143
+stopping_early: wallclock_cap train_time:599935ms step:1671/20000
+peak memory allocated: 39490 MiB reserved: 42038 MiB
+ema:loading shadow weights (alpha=0.997)
+skip_quant=True: skipping serialization and roundtrip validation
