@@ -1,0 +1,7 @@
+{
+  "short_description": "EPSILON-AETHER: JL-projected S^31 geometric attention scoring + block sparsity (12L, int5/int6, SmearGate, SWA)",
+  "interesting": true,
+  "record_on_date": true,
+  "val_bpb": null,
+  "notes": "Uses Epsilon Johnson-Lindenstrauss bridge to map queries/keys to S^31, driving O(32*N) Cauchy-Schwarz AETHER block pruning. Formal safety via Lean 4."
+}
