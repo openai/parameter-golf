@@ -1,0 +1,29 @@
+model_params:17059912
+recurrence:physical_layers=9 passes=1 effective_depth=9
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+muon_backend_steps:6 muon_momentum_warmup_steps:1000 warmdown_iters:1500 eval_stride:256
+stopping_early: wallclock_cap train_time:600054ms step:13688/20000
+peak memory allocated: 10193 MiB reserved: 10710 MiB
+Serialized model int8+zlib: 15826978 bytes
+Total submission size int8+zlib: 15882060 bytes
+final_int8_zlib_roundtrip val_loss:2.0760 val_bpb:1.2295 eval_time:1407ms
+final_int8_zlib_roundtrip_exact val_loss:2.07597821 val_bpb:1.22951123
+final_sliding_window val_loss:2.0208 val_bpb:1.1968 stride:256 eval_time:155611ms
+final_sliding_window_exact val_loss:2.02080438 val_bpb:1.19683418
+
+--- Seed 42 ---
+stopping_early: wallclock_cap step:13688/20000
+final_int8_zlib_roundtrip_exact val_loss:2.07681090 val_bpb:1.23000440
+final_sliding_window val_loss:2.0217 val_bpb:1.1974 stride:256 eval_time:126204ms
+final_sliding_window_exact val_loss:2.02168339 val_bpb:1.19735478
+
+--- Seed 7 ---
+stopping_early: wallclock_cap step:13688/20000
+final_int8_zlib_roundtrip_exact val_loss:2.07789334 val_bpb:1.23064548
+final_sliding_window val_loss:2.0225 val_bpb:1.1978 stride:256 eval_time:126458ms
+final_sliding_window_exact val_loss:2.02246016 val_bpb:1.19781483
