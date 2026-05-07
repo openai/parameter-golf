@@ -1,0 +1,16 @@
+{
+  "author": "ajh",
+  "github_id": "xexyz",
+  "name": "LeakyReLU² + XSA-all + QK-Gain 4.0 + Full GPTQ + SLOT",
+  "blurb": "11L/512d with LeakyReLU(0.5)², XSA on all 11 layers, QK-Gain 4.0, Hessian-based GPTQ int6+zstd-22, and SLOT (per-sample delta + logit bias, 16 AdamW steps with cosine LR and scored-position mask) during evaluation.",
+  "date": "2026-04-02",
+  "val_loss": 1.5795,
+  "val_bpb": 0.9354,
+  "val_bpb_seeds": {
+    "1337": 0.9349,
+    "42": 0.9325,
+    "7": 0.9388
+  },
+  "bytes_total": 15890549,
+  "bytes_code": 73198
+}
