@@ -1,0 +1,17 @@
+{
+  "author": "Aryan Bhosale",
+  "github_id": "aryanbhosale",
+  "name": "11L Parallel Muon + N-gram Backoff Cache (mean val_bpb=0.2841)",
+  "blurb": "11-layer 512d transformer with Parallel Muon, BigramHash(1024), Value Residual, Gated Attention, XSA4, Partial RoPE(16/64), EMA(0.997)+SWA, Late QAT, GPTQ-lite int6+zstd-22. Eval-time order 2-9 N-gram backoff cache with entropy-adaptive alpha, 65K-token chunk updates. 3-seed mean 0.2841 BPB on 8xH100 SXM.",
+  "date": "2026-03-26T12:00:00Z",
+  "val_loss": 0.4796,
+  "val_bpb": 0.2841,
+  "val_bpb_std": 0.0001,
+  "bytes_total": 15924715,
+  "bytes_code": 93397,
+  "seeds": {
+    "1337": {"val_bpb": 0.2841, "val_loss": 0.4796, "steps": 6774, "step_avg_ms": 88.6},
+    "42": {"val_bpb": 0.2840, "val_loss": 0.4796, "steps": 6772, "step_avg_ms": 88.6},
+    "2024": {"val_bpb": 0.2840, "val_loss": 0.4795, "steps": 6769, "step_avg_ms": 88.7}
+  }
+}
