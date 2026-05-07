@@ -1,0 +1,126 @@
+=== Variant B: 10L — Seed 99 ===
+Run dir: /hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed99_55392385
+Host: g022, GPUs: NVIDIA A100-PCIE-40GB,NVIDIA A100-PCIE-40GB,
+Tue Mar 31 14:20:08 EDT 2026
+Config: SEED=99 ITERATIONS=7185 WARMDOWN=4311 BIGRAM=1536 NUM_LAYERS=10 NGPU=2
+logs/varB_seed99_55392385.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/repo/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/repo/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:25749398
+ttt_refiner_params:1083905
+flow_refiner_params:98625
+refiner_params_total:1182530
+e2e_ttt_enabled:True flow_enabled:True
+mtp_num_heads:0 mtp_loss_weight:0.2 mtp_params:0
+XSA:last_4 active_layers:[6, 7, 8, 9]
+world_size:2 grad_accum_steps:4
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:True embed_lr:0.035 head_lr:0.0 matrix_lr:0.025 scalar_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:7185 warmup_steps:20 max_wallclock_seconds:0.000
+seed:99
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/7185 val_loss:6.9286 val_bpb:4.1035 train_time:0ms step_avg:0.01ms
+step:1/7185 train_loss:6.9287 train_time:1037ms step_avg:1037.27ms
+step:2/7185 train_loss:8.6809 train_time:1987ms step_avg:993.42ms
+step:3/7185 train_loss:7.7040 train_time:3054ms step_avg:1017.94ms
+step:4/7185 train_loss:6.9807 train_time:4120ms step_avg:1030.04ms
+step:5/7185 train_loss:7.0509 train_time:5190ms step_avg:1037.96ms
+step:6/7185 train_loss:6.7187 train_time:6262ms step_avg:1043.70ms
+step:7/7185 train_loss:7.1715 train_time:7330ms step_avg:1047.21ms
+step:8/7185 train_loss:7.0263 train_time:8393ms step_avg:1049.14ms
+step:9/7185 train_loss:6.6916 train_time:9455ms step_avg:1050.60ms
+step:10/7185 train_loss:6.3050 train_time:10520ms step_avg:1052.00ms
+step:200/7185 train_loss:2.6349 train_time:218698ms step_avg:1093.49ms
+step:400/7185 train_loss:2.4810 train_time:434743ms step_avg:1086.86ms
+step:500/7185 val_loss:2.3653 val_bpb:1.4009 train_time:546391ms step_avg:1092.78ms
+step:600/7185 train_loss:2.3016 train_time:654271ms step_avg:1090.45ms
+step:800/7185 train_loss:2.2975 train_time:873365ms step_avg:1091.71ms
+step:1000/7185 train_loss:2.2924 train_time:1092509ms step_avg:1092.51ms
+checkpoint:saved step=1000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed99_55392385/checkpoints/checkpoint_step1000.pt
+step:1000/7185 val_loss:2.2352 val_bpb:1.3238 train_time:1092747ms step_avg:1092.75ms
+step:1200/7185 train_loss:2.2654 train_time:1308547ms step_avg:1090.46ms
+step:1400/7185 train_loss:2.2848 train_time:1528188ms step_avg:1091.56ms
+step:1500/7185 val_loss:2.1918 val_bpb:1.2981 train_time:1639728ms step_avg:1093.15ms
+step:1600/7185 train_loss:2.1270 train_time:1747628ms step_avg:1092.27ms
+step:1800/7185 train_loss:2.1806 train_time:1967082ms step_avg:1092.82ms
+step:2000/7185 train_loss:2.0768 train_time:2183317ms step_avg:1091.66ms
+checkpoint:saved step=2000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed99_55392385/checkpoints/checkpoint_step2000.pt
+step:2000/7185 val_loss:2.1361 val_bpb:1.2651 train_time:2183549ms step_avg:1091.77ms
+step:2200/7185 train_loss:2.1496 train_time:2403081ms step_avg:1092.31ms
+step:2400/7185 train_loss:2.1176 train_time:2622790ms step_avg:1092.83ms
+step:2500/7185 val_loss:2.1113 val_bpb:1.2504 train_time:2731111ms step_avg:1092.44ms
+step:2600/7185 train_loss:2.1463 train_time:2842589ms step_avg:1093.30ms
+step:2800/7185 train_loss:2.1631 train_time:3058937ms step_avg:1092.48ms
+step:3000/7185 train_loss:2.1014 train_time:3278458ms step_avg:1092.82ms
+checkpoint:saved step=3000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed99_55392385/checkpoints/checkpoint_step3000.pt
+step:3000/7185 val_loss:2.0950 val_bpb:1.2408 train_time:3278695ms step_avg:1092.90ms
+step:3200/7185 train_loss:2.1392 train_time:3498127ms step_avg:1093.16ms
+step:3400/7185 train_loss:2.1067 train_time:3717916ms step_avg:1093.50ms
+step:3500/7185 val_loss:2.0769 val_bpb:1.2301 train_time:3826175ms step_avg:1093.19ms
+step:3600/7185 train_loss:2.1342 train_time:3937371ms step_avg:1093.71ms
+step:3800/7185 train_loss:2.0760 train_time:4153741ms step_avg:1093.09ms
+step:4000/7185 train_loss:2.1152 train_time:4373400ms step_avg:1093.35ms
+checkpoint:saved step=4000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed99_55392385/checkpoints/checkpoint_step4000.pt
+step:4000/7185 val_loss:2.0614 val_bpb:1.2209 train_time:4373637ms step_avg:1093.41ms
+step:4200/7185 train_loss:2.0415 train_time:4593126ms step_avg:1093.60ms
+step:4400/7185 train_loss:2.0037 train_time:4812964ms step_avg:1093.86ms
+step:4500/7185 val_loss:2.0425 val_bpb:1.2097 train_time:4921294ms step_avg:1093.62ms
+step:4600/7185 train_loss:1.9727 train_time:5029349ms step_avg:1093.34ms
+step:4800/7185 train_loss:2.1586 train_time:5248990ms step_avg:1093.54ms
+step:5000/7185 train_loss:2.0276 train_time:5468705ms step_avg:1093.74ms
+checkpoint:saved step=5000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed99_55392385/checkpoints/checkpoint_step5000.pt
+step:5000/7185 val_loss:2.0253 val_bpb:1.1995 train_time:5468941ms step_avg:1093.79ms
+step:5200/7185 train_loss:2.0344 train_time:5688407ms step_avg:1093.92ms
+step:5400/7185 train_loss:2.0109 train_time:5904595ms step_avg:1093.44ms
+step:5500/7185 val_loss:2.0071 val_bpb:1.1887 train_time:6016290ms step_avg:1093.87ms
+step:5600/7185 train_loss:1.9976 train_time:6124353ms step_avg:1093.63ms
+step:5800/7185 train_loss:1.9421 train_time:6343893ms step_avg:1093.77ms
+step:6000/7185 train_loss:1.9692 train_time:6563483ms step_avg:1093.91ms
+checkpoint:saved step=6000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed99_55392385/checkpoints/checkpoint_step6000.pt
+step:6000/7185 val_loss:1.9894 val_bpb:1.1782 train_time:6563718ms step_avg:1093.95ms
+step:6200/7185 train_loss:2.0123 train_time:6779894ms step_avg:1093.53ms
+swa:start step:6350
+step:6400/7185 train_loss:2.0485 train_time:6999556ms step_avg:1093.68ms
+step:6500/7185 val_loss:1.9657 val_bpb:1.1642 train_time:7111536ms step_avg:1094.08ms
+late_qat:enabled step:6539 scale:0.1498
+step:6600/7185 train_loss:1.9177 train_time:7219618ms step_avg:1093.88ms
+step:6800/7185 train_loss:2.0409 train_time:7439678ms step_avg:1094.07ms
+step:7000/7185 train_loss:1.8759 train_time:7658093ms step_avg:1094.01ms
+checkpoint:saved step=7000 path=/hpfs/scratch/gpfs/mcclec07/code/parameter_golf/experiments_16mb/varB_10L/runs/seed99_55392385/checkpoints/checkpoint_step7000.pt
+step:7000/7185 val_loss:1.9442 val_bpb:1.1515 train_time:7658467ms step_avg:1094.07ms
+step:7185/7185 val_loss:1.9389 val_bpb:1.1483 train_time:7860694ms step_avg:1094.04ms
+peak memory allocated: 23546 MiB reserved: 23912 MiB
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9374 val_bpb:1.1474 eval_time:26125ms
+Serialized model: 98954244 bytes
+Code size: 104955 bytes
+Serialized model int6+lzma: 15198948 bytes
+Total submission size int6+lzma: 15303903 bytes
+final_int6_roundtrip val_loss:1.9543 val_bpb:1.1574 eval_time:199841ms
+final_int6_roundtrip_exact val_loss:1.95427580 val_bpb:1.15743221
+final_int6_sliding_window val_loss:1.9145 val_bpb:1.1339 stride:64 eval_time:1042127ms
+final_int6_sliding_window_exact val_loss:1.91450174 val_bpb:1.13387877
+final_int8_zlib_roundtrip_exact val_loss:1.91450174 val_bpb:1.13387877
+=== EXIT: 0 ===
+Tue Mar 31 17:19:20 EDT 2026
