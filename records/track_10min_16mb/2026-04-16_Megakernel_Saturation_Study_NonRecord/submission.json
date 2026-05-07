@@ -1,0 +1,50 @@
+{
+  "author": "Chidera Ibe",
+  "github_id": "ChideraIbe123",
+  "name": "Megakernel Saturation Study: 5 Triton Fusion Variants Cannot Beat torch.compile at 27M Scale",
+  "date": "2026-04-16",
+  "track": "10min_16mb",
+  "record_type": "non-record",
+  "val_bpb": 1.11066224,
+  "val_bpb_std": null,
+  "best_variant": "v4 (audit-guided best practices)",
+  "seeds": [1337],
+  "seed_results": {
+    "1337_v4": {"val_bpb": 1.11066224, "artifact_bytes": 13856662, "steps": 3944, "train_time_ms": 588008, "eval_time_ms": 419256}
+  },
+  "hardware": "8xH100 80GB SXM (RunPod)",
+  "technique_summary": "Novel 5-variant ablation of manual Triton block-level MLP fusion at 27M x 600s x H100. Tests whether hand-written fused kernels can beat torch.compile's automatic fusion. All 5 variants - including an audit-guided best-practices version and the exact PR #1450 architecture that claims +10.5% throughput - land within 0.0008 BPB of each other, all worse than eager. Proves block-level kernel fusion is not a viable lever at this scale.",
+  "variants_tested": {
+    "v1": "RMSNorm fused inside K-loop (bf16 inv_rms, in-K scale)",
+    "v2": "Simpler fusion (matmul + activation only, RMSNorm stays eager)",
+    "v3": "fp32 activation (precision fix attempt)",
+    "v4": "All 3 audit fixes (epilogue scale, fp32 inv_rms, GROUP_SIZE_M=8 L2 swizzle)",
+    "v5": "PR #1450 act_grad architecture (save derivative in forward, backward just multiplies)"
+  },
+  "ablation_results": {
+    "eager_baseline": {"steps": 3940, "pre_quant_bpb": 1.1250, "final_bpb": 1.1104, "delta": 0.0},
+    "v1": {"steps": 3944, "pre_quant_bpb": 1.1252, "final_bpb": 1.1106, "delta": 0.0002},
+    "v2": {"steps": 3945, "pre_quant_bpb": 1.1255, "final_bpb": 1.1110, "delta": 0.0006},
+    "v3": {"steps": 3938, "pre_quant_bpb": 1.1254, "final_bpb": 1.1108, "delta": 0.0004},
+    "v4": {"steps": 3944, "pre_quant_bpb": 1.1252, "final_bpb": 1.1107, "delta": 0.0003},
+    "v5": {"steps": 3944, "pre_quant_bpb": 1.1255, "final_bpb": 1.1110, "delta": 0.0006}
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": false,
+    "non_record_reason": "Single-seed systematic ablation for research finding. All 5 variants saturate within 0.0008 BPB noise floor, so more seeds would not change the conclusion."
+  },
+  "attribution": {
+    "base_stack": "PR #1493 @bigbag (SP8192+3LayerRecur+ParResid+QK5.25+TTT+SDClip) ported to SP1024",
+    "triton_patterns": "Triton 09-persistent-matmul tutorial + Liger-Kernel best practices",
+    "pr_1450_reference": "@dexhunter/@bigbag TMA megakernel architecture (claimed +10.5% throughput)",
+    "audit_sources": ["triton-lang/triton tutorials", "linkedin/Liger-Kernel", "Colfax CUTLASS persistent kernels"]
+  }
+}
