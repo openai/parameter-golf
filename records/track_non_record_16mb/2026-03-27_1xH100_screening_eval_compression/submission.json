@@ -1,0 +1,18 @@
+{
+  "author": "numb3r33",
+  "github_id": "numb3r33",
+  "name": "1xH100 Screening: Compression + Eval Study",
+  "blurb": "Non-record 1xH100 screening bundle anchored on a 9x512 SP-1024 dense baseline (`B0`) that reached 1.35375147 post-quant BPB in 600s at 12.78MB artifact size. The accompanying March 26 matrix shows that larger-capacity variants improved pre-quant BPB but often lost after quantization, motivating more work on evaluation strategy and compression-aware training before 8xH100 validation.",
+  "date": "2026-03-27T12:15:00Z",
+  "track": "non-record-1xh100-screening-16mb",
+  "val_loss": 2.28575264,
+  "val_bpb": 1.35375147,
+  "pre_quant_val_loss": 2.2829,
+  "pre_quant_val_bpb": 1.3521,
+  "step_stop": 1103,
+  "wallclock_seconds": 600.189,
+  "eval_time_seconds": 11.070,
+  "bytes_total": 12783154,
+  "bytes_model_int8_zlib": 12735468,
+  "bytes_code": 47686
+}
