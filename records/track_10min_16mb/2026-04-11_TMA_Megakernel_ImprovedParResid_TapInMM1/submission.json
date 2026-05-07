@@ -1,0 +1,49 @@
+{
+  "submission_name": "TMA Megakernel + Improved Parallel Residuals + Tap-In min_match=1",
+  "authors": ["andrewbaggio1"],
+  "track": "10min_16mb",
+  "val_bpb_mean": 1.07636,
+  "val_bpb_std": 0.0006,
+  "val_loss_mean": 2.78035,
+  "num_seeds": 3,
+  "seed_results": {
+    "42": {
+      "val_bpb": 1.07703,
+      "val_loss": 2.78208,
+      "sliding_bpb": 1.07856,
+      "roundtrip_bpb": 1.09540,
+      "artifact_bytes": 15961726,
+      "train_time_s": 587,
+      "eval_time_s": 457
+    },
+    "1337": {
+      "val_bpb": 1.07586,
+      "val_loss": 2.77907,
+      "sliding_bpb": 1.07727,
+      "roundtrip_bpb": 1.09411,
+      "artifact_bytes": 15964616,
+      "train_time_s": 587,
+      "eval_time_s": 400
+    },
+    "2024": {
+      "val_bpb": 1.07619,
+      "val_loss": 2.77990,
+      "sliding_bpb": 1.07833,
+      "roundtrip_bpb": 1.09538,
+      "artifact_bytes": 15970213,
+      "train_time_s": 587,
+      "eval_time_s": 385
+    }
+  },
+  "merged_sota_comparison": {
+    "pr": 1493,
+    "val_loss_mean": 2.78932,
+    "delta_nats": -0.00897,
+    "threshold_nats": 0.005,
+    "clears_threshold": true
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "vocab_size": 8192,
+  "tokenizer": "SP8192"
+}

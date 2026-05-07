@@ -1,0 +1,22 @@
+{
+  "author": "Andrew Baggio",
+  "github_id": "andrewbaggio1",
+  "name": "GDN Hybrid: Gated DeltaNet + Softmax Attention (E2E TTT / State-Space Model)",
+  "blurb": "8 Gated DeltaNet layers + 2 softmax attention layers. GDN is mathematically equivalent to E2E TTT-Linear with MSE loss. First competitive GDN hybrid in the 10-min budget.",
+  "date": "2026-04-08",
+  "track": "non_record_16mb",
+  "val_loss": 2.95771,
+  "val_bpb": 1.14502,
+  "val_bpb_std": null,
+  "seeds": [1234],
+  "seed_results": {
+    "1234": {
+      "val_loss": 2.95771,
+      "val_bpb": 1.14502,
+      "artifact_bytes": 13828304,
+      "steps": 3673
+    }
+  },
+  "hardware": "8xH100 80GB SXM",
+  "bytes_total": 13828304
+}
