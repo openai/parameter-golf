@@ -1,0 +1,115 @@
+W0325 22:59:27.228000 216605 torch/distributed/run.py:803] 
+W0325 22:59:27.228000 216605 torch/distributed/run.py:803] *****************************************
+W0325 22:59:27.228000 216605 torch/distributed/run.py:803] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0325 22:59:27.228000 216605 torch/distributed/run.py:803] *****************************************
+logs/df1b688f-7ab5-4348-985b-321b4fe2faab.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:26928220
+f1_corr:rank=0 params=0 est_int6_bytes~0
+mlp_act:leaky_relu_sq mlp_leaky_slope:0.5
+XSA:last_4 world_size:8 grad_accum_steps:1
+num_heads:8 num_kv_heads:4 embed_lr:0.035 matrix_lr:0.025
+train_batch_tokens:786432 train_seq_len:2048 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+compile:enabled=1 fullgraph=0
+seed:300
+ngram_eval:order=7 alpha=0.3 min_count=2 buckets=4194304
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9327 val_bpb:4.1059 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:6.9337 train_time:143ms step_avg:143.34ms
+step:2/20000 train_loss:8.8417 train_time:225ms step_avg:112.71ms
+step:3/20000 train_loss:7.9775 train_time:311ms step_avg:103.71ms
+step:4/20000 train_loss:7.1920 train_time:397ms step_avg:99.29ms
+step:5/20000 train_loss:7.0002 train_time:483ms step_avg:96.55ms
+step:6/20000 train_loss:6.9093 train_time:570ms step_avg:94.98ms
+step:7/20000 train_loss:6.7491 train_time:656ms step_avg:93.69ms
+step:8/20000 train_loss:6.6586 train_time:741ms step_avg:92.66ms
+step:9/20000 train_loss:6.4013 train_time:828ms step_avg:91.98ms
+step:10/20000 train_loss:6.0973 train_time:914ms step_avg:91.45ms
+step:500/20000 train_loss:2.3754 train_time:43917ms step_avg:87.83ms
+step:1000/20000 train_loss:2.2549 train_time:87952ms step_avg:87.95ms
+step:1500/20000 train_loss:2.2067 train_time:131969ms step_avg:87.98ms
+step:2000/20000 train_loss:2.0499 train_time:176038ms step_avg:88.02ms
+step:2500/20000 train_loss:2.1542 train_time:220118ms step_avg:88.05ms
+step:3000/20000 train_loss:2.1491 train_time:264178ms step_avg:88.06ms
+step:3500/20000 train_loss:2.1617 train_time:308235ms step_avg:88.07ms
+step:4000/20000 train_loss:1.9583 train_time:352277ms step_avg:88.07ms
+step:4000/20000 val_loss:2.0463 val_bpb:1.2120 train_time:352282ms step_avg:88.07ms
+step:4500/20000 train_loss:2.1051 train_time:396330ms step_avg:88.07ms
+step:5000/20000 train_loss:2.0847 train_time:440352ms step_avg:88.07ms
+late_qat:enabled step:5064 scale:0.4998
+step:5500/20000 train_loss:2.0034 train_time:484365ms step_avg:88.07ms
+step:6000/20000 train_loss:1.9284 train_time:528454ms step_avg:88.08ms
+swa:start step:6150
+step:6500/20000 train_loss:2.0628 train_time:572719ms step_avg:88.11ms
+step:6808/20000 val_loss:1.9228 val_bpb:1.1388 train_time:600027ms step_avg:88.14ms
+stopping_early: wallclock_cap train_time:600027ms step:6808/20000
+peak memory allocated: 20672 MiB reserved: 20718 MiB
+gptq:calibrating with training data...
+gptq:calibrated 68 layers in 3.4s
+ema:applying EMA weights
+DIAGNOSTIC post_ema val_loss:1.9212 val_bpb:1.1378 eval_time:2269ms
+Serialized model: 106047497 bytes
+Code size: 100286 bytes
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+gptq_quantize: 66 GPTQ layers, 0 naive layers
+Serialized model int6+zstd: 15482554 bytes
+Total submission size int6+zstd: 15582840 bytes
+Total submission size int8+zlib: 15582840 bytes
+final_int6_roundtrip val_loss:1.9312 val_bpb:1.1438 eval_time:37396ms
+final_int6_roundtrip_exact val_loss:1.93122902 val_bpb:1.14378260
+final_int6_sliding_window val_loss:1.8914 val_bpb:1.1202 stride:64 eval_time:98544ms
+final_int6_sliding_window_exact val_loss:1.89142053 val_bpb:1.12020874
+final_int8_zlib_roundtrip_exact val_loss:1.89142053 val_bpb:1.12020874
+cubric:step=0 o2:0.970 o3:0.970 o4:1.000 o5:1.030 o6:1.030 o7:1.030
+cubric:step=8 o2:0.760 o3:0.760 o4:0.970 o5:1.061 o6:1.159 o7:1.305
+cubric:step=16 o2:0.596 o3:0.596 o4:0.970 o5:1.159 o6:1.159 o7:1.653
+cubric:step=24 o2:0.467 o3:0.467 o4:0.970 o5:1.469 o6:1.159 o7:2.000
+cubric:step=32 o2:0.366 o3:0.366 o4:0.970 o5:1.860 o6:1.384 o7:2.000
+cubric:step=40 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:1.754 o7:2.000
+cubric:step=48 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+cubric:step=56 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+ngram_eval:progress windows=64032/121136 (52.9%) bpb=1.054859 t=61s
+ngram_eval:progress windows=64032/121136 (52.9%) bpb=1.043637 t=61s
+ngram_eval:progress windows=64032/121136 (52.9%) bpb=1.064331 t=61s
+ngram_eval:progress windows=64032/121136 (52.9%) bpb=1.051731 t=62s
+ngram_eval:progress windows=64032/121136 (52.9%) bpb=1.045112 t=62s
+ngram_eval:progress windows=64032/121136 (52.9%) bpb=1.047928 t=62s
+ngram_eval:progress windows=64032/121136 (52.9%) bpb=1.066134 t=62s
+ngram_eval:progress windows=64032/121136 (52.9%) bpb=1.031572 t=62s
+cubric:step=64 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+cubric:step=72 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+cubric:step=80 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+cubric:step=88 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+cubric:step=96 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+cubric:step=104 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+cubric:step=112 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+cubric:final c_steps=118 o2:0.300 o3:0.300 o4:0.970 o5:2.000 o6:2.000 o7:2.000
+final_int6_sliding_window_ngram7 val_loss:1.5813 val_bpb:0.9365 eval_time:118039ms
+final_int6_sliding_window_ngram7_exact val_loss:1.58131157 val_bpb:0.93654426
