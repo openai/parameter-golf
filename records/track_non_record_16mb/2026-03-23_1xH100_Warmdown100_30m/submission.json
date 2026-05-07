@@ -1,0 +1,17 @@
+{
+  "author": "aamodbhatt",
+  "github_id": "aamodbhatt",
+  "name": "1xH100 Warmdown100 30m",
+  "blurb": "Non-record 1xH100 run extending the proven warmdown schedule to 30 minutes. This is a low-cost scaling result intended to show meaningful quality gains before 8xH100 grant-backed runs.",
+  "date": "2026-03-23T00:00:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.15624752,
+  "val_bpb": 1.27705124,
+  "pre_quant_val_loss": 2.1506,
+  "pre_quant_val_bpb": 1.2737,
+  "step_stop": 3545,
+  "wallclock_seconds": 1800.187,
+  "bytes_total": 15840342,
+  "bytes_model_int8_zlib": 15792656,
+  "bytes_code": 47686
+}
