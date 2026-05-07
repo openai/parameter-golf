@@ -1,0 +1,17 @@
+{
+  "author": "Akshai Padmanabhan",
+  "github_id": "akshai0296",
+  "name": "SP1024 7x512 KV4 Non-Record",
+  "blurb": "Non-record 16MB submission: SP-1024 7x512 KV4 tied-embedding run built from the published train_gpt.py. Relative to the 9-layer baseline family, reducing depth to 7 improved the capacity-speed tradeoff under the 600-second wallclock cap on a 1xA100 dev run. Final int8+zlib roundtrip metric was 1.37972416 under the 16,000,000-byte cap.",
+  "date": "2026-03-19T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 2.32960644,
+  "val_bpb": 1.37972416,
+  "pre_quant_val_loss": 2.3270,
+  "pre_quant_val_bpb": 1.3783,
+  "step_stop": 1190,
+  "wallclock_seconds": 600.308,
+  "bytes_total": 10289996,
+  "bytes_model_int8_zlib": 10242310,
+  "bytes_code": 47686
+}
