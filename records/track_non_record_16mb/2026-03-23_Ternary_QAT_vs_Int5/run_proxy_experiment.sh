@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT_DIR"
+mkdir -p logs
+
+: "${RUN_ID:?RUN_ID is required}"
+: "${QUANT_MODE:?QUANT_MODE is required}"
+: "${DATA_PATH:?DATA_PATH is required}"
+: "${TOKENIZER_PATH:?TOKENIZER_PATH is required}"
+
+export COMPUTE_DTYPE="${COMPUTE_DTYPE:-fp32}"
+export USE_TORCH_COMPILE="${USE_TORCH_COMPILE:-0}"
+export USE_FUSED_OPTIM="${USE_FUSED_OPTIM:-0}"
+export NUM_LAYERS="${NUM_LAYERS:-10}"
+export MODEL_DIM="${MODEL_DIM:-512}"
+export NUM_HEADS="${NUM_HEADS:-8}"
+export NUM_KV_HEADS="${NUM_KV_HEADS:-4}"
+export MLP_MULT="${MLP_MULT:-3}"
+export BIGRAM_VOCAB_SIZE="${BIGRAM_VOCAB_SIZE:-10240}"
+export BIGRAM_DIM="${BIGRAM_DIM:-128}"
+export ITERATIONS="${ITERATIONS:-600}"
+export WARMUP_STEPS="${WARMUP_STEPS:-0}"
+export MAX_WALLCLOCK_SECONDS="${MAX_WALLCLOCK_SECONDS:-0}"
+export VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}"
+export TRAIN_LOG_EVERY="${TRAIN_LOG_EVERY:-50}"
+export SPARSITY_LOG_EVERY="${SPARSITY_LOG_EVERY:-100}"
+export TRAIN_BATCH_TOKENS="${TRAIN_BATCH_TOKENS:-4096}"
+export TRAIN_SEQ_LEN="${TRAIN_SEQ_LEN:-256}"
+export VAL_BATCH_SIZE="${VAL_BATCH_SIZE:-8192}"
+export EVAL_STRIDE="${EVAL_STRIDE:-0}"
+export EVAL_BATCH_SEQS="${EVAL_BATCH_SEQS:-4}"
+export MATRIX_LR="${MATRIX_LR:-0.0005}"
+export SCALAR_LR="${SCALAR_LR:-0.001}"
+export TIED_EMBED_LR="${TIED_EMBED_LR:-0.003}"
+export HEAD_LR="${HEAD_LR:-0.001}"
+export WEIGHT_DECAY="${WEIGHT_DECAY:-0.0}"
+export MUON_MOMENTUM="${MUON_MOMENTUM:-0.95}"
+export GRAD_CLIP_NORM="${GRAD_CLIP_NORM:-0.1}"
+export SEED="${SEED:-42}"
+
+exec python3 train_gpt.py
