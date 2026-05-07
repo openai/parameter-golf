@@ -1,0 +1,17 @@
+{
+  "author": "nogakeren",
+  "github_id": "nogakeren",
+  "name": "SP8192 + 3-Layer Recurrence + Parallel Residuals + QK-Gain 5.25 + Legal Score-First TTT + Asynchronous Data Loader",
+  "date": "2026-04-10",
+  "track": "10min_16mb",
+  "val_bpb": 1.0823,
+  "val_bpb_std": 0.0001,
+  "seeds": [42, 314],
+  "seed_results": {
+    "42": {"val_bpb": 1.0802, "artifact_bytes": 15993138},
+    "314": {"val_bpb": 1.0804, "artifact_bytes": 15994881}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "technique_summary": "SP8192 + 3-Layer Depth Recurrence (L3-5) + Parallel Residuals (L7+) + QK-Gain 5.25 + EMA 0.9965 + WD 0.095 + Score-First TTT (SGD 3ep) + GPTQ SDClip + Brotli + Asynchronous Data Loader",
+  "based_on": "PR #1493 (@bigbag)"
+}
