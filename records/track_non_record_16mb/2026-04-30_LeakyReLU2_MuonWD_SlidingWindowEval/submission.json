@@ -1,0 +1,20 @@
+{
+  "name": "Rishabh Prakash",
+  "github_id": "RishabhPrakash5",
+  "val_bpb": 1.21107442,
+  "val_loss": 2.04484842,
+  "artifact_size_bytes": 12803252,
+  "model_size_bytes": 12746414,
+  "code_size_bytes": 56838,
+  "hardware": "1x NVIDIA H100 80GB HBM3 SXM",
+  "training_steps": 5000,
+  "training_time_ms": 1704383,
+  "eval_sliding_stride": 64,
+  "track": "non_record",
+  "techniques": [
+    "LeakyReLU(0.5)^2 activation",
+    "Muon weight decay (0.04)",
+    "Sliding window evaluation (stride=64)",
+    "EMA weights tracked but not used for final eval"
+  ]
+}
