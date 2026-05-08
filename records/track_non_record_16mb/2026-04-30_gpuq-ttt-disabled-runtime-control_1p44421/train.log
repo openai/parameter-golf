@@ -1,0 +1,64 @@
+NCCL version 2.27.5+cuda12.9
+logs/h100_batch_20260430T210340Z_05_gpuq_ttt_disabled_runtime_control.txt
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=/workspace/parameter-golf/data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=/workspace/parameter-golf/data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17059912
+world_size:1 grad_accum_steps:8
+local_sgd:enabled:0 sync_steps:1 average_optimizer_states:0
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4 attn_norm_mode:baseline attn_norm_eps:1e-06
+sparse_attention:mode:dense window:256 global_tokens:4 block_size:64
+candidate_impl:autoregressive_gpt
+layer_order:encoder=[0, 1, 2, 3] decoder=[4, 5, 6, 7, 8] virtual_depth:9
+tie_embeddings:True embed_lr:0.05 head_lr:0.0 matrix_lr:0.04 scalar_lr:0.04
+moe:num_experts:1 top_k:1
+train_batch_tokens:2097152 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+artifact_budget:state:within-budget total_bytes:13442123 limit_bytes:16000000 headroom_bytes:2557877 quantization:int8-per-row-zlib-projection compression_ratio:0.78
+artifact_budget_component:name:embeddings params:524288 raw_quantized_bytes:524288 estimated_bytes:408945
+artifact_budget_component:name:attention_blocks params:7077888 raw_quantized_bytes:7077888 estimated_bytes:5520753
+artifact_budget_component:name:mlp_blocks params:9437184 raw_quantized_bytes:9437184 estimated_bytes:7361004
+artifact_budget_component:name:control_tensors params:9225 raw_quantized_bytes:20178 estimated_bytes:20178
+artifact_budget_component:name:quantization_overhead params:0 raw_quantized_bytes:118208 estimated_bytes:118208
+seed:1337
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:1/20000 train_loss:6.9361 train_time:1172ms step_avg:1172.19ms
+step:2/20000 train_loss:16.6581 train_time:2362ms step_avg:1180.98ms
+step:3/20000 train_loss:12.0761 train_time:3553ms step_avg:1184.37ms
+step:4/20000 train_loss:8.2376 train_time:4749ms step_avg:1187.13ms
+step:5/20000 train_loss:6.4901 train_time:5940ms step_avg:1187.97ms
+step:6/20000 train_loss:6.0136 train_time:7131ms step_avg:1188.52ms
+step:7/20000 train_loss:5.9252 train_time:8322ms step_avg:1188.89ms
+step:8/20000 train_loss:5.8973 train_time:9512ms step_avg:1189.02ms
+step:9/20000 train_loss:5.8630 train_time:10704ms step_avg:1189.31ms
+step:10/20000 train_loss:5.8582 train_time:11897ms step_avg:1189.67ms
+step:200/20000 train_loss:2.7310 train_time:241052ms step_avg:1205.26ms
+step:400/20000 train_loss:2.4247 train_time:480986ms step_avg:1202.47ms
+stopping_early: wallclock_cap train_time:0ms step:500/20000
+peak memory allocated: 36561 MiB reserved: 36758 MiB
+Serialized model: 67224983 bytes
+Code size: 47396 bytes
+Total submission size: 67272379 bytes
+Serialized model int8+zlib: 10095619 bytes (payload:17178912 raw_torch:17224025 payload_ratio:3.91x)
+Total submission size int8+zlib: 10143015 bytes
+final_int8_zlib_roundtrip val_loss:2.4385 val_bpb:1.4442 eval_time:16710ms
+final_int8_zlib_roundtrip_exact val_loss:2.43849500 val_bpb:1.44421409

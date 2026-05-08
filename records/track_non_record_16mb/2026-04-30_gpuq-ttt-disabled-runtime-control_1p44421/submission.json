@@ -1,0 +1,45 @@
+{
+  "author": "Rustam Eynaliyev",
+  "github_id": "tenet-diver",
+  "name": "Runtime control for legal score-first TTT cost before large GPU batch promotion",
+  "blurb": "Runtime control for legal score-first TTT cost before large GPU batch promotion",
+  "date": "2026-04-30T23:17:06Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "candidate_id": "gpuq_ttt_disabled_runtime_control",
+  "val_bpb": 1.44421409,
+  "seeds": [
+    "1337"
+  ],
+  "seed_results": {
+    "1337": {
+      "val_bpb": 1.44421409,
+      "val_loss": 2.438495,
+      "artifact_bytes": 10200510,
+      "model_bytes": 10095619,
+      "code_bytes": 104891,
+      "train_time_s": 668.949,
+      "run_dir": "/workspace/parameter-golf/records/h100_candidate_batch/20260430T210340Z/runs/05_gpuq_ttt_disabled_runtime_control"
+    }
+  },
+  "hardware": "1xNVIDIA H100 80GB HBM3",
+  "technique_summary": "Runtime control for legal score-first TTT cost before large GPU batch promotion",
+  "bytes_code": 104891,
+  "compliance": {
+    "train_under_600s": false,
+    "artifact_under_16mb": true,
+    "three_seeds": false,
+    "generated_from_h100_batch": true
+  },
+  "provenance": {
+    "candidate_id": "gpuq_ttt_disabled_runtime_control",
+    "batch_dirs": [
+      "/workspace/parameter-golf/records/h100_candidate_batch/20260430T210340Z"
+    ],
+    "source_git_commit": "16c79edae7b6710d283d1c770d9502406bfc6ccd",
+    "generated_by": "fastest/scripts/package_competition_submission.py"
+  },
+  "val_loss": 2.438495,
+  "bytes_model_int8_zlib": 10095619,
+  "bytes_total": 10200510,
+  "train_time_seconds": 668.949
+}
