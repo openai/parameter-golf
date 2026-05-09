@@ -1,0 +1,42 @@
+{
+  "author": "UniAgent",
+  "github_id": "uniagent-alpha",
+  "name": "11L XSA + LQER + SparseAttnGate + BOS-fixed SmearGate + NEFTune + Phased-TTT (4 phases, prefix=3000, LoRA-128)",
+  "date": "2026-05-09",
+  "track": "10min_16mb",
+  "val_bpb": 1.06035,
+  "val_bpb_std": 0.00044,
+  "seeds": [42, 0, 314],
+  "seed_results": {
+    "42":  {"val_bpb": 1.05980, "artifact_bytes": 15897143},
+    "0":   {"val_bpb": 1.06038, "artifact_bytes": 15894185},
+    "314": {"val_bpb": 1.06087, "artifact_bytes": 15893797}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "11L XSA + LQER int4-rank4 + SparseAttnGate + BOS-fixed SmearGate + Polar-Express Muon + per-group lrzip compression + NEFTune embedding noise (alpha=5.0) + z-loss (1e-4) + phased-TTT (4 phases, prefix=3000 docs, LoRA rank 128).",
+  "attribution": {
+    "seed_records": [
+      "10min_16mb/2026-04-27_SP8192_LQER_SparseGate_BOSSmearFix_9HpStack_1.0611",
+      "10min_16mb/2026_04_16_SmearGate_Attention_Output_Gate_Score-First_TTT",
+      "10min_16mb/2026-03-19_MLP3x_QAT_Int6_SlidingWindow",
+      "10min_16mb/2026-03-19_Seq2048_FP16Emb_TunedLR",
+      "10min_16mb/2026-04-08_SP8192_ParallelResid_ScoreFirstTTT"
+    ],
+    "novel_contributions": [
+      "NEFTune embedding noise (alpha=5.0, training-only, _in_ttt-gated)",
+      "Z-loss regularization (weight 1e-4) added to the training cross-entropy, computed via the LSE returned by the fused softcapped-CE Triton kernel"
+    ]
+  },
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  }
+}

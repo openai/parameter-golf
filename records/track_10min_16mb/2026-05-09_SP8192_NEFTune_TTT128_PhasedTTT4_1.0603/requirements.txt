@@ -1,0 +1,43 @@
+# Core Agent & Pipeline Dependencies
+pydantic>=2.0
+pydantic-ai
+google-genai
+tenacity
+python-dotenv
+
+# Storage & Infrastructure (from pyproject.toml)
+redis>=5.0
+psycopg2-binary>=2.9
+sqlalchemy>=2.0
+celery>=5.3
+paramiko>=3.3
+
+# Evaluation & Local Testing Dependencies
+numpy
+sentencepiece
+
+# Other Dependencies
+tqdm
+huggingface-hub
+kernels
+setuptools
+typing-extensions
+datasets
+tiktoken
+nvidia-ml-py
+black
+coolname
+shutup
+omegaconf
+humanize
+dataclasses_json
+psutil
+brotli
+zstandard
+
+# kb_extend reproduction deps (pure-python)
+python-minifier
+blobfile
+einops
+ninja
+flash-linear-attention
