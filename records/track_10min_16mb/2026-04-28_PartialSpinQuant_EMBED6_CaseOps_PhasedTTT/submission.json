@@ -1,0 +1,40 @@
+{
+  "author": "Abhishek Leji",
+  "github_id": "X-Abhishek-X",
+  "name": "Partial SpinQuant (start_layer=5) + EMBED_BITS=6 + PR#1855 Hparams + PR#1851 Base",
+  "date": "2026-04-28",
+  "track": "10min_16mb",
+  "val_bpb": 1.06614,
+  "val_bpb_std": 0.00131,
+  "seeds": [1337, 42, 2024],
+  "seed_results": {
+    "1337": {"val_bpb": 1.06745834, "artifact_bytes": 15626137},
+    "42":   {"val_bpb": 1.06484157, "artifact_bytes": 15627137},
+    "2024": {"val_bpb": 1.06611122, "artifact_bytes": 15623946}
+  },
+  "hardware": "8xH100 80GB SXM",
+  "pytorch_version": "2.9.1+cu128",
+  "technique_summary": "PR#1851 base (CaseOps SP8192 + SparseAttnGate + SmearGate-BOS-fix + LQER-Asym + 3-phase Phased TTT) with Partial SpinQuant Hadamard pre-rotation (layers 5-10 only, 12 modules, SPINQUANT_START_LAYER=5) + EMBED_BITS=6 + PR#1855 hparam greedy (9 env-var overrides). Improves on PR#1695 (1.07590) by 0.00976 BPB.",
+  "compliance": {
+    "train_under_600s": true,
+    "artifact_under_16mb": true,
+    "eval_under_600s": true,
+    "no_slot": true,
+    "no_pre_quant_ttt": true,
+    "no_etlb": true,
+    "no_ngram_cache": true,
+    "score_first_ttt": true,
+    "three_seeds": true
+  },
+  "attribution": {
+    "pr1851_base_smeargate_lqer_phased_ttt": "@aquariouseworkman (PR #1851)",
+    "caseops_tokenizer": "@romeerp (PR #1729)",
+    "sparse_attn_gate_polar_ns_min_lr": "@nprime06 (PR #1787)",
+    "smeargate_lqer_asym": "@dexhunter (PR #1797)",
+    "smeargate_bos_audit": "@cocohearts (PR #1797 audit)",
+    "phased_ttt_framework": "@abaybektursun (PR #549)",
+    "gptq_sdclip": "@clarkkev (PR #1394)",
+    "hparam_greedy": "PR #1855 authors",
+    "partial_spinquant_start_layer": "@X-Abhishek-X (PR #1695, this PR)"
+  }
+}
