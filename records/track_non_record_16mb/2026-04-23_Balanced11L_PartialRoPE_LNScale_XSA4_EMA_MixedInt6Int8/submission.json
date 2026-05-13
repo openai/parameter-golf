@@ -1,0 +1,109 @@
+{
+  "name": "elad-simbalista",
+  "github_id": "elad-simbalista",
+  "track": "track_non_record_16mb",
+  "record_type": "non-record",
+  "val_bpb": 1.1550,
+  "artifact_size": 15253087,
+  "summary": "Balanced 11L (5 enc / 6 dec, U-Net skips) + Partial RoPE (16/64) + LN Scale + XSA on last 4 layers + EMA (0.997) + mixed int6/int8 quant + multi-codec compression (lzma-9 selected)",
+  "metrics": {
+    "val_bpb_post_quant_roundtrip": 1.1550,
+    "val_bpb_ema_pre_quant": 1.1497,
+    "val_bpb_raw_pre_quant": 1.1587,
+    "val_loss_post_quant_roundtrip": 1.9502,
+    "val_loss_ema_pre_quant": 1.9413,
+    "evaluation": {
+      "sliding_window": true,
+      "eval_stride": 64,
+      "eval_seq_len": 2048
+    }
+  },
+  "artifact": {
+    "total_bytes": 15253087,
+    "code_bytes": 61011,
+    "compressed_payload_bytes": 15192076,
+    "raw_payload_bytes": 26713689,
+    "compression_codec": "lzma-9",
+    "under_16mb_budget": true
+  },
+  "training": {
+    "hardware": "8x NVIDIA H100 80GB HBM3 SXM",
+    "world_size": 8,
+    "grad_accum_steps": 1,
+    "wallclock_budget_seconds": 600.0,
+    "wallclock_used_ms": 570136,
+    "iterations_planned": 9000,
+    "iterations_completed": 7887,
+    "early_stop_reason": "wallclock_budget_near_expiry",
+    "warmup_steps": 20,
+    "warmdown_iters_planned": 3500,
+    "train_batch_tokens": 524288,
+    "train_seq_len": 2048,
+    "seed": 1337,
+    "python_version": "3.12.3",
+    "pytorch_version": "2.9.1+cu128",
+    "run_date": "2026-04-23",
+    "run_id": "2d6ee454-0b7d-4420-a00f-7d48b4709e4a"
+  },
+  "model": {
+    "arch_preset": "balanced_11l",
+    "param_count": 26501720,
+    "num_layers": 11,
+    "encoder_layers": 5,
+    "decoder_layers": 6,
+    "unet_skip_connections": true,
+    "model_dim": 512,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "attention_mode": "gqa",
+    "mlp_mult": 3,
+    "mlp_activation": "relu_squared",
+    "vocab_size": 1024,
+    "tokenizer": "sentencepiece_bpe",
+    "tie_embeddings": true,
+    "rope_dims": 16,
+    "rope_base": 10000.0,
+    "xsa_last_n": 4,
+    "ln_scale": true,
+    "logit_softcap": 30.0,
+    "qk_gain_init": 1.5
+  },
+  "optimization": {
+    "optimizer": "Muon (matrix) + Adam (scalar/embed)",
+    "matrix_lr": 0.025,
+    "scalar_lr": 0.025,
+    "tied_embed_lr": 0.035,
+    "muon_momentum_final": 0.99,
+    "muon_momentum_warmup_start": 0.92,
+    "muon_momentum_warmup_steps": 1500,
+    "muon_weight_decay": 0.04,
+    "adam_weight_decay": 0.04,
+    "ema_enabled": true,
+    "ema_decay": 0.997,
+    "ema_warmup_steps": 500
+  },
+  "quantization": {
+    "matrix_quant_bits": 6,
+    "embed_quant_bits": 8,
+    "scheme": "mixed_clean_per_row_v1",
+    "per_row_scale": true,
+    "post_quant_roundtrip_delta_bpb": -0.0053,
+    "ema_to_post_quant_delta_bpb": 0.0053
+  },
+  "compression": {
+    "codecs_evaluated": ["zstd-22", "lzma-9", "zlib-9"],
+    "codec_selected": "lzma-9",
+    "selection_strategy": "auto (best of candidates)"
+  },
+  "reproducibility": {
+    "seeds_reported": [1337],
+    "num_seeds": 1,
+    "notes": "Single-seed run. Statistical significance over 3 seeds was not collected; this submission is not intended as a SOTA record."
+  },
+  "dataset": {
+    "name": "fineweb10B_sp1024",
+    "tokenizer_path": "./data/tokenizers/fineweb_1024_bpe.model",
+    "train_shards_available": 80,
+    "val_tokens": 62021845
+  }
+}
