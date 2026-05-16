@@ -1,0 +1,30 @@
+[package]
+name = "pg-train"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "pg-train"
+path = "src/main.rs"
+
+[features]
+default = []
+cuda = ["pg-core/cuda", "pg-kernels/cuda", "pg-model/cuda", "pg-optim/cuda", "pg-eval/cuda", "dep:cudarc"]
+
+[dependencies]
+pg-core = { path = "../pg-core" }
+pg-kernels = { path = "../pg-kernels" }
+pg-model = { path = "../pg-model" }
+pg-optim = { path = "../pg-optim" }
+pg-data = { path = "../pg-data" }
+pg-quant = { path = "../pg-quant" }
+pg-eval = { path = "../pg-eval" }
+pg-compat = { path = "../pg-compat" }
+cudarc = { workspace = true, optional = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }
+bytemuck = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

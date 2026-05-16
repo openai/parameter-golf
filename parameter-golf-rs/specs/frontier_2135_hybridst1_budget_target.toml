@@ -1,0 +1,198 @@
+# PR #2135 throughput/quality compromise candidate.
+#
+# Full recurrent backward misses the 120 ms record gate; all-straight-through
+# clears the gate but currently fails BPB badly. This profile keeps the same
+# audited #2135 algorithm/export knobs while using pass-1 straight-through
+# recurrent backward as the explicit middle point to validate.
+
+name = "frontier_2135_hybridst1_budget_target"
+mode = "record"
+allow_unsupported_variants = false
+
+[model]
+family = "frontier_1855_like"
+attention_backend = "cudnn_sdpa_bf16"
+compute_precision = "bf16_tensor_core"
+output_ce_backend = "chunked_bf16_cache"
+vocab_size = 8192
+num_layers = 11
+model_dim = 512
+num_heads = 8
+num_kv_heads = 4
+mlp_mult = 4.0
+train_seq_len = 1024
+eval_seq_len = 2560
+xsa_last_n = 11
+skip_topology = "unet"
+smear_gate = true
+smear_gate_boundary_token_id = 1
+logit_softcap = 30.0
+qk_gain_init = 5.0
+ln_scale = true
+tie_embeddings = true
+
+[model.bigram]
+enabled = false
+vocab_size = 3072
+dim = 112
+
+[model.value_embedding]
+enabled = false
+dim = 128
+layers = []
+
+[model.recurrence]
+enabled = true
+start_layer = 3
+repeat_layers = 3
+enable_at_frac = 0.35
+enable_at_step = 1748
+
+[model.parallel_residual]
+enabled = true
+split_attention_mlp = true
+start_layer = 8
+
+[model.attn_out_gate]
+enabled = false
+width = 24
+
+[model.caseops]
+enabled = true
+byte_sidecar = true
+
+[model.sparse_attn_gate]
+enabled = true
+width = 12
+scale = 0.5
+
+[model.asym_logit]
+enabled = true
+softcap_pos = 30.0
+softcap_neg = 34.0
+init = 0.0
+
+[model.rope]
+mode = "partial"
+dims = 16
+base = 10000.0
+
+[train]
+backend = "cuda_distributed"
+distributed_optimizer_backend = "sharded_parallel_muon"
+batch_tokens = 524288
+seq_len = 1024
+grad_clip_norm = 0.3
+train_data_pattern = "/data/datasets/fineweb10B_sp8192/fineweb_train_*.bin"
+validation_data_pattern = "/data/datasets/fineweb10B_sp8192/fineweb_val_*.bin"
+rank = 0
+world_size = 8
+artifact_path = "/output/frontier_2135_hybridst1_budget_target.pgrs"
+fast_bank_updates = false
+warmup_steps = 20
+total_iterations = 4994
+warmdown_iters = 3500
+warmdown_frac = 0.85
+min_lr_scale = 0.10
+max_wallclock_seconds = 600.0
+matrix_lr = 0.028
+scalar_lr = 0.02
+embed_lr = 0.6
+tied_embed_lr = 0.03
+head_lr = 0.008
+muon_momentum = 0.97
+muon_momentum_warmup_start = 0.92
+muon_momentum_warmup_steps = 1500
+muon_wd = 0.095
+muon_newton_schulz_steps = 5
+adam_wd = 0.02
+adam_beta2 = 0.99
+ema_decay = 0.9965
+late_qat_threshold = 0.15
+
+[[train.seq_schedule]]
+frac = 1.000
+seq_len = 1024
+
+[quant]
+scheme = "mixed_int5_int6"
+calibration = "self_generated"
+compression = "pergroup"
+matrix_bits = 5
+mlp_bits = 4
+embed_bits = 6
+attn_gate_bits = 8
+mlp_clip_sigmas = 11.5
+attn_clip_sigmas = 13.0
+embed_clip_sigmas = 14.0
+gptq_calibration_batches = 32
+target_artifact_bytes = 16000000
+
+[quant.lqer]
+enabled = true
+rank = 4
+top_k = 3
+a_bits = 2
+b_bits = 4
+group_size = 32
+asymmetric = true
+
+[eval]
+stride = 64
+legal_score_first = true
+qttt = true
+adaptation_backend = "gpu_lora_phased"
+lora_rank = 80
+lora_alpha = 144.0
+lora_lr = 0.00008
+phased_ttt_prefix_docs = 2500
+phased_ttt_phases = 1
+phased_ttt_weight_decay = 2.0
+ttt_beta2 = 0.99
+ttt_seq_len = 2560
+ttt_mask = "k_off"
+chunk_tokens = 32768
+caseops_byte_sidecar_pattern = "/data/datasets/fineweb10B_sp8192/fineweb_val_bytes_*.bin"
+
+[eval.ttt_lora_targets]
+lm_head = true
+q = true
+k = false
+v = true
+o = true
+mlp = true
+
+[[eval.short_doc_score_first_schedule]]
+max_doc_tokens = 2560
+stride = 64
+
+[eval.ngram_tilt]
+enabled = true
+token_order = 16
+token_threshold = 0.800
+token_boost = 2.625
+within_boost = 0.0
+word_boost = 0.0
+agree_add_boost = 0.0
+precompute_inside_eval_timer = true
+
+[runtime]
+record_profile = "frontier2135_speed_probe"
+backward_chain_profile = "bf16_direct_compact"
+recurrent_backward_profile = "pass1_straight_through"
+recurrent_straight_through_layers = 1
+recurrence_active_required = true
+recurrent_active_steps_min = 2000
+require_device_batch = true
+token_ring_full_schedule = true
+cuda_graph_profile = "record_step_no_loss"
+nccl_overlap_mode = "off"
+bigram_embedding_merge = false
+combined_qkv_rope_tail_backward = true
+graph_side_gemm_capture = false
+sharded_muon_local_graph = true
+sharded_muon_pre_norm_graph = true
+sharded_muon_fused_global_clip = false
+sharded_muon_bf16_shadow_all_gather = true
+timing_skip_steps = 64
+max_ms_per_step = 120.0

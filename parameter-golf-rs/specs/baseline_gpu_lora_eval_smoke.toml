@@ -1,0 +1,14 @@
+name = "baseline_gpu_lora_eval_smoke"
+mode = "smoke"
+
+[eval]
+stride = 512
+legal_score_first = true
+qttt = true
+adaptation_backend = "gpu_lora_phased"
+lora_rank = 16
+lora_alpha = 16.0
+phased_ttt_phases = 2
+phased_ttt_weight_decay = 1.0
+chunk_tokens = 4096
+max_tokens = 4096

@@ -1,0 +1,16 @@
+[package]
+name = "pg-optim"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+cuda = ["pg-core/cuda", "pg-kernels/cuda", "dep:cudarc"]
+
+[dependencies]
+pg-core = { path = "../pg-core" }
+pg-kernels = { path = "../pg-kernels" }
+thiserror = { workspace = true }
+log = { workspace = true }
+bytemuck = { workspace = true }
+cudarc = { workspace = true, optional = true }

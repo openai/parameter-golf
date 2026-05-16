@@ -1,0 +1,57 @@
+[package]
+name = "pg-bench"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+cuda = ["pg-kernels/cuda", "pg-core/cuda", "pg-model/cuda", "dep:cudarc", "dep:half"]
+
+[dependencies]
+pg-core = { path = "../pg-core" }
+pg-kernels = { path = "../pg-kernels" }
+pg-model = { path = "../pg-model" }
+pg-quant = { path = "../pg-quant" }
+cudarc = { workspace = true, optional = true }
+half = { workspace = true, optional = true }
+rayon = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+bytemuck = { workspace = true }
+
+[[bin]]
+name = "smoke"
+path = "src/bin/smoke.rs"
+required-features = ["cuda"]
+
+[[bin]]
+name = "gemm-bench"
+path = "src/bin/gemm_bench.rs"
+required-features = ["cuda"]
+
+[[bin]]
+name = "attention-bench"
+path = "src/bin/attention_bench.rs"
+required-features = ["cuda"]
+
+[[bin]]
+name = "nccl-bench"
+path = "src/bin/nccl_bench.rs"
+required-features = ["cuda"]
+
+[[bin]]
+name = "preliminary"
+path = "src/bin/preliminary.rs"
+
+[[bin]]
+name = "parity-forward"
+path = "src/bin/parity_forward.rs"
+
+[[bin]]
+name = "parity-step"
+path = "src/bin/parity_step.rs"
+
+[[bin]]
+name = "parity-kernels"
+path = "src/bin/parity_kernels.rs"
+required-features = ["cuda"]
