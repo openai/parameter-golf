@@ -1,0 +1,18 @@
+{
+  "track": "non_record_16mb",
+  "date": "2026-04-04",
+  "name": "GDN Hybrid Attention: Long-Context Performance in the Parameter-Constrained Regime",
+  "author": "Arjun",
+  "github_id": "aarjunsrinivasan",
+  "val_bpb": 1.4709,
+  "val_loss": 2.4836,
+  "context_length": 32768,
+  "seeds": [1341, 42],
+  "seed_results": {
+    "1341": { "val_bpb": 1.4703, "val_loss": 2.4825 },
+    "42": { "val_bpb": 1.4716, "val_loss": 2.4847 }
+  },
+  "bytes_total": 14060514,
+  "bytes_code": 50450,
+  "notes": "2-seed mean from hybrid_gdn_1xh100_600s_seq32768. Crossover vs full-attention baseline between 8k and 16k context. See README for full results table across all context lengths."
+}

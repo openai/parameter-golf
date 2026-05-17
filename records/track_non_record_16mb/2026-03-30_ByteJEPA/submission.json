@@ -1,0 +1,18 @@
+{
+  "author": "Hardik",
+  "github_id": "hardikformail",
+  "name": "ByteJEPA — True Byte-Level JEPA",
+  "blurb": "Pure byte-level Joint-Embedding Predictive Architecture: MSE latent state prediction as primary objective (no tokenizer, vocab=256), auxiliary CE head for BPB evaluation, SIGReg anti-collapse regularizer. Directly addresses the open JEPA bounty.",
+  "date": "2026-04-07",
+  "track": "non-record-16mb",
+  "val_loss": 0.93547291,
+  "val_bpb": 1.34960213,
+  "pre_quant_val_loss": 0.9308,
+  "pre_quant_val_bpb": 1.3429,
+  "step_stop": 4141,
+  "wallclock_seconds": 3600,
+  "bytes_total": 15132832,
+  "bytes_model_int8_zlib": 15080959,
+  "bytes_code": 51873,
+  "gpu": "1xRTX5090"
+}

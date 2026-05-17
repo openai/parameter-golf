@@ -1,0 +1,23 @@
+{
+  "author": "dexhunter",
+  "github_id": "dexhunter",
+  "name": "SP8192 + CaseOps (lossless case preprocessing) + Gated Attention + Quant Gate + Loop4-5 + Phased TTT",
+  "blurb": "CaseOps reversible case-preprocessing tokenizer (adds TITLE/ALLCAPS/CAPNEXT/ESC as user_defined_symbols) on the PR #1530 SP8192 stack, plus a lightweight learned attention-output gate and quant-gate scaling, Loop45 depth recurrence, multi-phase SGD score-first TTT. BPB scored on ORIGINAL pre-transform UTF-8 bytes via a per-token byte sidecar.",
+  "date": "2026-04-19",
+  "track": "10min_16mb",
+  "val_loss": 2.33168,
+  "val_bpb": 1.06549,
+  "val_bpb_std": 0.00070,
+  "val_loss_std": 0.00152,
+  "seeds": [42, 0, 1234],
+  "seed_results": {
+    "42":   {"val_loss": 2.33302, "val_bpb": 1.06610, "artifact_bytes": 15978834, "steps": 4854},
+    "0":    {"val_loss": 2.33002, "val_bpb": 1.06473, "artifact_bytes": 15971476, "steps": 4843},
+    "1234": {"val_loss": 2.33199, "val_bpb": 1.06563, "artifact_bytes": 15975050, "steps": 4847}
+  },
+  "artifact_bytes_mean": 15975120,
+  "train_time_s_mean": 596.14,
+  "eval_time_s_mean": 397.23,
+  "hardware": "8xH100 80GB SXM",
+  "reproducibility_notes": "Run prepare_caseops_data.py once to tokenize the CaseOps-transformed FineWeb into the expected shards and per-token byte sidecar, then run train_gpt.py per seed as documented in README.md."
+}

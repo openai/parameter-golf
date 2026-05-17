@@ -1,0 +1,15 @@
+{
+    "author": "Pranav Iyer",
+    "github_id": "pranavxiyer",
+    "name": "Learned Adapters on Random Linear Maps",
+    "date": "2026-04-30",
+    "blurb": "MLP using LoRA style adapters, allowing for a wider and deeper model",
+    "val_bpb": 1.2184,
+    "sliding_val_bpb": 1.1971,
+    "bytes_total": 15418110,
+    "num_layers": 12,
+    "rank": 160,
+    "mlp_mult": 3,
+    "seq_len": 2048,
+    "int6_layers": [5, 6, 7]
+}

@@ -1,0 +1,1690 @@
+"""XNOR-Net LLM training script for OpenAI's Parameter Golf Challenge.
+Ciprian-Florin Ifrim — April 2026
+
+Based on the Binary-Weight-Network script, extended to full XNOR-Net:
+both weights AND activations are binarized using sign() with per-group/per-token
+scaling factors derived from the XNOR-Net paper (Rastegari et al. 2016).
+
+This is the REFERENCE implementation using STE-simulated XNOR via F.linear.
+The Triton INT8×INT8 kernel version comes later for H100 deployment.
+
+Architecture: U-Net transformer with skip connections — provides error correction
+for the information loss inherent in binary quantization of both weights and activations.
+"""
+
+import copy
+import glob
+import io
+import math
+import os
+import random
+import sys
+import time
+import lzma
+from pathlib import Path
+try:
+    import brotli
+    HAS_BROTLI = True
+except ImportError:
+    HAS_BROTLI = False
+try:
+    import zstandard as zstd
+    HAS_ZSTD = True
+except ImportError:
+    HAS_ZSTD = False
+try:
+    from gram_newton_schulz import GramNewtonSchulz, POLAR_EXPRESS_COEFFICIENTS
+    HAS_GRAM_NS = True
+except ImportError:
+    HAS_GRAM_NS = False
+import numpy as np
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="torch._inductor")
+import sentencepiece as spm
+import torch
+import torch.distributed as dist
+import torch.nn.functional as F
+from torch import Tensor, nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+try:
+    import triton
+    import triton.language as tl
+    HAS_TRITON = True
+except ImportError:
+    HAS_TRITON = False
+def _get_flash_attn_func():
+    """GPU-aware FlashAttention selection.
+    H100:  FA3 -> FA2 -> SDPA
+    5090:  FA4 -> FA2 -> SDPA
+    Other: FA2 -> SDPA
+    """
+    if torch.cuda.is_available():
+        sm = torch.cuda.get_device_capability()
+        # Hopper (SM 90) — prefer FA3
+        if sm[0] == 9 and sm[1] == 0:
+            try:
+                from flash_attn_interface import flash_attn_func
+                return flash_attn_func
+            except ImportError:
+                pass
+        # Blackwell (SM 100/120) — try FA4
+        if sm[0] >= 10:
+            try:
+                from flash_attn.cute import flash_attn_func
+                return flash_attn_func
+            except ImportError:
+                pass
+    # FA2 — universal fallback with CUDA kernels
+    try:
+        from flash_attn import flash_attn_func
+        return flash_attn_func
+    except ImportError:
+        pass
+    # PyTorch native SDPA — always works, no install needed
+    def _sdpa_flash_attn_func(q, k, v, causal=False, **kwargs):
+        q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
+        o = F.scaled_dot_product_attention(q, k, v, is_causal=causal, enable_gqa=True)
+        return o.transpose(1, 2)
+    return _sdpa_flash_attn_func
+flash_attn_func = _get_flash_attn_func()
+
+# ---------------------------------------------------------------------------
+# Hyperparameters
+# ---------------------------------------------------------------------------
+def _e(k, d, t=str):
+    v = os.environ.get(k, str(d))
+    if t == bool: return bool(int(v))
+    return t(v)
+
+class Hyperparameters:
+    # Data
+    data_path = _e("DATA_PATH", "./data/datasets/fineweb10B_sp8192")
+    train_files = os.path.join(data_path, "fineweb_train_*.bin")
+    val_files = os.path.join(data_path, "fineweb_val_*.bin")
+    tokenizer_path = _e("TOKENIZER_PATH", "./data/tokenizers/fineweb_8192_bpe.model")
+    run_id = os.environ.get("RUN_ID", f"xnor_{int(time.time())}")
+    seed = _e("SEED", 1337, int)
+    # Compile
+    compile_mode = _e("COMPILE_MODE", "default")
+    # Eval
+    val_batch_size = _e("VAL_BATCH_SIZE", 524288, int)
+    val_loss_every = _e("VAL_LOSS_EVERY", 500, int)
+    train_log_every = _e("TRAIN_LOG_EVERY", 10, int)
+    sliding_eval = _e("SLIDING_EVAL", 0, bool)
+    sliding_eval_stride = _e("SLIDING_EVAL_STRIDE", 16, int)
+    sliding_batch_size = _e("SLIDING_BATCH_SIZE", 512, int)
+    temp_scaling = _e("TEMP_SCALING", 0, bool)
+    # Training schedule
+    iterations = _e("ITERATIONS", 2000, int)
+    warmdown_fraction = _e("WARMDOWN_FRACTION", 0.15, float)
+    lr_warmup_steps = _e("LR_WARMUP_STEPS", 5, int)
+    lr_schedule = _e("LR_SCHEDULE", "linear")  # "linear" (current) or "cosine"
+    seq_len_schedule = _e("SEQ_LEN_SCHEDULE", 0, bool)  # ramp seq_len from 128 to train_seq_len
+    train_batch_tokens = _e("TRAIN_BATCH_TOKENS", 524288, int)
+    train_seq_len = _e("TRAIN_SEQ_LEN", 1024, int)
+    max_wallclock_seconds = _e("MAX_WALLCLOCK_SECONDS", 0.0, float)
+    # Architecture — from XNOR-UNet spec
+    vocab_size = _e("VOCAB_SIZE", 8192, int)
+    num_layers = _e("NUM_LAYERS", 15, int)
+    num_kv_heads = _e("NUM_KV_HEADS", 4, int)
+    model_dim = _e("MODEL_DIM", 768, int)
+    num_heads = _e("NUM_HEADS", 8, int)
+    mlp_mult = _e("MLP_MULT", 4, int)
+    tie_embeddings = _e("TIE_EMBEDDINGS", 1, int)
+    embed_dim = _e("EMBED_DIM", 312, int)
+    activation_type = _e("ACTIVATION", "relu2")
+    # Attention
+    rope_base = _e("ROPE_BASE", 5000.0, float)
+    rope_type = _e("ROPE_TYPE", "yarn")
+    yarn_max_len = _e("YARN_MAX_LEN", 2048, int)
+    qk_gain_init = _e("QK_GAIN_INIT", 2.25, float)
+    # Logits
+    logit_softcap = _e("LOGIT_SOFTCAP", 10.0, float)
+    softcap_type = _e("SOFTCAP_TYPE", "poly")
+    tied_embed_init_std = _e("TIED_EMBED_INIT_STD", 0.005, float)
+    # Architecture extras
+    smear = _e("SMEAR", 1, bool)
+    attn_res = _e("ATTN_RES", 0, int)  # 0=disabled, 1=sub-layer, 2=pass-level
+    # XNOR quantization
+    xnor_group_size = _e("XNOR_GROUP_SIZE", 128, int)
+    # Controls activation binarization: 0 = none (BWN), 1 = all (full XNOR), 2 = skip MLP down proj
+    binarize_activations = _e("BINARIZE_ACTIVATIONS", 1, int)
+    # Use INT8 tensor cores for binary matmul (speed test)
+    use_int8_kernel = _e("USE_INT8_KERNEL", 0, bool)
+    # Use Triton XNOR+POPCOUNT kernel (true 1-bit matmul)
+    use_triton_kernel = _e("USE_TRITON_KERNEL", 0, bool)
+    # FP8 QAT for non-binary params
+    _fp_raw = os.environ.get("FP_STORAGE", "FP8")
+    fp_storage = True if _fp_raw == "FP8" else False
+    # Scale storage for binary weight groups: FP8 or BF16
+    _scale_raw = os.environ.get("SCALE_STORAGE", "BF16")
+    scale_fp8 = True if _scale_raw == "FP8" else False
+    # Compression regularizer: penalizes sign entropy within groups
+    sign_compress_reg = _e("SIGN_COMPRESS_REG", 0.0, float)
+    # Optimizer
+    matrix_lr = _e("MATRIX_LR", 0.04, float)
+    scalar_lr = _e("SCALAR_LR", 0.02, float)
+    tied_embed_lr = _e("TIED_EMBED_LR", 0.02, float)
+    embed_lr = _e("EMBED_LR", 0.6, float)
+    head_lr = _e("HEAD_LR", 0.02, float)
+    matrix_optimizer = _e("MATRIX_OPTIMIZER", "muon")
+    muon_momentum = _e("MUON_MOMENTUM", 0.95, float)
+    muon_backend_steps = _e("MUON_BACKEND_STEPS", 3, int)
+    muon_wd = _e("MUON_WD", 0.0, float)
+    use_gram_ns = _e("USE_GRAM_NS", 0, bool)
+    muon_momentum_warmup_start = _e("MUON_MOMENTUM_WARMUP_START", 0.85, float)
+    muon_momentum_warmup_steps = _e("MUON_MOMENTUM_WARMUP_STEPS", 500, int)
+    adam_lr = _e("ADAM_LR", 0.05, float)
+    adam_wd = _e("ADAM_WD", 0.05, float)
+    beta1 = _e("BETA1", 0.9, float)
+    beta2 = _e("BETA2", 0.95, float)
+    adam_eps = _e("ADAM_EPS", 1e-8, float)
+    grad_clip_norm = _e("GRAD_CLIP_NORM", 0.0, float)
+    # EMA — compatible with binary (no zero-weight collapse unlike ternary)
+    ema = _e("EMA", 0, bool)
+    ema_decay = _e("EMA_DECAY", 0.995, float)
+    ema_start_fraction = _e("EMA_START_FRACTION", 0.60, float)
+    # Checkpointing
+    checkpoint_every = _e("CHECKPOINT_EVERY", 0, int)
+    checkpoint_dir = _e("CHECKPOINT_DIR", "./checkpoints")
+    # Diagnostics
+    churn_log_every = _e("CHURN_LOG_EVERY", 500, int)
+
+# Scalar/low-dim parameter names (excluded from Muon, use Adam)
+CTP = ("attn_scale", "mlp_scale", "resid_mix", "q_gain", "skip_weight",
+       "skip_weights", "vocab_bias", "smear")
+
+# ---------------------------------------------------------------------------
+# Binary packing (1 bit per weight, lossless)
+# ---------------------------------------------------------------------------
+def pack_binary(q: Tensor) -> tuple[bytes, int]:
+    bits = ((q.reshape(-1).to(torch.int8) + 1) // 2).numpy().astype(np.uint8)
+    n = len(bits)
+    pad = (8 - n % 8) % 8
+    if pad:
+        bits = np.concatenate([bits, np.zeros(pad, dtype=np.uint8)])
+    groups = bits.reshape(-1, 8)
+    packed = np.zeros(len(groups), dtype=np.uint8)
+    for i in range(8):
+        packed |= groups[:, i] << i
+    return packed.tobytes(), n
+
+def unpack_binary(data: bytes, n: int) -> Tensor:
+    packed = np.frombuffer(data, dtype=np.uint8)
+    bits = np.zeros((len(packed), 8), dtype=np.int8)
+    for i in range(8):
+        bits[:, i] = (packed >> i) & 1
+    flat = bits.reshape(-1)[:n]
+    return torch.from_numpy(flat.astype(np.int8) * 2 - 1)
+
+# ---------------------------------------------------------------------------
+# State dict serialization
+# ---------------------------------------------------------------------------
+def q_sd(state_dict: dict, group_size: int = 128, fp_storage=False, scale_fp8=False) -> tuple[dict, dict]:
+    """Binary pack large 2D weight matrices, BF16/FP8 for everything else."""
+    quantized = {}
+    stats = {"binary_params": 0, "binary_bytes": 0, "fp_params": 0, "fp_bytes": 0}
+    for name, tensor in state_dict.items():
+        t = tensor.detach().cpu().float().contiguous()
+        t_orig_shape = list(t.shape)
+        if t.ndim == 3:
+            t = t.reshape(t.shape[0], -1)
+        is_binary = (
+            t.ndim == 2 and t.numel() > 65_536
+            and "tok_emb" not in name and "lm_head" not in name
+            and "embed_proj" not in name
+        )
+        if is_binary:
+            pad = (group_size - t.shape[1] % group_size) % group_size
+            t_padded = F.pad(t, (0, pad)) if pad > 0 else t
+            t_grouped = t_padded.reshape(-1, group_size)
+            scale = t_grouped.abs().mean(-1, keepdim=True).clamp(min=1e-8)
+            q = torch.where(t_grouped >= 0,
+                            torch.ones_like(t_grouped, dtype=torch.int8),
+                            -torch.ones_like(t_grouped, dtype=torch.int8))
+            packed_bytes, n_bits = pack_binary(q)
+            if scale_fp8:
+                scale_stored = scale.to(torch.float8_e4m3fn).squeeze(-1)
+                scale_bytes_per = 1
+            else:
+                scale_stored = scale.bfloat16().squeeze(-1)
+                scale_bytes_per = 2
+            quantized[name] = {
+                "type": "binary", "packed": packed_bytes,
+                "scale": scale_stored,
+                "shape": list(t.shape), "padded_cols": t_padded.shape[1],
+                "group_size": group_size, "n_bits": n_bits,
+                "orig_shape": t_orig_shape,
+            }
+            stats["binary_params"] += t.numel()
+            stats["binary_bytes"] += len(packed_bytes) + scale.numel() * scale_bytes_per
+        elif fp_storage and t.ndim == 2:
+            quantized[name] = {"type": "fp8", "data": t.to(torch.float8_e4m3fn)}
+            stats["fp_params"] += t.numel()
+            stats["fp_bytes"] += t.numel()
+        else:
+            quantized[name] = {"type": "bf16", "data": t.bfloat16()}
+            stats["fp_params"] += t.numel()
+            stats["fp_bytes"] += t.numel() * 2
+    return quantized, stats
+
+def deq_sd(quantized: dict, target_dtype=torch.bfloat16):
+    """Reconstruct state dict from quantized representation."""
+    out = {}
+    for name, entry in quantized.items():
+        if entry["type"] == "binary":
+            q = unpack_binary(entry["packed"], entry["n_bits"])
+            q = q.float().reshape(-1, entry["group_size"])
+            scale = entry["scale"].float().unsqueeze(-1)
+            # No shrinkage correction: binary q_absmean = 1.0 always
+            t = (q * scale).reshape(-1, entry["padded_cols"])
+            shape = entry["shape"]
+            result = t[:shape[0], :shape[1]].to(target_dtype)
+            orig = entry.get("orig_shape")
+            out[name] = result.reshape(orig).contiguous() if orig and orig != shape else result.contiguous()
+        elif entry["type"] == "fp8":
+            out[name] = entry["data"].to(torch.float32).to(target_dtype).contiguous()
+        else:
+            out[name] = entry["data"].to(target_dtype).contiguous()
+    return out
+
+# ---------------------------------------------------------------------------
+# Diagnostics
+# ---------------------------------------------------------------------------
+_prev_committed: dict = {}
+def churn_fn(model: nn.Module, group_size: int = 128):
+    global _prev_committed
+    total = flipped = 0
+    with torch.no_grad():
+        for name, p in model.named_parameters():
+            if p.ndim == 2 and "weight" in name and p.shape[0] > 1:
+                w = p.detach().float().reshape(-1, group_size)
+                q = torch.where(w >= 0, torch.ones_like(w), -torch.ones_like(w)).cpu().numpy()
+                if name in _prev_committed:
+                    flipped += int(np.sum(q != _prev_committed[name]))
+                    total += q.size
+                _prev_committed[name] = q
+    return flipped / max(total, 1)
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Muon optimizer
+# ---------------------------------------------------------------------------
+def ns_orth(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    X /= X.norm() + eps
+    transposed = G.size(0) > G.size(1)
+    if transposed:
+        X = X.T
+    for _ in range(steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    return X.T if transposed else X
+
+def gram_ns_orth(G: Tensor, steps: int = 5, eps: float = 1e-7) -> Tensor:
+    """Gram Newton-Schulz with Polar Express coefficients. 5 steps, restart at step 2.
+    Fully unrolled for torch.compile. bfloat16 throughout."""
+    X = G.bfloat16()
+    transposed = G.size(0) > G.size(1)
+    if transposed:
+        X = X.T
+    X = X / (X.norm() + eps)
+    n = X.size(0)
+    I = torch.eye(n, device=X.device, dtype=X.dtype)
+
+    # Phase 1: steps 0-1
+    R = X @ X.T
+    # Step 0: a=4.0848, b=-6.8946, c=2.9270
+    Z = -6.8946 * R + 2.9270 * (R @ R)
+    Q = Z + 4.0848 * I
+    RZ = 4.0848 * R + R @ Z
+    R = 4.0848 * RZ + Z @ RZ
+    # Step 1: a=3.9505, b=-6.3029, c=2.6377
+    Z = -6.3029 * R + 2.6377 * (R @ R)
+    Q = 3.9505 * Q + Q @ Z
+    # No R update (next is reset)
+
+    # Reset
+    X = Q @ X
+    R = X @ X.T
+
+    # Phase 2: steps 2-4
+    # Step 2: a=3.7418, b=-5.5913, c=2.3037
+    Z = -5.5913 * R + 2.3037 * (R @ R)
+    Q = Z + 3.7418 * I
+    RZ = 3.7418 * R + R @ Z
+    R = 3.7418 * RZ + Z @ RZ
+    # Step 3: a=2.8769, b=-3.1427, c=1.2046
+    Z = -3.1427 * R + 1.2046 * (R @ R)
+    Q = 2.8769 * Q + Q @ Z
+    RZ = 2.8769 * R + R @ Z
+    R = 2.8769 * RZ + Z @ RZ
+    # Step 4: a=2.8366, b=-3.0525, c=1.2012
+    Z = -3.0525 * R + 1.2012 * (R @ R)
+    Q = 2.8366 * Q + Q @ Z
+
+    X = Q @ X
+    return X.T if transposed else X
+
+class Muon(torch.optim.Optimizer):
+    def __init__(self, params, lr, momentum, backend_steps, nesterov=True, wd=0.0):
+        super().__init__(params, dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov, wd=wd))
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        distributed = dist.is_available() and dist.is_initialized()
+        world_size = dist.get_world_size() if distributed else 1
+        rank = dist.get_rank() if distributed else 0
+        for group in self.param_groups:
+            params = group["params"]
+            if not params:
+                continue
+            lr, momentum = group["lr"], group["momentum"]
+            backend_steps, nesterov = group["backend_steps"], group["nesterov"]
+            total_params = sum(int(p.numel()) for p in params)
+            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+            curr = 0
+            for i, p in enumerate(params):
+                if i % world_size == rank and p.grad is not None:
+                    g = p.grad
+                    state = self.state[p]
+                    if "momentum_buffer" not in state:
+                        state["momentum_buffer"] = torch.zeros_like(g)
+                    buf = state["momentum_buffer"]
+                    buf.mul_(momentum).add_(g)
+                    if nesterov:
+                        g = g.add(buf, alpha=momentum)
+                    g = F.rms_norm(g.float(), (g.size(-1),)).bfloat16()
+                    g = ns_orth(g, steps=backend_steps)
+                    g *= max(1, g.size(0) / g.size(1)) ** 0.5
+                    updates_flat[curr:curr + p.numel()] = g.reshape(-1)
+                curr += p.numel()
+            if distributed:
+                dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
+            wd = group.get("wd", 0.0)
+            curr = 0
+            for p in params:
+                g = updates_flat[curr:curr + p.numel()].view_as(p).to(dtype=p.dtype)
+                if wd > 0:
+                    p.mul_(1 - lr * wd)
+                p.add_(g, alpha=-lr)
+                curr += p.numel()
+        return loss
+
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+def ld_shard(file: Path) -> Tensor:
+    header_bytes = 256 * np.dtype("<i4").itemsize
+    header = np.fromfile(file, dtype="<i4", count=256)
+    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
+        raise ValueError(f"Unexpected shard header for {file}")
+    num_tokens = int(header[2])
+    tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
+    return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
+
+class TokenStream:
+    def __init__(self, pattern: str):
+        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        if not self.files:
+            raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        self.file_idx = 0
+        self.tokens = ld_shard(self.files[0])
+        self.pos = 0
+    def _advance_file(self):
+        self.file_idx = (self.file_idx + 1) % len(self.files)
+        self.tokens = ld_shard(self.files[self.file_idx])
+        self.pos = 0
+    def take(self, n: int) -> Tensor:
+        chunks = []
+        remaining = n
+        while remaining > 0:
+            avail = self.tokens.numel() - self.pos
+            if avail <= 0:
+                self._advance_file()
+                continue
+            k = min(remaining, avail)
+            chunks.append(self.tokens[self.pos:self.pos + k])
+            self.pos += k
+            remaining -= k
+        return chunks[0] if len(chunks) == 1 else torch.cat(chunks)
+
+class DistributedTokenLoader:
+    def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
+        self.rank, self.world_size, self.device = rank, world_size, device
+        self.stream = TokenStream(pattern)
+    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int):
+        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        per_rank_span = local_tokens + 1
+        chunk = self.stream.take(per_rank_span * self.world_size)
+        start = self.rank * per_rank_span
+        local = chunk[start:start + per_rank_span].pin_memory().to(self.device, non_blocking=True).to(torch.int64)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
+        return x, y
+
+# ---------------------------------------------------------------------------
+# Model components
+# ---------------------------------------------------------------------------
+class RMSNorm(nn.Module):
+    def __init__(self, eps=None):
+        super().__init__()
+        self.eps = eps
+    def forward(self, x: Tensor) -> Tensor:
+        return F.rms_norm(x, (x.size(-1),), eps=self.eps)
+
+def apply_qat_ste(w: Tensor, fp_storage) -> Tensor:
+    if not fp_storage:
+        return w
+    w_sim = w.to(torch.float8_e4m3fn).to(w.dtype)
+    return (w_sim - w).detach() + w
+
+class QATLinear(nn.Linear):
+    def __init__(self, in_features, out_features, bias=False, fp_storage=False):
+        super().__init__(in_features, out_features, bias=bias)
+        self.fp_storage = fp_storage
+    def forward(self, x: Tensor) -> Tensor:
+        w = apply_qat_ste(self.weight, self.fp_storage)
+        return F.linear(x, w.to(x.dtype), self.bias.to(x.dtype) if self.bias is not None else None)
+
+class QATEmbedding(nn.Embedding):
+    def __init__(self, num_embeddings, embedding_dim, fp_storage=False):
+        super().__init__(num_embeddings, embedding_dim)
+        self.fp_storage = fp_storage
+    def forward(self, input: Tensor) -> Tensor:
+        w = apply_qat_ste(self.weight, self.fp_storage)
+        return F.embedding(input, w, self.padding_idx, self.max_norm,
+                           self.norm_type, self.scale_grad_by_freq, self.sparse)
+
+# ---------------------------------------------------------------------------
+# XNOR-Net Linear Layers
+# ---------------------------------------------------------------------------
+_INT8_KERNEL = False  # set from Hyperparameters.use_int8_kernel in main()
+
+class _INT8XNORFn(torch.autograd.Function):
+    """INT8 tensor core forward, BF16 backward.
+    Uses per-row alpha (not per-group) so we get a single torch._int_mm call.
+    """
+    @staticmethod
+    def forward(ctx, x, w):
+        # Per-row weight scale (single matmul)
+        w_alpha = w.detach().abs().mean(dim=-1).clamp_(min=1e-8)  # [N]
+        x_beta = x.detach().abs().mean(dim=-1, keepdim=True).clamp_(min=1e-8)  # [..., 1]
+
+        w_int8 = w.detach().sign().to(torch.int8)       # [N, K]
+        x_int8 = x.detach().sign().to(torch.int8)       # [..., K]
+
+        # Flatten to 2D for torch._int_mm(A[M,K], B[K,N]) -> [M,N]
+        orig_shape = x.shape[:-1]
+        M, K, N = orig_shape.numel(), x.shape[-1], w.shape[0]
+        x_2d = x_int8.reshape(M, K)
+        wt = w_int8.t().contiguous()                     # [K, N]
+        raw = torch._int_mm(x_2d, wt)                    # [M, N] INT32
+
+        y = raw.to(x.dtype) * x_beta.reshape(M, 1) * w_alpha.unsqueeze(0)
+        ctx.save_for_backward(x, w, w_alpha, x_beta)
+        return y.reshape(*orig_shape, N)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        x, w, w_alpha, x_beta = ctx.saved_tensors
+        dtype = grad_output.dtype
+
+        w_binary = (w.sign() * w_alpha.unsqueeze(-1)).to(dtype)   # [N, K]
+        x_binary = (x.sign() * x_beta).to(dtype)                  # [..., K]
+
+        # STE: gradient flows through sign() as identity
+        grad_x = grad_output @ w_binary
+        M = grad_output.shape[:-1].numel()
+        grad_w = grad_output.reshape(M, -1).t() @ x_binary.reshape(M, -1)
+        return grad_x, grad_w
+
+# ---------------------------------------------------------------------------
+# Triton XNOR+POPCOUNT kernel — true 1-bit matmul
+# ---------------------------------------------------------------------------
+_TRITON_KERNEL = False  # set from Hyperparameters in main()
+_SCALE_FP8_STE = False  # simulate FP8 scale quantization during training
+
+def pack_signs(x: Tensor) -> Tensor:
+    """Pack sign bits into int32. +1 -> bit 1, -1 -> bit 0.
+    x: [..., K] any dtype. K must be divisible by 32.
+    returns: [..., K//32] int32
+    """
+    K = x.shape[-1]
+    assert K % 32 == 0, f"K={K} must be divisible by 32"
+    bits = (x > 0).view(*x.shape[:-1], K // 32, 32)
+    shifts = torch.arange(32, device=x.device, dtype=torch.int32)
+    return (bits.to(torch.int32) << shifts).sum(dim=-1)
+
+if HAS_TRITON:
+    @triton.jit
+    def _xnor_matmul_fwd_kernel(
+        X_ptr, W_ptr, Y_ptr, alpha_ptr, beta_ptr,
+        M, N, K_packed, GROUP_PACKED: tl.constexpr, num_groups,
+        stride_xm, stride_wn, stride_yn, stride_alpha_n,
+        BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr,
+    ):
+        pid = tl.program_id(0)
+        num_n = tl.cdiv(N, BLOCK_N)
+        pid_m = pid // num_n
+        pid_n = pid % num_n
+
+        offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
+        offs_n = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+        mask_m = offs_m < M
+        mask_n = offs_n < N
+
+        y_acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.bfloat16)
+
+        x_base = X_ptr + offs_m * stride_xm
+        w_base = W_ptr + offs_n * stride_wn
+
+        # Loop over groups, each with GROUP_PACKED packed int32s
+        for g in range(num_groups):
+            group_acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.int32)
+            k_start = g * GROUP_PACKED
+            for k in range(GROUP_PACKED):
+                x = tl.load(x_base + k_start + k, mask=mask_m, other=0)
+                w = tl.load(w_base + k_start + k, mask=mask_n, other=0)
+                # Cast broadcast XOR to int32 to prevent int64 promotion in popc
+                diff = (x[:, None] ^ w[None, :]).to(tl.int32)
+                group_acc += tl.extra.cuda.libdevice.popc(diff)
+
+            # diff_bits = popc(XOR), dot = GROUP_SIZE - 2 * diff_bits
+            group_dot = (GROUP_PACKED * 32 - 2 * group_acc).to(tl.bfloat16)
+
+            # Per-group alpha: alpha[n, g]
+            alpha_g = tl.load(alpha_ptr + offs_n * stride_alpha_n + g, mask=mask_n, other=1.0).to(tl.bfloat16)
+            y_acc += group_dot * alpha_g[None, :]
+
+        # Per-token beta
+        beta = tl.load(beta_ptr + offs_m, mask=mask_m, other=1.0).to(tl.bfloat16)
+        y_acc = y_acc * beta[:, None]
+
+        # Store
+        y_ptrs = Y_ptr + offs_m[:, None] * stride_yn + offs_n[None, :]
+        tl.store(y_ptrs, y_acc, mask=mask_m[:, None] & mask_n[None, :])
+
+class _TritonXNORFn(torch.autograd.Function):
+    """Triton XNOR+POPCOUNT forward with per-group alpha, BF16 backward."""
+    @staticmethod
+    def forward(ctx, x, w, group_size):
+        N, K = w.shape
+        assert K % group_size == 0, f"K={K} must be divisible by group_size={group_size}"
+        assert K % 32 == 0, f"K={K} must be divisible by 32"
+        num_groups = K // group_size
+        GROUP_PACKED = group_size // 32
+
+        # Per-group weight scale: [N, num_groups]
+        w_alpha = w.detach().reshape(N, num_groups, group_size).abs().mean(dim=-1).clamp_(min=1e-8)
+        if _SCALE_FP8_STE:
+            w_alpha = w_alpha.to(torch.float8_e4m3fn).to(w_alpha.dtype)
+        # Per-token activation scale: [..., 1]
+        x_beta_kd = x.detach().abs().mean(dim=-1, keepdim=True).clamp_(min=1e-8)
+
+        # Pack signs into int32
+        x_packed = pack_signs(x.detach())                    # [..., K//32]
+        w_packed = pack_signs(w.detach())                    # [N, K//32]
+
+        orig_shape = x.shape[:-1]
+        M = orig_shape.numel()
+        K_packed = K // 32
+
+        x_2d = x_packed.reshape(M, K_packed).contiguous()
+        w_alpha_c = w_alpha.contiguous()                     # [N, num_groups]
+        beta_flat = x_beta_kd.reshape(M).contiguous()
+
+        Y = torch.empty(M, N, device=x.device, dtype=torch.bfloat16)
+
+        BLOCK_M, BLOCK_N = 64, 64
+        grid = (triton.cdiv(M, BLOCK_M) * triton.cdiv(N, BLOCK_N),)
+
+        _xnor_matmul_fwd_kernel[grid](
+            x_2d, w_packed, Y, w_alpha_c, beta_flat,
+            M, N, K_packed, GROUP_PACKED, num_groups,
+            x_2d.stride(0), w_packed.stride(0), Y.stride(0), w_alpha_c.stride(0),
+            BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N,
+        )
+
+        ctx.save_for_backward(x, w, w_alpha, x_beta_kd)
+        ctx.group_size = group_size
+        return Y.reshape(*orig_shape, N)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        x, w, w_alpha, x_beta_kd = ctx.saved_tensors
+        dtype = grad_output.dtype
+        group_size = ctx.group_size
+
+        # Reconstruct per-group binary weights for backward
+        N, K = w.shape
+        num_groups = K // group_size
+        w_binary = (w.sign().reshape(N, num_groups, group_size) *
+                    w_alpha.unsqueeze(-1)).reshape(N, K).to(dtype)
+        x_binary = (x.sign() * x_beta_kd).to(dtype)
+
+        grad_x = grad_output @ w_binary
+        M = grad_output.shape[:-1].numel()
+        grad_w = grad_output.reshape(M, -1).t() @ x_binary.reshape(M, -1)
+        return grad_x, grad_w, None  # None for group_size
+
+class XNORLinear(nn.Linear):
+    """XNOR-Net linear layer: binarizes BOTH weights AND activations.
+
+    Forward pass:
+      1. Weight binarization:  W_bin = sign(W) * alpha,  alpha = mean(|W|) per group
+      2. Activation binarization: X_bin = sign(X) * beta, beta = mean(|X|) per token
+      3. Output = F.linear(X_bin, W_bin)
+
+    Backward pass: Straight-Through Estimator (STE) — gradients flow through as
+    if the binarization was identity. This matches the XNOR-Net paper's training
+    algorithm (Algorithm 1).
+
+    When binarize_act=False, this degrades to Binary-Weight-Network (BWN).
+    """
+    def __init__(self, in_features, out_features, bias=False, group_size=128,
+                 binarize_act=True):
+        super().__init__(in_features, out_features, bias=bias)
+        self.group_size = group_size
+        self.binarize_act = binarize_act
+
+    def forward(self, x: Tensor) -> Tensor:
+        # Triton XNOR+POPCOUNT path (full XNOR only, per-row alpha)
+        if _TRITON_KERNEL and self.binarize_act:
+            y = _TritonXNORFn.apply(x, self.weight, self.group_size)
+            if self.bias is not None:
+                y = y + self.bias.to(y.dtype)
+            return y
+        # INT8 tensor core path (full XNOR only, per-row alpha)
+        if _INT8_KERNEL and self.binarize_act:
+            y = _INT8XNORFn.apply(x, self.weight)
+            if self.bias is not None:
+                y = y + self.bias.to(y.dtype)
+            return y
+
+        # Standard STE path (per-group alpha)
+        w = self.weight.bfloat16()
+        g = self.group_size
+
+        # --- Weight binarization (STE) ---
+        w_g = w.reshape(-1, g)
+        alpha = w_g.abs().mean(-1, keepdim=True).clamp(min=1e-8)
+        # Simulate FP8 scale quantization so model compensates for roundtrip error
+        if _SCALE_FP8_STE:
+            alpha_q = alpha.to(torch.float8_e4m3fn).to(alpha.dtype)
+            alpha = alpha + (alpha_q - alpha).detach()
+        w_sign = torch.where(w_g >= 0, torch.ones_like(w_g), -torch.ones_like(w_g))
+        w_binary = w + ((w_sign * alpha).reshape(w.shape) - w).detach()
+
+        # --- Activation binarization (STE) ---
+        if self.binarize_act:
+            beta = x.abs().mean(dim=-1, keepdim=True).clamp(min=1e-8)
+            x_sign = torch.where(x >= 0, torch.ones_like(x), -torch.ones_like(x))
+            x_binary = x + ((x_sign * beta) - x).detach()
+        else:
+            x_binary = x
+
+        return F.linear(x_binary, w_binary,
+                        self.bias.to(x.dtype) if self.bias is not None else None)
+
+
+class NormedXNORLinear(XNORLinear):
+    """XNOR linear with RMSNorm on input.
+    Used for output projections receiving un-normalized activations (attention out, MLP down).
+    The RMSNorm ensures zero-mean input before binarization — critical for sign() quality
+    (XNOR-Net paper: B-A-C-P block order, Table 3b: 30.3% vs 44.2%).
+    """
+    def forward(self, x: Tensor) -> Tensor:
+        return super().forward(F.rms_norm(x, (x.size(-1),)))
+
+
+def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
+    with torch.no_grad():
+        for name, param in module.named_parameters():
+            if (param.ndim < 2 or any(p in name for p in CTP)) and param.dtype != torch.float32:
+                param.data = param.data.float()
+
+# ---------------------------------------------------------------------------
+# Rotary embeddings
+# ---------------------------------------------------------------------------
+class Rotary(nn.Module):
+    def __init__(self, dim, base=10000.0, rope_type="rope", yarn_max_len=4096, train_seq_len=1024):
+        super().__init__()
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        if rope_type == "yarn":
+            scale = train_seq_len / yarn_max_len
+            freq_idx = torch.arange(0, dim, 2, dtype=torch.float32)
+            ramp = torch.clamp((freq_idx / dim - 0.25) / 0.75, 0.0, 1.0)
+            inv_freq = inv_freq / (ramp * (1.0 / scale - 1.0) + 1.0)
+        # Precompute for max seq_len, slice at runtime
+        t = torch.arange(train_seq_len, dtype=torch.float32)
+        freqs = torch.outer(t, inv_freq)
+        self.register_buffer("_cos", freqs.cos()[None, :, None, :], persistent=False)
+        self.register_buffer("_sin", freqs.sin()[None, :, None, :], persistent=False)
+
+    def forward(self, seq_len, device, dtype):
+        return self._cos[:, :seq_len].to(dtype=dtype), self._sin[:, :seq_len].to(dtype=dtype)
+
+def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    half = x.size(-1) // 2
+    x1, x2 = x[..., :half], x[..., half:]
+    return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+
+# ---------------------------------------------------------------------------
+# Attention
+# ---------------------------------------------------------------------------
+class CausalSelfAttention(nn.Module):
+    def __init__(self, dim, num_heads, num_kv_heads, rope_base, qk_gain_init,
+                 group_size=128, rope_type="rope", yarn_max_len=4096,
+                 train_seq_len=1024, binarize_act=True):
+        super().__init__()
+        self.num_heads, self.num_kv_heads = num_heads, num_kv_heads
+        self.head_dim = dim // num_heads
+        self.q_size = self.num_heads * self.head_dim
+        self.kv_size = self.num_kv_heads * self.head_dim
+        # Fused QKV — single XNOR matmul
+        self.c_qkv = XNORLinear(dim, self.q_size + 2 * self.kv_size, bias=False,
+                                group_size=group_size, binarize_act=binarize_act)
+        # Output projection with RMSNorm before binarization (B-A-C-P order)
+        self.proj = NormedXNORLinear(dim, dim, bias=False,
+                                     group_size=group_size, binarize_act=binarize_act)
+        self.proj._zero_init = True
+        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
+        self.rotary = Rotary(self.head_dim, base=rope_base,
+                             rope_type=rope_type, yarn_max_len=yarn_max_len,
+                             train_seq_len=train_seq_len)
+
+    def forward(self, x: Tensor) -> Tensor:
+        bsz, seqlen, dim = x.shape
+        qkv_out = self.c_qkv(x)
+        q_out, k_out, v_out = qkv_out.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+        q = q_out.reshape(bsz, seqlen, self.num_heads, self.head_dim)
+        k = k_out.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        v = v_out.reshape(bsz, seqlen, self.num_kv_heads, self.head_dim)
+        # QK normalization (BF16, stays float — non-negotiable for attention quality)
+        q, k = F.rms_norm(q, (q.size(-1),)), F.rms_norm(k, (k.size(-1),))
+        cos, sin = self.rotary(seqlen, x.device, q.dtype)
+        q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
+        q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
+        # FlashAttention-3 (BF16 — attention scores/softmax/V are NEVER binarized)
+        y = flash_attn_func(q.contiguous(), k.contiguous(), v.contiguous(), causal=True)
+        y = y.reshape(bsz, seqlen, dim)
+        return self.proj(y)
+
+# ---------------------------------------------------------------------------
+# MLP
+# ---------------------------------------------------------------------------
+class MLP(nn.Module):
+    def __init__(self, dim, mlp_mult, group_size=128, activation="relu2",
+                 binarize_act=True, binarize_down=True):
+        super().__init__()
+        hidden = mlp_mult * dim
+        self.activation = activation
+        if activation == "swiglu":
+            self.gate_up = XNORLinear(dim, hidden * 2, bias=False,
+                                      group_size=group_size, binarize_act=binarize_act)
+        else:
+            self.fc = XNORLinear(dim, hidden, bias=False,
+                                 group_size=group_size, binarize_act=binarize_act)
+        self.proj = NormedXNORLinear(hidden, dim, bias=False,
+                                     group_size=group_size, binarize_act=binarize_down)
+        self.proj._zero_init = True
+
+    def forward(self, x: Tensor) -> Tensor:
+        if self.activation == "swiglu":
+            gu = self.gate_up(x)
+            gate, up = gu.chunk(2, dim=-1)
+            return self.proj(F.silu(gate) * up)
+        elif self.activation == "signsq":
+            h = self.fc(x)
+            return self.proj(h * h.abs())
+        else:  # relu2
+            return self.proj(torch.relu(self.fc(x)).square())
+
+# ---------------------------------------------------------------------------
+# SmearModule
+# ---------------------------------------------------------------------------
+class SmearModule(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.gate = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+    def forward(self, x: Tensor) -> Tensor:
+        cumsum = x.cumsum(dim=1)
+        counts = torch.arange(1, x.size(1) + 1, device=x.device, dtype=x.dtype).view(1, -1, 1)
+        smeared = cumsum / counts
+        gate = torch.tanh(self.gate.to(dtype=x.dtype))
+        return x + gate * (smeared - x)
+
+# ---------------------------------------------------------------------------
+# Transformer block
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Attention Residuals (AttnRes) — depth-wise attention over prior outputs
+# From: "Attention Residuals" (Kimi Team, 2026)
+# ---------------------------------------------------------------------------
+class AttnRes(nn.Module):
+    def __init__(self, dim, n_queries):
+        super().__init__()
+        # Zero-init -> uniform weights at start -> equivalent to standard residual
+        self.queries = nn.ParameterList([
+            nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+            for _ in range(n_queries)
+        ])
+        self.key_norm_weight = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+
+    def attend(self, stored, query_idx):
+        w = self.queries[query_idx]
+        logits = []
+        for v in stored:
+            k = F.rms_norm(v, (v.size(-1),)) * self.key_norm_weight.to(v.dtype)
+            logits.append(torch.einsum('d, b t d -> b t', w.to(v.dtype), k))
+        logits = torch.stack(logits, dim=0)
+        weights = F.softmax(logits, dim=0)
+        out = torch.zeros_like(stored[0])
+        for i, v in enumerate(stored):
+            out = out + weights[i].unsqueeze(-1) * v
+        return out
+
+# ---------------------------------------------------------------------------
+# Transformer Block
+# ---------------------------------------------------------------------------
+class Block(nn.Module):
+    def __init__(self, dim, num_heads, num_kv_heads, mlp_mult, rope_base,
+                 qk_gain_init, group_size=128, activation="relu2",
+                 rope_type="rope", yarn_max_len=4096, train_seq_len=1024,
+                 binarize_act=True, binarize_down=True, smear=False):
+        super().__init__()
+        self.attn_norm = RMSNorm()
+        self.mlp_norm = RMSNorm()
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base,
+                                        qk_gain_init, group_size, rope_type,
+                                        yarn_max_len, train_seq_len, binarize_act)
+        self.mlp = MLP(dim, mlp_mult, group_size, activation, binarize_act, binarize_down)
+        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+        self.smear = SmearModule(dim) if smear else None
+
+    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x = mix[0] * x + mix[1] * x0
+        n = self.attn_norm(x)
+        x = x + self.attn_scale.to(dtype=x.dtype) * self.attn(n)
+        x = x + self.mlp_scale.to(dtype=x.dtype) * self.mlp(self.mlp_norm(x))
+        if self.smear is not None:
+            x = self.smear(x)
+        return x
+
+# ---------------------------------------------------------------------------
+# GPT with U-Net skip connections
+# ---------------------------------------------------------------------------
+class GPT(nn.Module):
+    def __init__(self, vocab_size, num_layers, model_dim, num_heads, num_kv_heads,
+                 mlp_mult, tie_embeddings, tied_embed_init_std, logit_softcap,
+                 rope_base, qk_gain_init, group_size=128, activation="relu2",
+                 embed_dim=0, fp_storage=False, softcap_type="poly",
+                 rope_type="rope", yarn_max_len=4096, train_seq_len=1024,
+                 binarize_act=True, binarize_down=True, smear=False, attn_res=0):
+        super().__init__()
+        self.tie_embeddings = tie_embeddings
+        self.logit_softcap = logit_softcap
+        self.softcap_type = softcap_type
+        self.fp_storage = fp_storage
+        self.embed_dim = embed_dim if embed_dim > 0 else model_dim
+        self.attn_res_mode = attn_res
+
+        # Embedding (FP8 QAT — NEVER binarized, confirmed 0.11 bpb RT gap)
+        self.tok_emb = QATEmbedding(vocab_size, self.embed_dim, fp_storage=fp_storage)
+        # Projection from embed_dim to model_dim (and reverse for tied logits)
+        self.embed_proj = QATLinear(self.embed_dim, model_dim, bias=False,
+                                    fp_storage=fp_storage) if self.embed_dim != model_dim else None
+        self.embed_proj_rev = QATLinear(model_dim, self.embed_dim, bias=False,
+                                        fp_storage=fp_storage) if self.embed_dim != model_dim else None
+
+        # U-Net structure
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        # Skip weights initialized to ONES (not zeros — zeros costs 0.010 bpb)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+
+        # Transformer blocks
+        self.blocks = nn.ModuleList([
+            Block(model_dim, num_heads, num_kv_heads, mlp_mult, rope_base,
+                  qk_gain_init, group_size, activation, rope_type, yarn_max_len,
+                  train_seq_len, binarize_act, binarize_down, smear)
+            for _ in range(num_layers)
+        ])
+        self.final_norm = RMSNorm()
+
+        # Attention Residuals (replaces U-Net skips when enabled)
+        self.attn_res = None
+        if attn_res == 2:  # pass-level
+            self.attn_res = AttnRes(model_dim, n_queries=num_layers)
+        elif attn_res == 1:  # sub-layer
+            self.attn_res = AttnRes(model_dim, n_queries=num_layers * 2)
+
+        # Logit head (tied to embedding)
+        self.lm_head = QATLinear(model_dim, vocab_size, bias=False, fp_storage=fp_storage)
+        self.lm_head._zero_init = True
+        if tie_embeddings:
+            self.lm_head.weight.requires_grad_(False)
+        self.vocab_bias = nn.Parameter(torch.zeros(vocab_size, dtype=torch.float32))
+
+        self._init_weights(tied_embed_init_std)
+
+    def _init_weights(self, tied_embed_init_std):
+        if self.tie_embeddings:
+            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=tied_embed_init_std)
+        for module in self.modules():
+            if isinstance(module, XNORLinear) and not getattr(module, "_zero_init", False):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            elif isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
+                nn.init.zeros_(module.weight)
+
+    def _compute_logits(self, x: Tensor) -> Tensor:
+        if self.tie_embeddings:
+            proj = self.embed_proj_rev(x) if self.embed_proj_rev is not None else x
+            return F.linear(proj, self.tok_emb.weight.to(x.dtype))
+        return self.lm_head(x)
+
+    def _softcap(self, logits: Tensor) -> Tensor:
+        s = self.logit_softcap
+        if self.softcap_type == "tanh":
+            return s * torch.tanh(logits / s)
+        # Poly softcap — fuses with torch.compile (tanh does not)
+        x_sc = torch.clamp(logits / s, -2.0, 2.0)
+        x2 = x_sc * x_sc
+        return s * torch.clamp(x_sc * (1.0 - x2 / 3.0 + x2 * x2 / 15.0), -1.0, 1.0)
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor, reduction="mean", temperature=1.0):
+        x = self.tok_emb(input_ids)
+        x = x.float()
+        if self.embed_proj is not None:
+            x = self.embed_proj(x)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+
+        if self.attn_res_mode == 2:
+            # Pass-level AttnRes: attend over all previous block outputs
+            stored = [x]
+            for i, block in enumerate(self.blocks):
+                x = self.attn_res.attend(stored, i)
+                x = block(x, x0)
+                stored.append(x)
+        elif self.attn_res_mode == 1:
+            # Sub-layer AttnRes: attend before each attn and mlp sub-layer
+            stored = [x]
+            q_idx = 0
+            for i, block in enumerate(self.blocks):
+                # Attention sub-layer
+                x = self.attn_res.attend(stored, q_idx)
+                mix = block.resid_mix.to(dtype=x.dtype)
+                x = mix[0] * x + mix[1] * x0
+                attn_out = block.attn_scale.to(dtype=x.dtype) * block.attn(block.attn_norm(x))
+                stored.append(attn_out)
+                q_idx += 1
+                # MLP sub-layer
+                x = self.attn_res.attend(stored, q_idx)
+                mlp_out = block.mlp_scale.to(dtype=x.dtype) * block.mlp(block.mlp_norm(x))
+                stored.append(mlp_out)
+                q_idx += 1
+                if block.smear is not None:
+                    x = block.smear(self.attn_res.attend(stored, q_idx - 1))
+        else:
+            # Standard U-Net (mode 0)
+            skips = []
+            for i in range(self.num_encoder_layers):
+                x = self.blocks[i](x, x0)
+                skips.append(x)
+            for i in range(self.num_decoder_layers):
+                bi = self.num_encoder_layers + i
+                if skips:
+                    x = x + self.skip_weights[i].to(dtype=x.dtype) * skips.pop()
+                x = self.blocks[bi](x, x0)
+
+        x_normed = self.final_norm(x)
+        x_flat = x_normed.reshape(-1, x_normed.size(-1))
+        targets = target_ids.reshape(-1)
+        logits = self._softcap(self._compute_logits(x_flat))
+
+        if temperature != 1.0:
+            logits = logits / temperature
+        if reduction == "none":
+            return F.cross_entropy(logits.float(), targets, reduction="none").reshape(input_ids.shape)
+
+        # Fused CE + Z-loss (logsumexp² regularization keeps STE gradients sharp)
+        logits_f = logits.float()
+        lse = torch.logsumexp(logits_f, dim=-1)
+        target_logits = logits_f.gather(1, targets.unsqueeze(1)).squeeze(1)
+        return (lse - target_logits).mean() + 1e-4 * (lse ** 2).mean()
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+def build_luts(sp, vocab_size, device):
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
+    base_bytes_np = np.zeros((table_size,), dtype=np.int16)
+    has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
+    is_boundary_token_np = np.ones((table_size,), dtype=np.bool_)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        is_boundary_token_np[token_id] = False
+        if sp.is_byte(token_id):
+            base_bytes_np[token_id] = 1
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("\u2581"):
+            has_leading_space_np[token_id] = True
+            piece = piece[1:]
+        base_bytes_np[token_id] = len(piece.encode("utf-8"))
+    return (
+        torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
+        torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
+        torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
+    )
+
+def ld_val(pattern, seq_len, max_tok=int(os.environ.get("VAL_MAX_TOKENS", 500000))):
+    files = sorted(glob.glob(pattern))
+    assert files, f"No files: {pattern}"
+    tok = torch.cat([ld_shard(Path(p)) for p in files]).contiguous()
+    if max_tok > 0: tok = tok[:max_tok + 1]
+    u = ((tok.numel() - 1) // seq_len) * seq_len
+    return tok[:u + 1]
+
+def eval_val(args, model, rank, world_size, device, grad_accum_steps, val_tokens,
+             base_bytes_lut, has_leading_space_lut, is_boundary_token_lut, temperature=1.0):
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    local_batch_seqs = max(1, local_batch_tokens // args.train_seq_len)
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    model.eval()
+    with torch.inference_mode():
+        for batch_start in range(seq_start, seq_end, local_batch_seqs):
+            batch_end = min(batch_start + local_batch_seqs, seq_end)
+            raw_start = batch_start * args.train_seq_len
+            raw_end = batch_end * args.train_seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64)
+            x, y = local[:-1].reshape(-1, args.train_seq_len), local[1:].reshape(-1, args.train_seq_len)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                batch_loss = model(x, y, temperature=temperature).detach()
+            n = float(y.numel())
+            loss_sum += batch_loss.to(torch.float64) * n
+            token_count += n
+            prev_ids, tgt_ids = x.reshape(-1), y.reshape(-1)
+            tok_bytes = base_bytes_lut[tgt_ids].to(torch.int16)
+            tok_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(torch.int16)
+            byte_count += tok_bytes.to(torch.float64).sum()
+    if dist.is_available() and dist.is_initialized():
+        for t in (loss_sum, token_count, byte_count):
+            dist.all_reduce(t, op=dist.ReduceOp.SUM)
+    val_loss = loss_sum / token_count
+    bpb = (val_loss.item() / math.log(2.0)) * (token_count.item() / byte_count.item())
+    model.train()
+    return float(val_loss.item()), float(bpb)
+
+def eval_val_sliding(args, model, rank, world_size, device, grad_accum_steps, val_tokens,
+                     base_bytes_lut, has_leading_space_lut, is_boundary_token_lut,
+                     stride=64, temperature=1.0):
+    seq_len = args.train_seq_len
+    batch_size = args.sliding_batch_size
+    total_tokens = val_tokens.numel() - 1
+    loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    token_count = torch.zeros((), device=device, dtype=torch.float64)
+    byte_count = torch.zeros((), device=device, dtype=torch.float64)
+    all_starts = list(range(0, total_tokens - seq_len, stride))
+    my_starts = all_starts[rank::world_size]
+    model.eval()
+    with torch.inference_mode():
+        for i in range(0, len(my_starts), batch_size):
+            batch_starts = my_starts[i:i + batch_size]
+            starts_t = torch.tensor(batch_starts, dtype=torch.int64)
+            offsets = torch.arange(seq_len + 1, dtype=torch.int64)
+            indices = starts_t.unsqueeze(1) + offsets.unsqueeze(0)
+            local_batch = val_tokens[indices].to(device=device, dtype=torch.int64, non_blocking=True)
+            x, y = local_batch[:, :-1], local_batch[:, 1:]
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                per_token_loss = model(x, y, reduction="none", temperature=temperature).detach()
+            for b, start in enumerate(batch_starts):
+                score_from = 0 if start == 0 else seq_len - stride
+                scored = per_token_loss[b, score_from:]
+                sx, sy = x[b, score_from:], y[b, score_from:]
+                loss_sum += scored.to(torch.float64).sum()
+                token_count += scored.numel()
+                tok_bytes = base_bytes_lut[sy].to(torch.int16)
+                tok_bytes += (has_leading_space_lut[sy] & ~is_boundary_token_lut[sx]).to(torch.int16)
+                byte_count += tok_bytes.to(torch.float64).sum()
+    if dist.is_available() and dist.is_initialized():
+        for t in (loss_sum, token_count, byte_count):
+            dist.all_reduce(t, op=dist.ReduceOp.SUM)
+    val_loss = loss_sum / token_count
+    bpb = (val_loss.item() / math.log(2.0)) * (token_count.item() / byte_count.item())
+    model.train()
+    return float(val_loss.item()), float(bpb)
+
+def find_temp(args, base_model, rank, world_size, device, grad_accum_steps,
+              calibration_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut):
+    best_t, best_loss = 1.0, float("inf")
+    for t in [0.85, 0.90, 0.95, 1.00, 1.05, 1.10]:
+        loss, _ = eval_val(args, base_model, rank, world_size, device, grad_accum_steps,
+                           calibration_tokens, base_bytes_lut, has_leading_space_lut,
+                           is_boundary_token_lut, temperature=t)
+        if loss < best_loss:
+            best_loss = loss
+            best_t = t
+    return best_t
+
+# ---------------------------------------------------------------------------
+# Checkpointing
+# ---------------------------------------------------------------------------
+def _ckpt_path(d, step): return os.path.join(d, f"ckpt_step{step:07d}.pt")
+
+def _latest_checkpoint(d):
+    if not os.path.isdir(d): return None
+    ckpts = sorted(glob.glob(os.path.join(d, "ckpt_step*.pt")))
+    return ckpts[-1] if ckpts else None
+
+def save_checkpoint(d, step, model, optimizers, ms, _untied, ema_model, _ema_started, _ema_steps):
+    os.makedirs(d, exist_ok=True)
+    path = _ckpt_path(d, step)
+    tmp = path + ".tmp"
+    torch.save({
+        "step": step, "training_time_ms": ms, "model": model.state_dict(),
+        "optimizers": [o.state_dict() for o in optimizers],
+        "rng_cpu": torch.get_rng_state(), "rng_cuda": torch.cuda.get_rng_state(),
+        "flags": {"_untied": _untied, "_ema_started": _ema_started, "_ema_steps": _ema_steps},
+        "ema_model": ema_model.state_dict() if ema_model is not None else None,
+    }, tmp)
+    os.replace(tmp, path)
+
+def load_checkpoint(path, model, optimizers, device, ema_model=None):
+    p = torch.load(path, map_location=device, weights_only=False)
+    model.load_state_dict(p["model"], strict=True)
+    for opt, sd in zip(optimizers, p["optimizers"]):
+        opt.load_state_dict(sd)
+    if ema_model is not None and p.get("ema_model") is not None:
+        ema_model.load_state_dict(p["ema_model"], strict=True)
+    torch.set_rng_state(p["rng_cpu"].cpu())
+    torch.cuda.set_rng_state(p["rng_cuda"].cpu())
+    f = p.get("flags", {})
+    return p["step"], p["training_time_ms"], f.get("_untied", False), f.get("_ema_started", False), f.get("_ema_steps", 0)
+
+# ---------------------------------------------------------------------------
+# Main training
+# ---------------------------------------------------------------------------
+def main():
+    args = Hyperparameters()
+    code = Path(__file__).read_text(encoding="utf-8")
+    if args.matrix_optimizer != "adamw":
+        global ns_orth
+        if args.use_gram_ns:
+            ns_orth = torch.compile(gram_ns_orth)
+        else:
+            ns_orth = torch.compile(ns_orth)
+
+    global _INT8_KERNEL
+    _INT8_KERNEL = args.use_int8_kernel
+
+    global _TRITON_KERNEL
+    _TRITON_KERNEL = args.use_triton_kernel and HAS_TRITON
+
+    global _SCALE_FP8_STE
+    _SCALE_FP8_STE = args.scale_fp8
+
+    rank = int(os.environ.get("RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    distributed = world_size > 1
+    grad_accum_steps = max(1, 8 // world_size)
+    grad_scale = 1.0 / grad_accum_steps
+
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA required")
+    device = torch.device("cuda", local_rank)
+    torch.cuda.set_device(device)
+    if distributed:
+        dist.init_process_group(backend="nccl", device_id=device)
+        dist.barrier()
+    master_process = rank == 0
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+
+    os.makedirs("logs/cuda/xnor/", exist_ok=True)
+    logfile = f"logs/cuda/xnor/{args.run_id}.txt" if master_process else None
+    if master_process: print(logfile)
+    def log0(msg, console=True):
+        if not master_process: return
+        if console: print(msg)
+        if logfile:
+            with open(logfile, "a", encoding="utf-8") as f: print(msg, file=f)
+
+    log0(code, console=False)
+    log0("=" * 100, console=False)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    val_tokens = ld_val(args.val_files, args.train_seq_len)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_luts(sp, args.vocab_size, device)
+
+    # --- Model ---
+    # BINARIZE_ACTIVATIONS: 0=BWN, 1=full XNOR, 2=XNOR but BWN on MLP down proj
+    _ba = args.binarize_activations
+    _binarize_act = _ba >= 1
+    _binarize_down = _ba == 1
+    base_model = GPT(
+        vocab_size=args.vocab_size, num_layers=args.num_layers, model_dim=args.model_dim,
+        num_heads=args.num_heads, num_kv_heads=args.num_kv_heads, mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings, tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap, rope_base=args.rope_base, qk_gain_init=args.qk_gain_init,
+        group_size=args.xnor_group_size, activation=args.activation_type,
+        embed_dim=args.embed_dim, fp_storage=args.fp_storage,
+        softcap_type=args.softcap_type, rope_type=args.rope_type,
+        yarn_max_len=args.yarn_max_len, train_seq_len=args.train_seq_len,
+        binarize_act=_binarize_act, binarize_down=_binarize_down,
+        smear=args.smear, attn_res=args.attn_res,
+    ).to(device).bfloat16()
+    for module in base_model.modules():
+        if isinstance(module, nn.Linear):
+            module.float()
+    restore_low_dim_params_to_fp32(base_model)
+    if args.tie_embeddings:
+        base_model.lm_head.weight.requires_grad_(False)
+
+    torch._dynamo.config.optimize_ddp = False
+    torch._dynamo.config.recompile_limit = 16
+    compiled_model = torch.compile(base_model, mode=args.compile_mode if args.compile_mode != "default" else None)
+    model = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False,
+                find_unused_parameters=not args.tie_embeddings,
+                static_graph=args.tie_embeddings,
+                gradient_as_bucket_view=True) if distributed else compiled_model
+
+    # --- Optimizers ---
+    _excl = {"tok_emb.weight", "lm_head.weight"}
+    all_other = [(n, p) for n, p in base_model.named_parameters() if not any(eh in n for eh in _excl)]
+    matrix_params = [p for n, p in all_other if p.ndim == 2 and not any(pat in n for pat in CTP)]
+    scalar_params = [p for n, p in all_other if p.ndim < 2 or any(pat in n for pat in CTP)]
+
+    token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    opt_tok = torch.optim.Adam(
+        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
+
+    if args.matrix_optimizer == "adamw":
+        opt_muon = torch.optim.AdamW(
+            [{"params": matrix_params, "lr": args.adam_lr, "base_lr": args.adam_lr}],
+            betas=(args.beta1, args.beta2), eps=args.adam_eps, weight_decay=args.adam_wd, fused=True)
+    else:
+        opt_muon = Muon(matrix_params, lr=args.matrix_lr, momentum=args.muon_momentum,
+                        backend_steps=args.muon_backend_steps, wd=args.muon_wd)
+    for g in opt_muon.param_groups: g["base_lr"] = args.matrix_lr
+
+    opt_scalar = torch.optim.Adam(
+        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
+    opt_head = torch.optim.Adam(
+        [{"params": [base_model.lm_head.weight], "lr": 0.0, "base_lr": 0.0}],
+        betas=(args.beta1, args.beta2), eps=args.adam_eps, fused=True)
+    optimizers = [opt_tok, opt_muon, opt_scalar, opt_head]
+
+    # --- EMA ---
+    ema_model = None
+    _ema_started = False
+    _ema_steps = 0
+    if args.ema:
+        ema_model = copy.deepcopy(base_model)
+        for p in ema_model.parameters(): p.requires_grad_(False)
+
+    # --- Checkpoint resume ---
+    _resume_step, _resume_ms, _resume_untied = 0, 0.0, False
+    _resume_ema_started, _resume_ema_steps = False, 0
+    if args.checkpoint_every > 0:
+        ckpt = _latest_checkpoint(args.checkpoint_dir)
+        if ckpt:
+            log0(f"resuming from {ckpt}")
+            _resume_step, _resume_ms, _resume_untied, _resume_ema_started, _resume_ema_steps = \
+                load_checkpoint(ckpt, base_model, optimizers, device, ema_model)
+            log0(f"resumed at step {_resume_step} ({_resume_ms:.0f}ms)")
+        else:
+            log0("no checkpoint, starting fresh")
+
+    # --- Log ---
+    log0("--- Hyperparameters ---", console=False)
+    log0(" ".join(f"{a}={getattr(args,a)}" for a in sorted(dir(args))
+                  if not a.startswith("_") and a not in ("train_files","val_files")
+                  and not callable(getattr(args,a))), console=False)
+    n_params = sum(p.numel() for p in base_model.parameters())
+    log0(f"XNOR-Net LLM | params:{n_params} L:{args.num_layers} d:{args.model_dim} "
+         f"h:{args.num_heads} kv:{args.num_kv_heads} mlp:{args.mlp_mult}x "
+         f"act:{args.activation_type} xnor_act:{args.binarize_activations} "
+         f"g:{args.xnor_group_size} ws:{world_size} ga:{grad_accum_steps}")
+
+    # --- Data ---
+    train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+    def zero_grad_all():
+        for opt in optimizers: opt.zero_grad(set_to_none=True)
+
+    max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+    def lr_mul(step, elapsed_ms):
+        import math
+        if args.lr_schedule == "cosine":
+            # Cosine decay from 1.0 to 0 over the full run, with optional warmup
+            if max_wallclock_ms is None:
+                total = args.iterations
+                warmup = min(args.lr_warmup_steps, total)
+                if step < warmup:
+                    return step / max(warmup, 1)
+                progress = (step - warmup) / max(total - warmup, 1)
+            else:
+                warmup_ms = args.lr_warmup_steps * (elapsed_ms / max(step, 1)) if step > 0 else 1000.0
+                if elapsed_ms < warmup_ms:
+                    return elapsed_ms / max(warmup_ms, 1e-9)
+                progress = (elapsed_ms - warmup_ms) / max(max_wallclock_ms - warmup_ms, 1e-9)
+            return 0.5 * (1.0 + math.cos(math.pi * min(progress, 1.0)))
+        # Linear warmdown (original)
+        if args.warmdown_fraction <= 0: return 1.0
+        if max_wallclock_ms is None:
+            warmdown_start = int(args.iterations * (1.0 - args.warmdown_fraction))
+            return max((args.iterations - step) / max(args.iterations * args.warmdown_fraction, 1), 0.0) if step >= warmdown_start else 1.0
+        warmdown_ms = max_wallclock_ms * args.warmdown_fraction
+        remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
+        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+    # --- Seq len scheduling ---
+    seq_len_stages = [args.train_seq_len]
+    if args.seq_len_schedule:
+        seq_len_stages = []
+        sl = 128
+        while sl <= args.train_seq_len:
+            seq_len_stages.append(sl)
+            sl *= 2
+        if seq_len_stages[-1] != args.train_seq_len:
+            seq_len_stages.append(args.train_seq_len)
+        log0(f"seq_len_schedule: {seq_len_stages}")
+
+    def get_seq_len(step, elapsed_ms):
+        if len(seq_len_stages) <= 1:
+            return seq_len_stages[0]
+        n = len(seq_len_stages)
+        if max_wallclock_ms is not None:
+            stage_idx = min(int(elapsed_ms / (max_wallclock_ms / n)), n - 1)
+        else:
+            stage_idx = min(int(step / (args.iterations / n)), n - 1)
+        return seq_len_stages[stage_idx]
+
+    # --- Compiler warmup ---
+    warmup_seq_lens = seq_len_stages if args.seq_len_schedule else [args.train_seq_len]
+    if len(warmup_seq_lens) > 0:
+        _ms = {n: t.detach().cpu().clone() for n, t in base_model.state_dict().items()}
+        _os = [copy.deepcopy(o.state_dict()) for o in optimizers]
+        model.train()
+        for ws, sl in enumerate(warmup_seq_lens):
+            zero_grad_all()
+            for mi in range(grad_accum_steps):
+                if distributed: model.require_backward_grad_sync = mi == grad_accum_steps - 1
+                x, y = train_loader.next_batch(args.train_batch_tokens, sl, grad_accum_steps)
+                torch.compiler.cudagraph_mark_step_begin()
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16): loss = model(x, y)
+                (loss * grad_scale).backward()
+            for o in optimizers: o.step()
+            zero_grad_all()
+            log0(f"warmup:{ws+1}/{len(warmup_seq_lens)} seq_len={sl}")
+        base_model.load_state_dict(_ms, strict=True)
+        for o, s in zip(optimizers, _os): o.load_state_dict(s)
+        zero_grad_all()
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+
+    # --- Main loop ---
+    training_time_ms = _resume_ms
+    stop_after_step = None
+    _untied = _resume_untied
+    _ema_started = _resume_ema_started
+    _ema_steps = _resume_ema_steps
+    train_loss = torch.zeros((), device=device)
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    step = _resume_step
+    steps_this_session = 0
+
+    if max_wallclock_ms is None:
+        if step >= args.iterations:
+            stop_after_step = step
+    elif training_time_ms >= max_wallclock_ms:
+        stop_after_step = step
+
+    while True:
+        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
+        if last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0):
+            torch.cuda.synchronize()
+            training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            val_loss, val_bpb = eval_val(args, model, rank, world_size, device, grad_accum_steps,
+                                         val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+            log0(f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                 f"train_time:{training_time_ms:.0f}ms")
+            torch.cuda.synchronize()
+            t0 = time.perf_counter()
+        if last_step:
+            if stop_after_step is not None and step < args.iterations:
+                log0(f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms")
+            break
+
+        elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        scale = lr_mul(step, elapsed_ms)
+
+        # Muon momentum warmup
+        if args.matrix_optimizer != "adam":
+            frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+            for g in opt_muon.param_groups:
+                g["momentum"] = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+
+        zero_grad_all()
+        train_loss.zero_()
+        current_seq_len = get_seq_len(step, elapsed_ms)
+        for micro in range(grad_accum_steps):
+            if distributed: model.require_backward_grad_sync = micro == grad_accum_steps - 1
+            x, y = train_loader.next_batch(args.train_batch_tokens, current_seq_len, grad_accum_steps)
+            torch.compiler.cudagraph_mark_step_begin()
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                loss = model(x, y)
+            # Compression regularizer: penalize sign entropy within groups
+            if args.sign_compress_reg > 0 and micro == 0:
+                reg = torch.tensor(0.0, device=device)
+                for p in base_model.parameters():
+                    if p.ndim == 2 and p.numel() > 65536:
+                        g = args.xnor_group_size
+                        pg = p.reshape(-1, g)
+                        # soft sign: tanh(k*w) approximates sign(w) but has gradient
+                        soft = torch.tanh(pg * 10.0)
+                        # mean per group: +1/-1 = all same sign (compressible), 0 = balanced
+                        reg = reg + (1.0 - soft.mean(dim=-1).abs().mean())
+                loss = loss + args.sign_compress_reg * reg
+            train_loss.add_(loss.detach())
+            (loss * grad_scale).backward()
+        train_loss /= grad_accum_steps
+
+        for opt in optimizers:
+            for g in opt.param_groups: g["lr"] = g["base_lr"] * scale
+            opt.step()
+        zero_grad_all()
+
+        # EMA update
+        if ema_model is not None:
+            if not _ema_started:
+                if max_wallclock_ms is not None:
+                    should_start = elapsed_ms >= args.ema_start_fraction * max_wallclock_ms
+                else:
+                    should_start = step >= int(args.iterations * args.ema_start_fraction)
+                if should_start:
+                    _ema_started = True
+                    _ema_steps = 0
+                    with torch.no_grad():
+                        for ep, bp in zip(ema_model.parameters(), base_model.parameters()):
+                            ep.data.copy_(bp.data)
+                    log0(f"step:{step} ema_started")
+            if _ema_started:
+                _ema_steps += 1
+                decay = min(args.ema_decay, (1.0 + _ema_steps) / (10.0 + _ema_steps))
+                with torch.no_grad():
+                    for ep, bp in zip(ema_model.parameters(), base_model.parameters()):
+                        ep.data.mul_(decay).add_(bp.data, alpha=1.0 - decay)
+
+        step += 1
+        steps_this_session += 1
+        approx_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+
+        # Checkpoint
+        if master_process and args.checkpoint_every > 0 and step % args.checkpoint_every == 0:
+            save_checkpoint(args.checkpoint_dir, step, base_model, optimizers,
+                            approx_ms, _untied, ema_model, _ema_started, _ema_steps)
+            log0(f"step:{step} checkpoint saved")
+
+        if args.train_log_every > 0 and step % args.train_log_every == 0:
+            log0(f"step:{step}/{args.iterations} loss:{train_loss.item():.4f} "
+                 f"t:{approx_ms:.0f}ms step_avg:{approx_ms/step:.1f}ms")
+
+        if args.churn_log_every > 0 and step % args.churn_log_every == 0:
+            log0(f"step:{step} churn:{churn_fn(base_model, args.xnor_group_size):.4f}")
+
+        # Wallclock cap
+        if stop_after_step is None and max_wallclock_ms is not None and step % 10 == 0:
+            reached_cap = approx_ms >= max_wallclock_ms
+            if distributed:
+                cap_t = torch.tensor(int(reached_cap), device=device)
+                dist.all_reduce(cap_t, op=dist.ReduceOp.MAX)
+                reached_cap = bool(cap_t.item())
+            if reached_cap:
+                stop_after_step = step
+
+    # --- Sign-sort permutation for compression ---
+    # Permute MLP hidden dimension so same-sign weights cluster together.
+    # Sort columns of down_proj by their sign pattern (lexicographic on sign bits).
+    # Apply matching row permutation to up_proj. Model output is identical.
+    if master_process:
+        sd = (ema_model if ema_model is not None and _ema_started else base_model).state_dict()
+        for layer_idx in range(args.num_layers):
+            # Find the MLP weight pairs
+            down_key = f"blocks.{layer_idx}.mlp.proj.weight"
+            if args.activation_type == "swiglu":
+                up_key = f"blocks.{layer_idx}.mlp.gate_up.weight"
+            else:
+                up_key = f"blocks.{layer_idx}.mlp.fc.weight"
+            if down_key not in sd or up_key not in sd:
+                continue
+            w_down = sd[down_key]  # [dim, hidden]
+            w_up = sd[up_key]     # [hidden, dim] (or [hidden*2, dim] for swiglu)
+            hidden = w_down.shape[1]
+            # Sort hidden dim columns of w_down by sign pattern
+            signs = (w_down >= 0).to(torch.int8)  # [dim, hidden]
+            # Pack sign columns into sortable keys (use first 64 rows as sort key)
+            n_key_rows = min(64, signs.shape[0])
+            sort_keys = torch.zeros(hidden, dtype=torch.int64, device=w_down.device)
+            for r in range(n_key_rows):
+                sort_keys += signs[r, :].long() << (n_key_rows - 1 - r)
+            perm = sort_keys.argsort()
+            # Apply permutation
+            sd[down_key] = w_down[:, perm]
+            if args.activation_type == "swiglu":
+                half = w_up.shape[0] // 2
+                sd[up_key] = torch.cat([w_up[:half][perm], w_up[half:][perm]], dim=0)
+            else:
+                sd[up_key] = w_up[perm]
+        if base_model.tie_embeddings:
+            sd.pop("lm_head.weight", None)
+        q_obj, q_stats = q_sd(sd, group_size=args.xnor_group_size,
+                              fp_storage=args.fp_storage, scale_fp8=args.scale_fp8)
+        buf = io.BytesIO()
+        torch.save(q_obj, buf)
+        raw_bytes = buf.getvalue()
+        # Compare LZMA vs Brotli, keep smallest
+        lzma_blob = lzma.compress(raw_bytes, preset=9)
+        best_blob, best_method = lzma_blob, "lzma"
+        comp_log = f"compression: lzma={len(lzma_blob)/1e6:.2f}MB"
+        if HAS_BROTLI:
+            brotli_blob = brotli.compress(raw_bytes, quality=11)
+            comp_log += f" brotli={len(brotli_blob)/1e6:.2f}MB"
+            if len(brotli_blob) < len(best_blob):
+                best_blob, best_method = brotli_blob, "brotli"
+        if HAS_ZSTD:
+            cctx = zstd.ZstdCompressor(level=22)
+            zstd_blob = cctx.compress(raw_bytes)
+            comp_log += f" zstd={len(zstd_blob)/1e6:.2f}MB"
+            if len(zstd_blob) < len(best_blob):
+                best_blob, best_method = zstd_blob, "zstd"
+        log0(comp_log)
+        log0(f"using: {best_method}")
+        with open("final_model.xnor.ptz", "wb") as f:
+            # Method byte: 0=lzma, 1=brotli, 2=zstd
+            method_id = {"lzma": 0, "brotli": 1, "zstd": 2}[best_method]
+            f.write(bytes([method_id]))
+            f.write(best_blob)
+        artifact_bytes = 1 + len(best_blob)
+        code_bytes = len(code.encode("utf-8"))
+        total = artifact_bytes + code_bytes
+        log0(f"artifact:{artifact_bytes/1e6:.2f}MB binary:{q_stats['binary_params']}({q_stats['binary_bytes']}B) "
+             f"fp:{q_stats['fp_params']}({q_stats['fp_bytes']}B) code:{code_bytes}")
+        log0(f"budget:{total}/{16000000} ({total/1e6:.2f}/{16.00:.2f}MB) "
+             f"{'FITS' if total <= 16000000 else 'OVER'}")
+
+    # --- Roundtrip eval ---
+    if distributed: dist.barrier()
+    with open("final_model.xnor.ptz", "rb") as f:
+        raw = f.read()
+        method_byte = raw[0]
+        compressed = raw[1:]
+        if method_byte == 2 and HAS_ZSTD:
+            dctx = zstd.ZstdDecompressor()
+            decompressed = dctx.decompress(compressed)
+        elif method_byte == 1 and HAS_BROTLI:
+            decompressed = brotli.decompress(compressed)
+        else:
+            decompressed = lzma.decompress(compressed)
+        loaded = torch.load(io.BytesIO(decompressed), map_location="cpu", weights_only=False)
+    base_model.load_state_dict(deq_sd(loaded), strict=False)
+    if ema_model is not None:
+        ema_model.load_state_dict(deq_sd(loaded), strict=False)
+    torch._dynamo.reset()
+    q_val_loss, q_val_bpb = eval_val(args, model, rank, world_size, device, grad_accum_steps,
+                                     val_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+    log0(f"final_xnor_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f}")
+
+    opt_temp = 1.0
+    if args.temp_scaling:
+        torch.cuda.synchronize()
+        t_temp = time.perf_counter()
+        calibration_tokens = train_loader.stream.take(65536).to(device)
+        opt_temp = find_temp(args, base_model, rank, world_size, device, grad_accum_steps,
+                             calibration_tokens, base_bytes_lut, has_leading_space_lut, is_boundary_token_lut)
+        torch.cuda.synchronize()
+        log0(f"temp_scaling optimal_T:{opt_temp:.2f} time:{1000*(time.perf_counter()-t_temp):.0f}ms")
+
+    if args.sliding_eval:
+        torch._dynamo.reset()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        t_sl = time.perf_counter()
+        sw_loss, sw_bpb = eval_val_sliding(args, base_model, rank, world_size, device, grad_accum_steps,
+                                           val_tokens, base_bytes_lut, has_leading_space_lut,
+                                           is_boundary_token_lut, stride=args.sliding_eval_stride,
+                                           temperature=opt_temp)
+        torch.cuda.synchronize()
+        log0(f"final_sliding val_loss:{sw_loss:.4f} val_bpb:{sw_bpb:.4f} "
+             f"(stride={args.sliding_eval_stride}, T={opt_temp:.2f}) time:{1000*(time.perf_counter()-t_sl):.0f}ms")
+
+    if distributed: dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()

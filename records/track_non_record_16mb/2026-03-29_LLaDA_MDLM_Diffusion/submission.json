@@ -1,0 +1,18 @@
+{
+  "author": "agalimova",
+  "github_id": "agalimova",
+  "name": "MDLM: Masked Diffusion Language Model (Non-Record)",
+  "blurb": "First discrete diffusion model to beat the AR baseline in parameter-golf. 11L 512d bidirectional transformer with MDLM training and discrete ELBO eval. val_var_bpb=1.1465. Validated on 2xH100 (31 min, 209K tok/s). 27 hyperparameter experiments identified key techniques for diffusion LMs.",
+  "date": "2026-03-29",
+  "val_bpb": 1.1465,
+  "val_bpb_std": null,
+  "seeds": [42],
+  "seed_results": {
+    "42": {"val_var_bpb": 1.1465}
+  },
+  "step_stop": 6000,
+  "wallclock_seconds": 1860,
+  "eval_time_seconds": 1819,
+  "hardware": "2x NVIDIA H100 80GB HBM3 (TensorPool), developed on 1x NVIDIA GB10",
+  "non_record_reason": "Not 8xH100 SXM — 8x unavailable on RunPod (#821) and TensorPool"
+}
