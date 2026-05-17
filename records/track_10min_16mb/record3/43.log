@@ -2,7 +2,7 @@
 Hyperparameters:
   adam_eps: 1e-08
   adam_wd: 0.02
-  artifact_dir: 
+  artifact_dir:
   attn_clip_sigmas: 13.0
   attn_out_gate_enabled: False
   attn_out_gate_src: proj
@@ -97,7 +97,7 @@ Hyperparameters:
   ttt_beta2: 0.999
   ttt_chunk_size: 48
   ttt_enabled: True
-  ttt_eval_batches: 
+  ttt_eval_batches:
   ttt_eval_seq_len: 2048
   ttt_grad_steps: 1
   ttt_k_lora: True
