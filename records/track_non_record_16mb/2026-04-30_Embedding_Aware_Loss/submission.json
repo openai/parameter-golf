@@ -1,0 +1,17 @@
+{
+  "author": "Mikey Watts",
+  "github_id": "sttawm",
+  "name": "CE + Embedding Loss + Uniformity Loss",
+  "blurb": "Adds an auxiliary embedding loss (1 - cosine similarity between softmax-weighted predicted embedding and ground-truth token embedding) plus a uniformity loss (Wang & Isola 2020) to prevent embedding collapse. Untied embeddings, lambda=1.0, gamma=2.0, run on 8xH100 SXM for 10 minutes. Despite showing slightly better convergence per step in small-scale experiments, the 2x step overhead from the auxiliary losses results in worse wall-clock performance. Note: submission exceeds the 16MB cap (16,311,598 bytes) due to untied embeddings.",
+  "date": "2026-04-30T23:42:00Z",
+  "track": "non-record-unlimited-compute-16mb",
+  "val_loss": 2.09271301,
+  "val_bpb": 1.23942252,
+  "pre_quant_val_loss": 2.0909,
+  "pre_quant_val_bpb": 1.2383,
+  "step_stop": 7288,
+  "wallclock_seconds": 600.046,
+  "bytes_total": 16311598,
+  "bytes_model_int8_zlib": 16253710,
+  "bytes_code": 57888
+}

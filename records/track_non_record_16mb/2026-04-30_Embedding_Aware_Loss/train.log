@@ -1,0 +1,1550 @@
+"""
+The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching-off points for new participants, not SOTA configs. We'll accept PRs that tune, improve, or simplify these scripts without significantly increasing complexity, but competitive submissions should stay in the `/records` folder.
+
+Hard stop: To keep readable for newcomers, let's make sure `train_gpt.py` and `train_gpt_mlx.py` never are longer than 1500 lines.
+"""
+
+from __future__ import annotations
+
+import copy
+import glob
+import io
+import math
+import os
+import random
+import subprocess
+import sys
+import time
+import uuid
+import zlib
+from pathlib import Path
+
+import numpy as np
+import sentencepiece as spm
+import torch
+import torch.distributed as dist
+import torch.nn.functional as F
+from torch import Tensor, nn
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+# -----------------------------
+# HYPERPARAMETERS
+# -----------------------------
+# Default Simple Baseline run:
+# - 9 transformer blocks at width 512
+# - 8 attention heads with 4 KV heads (GQA) and 2x MLP expansion
+# - vocab size 1024, sequence length 1024, tied embeddings
+# - 524,288 train tokens per step for 20,000 iterations with a ~10 minute cap
+
+class Hyperparameters:
+    # Data paths are shard globs produced by the existing preprocessing pipeline.
+    data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
+    train_files = os.path.join(data_path, "fineweb_train_*.bin")
+    val_files = os.path.join(data_path, "fineweb_val_*.bin")
+    tokenizer_path = os.environ.get("TOKENIZER_PATH", "./data/tokenizers/fineweb_1024_bpe.model")
+    run_id = os.environ.get("RUN_ID", str(uuid.uuid4()))
+    seed = int(os.environ.get("SEED", 1337))
+
+    # Validation cadence and batch size. Validation always uses the full fineweb_val split.
+    val_batch_size = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    val_loss_every = int(os.environ.get("VAL_LOSS_EVERY", 1000))
+    train_log_every = int(os.environ.get("TRAIN_LOG_EVERY", 200))
+
+    # Training length.
+    iterations = int(os.environ.get("ITERATIONS", 20000))
+    warmdown_iters = int(os.environ.get("WARMDOWN_ITERS", 1200))
+    warmup_steps = int(os.environ.get("WARMUP_STEPS", 20))
+    train_batch_tokens = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
+    train_seq_len = int(os.environ.get("TRAIN_SEQ_LEN", 1024))
+    max_wallclock_seconds = float(os.environ.get("MAX_WALLCLOCK_SECONDS", 600.0))
+    qk_gain_init = float(os.environ.get("QK_GAIN_INIT", 1.5))
+
+    # Model shape.
+    vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
+    num_layers = int(os.environ.get("NUM_LAYERS", 9))
+    num_kv_heads = int(os.environ.get("NUM_KV_HEADS", 4))
+    model_dim = int(os.environ.get("MODEL_DIM", 512))
+    num_heads = int(os.environ.get("NUM_HEADS", 8))
+    mlp_mult = int(os.environ.get("MLP_MULT", 2))
+    tie_embeddings = bool(int(os.environ.get("TIE_EMBEDDINGS", "1")))
+    rope_base = float(os.environ.get("ROPE_BASE", 10000.0))
+    logit_softcap = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
+
+    # Optimizer hyperparameters.
+    embed_lr = float(os.environ.get("EMBED_LR", 0.6))
+    head_lr = float(os.environ.get("HEAD_LR", 0.008))
+    tied_embed_lr = float(os.environ.get("TIED_EMBED_LR", 0.05))
+    tied_embed_init_std = float(os.environ.get("TIED_EMBED_INIT_STD", 0.005))
+    matrix_lr = float(os.environ.get("MATRIX_LR", 0.04))
+    scalar_lr = float(os.environ.get("SCALAR_LR", 0.04))
+    muon_momentum = float(os.environ.get("MUON_MOMENTUM", 0.95))
+    muon_backend_steps = int(os.environ.get("MUON_BACKEND_STEPS", 5))
+    muon_momentum_warmup_start = float(os.environ.get("MUON_MOMENTUM_WARMUP_START", 0.85))
+    muon_momentum_warmup_steps = int(os.environ.get("MUON_MOMENTUM_WARMUP_STEPS", 500))
+    beta1 = float(os.environ.get("BETA1", 0.9))
+    beta2 = float(os.environ.get("BETA2", 0.95))
+    adam_eps = float(os.environ.get("ADAM_EPS", 1e-8))
+    grad_clip_norm = float(os.environ.get("GRAD_CLIP_NORM", 0.0))
+    embed_loss_lambda: float = float(os.environ.get("EMBED_LOSS_LAMBDA", "0.0"))
+    embed_loss_l2: bool = bool(int(os.environ.get("EMBED_LOSS_L2", "0")))
+    embed_loss_topk: int = int(os.environ.get("EMBED_LOSS_TOPK", "0"))
+    embed_loss_cutoff_step: int = int(os.environ.get("EMBED_LOSS_CUTOFF_STEP", "0"))
+    embed_loss_only: bool = bool(int(os.environ.get("EMBED_LOSS_ONLY", "0")))
+    recon_loss_beta: float = float(os.environ.get("RECON_LOSS_BETA", "0.0"))
+    uniform_loss_gamma: float = float(os.environ.get("UNIFORM_LOSS_GAMMA", "0.0"))
+    align_loss_alpha: float = float(os.environ.get("ALIGN_LOSS_ALPHA", "0.0"))
+
+# -----------------------------
+# MUON OPTIMIZER 
+# -----------------------------
+# 
+# As borrowed from modded-nanogpt
+# Background on Muon: https://kellerjordan.github.io/posts/muon/
+
+def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
+    # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
+    # Muon uses this to normalize matrix-shaped gradients before applying them.
+    a, b, c = (3.4445, -4.7750, 2.0315)
+    X = G.bfloat16()
+    X /= X.norm() + eps
+    transposed = G.size(0) > G.size(1)
+    if transposed:
+        X = X.T
+    for _ in range(steps):
+        A = X @ X.T
+        B = b * A + c * A @ A
+        X = a * X + B @ X
+    return X.T if transposed else X
+
+
+class Muon(torch.optim.Optimizer):
+    def __init__(self, params, lr: float, momentum: float, backend_steps: int, nesterov: bool = True):
+        super().__init__(
+            params,
+            dict(lr=lr, momentum=momentum, backend_steps=backend_steps, nesterov=nesterov),
+        )
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        distributed = dist.is_available() and dist.is_initialized()
+        world_size = dist.get_world_size() if distributed else 1
+        rank = dist.get_rank() if distributed else 0
+
+        for group in self.param_groups:
+            params = group["params"]
+            if not params:
+                continue
+            lr = group["lr"]
+            momentum = group["momentum"]
+            backend_steps = group["backend_steps"]
+            nesterov = group["nesterov"]
+
+            total_params = sum(int(p.numel()) for p in params)
+            updates_flat = torch.zeros(total_params, device=params[0].device, dtype=torch.bfloat16)
+
+            curr = 0
+            for i, p in enumerate(params):
+                if i % world_size == rank and p.grad is not None:
+                    g = p.grad
+                    state = self.state[p]
+                    if "momentum_buffer" not in state:
+                        state["momentum_buffer"] = torch.zeros_like(g)
+                    buf = state["momentum_buffer"]
+                    buf.mul_(momentum).add_(g)
+                    if nesterov:
+                        g = g.add(buf, alpha=momentum)
+                    g = zeropower_via_newtonschulz5(g, steps=backend_steps)
+                    # Scale correction from Muon reference implementations.
+                    g *= max(1, g.size(0) / g.size(1)) ** 0.5
+                    updates_flat[curr : curr + p.numel()] = g.reshape(-1)
+                curr += p.numel()
+
+            if distributed:
+                dist.all_reduce(updates_flat, op=dist.ReduceOp.SUM)
+
+            curr = 0
+            for p in params:
+                g = updates_flat[curr : curr + p.numel()].view_as(p).to(dtype=p.dtype)
+                p.add_(g, alpha=-lr)
+                curr += p.numel()
+
+        return loss
+
+
+# -----------------------------
+# TOKENIZER-AGNOSTIC EVALUATION SETUP 
+# -----------------------------
+#
+# It's common for small models have a large fraction of their parameters be embeddings, since the 2 * d_model * d_vocab vectors can be gigantic.
+# Instead of locking the tokenizer, we let you bring your own and calculate our validation metrics on the average compression of the validation set.
+# We calculate BPB (bits-per-byte) instead of validation loss, so we need methods to count the number of bits per token in the tokenizer.
+# Note: Submissions that edit the tokenizer will be examined more carefully, since screwing this up might unjustly improve your score.
+
+def build_sentencepiece_luts(
+    sp: spm.SentencePieceProcessor, vocab_size: int, device: torch.device
+) -> tuple[Tensor, Tensor, Tensor]:
+    sp_vocab_size = int(sp.vocab_size())
+    table_size = max(sp_vocab_size, vocab_size)
+    base_bytes_np = np.zeros((table_size,), dtype=np.int16)
+    has_leading_space_np = np.zeros((table_size,), dtype=np.bool_)
+    is_boundary_token_np = np.ones((table_size,), dtype=np.bool_)
+    for token_id in range(sp_vocab_size):
+        if sp.is_control(token_id) or sp.is_unknown(token_id) or sp.is_unused(token_id):
+            continue
+        is_boundary_token_np[token_id] = False
+        if sp.is_byte(token_id):
+            base_bytes_np[token_id] = 1
+            continue
+        piece = sp.id_to_piece(token_id)
+        if piece.startswith("▁"):
+            has_leading_space_np[token_id] = True
+            piece = piece[1:]
+        base_bytes_np[token_id] = len(piece.encode("utf-8"))
+    return (
+        torch.tensor(base_bytes_np, dtype=torch.int16, device=device),
+        torch.tensor(has_leading_space_np, dtype=torch.bool, device=device),
+        torch.tensor(is_boundary_token_np, dtype=torch.bool, device=device),
+    )
+
+
+def load_validation_tokens(pattern: str, seq_len: int) -> Tensor:
+    files = [Path(p) for p in sorted(glob.glob(pattern))]
+    if not files:
+        raise FileNotFoundError(f"No files found for pattern: {pattern}")
+    # The export pipeline writes the fixed first-50k-doc validation set to fineweb_val_*.
+    tokens = torch.cat([load_data_shard(file) for file in files]).contiguous()
+    usable = ((tokens.numel() - 1) // seq_len) * seq_len
+    if usable <= 0:
+        raise ValueError(f"Validation split is too short for TRAIN_SEQ_LEN={seq_len}")
+    return tokens[: usable + 1]
+
+
+def eval_val(
+    args: Hyperparameters,
+    model: nn.Module,
+    rank: int,
+    world_size: int,
+    device: torch.device,
+    grad_accum_steps: int,
+    val_tokens: Tensor,
+    base_bytes_lut: Tensor,
+    has_leading_space_lut: Tensor,
+    is_boundary_token_lut: Tensor,
+) -> tuple[float, float]:
+    # Validation computes two metrics:
+    # - val_loss: token cross-entropy (natural log)
+    # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+    local_batch_tokens = args.val_batch_size // (world_size * grad_accum_steps)
+    if local_batch_tokens < args.train_seq_len:
+        raise ValueError(
+            "VAL_BATCH_SIZE must provide at least one sequence per rank; "
+            f"got VAL_BATCH_SIZE={args.val_batch_size}, WORLD_SIZE={world_size}, "
+            f"GRAD_ACCUM_STEPS={grad_accum_steps}, TRAIN_SEQ_LEN={args.train_seq_len}"
+        )
+    local_batch_seqs = local_batch_tokens // args.train_seq_len
+    total_seqs = (val_tokens.numel() - 1) // args.train_seq_len
+    seq_start = (total_seqs * rank) // world_size
+    seq_end = (total_seqs * (rank + 1)) // world_size
+    val_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    val_token_count = torch.zeros((), device=device, dtype=torch.float64)
+    val_byte_count = torch.zeros((), device=device, dtype=torch.float64)
+
+    model.eval()
+    with torch.inference_mode():
+        for batch_seq_start in range(seq_start, seq_end, local_batch_seqs):
+            batch_seq_end = min(batch_seq_start + local_batch_seqs, seq_end)
+            raw_start = batch_seq_start * args.train_seq_len
+            raw_end = batch_seq_end * args.train_seq_len + 1
+            local = val_tokens[raw_start:raw_end].to(device=device, dtype=torch.int64, non_blocking=True)
+            x = local[:-1].reshape(-1, args.train_seq_len)
+            y = local[1:].reshape(-1, args.train_seq_len)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                batch_loss = model(x, y).detach()
+            batch_token_count = float(y.numel())
+            val_loss_sum += batch_loss.to(torch.float64) * batch_token_count
+            val_token_count += batch_token_count
+            prev_ids = x.reshape(-1)
+            tgt_ids = y.reshape(-1)
+            token_bytes = base_bytes_lut[tgt_ids].to(dtype=torch.int16)
+            token_bytes += (has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]).to(dtype=torch.int16)
+            val_byte_count += token_bytes.to(torch.float64).sum()
+
+    if dist.is_available() and dist.is_initialized():
+        dist.all_reduce(val_loss_sum, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_token_count, op=dist.ReduceOp.SUM)
+        dist.all_reduce(val_byte_count, op=dist.ReduceOp.SUM)
+
+    val_loss = val_loss_sum / val_token_count
+    bits_per_token = val_loss.item() / math.log(2.0)
+    tokens_per_byte = val_token_count.item() / val_byte_count.item()
+    model.train()
+    return float(val_loss.item()), float(bits_per_token * tokens_per_byte)
+
+# -----------------------------
+# POST-TRAINING QUANTIZATION
+# -----------------------------
+#
+# It's silly to export our model, which is trained in bf16 and fp32, at that same precision.
+# Instead, we get approximately the same model (with a small hit) by quantizing the model to int8 & zlib compressing.
+# We can then decompress the model and run in higher precision for evaluation, after closing in under the size limit.
+
+CONTROL_TENSOR_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "CONTROL_TENSOR_NAME_PATTERNS",
+        "attn_scale,attn_scales,mlp_scale,mlp_scales,resid_mix,resid_mixes,q_gain,skip_weight,skip_weights",
+    ).split(",")
+    if pattern
+)
+INT8_KEEP_FLOAT_FP32_NAME_PATTERNS = tuple(
+    pattern
+    for pattern in os.environ.get(
+        "INT8_KEEP_FLOAT_FP32_NAME_PATTERNS",
+        ",".join(CONTROL_TENSOR_NAME_PATTERNS),
+    ).split(",")
+    if pattern
+)
+INT8_KEEP_FLOAT_MAX_NUMEL = 65_536
+INT8_KEEP_FLOAT_STORE_DTYPE = torch.float16
+INT8_PER_ROW_SCALE_DTYPE = torch.float16
+INT8_CLIP_PERCENTILE = 99.99984
+INT8_CLIP_Q = INT8_CLIP_PERCENTILE / 100.0
+
+def tensor_nbytes(t: Tensor) -> int:
+    return int(t.numel()) * int(t.element_size())
+
+def keep_float_tensor(name: str, t: Tensor, passthrough_orig_dtypes: dict[str, str]) -> Tensor:
+    if any(pattern in name for pattern in INT8_KEEP_FLOAT_FP32_NAME_PATTERNS):
+        return t.float().contiguous()
+    if t.dtype in {torch.float32, torch.bfloat16}:
+        passthrough_orig_dtypes[name] = str(t.dtype).removeprefix("torch.")
+        return t.to(dtype=INT8_KEEP_FLOAT_STORE_DTYPE).contiguous()
+    return t
+
+def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
+    t32 = t.float()
+    if t32.ndim == 2:
+        # Matrices get one scale per row, which usually tracks output-channel
+        # ranges much better than a single tensor-wide scale.
+        clip_abs = (
+            torch.quantile(t32.abs(), INT8_CLIP_Q, dim=1)
+            if t32.numel()
+            else torch.empty((t32.shape[0],), dtype=torch.float32)
+        )
+        clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
+        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
+        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
+
+    # Vectors / scalars use a simpler per-tensor scale.
+    clip_abs = float(torch.quantile(t32.abs().flatten(), INT8_CLIP_Q).item()) if t32.numel() else 0.0
+    scale = torch.tensor(clip_abs / 127.0 if clip_abs > 0 else 1.0, dtype=torch.float32)
+    q = torch.clamp(torch.round(torch.clamp(t32, -clip_abs, clip_abs) / scale), -127, 127).to(torch.int8).contiguous()
+    return q, scale
+
+def quantize_state_dict_int8(state_dict: dict[str, Tensor]):
+    # Single supported clean-script export format:
+    # - per-row int8 for 2D float tensors
+    # - per-tensor int8 for other float tensors
+    # - exact passthrough for non-floats
+    # - passthrough for small float tensors, stored as fp16 to save bytes
+    quantized: dict[str, Tensor] = {}
+    scales: dict[str, Tensor] = {}
+    dtypes: dict[str, str] = {}
+    passthrough: dict[str, Tensor] = {}
+    passthrough_orig_dtypes: dict[str, str] = {}
+    qmeta: dict[str, dict[str, object]] = {}
+    stats = dict.fromkeys(
+        ("param_count", "num_tensors", "num_float_tensors", "num_nonfloat_tensors", "baseline_tensor_bytes", "int8_payload_bytes"),
+        0,
+    )
+
+    for name, tensor in state_dict.items():
+        t = tensor.detach().to("cpu").contiguous()
+        stats["param_count"] += int(t.numel())
+        stats["num_tensors"] += 1
+        stats["baseline_tensor_bytes"] += tensor_nbytes(t)
+
+        if not t.is_floating_point():
+            stats["num_nonfloat_tensors"] += 1
+            passthrough[name] = t
+            stats["int8_payload_bytes"] += tensor_nbytes(t)
+            continue
+
+        # Small float tensors are cheap enough to keep directly. We still downcast
+        # fp32/bf16 passthrough tensors to fp16 so metadata does not dominate size.
+        if t.numel() <= INT8_KEEP_FLOAT_MAX_NUMEL:
+            kept = keep_float_tensor(name, t, passthrough_orig_dtypes)
+            passthrough[name] = kept
+            stats["int8_payload_bytes"] += tensor_nbytes(kept)
+            continue
+
+        stats["num_float_tensors"] += 1
+        q, s = quantize_float_tensor(t)
+        if s.ndim > 0:
+            qmeta[name] = {"scheme": "per_row", "axis": 0}
+        quantized[name] = q
+        scales[name] = s
+        dtypes[name] = str(t.dtype).removeprefix("torch.")
+        stats["int8_payload_bytes"] += tensor_nbytes(q) + tensor_nbytes(s)
+
+    obj: dict[str, object] = {
+        "__quant_format__": "int8_clean_per_row_v1",
+        "quantized": quantized,
+        "scales": scales,
+        "dtypes": dtypes,
+        "passthrough": passthrough,
+    }
+    if qmeta:
+        obj["qmeta"] = qmeta
+    if passthrough_orig_dtypes:
+        obj["passthrough_orig_dtypes"] = passthrough_orig_dtypes
+    return obj, stats
+
+def dequantize_state_dict_int8(obj: dict[str, object]) -> dict[str, Tensor]:
+    out: dict[str, Tensor] = {}
+    qmeta = obj.get("qmeta", {})
+    passthrough_orig_dtypes = obj.get("passthrough_orig_dtypes", {})
+    for name, q in obj["quantized"].items():
+        dtype = getattr(torch, obj["dtypes"][name])
+        s = obj["scales"][name]
+        if qmeta.get(name, {}).get("scheme") == "per_row" or s.ndim > 0:
+            s = s.to(dtype=torch.float32)
+            # Broadcast the saved row scale back across trailing dimensions.
+            out[name] = (q.float() * s.view(q.shape[0], *([1] * (q.ndim - 1)))).to(dtype=dtype).contiguous()
+        else:
+            scale = float(s.item())
+            out[name] = (q.float() * scale).to(dtype=dtype).contiguous()
+    for name, t in obj["passthrough"].items():
+        # Restore small tensors, undoing the temporary fp16 storage cast if needed.
+        out_t = t.detach().to("cpu").contiguous()
+        orig_dtype = passthrough_orig_dtypes.get(name)
+        if isinstance(orig_dtype, str):
+            out_t = out_t.to(dtype=getattr(torch, orig_dtype)).contiguous()
+        out[name] = out_t
+    return out
+
+
+# -----------------------------
+# DATA LOADING 
+# -----------------------------
+
+def load_data_shard(file: Path) -> Tensor:
+    header_bytes = 256 * np.dtype("<i4").itemsize
+    token_bytes = np.dtype("<u2").itemsize
+    header = np.fromfile(file, dtype="<i4", count=256)
+    # SHARD HEADER INTS & SHARD_MAGIC
+    if header.size != 256 or int(header[0]) != 20240520 or int(header[1]) != 1:
+        raise ValueError(f"Unexpected shard header for {file}")
+    num_tokens = int(header[2])
+    expected_size = header_bytes + num_tokens * token_bytes
+    if file.stat().st_size != expected_size:
+        raise ValueError(f"Shard size mismatch for {file}: expected {expected_size} bytes")
+    tokens_np = np.fromfile(file, dtype="<u2", count=num_tokens, offset=header_bytes)
+    if tokens_np.size != num_tokens:
+        raise ValueError(f"Short read for {file}")
+    return torch.from_numpy(tokens_np.astype(np.uint16, copy=False))
+
+
+class TokenStream:
+    # Reads shards sequentially and wraps around forever. The training loop therefore
+    # has deterministic, simple streaming behavior with no sampling or workers.
+    def __init__(self, pattern: str):
+        self.files = [Path(p) for p in sorted(glob.glob(pattern))]
+        if not self.files:
+            raise FileNotFoundError(f"No files found for pattern: {pattern}")
+        self.file_idx = 0
+        self.tokens = load_data_shard(self.files[0])
+        self.pos = 0
+
+    def _advance_file(self) -> None:
+        self.file_idx = (self.file_idx + 1) % len(self.files)
+        self.tokens = load_data_shard(self.files[self.file_idx])
+        self.pos = 0
+
+    def take(self, n: int) -> Tensor:
+        chunks: list[Tensor] = []
+        remaining = n
+        while remaining > 0:
+            avail = self.tokens.numel() - self.pos
+            if avail <= 0:
+                self._advance_file()
+                continue
+            k = min(remaining, avail)
+            chunks.append(self.tokens[self.pos : self.pos + k])
+            self.pos += k
+            remaining -= k
+        return chunks[0] if len(chunks) == 1 else torch.cat(chunks)
+
+
+class DistributedTokenLoader:
+    # Each call consumes a contiguous chunk from the shared token stream, then slices out
+    # one disjoint span per rank. The extra "+1" token lets us build (x, y) by shifting.
+    def __init__(self, pattern: str, rank: int, world_size: int, device: torch.device):
+        self.rank = rank
+        self.world_size = world_size
+        self.device = device
+        self.stream = TokenStream(pattern)
+
+    def next_batch(self, global_tokens: int, seq_len: int, grad_accum_steps: int) -> tuple[Tensor, Tensor]:
+        local_tokens = global_tokens // (self.world_size * grad_accum_steps)
+        per_rank_span = local_tokens + 1
+        chunk = self.stream.take(per_rank_span * self.world_size)
+        start = self.rank * per_rank_span
+        local = chunk[start : start + per_rank_span].to(dtype=torch.int64)
+        x = local[:-1].reshape(-1, seq_len)
+        y = local[1:].reshape(-1, seq_len)
+        return x.to(self.device, non_blocking=True), y.to(self.device, non_blocking=True)
+
+# -----------------------------
+# TRANSFORMER MODULES
+# -----------------------------
+
+class RMSNorm(nn.Module):
+    def __init__(self, eps: float | None = None):
+        super().__init__()
+        self.eps = eps
+
+    def forward(self, x: Tensor) -> Tensor:
+        return F.rms_norm(x, (x.size(-1),), eps=self.eps)
+
+
+class CastedLinear(nn.Linear):
+    # Keep weights in fp32 for optimizer/state quality, cast at matmul time for bf16 compute.
+    def forward(self, x: Tensor) -> Tensor:
+        bias = self.bias.to(x.dtype) if self.bias is not None else None
+        return F.linear(x, self.weight.to(x.dtype), bias)
+
+
+def restore_low_dim_params_to_fp32(module: nn.Module) -> None:
+    # Keep small/control parameters in fp32 even when the model body runs in bf16.
+    with torch.no_grad():
+        for name, param in module.named_parameters():
+            if (param.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)) and param.dtype != torch.float32:
+                param.data = param.data.float()
+
+
+class Rotary(nn.Module):
+    # Caches cos/sin tables per sequence length on the current device.
+    def __init__(self, dim: int, base: float = 10000.0):
+        super().__init__()
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self._seq_len_cached = 0
+        self._cos_cached: Tensor | None = None
+        self._sin_cached: Tensor | None = None
+
+    def forward(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> tuple[Tensor, Tensor]:
+        if (
+            self._cos_cached is None
+            or self._sin_cached is None
+            or self._seq_len_cached != seq_len
+            or self._cos_cached.device != device
+        ):
+            t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
+            freqs = torch.outer(t, self.inv_freq.to(device))
+            self._cos_cached = freqs.cos()[None, None, :, :]
+            self._sin_cached = freqs.sin()[None, None, :, :]
+            self._seq_len_cached = seq_len
+        return self._cos_cached.to(dtype=dtype), self._sin_cached.to(dtype=dtype)
+
+
+def apply_rotary_emb(x: Tensor, cos: Tensor, sin: Tensor) -> Tensor:
+    half = x.size(-1) // 2
+    x1, x2 = x[..., :half], x[..., half:]
+    return torch.cat((x1 * cos + x2 * sin, x1 * (-sin) + x2 * cos), dim=-1)
+
+
+class CausalSelfAttention(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        rope_base: float,
+        qk_gain_init: float,
+    ):
+        super().__init__()
+        if dim % num_heads != 0:
+            raise ValueError("model_dim must be divisible by num_heads")
+        if num_heads % num_kv_heads != 0:
+            raise ValueError("num_heads must be divisible by num_kv_heads")
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = dim // num_heads
+        if self.head_dim % 2 != 0:
+            raise ValueError("head_dim must be even for RoPE")
+        kv_dim = self.num_kv_heads * self.head_dim
+        self.c_q = CastedLinear(dim, dim, bias=False)
+        self.c_k = CastedLinear(dim, kv_dim, bias=False)
+        self.c_v = CastedLinear(dim, kv_dim, bias=False)
+        self.proj = CastedLinear(dim, dim, bias=False)
+        self.proj._zero_init = True
+        self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
+        self.rotary = Rotary(self.head_dim, base=rope_base)
+
+    def forward(self, x: Tensor) -> Tensor:
+        bsz, seqlen, dim = x.shape
+        q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = F.rms_norm(q, (q.size(-1),))
+        k = F.rms_norm(k, (k.size(-1),))
+        cos, sin = self.rotary(seqlen, x.device, q.dtype)
+        q = apply_rotary_emb(q, cos, sin)
+        k = apply_rotary_emb(k, cos, sin)
+        q = q * self.q_gain.to(dtype=q.dtype)[None, :, None, None]
+        y = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=None,
+            is_causal=True,
+            enable_gqa=(self.num_kv_heads != self.num_heads),
+        )
+        y = y.transpose(1, 2).contiguous().reshape(bsz, seqlen, dim)
+        return self.proj(y)
+
+
+class MLP(nn.Module):
+    # relu^2 MLP from the original modded-nanogpt setup
+    def __init__(self, dim: int, mlp_mult: int):
+        super().__init__()
+        hidden = mlp_mult * dim
+        self.fc = CastedLinear(dim, hidden, bias=False)
+        self.proj = CastedLinear(hidden, dim, bias=False)
+        self.proj._zero_init = True
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = torch.relu(self.fc(x))
+        return self.proj(x.square())
+
+
+class Block(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: int,
+        rope_base: float,
+        qk_gain_init: float,
+    ):
+        super().__init__()
+        self.attn_norm = RMSNorm()
+        self.mlp_norm = RMSNorm()
+        self.attn = CausalSelfAttention(dim, num_heads, num_kv_heads, rope_base, qk_gain_init)
+        self.mlp = MLP(dim, mlp_mult)
+        self.attn_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.mlp_scale = nn.Parameter(torch.ones(dim, dtype=torch.float32))
+        self.resid_mix = nn.Parameter(torch.stack((torch.ones(dim), torch.zeros(dim))).float())
+
+    def forward(self, x: Tensor, x0: Tensor) -> Tensor:
+        mix = self.resid_mix.to(dtype=x.dtype)
+        x = mix[0][None, None, :] * x + mix[1][None, None, :] * x0
+        attn_out = self.attn(self.attn_norm(x))
+        x = x + self.attn_scale.to(dtype=x.dtype)[None, None, :] * attn_out
+        x = x + self.mlp_scale.to(dtype=x.dtype)[None, None, :] * self.mlp(self.mlp_norm(x))
+        return x
+
+
+class GPT(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        num_layers: int,
+        model_dim: int,
+        num_heads: int,
+        num_kv_heads: int,
+        mlp_mult: int,
+        tie_embeddings: bool,
+        tied_embed_init_std: float,
+        logit_softcap: float,
+        rope_base: float,
+        qk_gain_init: float,
+        embed_loss_lambda: float = 0.0,
+        embed_loss_l2: bool = False,
+        embed_loss_topk: int = 0,
+        embed_loss_only: bool = False,
+        recon_loss_beta: float = 0.0,
+        uniform_loss_gamma: float = 0.0,
+        align_loss_alpha: float = 0.0,
+    ):
+        super().__init__()
+        if logit_softcap <= 0.0:
+            raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
+        self.tie_embeddings = tie_embeddings
+        self.tied_embed_init_std = tied_embed_init_std
+        self.logit_softcap = logit_softcap
+        self.embed_loss_lambda = embed_loss_lambda
+        self.embed_loss_l2 = embed_loss_l2
+        self.embed_loss_topk = embed_loss_topk
+        self.embed_loss_only = embed_loss_only
+        self.recon_loss_beta = recon_loss_beta
+        self.uniform_loss_gamma = uniform_loss_gamma
+        self.align_loss_alpha = align_loss_alpha
+        self.tok_emb = nn.Embedding(vocab_size, model_dim)
+        self.num_encoder_layers = num_layers // 2
+        self.num_decoder_layers = num_layers - self.num_encoder_layers
+        self.num_skip_weights = min(self.num_encoder_layers, self.num_decoder_layers)
+        self.skip_weights = nn.Parameter(torch.ones(self.num_skip_weights, model_dim, dtype=torch.float32))
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    model_dim,
+                    num_heads,
+                    num_kv_heads,
+                    mlp_mult,
+                    rope_base,
+                    qk_gain_init,
+                )
+                for i in range(num_layers)
+            ]
+        )
+        self.final_norm = RMSNorm()
+        self.lm_head = None if tie_embeddings else CastedLinear(model_dim, vocab_size, bias=False)
+        if self.lm_head is not None:
+            self.lm_head._zero_init = True
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        if self.tie_embeddings:
+            nn.init.normal_(self.tok_emb.weight, mean=0.0, std=self.tied_embed_init_std)
+        for module in self.modules():
+            if isinstance(module, nn.Linear) and getattr(module, "_zero_init", False):
+                nn.init.zeros_(module.weight)
+
+    def _get_logits(self, input_ids: Tensor) -> tuple[Tensor, Tensor]:
+        """Returns (flat_hidden, softcapped_logits)."""
+        x = self.tok_emb(input_ids)
+        x = F.rms_norm(x, (x.size(-1),))
+        x0 = x
+        skips: list[Tensor] = []
+        for i in range(self.num_encoder_layers):
+            x = self.blocks[i](x, x0)
+            skips.append(x)
+        for i in range(self.num_decoder_layers):
+            if skips:
+                x = x + self.skip_weights[i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+            x = self.blocks[self.num_encoder_layers + i](x, x0)
+        x = self.final_norm(x).reshape(-1, x.size(-1))
+        if self.tie_embeddings:
+            logits_proj = F.linear(x, self.tok_emb.weight)
+        else:
+            if self.lm_head is None:
+                raise RuntimeError("lm_head is required when tie_embeddings=False")
+            logits_proj = self.lm_head(x)
+        logits = self.logit_softcap * torch.tanh(logits_proj / self.logit_softcap)
+        return x, logits
+
+    def _embed_output_matrix(self) -> Tensor:
+        return self.tok_emb.weight if self.tie_embeddings else self.lm_head.weight
+
+    def _embed_aux_loss(self, logits: Tensor, targets: Tensor) -> Tensor:
+        E = self.tok_emb.weight.float()  # always use input embeddings (lm_head is zero-init for untied)
+        p = torch.softmax(logits.float(), dim=-1)
+        K = self.embed_loss_topk
+        if K > 0:
+            topk_vals, topk_idx = torch.topk(p, K, dim=-1)
+            topk_vals = topk_vals / topk_vals.sum(-1, keepdim=True)
+            E_topk = E[topk_idx]
+            e_hat = (topk_vals.unsqueeze(-1) * E_topk).sum(dim=-2)
+        else:
+            e_hat = p @ E
+        e_gt = E[targets]
+        if self.embed_loss_l2:
+            return ((e_hat - e_gt) ** 2).sum(dim=-1).mean()
+        cos = F.cosine_similarity(e_hat, e_gt, dim=-1, eps=1e-8)
+        return (1.0 - cos).mean()
+
+    def _recon_loss(self) -> Tensor:
+        # CE(U(E[i]), i) for all vocab tokens. Using all tokens avoids
+        # torch.unique which has dynamic output shape incompatible with fullgraph=True.
+        E = self.tok_emb.weight.float()                      # [V, d]
+        W = self._embed_output_matrix().float()              # [V, d]
+        logits = F.linear(E, W)                              # [V, V]
+        logits = self.logit_softcap * torch.tanh(logits / self.logit_softcap)
+        ids = torch.arange(E.shape[0], device=E.device)
+        return F.cross_entropy(logits, ids, reduction="mean")
+
+    def _uniform_loss(self) -> Tensor:
+        # Wang & Isola (2020) uniformity loss on the unit hypersphere.
+        # Uses all vocab tokens; for unit vectors sq_dist = 2*(1 - cos),
+        # so this is equivalent to a cosine-distance-based spread loss.
+        # Value ≤ 0: 0 = total collapse, more negative = more spread.
+        # Diagonal: sq_dist[i,i] = 0 → kernel[i,i] = exp(0) = 1 always.
+        # We subtract V diagonal 1s instead of boolean masking (which uses
+        # nonzero internally and breaks fullgraph=True compilation).
+        e = F.normalize(self.tok_emb.weight.float(), dim=-1)  # [V, d]
+        cos_sim = e @ e.T                                      # [V, V]
+        sq_dist = 2.0 - 2.0 * cos_sim                         # [V, V]
+        kernel = sq_dist.mul(-2.0).exp()                       # [V, V]
+        V = e.shape[0]
+        off_diag_mean = (kernel.sum() - V) / (V * (V - 1))
+        return off_diag_mean.log()
+
+    def _align_loss(self) -> Tensor:
+        # Soft weight tying: penalize cosine distance between each token's
+        # input embedding E[i] and output weight W[i]. Encourages the model
+        # to share input/output geometry, but lets CE override when beneficial.
+        # Range [0, 2]; expected value ~1 at random init (orthogonal unit vecs).
+        E = F.normalize(self.tok_emb.weight.float(), dim=-1)
+        W = F.normalize(self._embed_output_matrix().float(), dim=-1)
+        return (1.0 - (E * W).sum(dim=-1)).mean()
+
+    def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
+        targets = target_ids.reshape(-1)
+        _, logits = self._get_logits(input_ids)
+        ce_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        if not self.training:
+            return ce_loss  # eval always returns CE so val_bpb is meaningful
+        if self.embed_loss_only:
+            self._embed_only_train_ce = ce_loss.detach()  # free: logits already computed
+            total = self.embed_loss_lambda * self._embed_aux_loss(logits, targets)
+            if self.uniform_loss_gamma > 0.0:
+                total = total + self.uniform_loss_gamma * self._uniform_loss()
+            return total
+        total = ce_loss
+        if self.embed_loss_lambda > 0.0:
+            total = total + self.embed_loss_lambda * self._embed_aux_loss(logits, targets)
+        if self.recon_loss_beta > 0.0:
+            total = total + self.recon_loss_beta * self._recon_loss()
+        if self.uniform_loss_gamma > 0.0:
+            total = total + self.uniform_loss_gamma * self._uniform_loss()
+        if self.align_loss_alpha > 0.0:
+            total = total + self.align_loss_alpha * self._align_loss()
+        return total
+
+    @torch.no_grad()
+    def loss_components(self, input_ids: Tensor, target_ids: Tensor) -> tuple[Tensor, Tensor]:
+        """For logging only. Returns (ce_loss, embed_loss) without gradients."""
+        targets = target_ids.reshape(-1)
+        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+            _, logits = self._get_logits(input_ids)
+        ce_loss = F.cross_entropy(logits.float(), targets, reduction="mean")
+        embed_loss = self._embed_aux_loss(logits, targets)
+        return ce_loss, embed_loss
+
+
+# -----------------------------
+# TRAINING
+# -----------------------------
+
+def main() -> None:
+    global zeropower_via_newtonschulz5
+
+    code = Path(__file__).read_text(encoding="utf-8")
+    args = Hyperparameters()
+    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+
+    # -----------------------------
+    # DISTRIBUTED + CUDA SETUP
+    # -----------------------------
+
+    distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    rank = int(os.environ.get("RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if world_size <= 0:
+        raise ValueError(f"WORLD_SIZE must be positive, got {world_size}")
+    if 8 % world_size != 0:
+        raise ValueError(f"WORLD_SIZE={world_size} must divide 8 so grad_accum_steps stays integral")
+    grad_accum_steps = 8 // world_size
+    grad_scale = 1.0 / grad_accum_steps
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required")
+    device = torch.device("cuda", local_rank)
+    torch.cuda.set_device(device)
+    if distributed:
+        dist.init_process_group(backend="nccl", device_id=device)
+        dist.barrier()
+    master_process = rank == 0
+
+    # Fast math knobs
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+
+    enable_cudnn_sdp(False)
+    enable_flash_sdp(True)
+    enable_mem_efficient_sdp(False)
+    enable_math_sdp(False)
+
+    logfile = None
+    if master_process:
+        os.makedirs("logs", exist_ok=True)
+        logfile = f"logs/{args.run_id}.txt"
+        print(logfile)
+
+    def log0(msg: str, console: bool = True) -> None:
+        if not master_process:
+            return
+        if console:
+            print(msg)
+        if logfile is not None:
+            with open(logfile, "a", encoding="utf-8") as f:
+                print(msg, file=f)
+
+    log0(code, console=False)
+    log0("=" * 100, console=False)
+    log0(f"Running Python {sys.version}", console=False)
+    log0(f"Running PyTorch {torch.__version__}", console=False)
+    log0(
+        subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False).stdout,
+        console=False,
+    )
+    log0("=" * 100, console=False)
+
+    # -----------------------------
+    # TOKENIZER + VALIDATION METRIC SETUP
+    # -----------------------------
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
+    if not args.tokenizer_path.endswith(".model"):
+        raise ValueError(f"Script only setup for SentencePiece .model file: {args.tokenizer_path}")
+    sp = spm.SentencePieceProcessor(model_file=args.tokenizer_path)
+    if int(sp.vocab_size()) != args.vocab_size:
+        raise ValueError(
+            f"VOCAB_SIZE={args.vocab_size} does not match tokenizer vocab_size={int(sp.vocab_size())}"
+        )
+    dataset_dir = Path(args.data_path).resolve()
+    actual_train_files = len(list(dataset_dir.glob("fineweb_train_*.bin")))
+    val_tokens = load_validation_tokens(args.val_files, args.train_seq_len)
+    base_bytes_lut, has_leading_space_lut, is_boundary_token_lut = build_sentencepiece_luts(
+        sp, args.vocab_size, device
+    )
+    log0(f"val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path={args.tokenizer_path}")
+    log0(f"train_loader:dataset:{dataset_dir.name} train_shards:{actual_train_files}")
+    log0(f"val_loader:shards pattern={args.val_files} tokens:{val_tokens.numel() - 1}")
+
+    # -----------------------------
+    # MODEL + OPTIMIZER SETUP
+    # -----------------------------
+
+    base_model = GPT(
+        vocab_size=args.vocab_size,
+        num_layers=args.num_layers,
+        model_dim=args.model_dim,
+        num_heads=args.num_heads,
+        num_kv_heads=args.num_kv_heads,
+        mlp_mult=args.mlp_mult,
+        tie_embeddings=args.tie_embeddings,
+        tied_embed_init_std=args.tied_embed_init_std,
+        logit_softcap=args.logit_softcap,
+        rope_base=args.rope_base,
+        qk_gain_init=args.qk_gain_init,
+        embed_loss_lambda=args.embed_loss_lambda,
+        embed_loss_l2=args.embed_loss_l2,
+        embed_loss_topk=args.embed_loss_topk,
+        embed_loss_only=args.embed_loss_only,
+        recon_loss_beta=args.recon_loss_beta,
+        uniform_loss_gamma=args.uniform_loss_gamma,
+        align_loss_alpha=args.align_loss_alpha,
+    ).to(device).bfloat16()
+    for module in base_model.modules():
+        if isinstance(module, CastedLinear):
+            module.float()
+    restore_low_dim_params_to_fp32(base_model)
+    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
+
+    # Pre-compile CE-only graph so the cutoff switch is pause-free.
+    if args.embed_loss_cutoff_step > 0 and args.embed_loss_lambda > 0.0:
+        _saved_lam = base_model.embed_loss_lambda
+        base_model.embed_loss_lambda = 0.0
+        compiled_model_ce_only = torch.compile(base_model, dynamic=False, fullgraph=True)
+        model_ce_only: nn.Module = DDP(compiled_model_ce_only, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model_ce_only
+        base_model.embed_loss_lambda = _saved_lam
+    else:
+        compiled_model_ce_only = compiled_model
+        model_ce_only = model
+
+    # Optimizer split:
+    # - token embedding (Adam) uses EMBED_LR
+    # - untied lm_head (Adam) uses HEAD_LR
+    # - matrix params in transformer blocks use MATRIX_LR via Muon
+    # - vectors/scalars use SCALAR_LR via Adam
+    block_named_params = list(base_model.blocks.named_parameters())
+    matrix_params = [
+        p
+        for name, p in block_named_params
+        if p.ndim == 2 and not any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+    ]
+    scalar_params = [
+        p
+        for name, p in block_named_params
+        if p.ndim < 2 or any(pattern in name for pattern in CONTROL_TENSOR_NAME_PATTERNS)
+    ]
+    if base_model.skip_weights.numel() > 0:
+        scalar_params.append(base_model.skip_weights)
+    token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
+    optimizer_tok = torch.optim.Adam(
+        [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.adam_eps,
+        fused=True,
+    )
+    optimizer_muon = Muon(
+        matrix_params,
+        lr=args.matrix_lr,
+        momentum=args.muon_momentum,
+        backend_steps=args.muon_backend_steps,
+    )
+    for group in optimizer_muon.param_groups:
+        group["base_lr"] = args.matrix_lr
+    optimizer_scalar = torch.optim.Adam(
+        [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        betas=(args.beta1, args.beta2),
+        eps=args.adam_eps,
+        fused=True,
+    )
+    optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
+    if base_model.lm_head is not None:
+        optimizer_head = torch.optim.Adam(
+            [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
+            betas=(args.beta1, args.beta2),
+            eps=args.adam_eps,
+            fused=True,
+        )
+        optimizers.insert(1, optimizer_head)
+
+    n_params = sum(p.numel() for p in base_model.parameters())
+    log0(f"model_params:{n_params}")
+    log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
+    log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
+    log0(
+        f"tie_embeddings:{args.tie_embeddings} embed_lr:{token_lr} "
+        f"head_lr:{args.head_lr if base_model.lm_head is not None else 0.0} "
+        f"matrix_lr:{args.matrix_lr} scalar_lr:{args.scalar_lr}"
+    )
+    log0(
+        f"train_batch_tokens:{args.train_batch_tokens} train_seq_len:{args.train_seq_len} "
+        f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
+        f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log0(f"seed:{args.seed}")
+    log0(f"embed_loss_lambda:{args.embed_loss_lambda} embed_loss_l2:{args.embed_loss_l2} embed_loss_topk:{args.embed_loss_topk} embed_loss_cutoff_step:{args.embed_loss_cutoff_step} embed_loss_only:{args.embed_loss_only}")
+    log0(f"recon_loss_beta:{args.recon_loss_beta}")
+    log0(f"uniform_loss_gamma:{args.uniform_loss_gamma}")
+    log0(f"align_loss_alpha:{args.align_loss_alpha}")
+
+    # -----------------------------
+    # DATA LOADER & MODEL WARMUP
+    # -----------------------------
+
+    train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+
+    def zero_grad_all() -> None:
+        for opt in optimizers:
+            opt.zero_grad(set_to_none=True)
+
+    max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
+
+    def lr_mul(step: int, elapsed_ms: float) -> float:
+        if args.warmdown_iters <= 0:
+            return 1.0
+        if max_wallclock_ms is None:
+            warmdown_start = max(args.iterations - args.warmdown_iters, 0)
+            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step < args.iterations else 1.0
+        step_ms = elapsed_ms / max(step, 1)
+        warmdown_ms = args.warmdown_iters * step_ms
+        remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
+        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+
+    # Warmup primes the compiled forward/backward/optimizer paths, then we restore the
+    # initial weights/optimizer state so measured training starts from the true init.
+    if args.warmup_steps > 0:
+        initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
+        initial_optimizer_states = [copy.deepcopy(opt.state_dict()) for opt in optimizers]
+        model.train()
+        for warmup_step in range(args.warmup_steps):
+            zero_grad_all()
+            for micro_step in range(grad_accum_steps):
+                if distributed:
+                    model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+                x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                    warmup_loss = model(x, y)
+                (warmup_loss * grad_scale).backward()
+            for opt in optimizers:
+                opt.step()
+            zero_grad_all()
+            if args.warmup_steps <= 20 or (warmup_step + 1) % 10 == 0 or warmup_step + 1 == args.warmup_steps:
+                log0(f"warmup_step:{warmup_step + 1}/{args.warmup_steps}")
+        base_model.load_state_dict(initial_model_state, strict=True)
+        for opt, state in zip(optimizers, initial_optimizer_states, strict=True):
+            opt.load_state_dict(state)
+        zero_grad_all()
+        if distributed:
+            model.require_backward_grad_sync = True
+        train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
+
+    # -----------------------------
+    # MAIN TRAINING LOOP
+    # -----------------------------
+
+    training_time_ms = 0.0
+    stop_after_step: int | None = None
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
+
+    step = 0
+    while True:
+        last_step = step == args.iterations or (stop_after_step is not None and step >= stop_after_step)
+
+        should_validate = last_step or (args.val_loss_every > 0 and step % args.val_loss_every == 0)
+        if should_validate:
+            torch.cuda.synchronize()
+            training_time_ms += 1000.0 * (time.perf_counter() - t0)
+            val_loss, val_bpb = eval_val(
+                args,
+                model,
+                rank,
+                world_size,
+                device,
+                grad_accum_steps,
+                val_tokens,
+                base_bytes_lut,
+                has_leading_space_lut,
+                is_boundary_token_lut,
+            )
+            log0(
+                f"step:{step}/{args.iterations} val_loss:{val_loss:.4f} val_bpb:{val_bpb:.4f} "
+                f"train_time:{training_time_ms:.0f}ms step_avg:{training_time_ms / max(step, 1):.2f}ms"
+            )
+            torch.cuda.synchronize()
+            t0 = time.perf_counter()
+
+        if last_step:
+            if stop_after_step is not None and step < args.iterations:
+                log0(
+                    f"stopping_early: wallclock_cap train_time:{training_time_ms:.0f}ms "
+                    f"step:{step}/{args.iterations}"
+                )
+            break
+
+        elapsed_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        scale = lr_mul(step, elapsed_ms)
+        zero_grad_all()
+        train_loss = torch.zeros((), device=device)
+        for micro_step in range(grad_accum_steps):
+            if distributed:
+                model.require_backward_grad_sync = micro_step == grad_accum_steps - 1
+            x, y = train_loader.next_batch(args.train_batch_tokens, args.train_seq_len, grad_accum_steps)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=True):
+                loss = model(x, y)
+            train_loss += loss.detach()
+            (loss * grad_scale).backward()
+        train_loss /= grad_accum_steps
+
+        # Pre-compute CE/embed components before optimizer step so they're
+        # measured at the same point as train_loss (pre-update), making
+        # comparison with the lambda=0 baseline apples-to-apples.
+        _pre_update_ce: float | None = None
+        _pre_update_emb: float | None = None
+        cutoff_active = args.embed_loss_cutoff_step > 0 and (step + 1) > args.embed_loss_cutoff_step
+        if args.embed_loss_lambda > 0.0 and not cutoff_active:
+            if args.embed_loss_only:
+                # CE was cached in forward() at no extra cost (logits already computed)
+                _pre_update_ce = base_model._embed_only_train_ce.item()
+                _pre_update_emb = None
+            else:
+                with torch.no_grad():
+                    ce_l, emb_l = base_model.loss_components(x, y)
+                _pre_update_ce = ce_l.item()
+                _pre_update_emb = emb_l.item()
+
+        frac = min(step / args.muon_momentum_warmup_steps, 1.0) if args.muon_momentum_warmup_steps > 0 else 1.0
+        muon_momentum = (1 - frac) * args.muon_momentum_warmup_start + frac * args.muon_momentum
+        for group in optimizer_muon.param_groups:
+            group["momentum"] = muon_momentum
+
+        for opt in optimizers:
+            for group in opt.param_groups:
+                group["lr"] = group["base_lr"] * scale
+
+        if args.grad_clip_norm > 0:
+            torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+        for opt in optimizers:
+            opt.step()
+        zero_grad_all()
+
+        step += 1
+
+        if (args.embed_loss_cutoff_step > 0
+                and step == args.embed_loss_cutoff_step
+                and args.embed_loss_lambda > 0.0):
+            model = model_ce_only
+            log0(f"step:{step} embed_loss_cutoff reached, switching to CE-only model")
+
+        approx_training_time_ms = training_time_ms + 1000.0 * (time.perf_counter() - t0)
+        should_log_train = (
+            args.train_log_every > 0
+            and (step <= 10 or step % args.train_log_every == 0 or stop_after_step is not None)
+        )
+        if should_log_train:
+            log0(
+                f"step:{step}/{args.iterations} train_loss:{train_loss.item():.4f} "
+                f"train_time:{approx_training_time_ms:.0f}ms step_avg:{approx_training_time_ms / step:.2f}ms"
+            )
+            if _pre_update_ce is not None:
+                lam = args.embed_loss_lambda
+                if _pre_update_emb is not None:
+                    ce_v, emb_v = _pre_update_ce, _pre_update_emb
+                    embed_frac = (lam * emb_v) / (ce_v + lam * emb_v) if (ce_v + lam * emb_v) > 0 else 0.0
+                    log0(f"step:{step} lambda:{lam:.4f} ce:{ce_v:.4f} embed:{emb_v:.4f} embed_frac:{embed_frac:.3f}")
+                else:
+                    emb_norm = base_model.tok_emb.weight.norm(dim=1).mean().item()
+                    log0(f"step:{step} lambda:{lam:.4f} ce:{_pre_update_ce:.4f} embed_only:True emb_norm:{emb_norm:.4f}")
+            if args.recon_loss_beta > 0.0 and should_log_train:
+                with torch.no_grad():
+                    recon_v = base_model._recon_loss().item()
+                beta = args.recon_loss_beta
+                recon_frac = (beta * recon_v) / (train_loss.item() + 1e-8)
+                log0(f"step:{step} beta:{beta:.4f} recon:{recon_v:.4f} recon_frac:{recon_frac:.3f}")
+            if args.uniform_loss_gamma > 0.0 and should_log_train:
+                with torch.no_grad():
+                    unif_v = base_model._uniform_loss().item()
+                    emb_norm = base_model.tok_emb.weight.norm(dim=1).mean().item()
+                gamma = args.uniform_loss_gamma
+                log0(f"step:{step} gamma:{gamma:.4f} uniform:{unif_v:.4f} emb_norm:{emb_norm:.4f}")
+            if args.align_loss_alpha > 0.0 and should_log_train:
+                with torch.no_grad():
+                    align_v = base_model._align_loss().item()
+                    emb_norm = base_model.tok_emb.weight.norm(dim=1).mean().item()
+                alpha = args.align_loss_alpha
+                log0(f"step:{step} alpha:{alpha:.4f} align:{align_v:.4f} emb_norm:{emb_norm:.4f}")
+
+        # Needed to sync whether we've reached the wallclock cap.
+        reached_cap = max_wallclock_ms is not None and approx_training_time_ms >= max_wallclock_ms
+        if distributed and max_wallclock_ms is not None:
+            reached_cap_tensor = torch.tensor(int(reached_cap), device=device)
+            dist.all_reduce(reached_cap_tensor, op=dist.ReduceOp.MAX)
+            reached_cap = bool(reached_cap_tensor.item())
+        if stop_after_step is None and reached_cap:
+            stop_after_step = step
+
+    log0(
+        f"peak memory allocated: {torch.cuda.max_memory_allocated() // 1024 // 1024} MiB "
+        f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
+    )
+
+    # -----------------------------
+    # SERIALIZATION + ROUNDTRIP VALIDATION
+    # -----------------------------
+    # Save the raw state (useful for debugging/loading in PyTorch directly), then always produce
+    # the compressed int8+zlib artifact and validate the round-tripped weights.
+
+    if master_process:
+        torch.save(base_model.state_dict(), "final_model.pt")
+        model_bytes = os.path.getsize("final_model.pt")
+        code_bytes = len(code.encode("utf-8"))
+        log0(f"Serialized model: {model_bytes} bytes")
+        log0(f"Code size: {code_bytes} bytes")
+        log0(f"Total submission size: {model_bytes + code_bytes} bytes")
+
+    quant_obj, quant_stats = quantize_state_dict_int8(base_model.state_dict())
+    quant_buf = io.BytesIO()
+    torch.save(quant_obj, quant_buf)
+    quant_raw = quant_buf.getvalue()
+    quant_blob = zlib.compress(quant_raw, level=9)
+    quant_raw_bytes = len(quant_raw)
+    if master_process:
+        with open("final_model.int8.ptz", "wb") as f:
+            f.write(quant_blob)
+        quant_file_bytes = os.path.getsize("final_model.int8.ptz")
+        code_bytes = len(code.encode("utf-8"))
+        ratio = quant_stats["baseline_tensor_bytes"] / max(quant_stats["int8_payload_bytes"], 1)
+        log0(
+            f"Serialized model int8+zlib: {quant_file_bytes} bytes "
+            f"(payload:{quant_stats['int8_payload_bytes']} raw_torch:{quant_raw_bytes} payload_ratio:{ratio:.2f}x)"
+        )
+        log0(f"Total submission size int8+zlib: {quant_file_bytes + code_bytes} bytes")
+
+    if distributed:
+        dist.barrier()
+    with open("final_model.int8.ptz", "rb") as f:
+        quant_blob_disk = f.read()
+    quant_state = torch.load(io.BytesIO(zlib.decompress(quant_blob_disk)), map_location="cpu")
+    base_model.load_state_dict(dequantize_state_dict_int8(quant_state), strict=True)
+    torch.cuda.synchronize()
+    t_qeval = time.perf_counter()
+    q_val_loss, q_val_bpb = eval_val(
+        args,
+        model,
+        rank,
+        world_size,
+        device,
+        grad_accum_steps,
+        val_tokens,
+        base_bytes_lut,
+        has_leading_space_lut,
+        is_boundary_token_lut,
+    )
+    torch.cuda.synchronize()
+    log0(
+        f"final_int8_zlib_roundtrip val_loss:{q_val_loss:.4f} val_bpb:{q_val_bpb:.4f} "
+        f"eval_time:{1000.0 * (time.perf_counter() - t_qeval):.0f}ms"
+    )
+    log0(f"final_int8_zlib_roundtrip_exact val_loss:{q_val_loss:.8f} val_bpb:{q_val_bpb:.8f}")
+
+    if distributed:
+        dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()
+
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Thu Apr 30 23:42:47 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.126.09             Driver Version: 580.126.09     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:19:00.0 Off |                    0 |
+| N/A   46C    P0            127W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:3B:00.0 Off |                    0 |
+| N/A   37C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:4C:00.0 Off |                    0 |
+| N/A   35C    P0            119W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:5D:00.0 Off |                    0 |
+| N/A   44C    P0            123W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:9B:00.0 Off |                    0 |
+| N/A   45C    P0            124W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:BB:00.0 Off |                    0 |
+| N/A   36C    P0            118W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:CB:00.0 Off |                    0 |
+| N/A   45C    P0            129W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:DB:00.0 Off |                    0 |
+| N/A   35C    P0            117W /  700W |    1521MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+val_bpb:enabled tokenizer_kind=sentencepiece tokenizer_path=./data/tokenizers/fineweb_1024_bpe.model
+train_loader:dataset:fineweb10B_sp1024 train_shards:80
+val_loader:shards pattern=./data/datasets/fineweb10B_sp1024/fineweb_val_*.bin tokens:62021632
+model_params:17584200
+world_size:8 grad_accum_steps:1
+sdp_backends:cudnn=False flash=True mem_efficient=False math=False
+attention_mode:gqa num_heads:8 num_kv_heads:4
+tie_embeddings:False embed_lr:0.6 head_lr:0.008 matrix_lr:0.04 scalar_lr:0.04
+train_batch_tokens:524288 train_seq_len:1024 iterations:20000 warmup_steps:20 max_wallclock_seconds:600.000
+seed:1337
+embed_loss_lambda:1.0 embed_loss_l2:False embed_loss_topk:0 embed_loss_cutoff_step:0 embed_loss_only:False
+recon_loss_beta:0.0
+uniform_loss_gamma:2.0
+align_loss_alpha:0.0
+warmup_step:1/20
+warmup_step:2/20
+warmup_step:3/20
+warmup_step:4/20
+warmup_step:5/20
+warmup_step:6/20
+warmup_step:7/20
+warmup_step:8/20
+warmup_step:9/20
+warmup_step:10/20
+warmup_step:11/20
+warmup_step:12/20
+warmup_step:13/20
+warmup_step:14/20
+warmup_step:15/20
+warmup_step:16/20
+warmup_step:17/20
+warmup_step:18/20
+warmup_step:19/20
+warmup_step:20/20
+step:0/20000 val_loss:6.9315 val_bpb:4.1052 train_time:0ms step_avg:0.02ms
+step:1/20000 train_loss:-0.0686 train_time:247ms step_avg:247.39ms
+step:1 lambda:1.0000 ce:6.9315 embed:0.9691 embed_frac:0.123
+step:1 gamma:2.0000 uniform:-3.1734 emb_norm:26.2500
+step:2/20000 train_loss:0.2039 train_time:339ms step_avg:169.27ms
+step:2 lambda:1.0000 ce:5.9786 embed:0.5717 embed_frac:0.087
+step:2 gamma:2.0000 uniform:-3.5917 emb_norm:28.5000
+step:3/20000 train_loss:-1.0992 train_time:421ms step_avg:140.38ms
+step:3 lambda:1.0000 ce:5.6125 embed:0.4751 embed_frac:0.078
+step:3 gamma:2.0000 uniform:-3.8715 emb_norm:31.1250
+step:4/20000 train_loss:-1.7998 train_time:504ms step_avg:125.96ms
+step:4 lambda:1.0000 ce:5.3932 embed:0.5501 embed_frac:0.093
+step:4 gamma:2.0000 uniform:-3.8876 emb_norm:34.7500
+step:5/20000 train_loss:-2.1530 train_time:587ms step_avg:117.48ms
+step:5 lambda:1.0000 ce:5.0228 embed:0.6003 embed_frac:0.107
+step:5 gamma:2.0000 uniform:-3.8818 emb_norm:38.5000
+step:6/20000 train_loss:-2.2134 train_time:670ms step_avg:111.66ms
+step:6 lambda:1.0000 ce:4.9521 embed:0.5985 embed_frac:0.108
+step:6 gamma:2.0000 uniform:-3.8968 emb_norm:42.0000
+step:7/20000 train_loss:-2.5701 train_time:753ms step_avg:107.51ms
+step:7 lambda:1.0000 ce:4.6366 embed:0.5870 embed_frac:0.112
+step:7 gamma:2.0000 uniform:-3.9180 emb_norm:45.5000
+step:8/20000 train_loss:-2.6826 train_time:835ms step_avg:104.40ms
+step:8 lambda:1.0000 ce:4.5575 embed:0.5959 embed_frac:0.116
+step:8 gamma:2.0000 uniform:-3.9337 emb_norm:48.7500
+step:9/20000 train_loss:-2.7788 train_time:918ms step_avg:101.97ms
+step:9 lambda:1.0000 ce:4.4894 embed:0.5992 embed_frac:0.118
+step:9 gamma:2.0000 uniform:-3.9417 emb_norm:51.7500
+step:10/20000 train_loss:-2.8104 train_time:1000ms step_avg:100.02ms
+step:10 lambda:1.0000 ce:4.4717 embed:0.6013 embed_frac:0.119
+step:10 gamma:2.0000 uniform:-3.9439 emb_norm:54.5000
+step:200/20000 train_loss:-4.9132 train_time:16671ms step_avg:83.36ms
+step:200 lambda:1.0000 ce:2.6884 embed:0.3440 embed_frac:0.113
+step:200 gamma:2.0000 uniform:-3.9728 emb_norm:125.0000
+step:400/20000 train_loss:-5.3672 train_time:33152ms step_avg:82.88ms
+step:400 lambda:1.0000 ce:2.2838 embed:0.2972 embed_frac:0.115
+step:400 gamma:2.0000 uniform:-3.9741 emb_norm:173.0000
+step:600/20000 train_loss:-5.1092 train_time:49625ms step_avg:82.71ms
+step:600 lambda:1.0000 ce:2.5132 embed:0.3284 embed_frac:0.116
+step:600 gamma:2.0000 uniform:-3.9752 emb_norm:218.0000
+step:800/20000 train_loss:-5.3844 train_time:66097ms step_avg:82.62ms
+step:800 lambda:1.0000 ce:2.2687 embed:0.2969 embed_frac:0.116
+step:800 gamma:2.0000 uniform:-3.9751 emb_norm:258.0000
+step:1000/20000 train_loss:-5.2834 train_time:82566ms step_avg:82.57ms
+step:1000 lambda:1.0000 ce:2.3609 embed:0.3062 embed_frac:0.115
+step:1000 gamma:2.0000 uniform:-3.9752 emb_norm:296.0000
+step:1000/20000 val_loss:2.3214 val_bpb:1.3748 train_time:82567ms step_avg:82.57ms
+step:1200/20000 train_loss:-5.2638 train_time:99068ms step_avg:82.56ms
+step:1200 lambda:1.0000 ce:2.3749 embed:0.3135 embed_frac:0.117
+step:1200 gamma:2.0000 uniform:-3.9758 emb_norm:328.0000
+step:1400/20000 train_loss:-5.2036 train_time:115560ms step_avg:82.54ms
+step:1400 lambda:1.0000 ce:2.4290 embed:0.3208 embed_frac:0.117
+step:1400 gamma:2.0000 uniform:-3.9763 emb_norm:356.0000
+step:1600/20000 train_loss:-5.5826 train_time:132046ms step_avg:82.53ms
+step:1600 lambda:1.0000 ce:2.0934 embed:0.2769 embed_frac:0.117
+step:1600 gamma:2.0000 uniform:-3.9764 emb_norm:382.0000
+step:1800/20000 train_loss:-5.4651 train_time:148503ms step_avg:82.50ms
+step:1800 lambda:1.0000 ce:2.1962 embed:0.2925 embed_frac:0.118
+step:1800 gamma:2.0000 uniform:-3.9768 emb_norm:406.0000
+step:2000/20000 train_loss:-5.4089 train_time:164957ms step_avg:82.48ms
+step:2000 lambda:1.0000 ce:2.2481 embed:0.2966 embed_frac:0.117
+step:2000 gamma:2.0000 uniform:-3.9767 emb_norm:428.0000
+step:2000/20000 val_loss:2.2331 val_bpb:1.3226 train_time:164958ms step_avg:82.48ms
+step:2200/20000 train_loss:-5.6045 train_time:181387ms step_avg:82.45ms
+step:2200 lambda:1.0000 ce:2.0720 embed:0.2775 embed_frac:0.118
+step:2200 gamma:2.0000 uniform:-3.9769 emb_norm:448.0000
+step:2400/20000 train_loss:-5.4602 train_time:197840ms step_avg:82.43ms
+step:2400 lambda:1.0000 ce:2.2004 embed:0.2936 embed_frac:0.118
+step:2400 gamma:2.0000 uniform:-3.9771 emb_norm:466.0000
+step:2600/20000 train_loss:-5.2249 train_time:214290ms step_avg:82.42ms
+step:2600 lambda:1.0000 ce:2.4132 embed:0.3172 embed_frac:0.116
+step:2600 gamma:2.0000 uniform:-3.9775 emb_norm:484.0000
+step:2800/20000 train_loss:-5.4199 train_time:230741ms step_avg:82.41ms
+step:2800 lambda:1.0000 ce:2.2370 embed:0.2980 embed_frac:0.118
+step:2800 gamma:2.0000 uniform:-3.9772 emb_norm:500.0000
+step:3000/20000 train_loss:-5.4278 train_time:247195ms step_avg:82.40ms
+step:3000 lambda:1.0000 ce:2.2307 embed:0.2963 embed_frac:0.117
+step:3000 gamma:2.0000 uniform:-3.9773 emb_norm:516.0000
+step:3000/20000 val_loss:2.1953 val_bpb:1.3002 train_time:247196ms step_avg:82.40ms
+step:3200/20000 train_loss:-5.4761 train_time:263662ms step_avg:82.39ms
+step:3200 lambda:1.0000 ce:2.1893 embed:0.2904 embed_frac:0.117
+step:3200 gamma:2.0000 uniform:-3.9777 emb_norm:528.0000
+step:3400/20000 train_loss:-5.5088 train_time:280122ms step_avg:82.39ms
+step:3400 lambda:1.0000 ce:2.1577 embed:0.2893 embed_frac:0.118
+step:3400 gamma:2.0000 uniform:-3.9778 emb_norm:540.0000
+step:3600/20000 train_loss:-5.5520 train_time:296583ms step_avg:82.38ms
+step:3600 lambda:1.0000 ce:2.1198 embed:0.2835 embed_frac:0.118
+step:3600 gamma:2.0000 uniform:-3.9775 emb_norm:556.0000
+step:3800/20000 train_loss:-5.4340 train_time:313042ms step_avg:82.38ms
+step:3800 lambda:1.0000 ce:2.2233 embed:0.2981 embed_frac:0.118
+step:3800 gamma:2.0000 uniform:-3.9776 emb_norm:564.0000
+step:4000/20000 train_loss:-5.5002 train_time:329503ms step_avg:82.38ms
+step:4000 lambda:1.0000 ce:2.1657 embed:0.2898 embed_frac:0.118
+step:4000 gamma:2.0000 uniform:-3.9776 emb_norm:576.0000
+step:4000/20000 val_loss:2.1718 val_bpb:1.2863 train_time:329504ms step_avg:82.38ms
+step:4200/20000 train_loss:-5.4874 train_time:346024ms step_avg:82.39ms
+step:4200 lambda:1.0000 ce:2.1774 embed:0.2915 embed_frac:0.118
+step:4200 gamma:2.0000 uniform:-3.9779 emb_norm:588.0000
+step:4400/20000 train_loss:-5.5590 train_time:362482ms step_avg:82.38ms
+step:4400 lambda:1.0000 ce:2.1138 embed:0.2831 embed_frac:0.118
+step:4400 gamma:2.0000 uniform:-3.9778 emb_norm:596.0000
+step:4600/20000 train_loss:-5.7151 train_time:379016ms step_avg:82.39ms
+step:4600 lambda:1.0000 ce:1.9739 embed:0.2671 embed_frac:0.119
+step:4600 gamma:2.0000 uniform:-3.9779 emb_norm:604.0000
+step:4800/20000 train_loss:-5.3910 train_time:395459ms step_avg:82.39ms
+step:4800 lambda:1.0000 ce:2.2654 embed:0.3004 embed_frac:0.117
+step:4800 gamma:2.0000 uniform:-3.9781 emb_norm:616.0000
+step:5000/20000 train_loss:-5.6519 train_time:411902ms step_avg:82.38ms
+step:5000 lambda:1.0000 ce:2.0332 embed:0.2713 embed_frac:0.118
+step:5000 gamma:2.0000 uniform:-3.9780 emb_norm:624.0000
+step:5000/20000 val_loss:2.1552 val_bpb:1.2764 train_time:411903ms step_avg:82.38ms
+step:5200/20000 train_loss:-5.4915 train_time:428341ms step_avg:82.37ms
+step:5200 lambda:1.0000 ce:2.1739 embed:0.2911 embed_frac:0.118
+step:5200 gamma:2.0000 uniform:-3.9779 emb_norm:632.0000
+step:5400/20000 train_loss:-5.4784 train_time:444773ms step_avg:82.37ms
+step:5400 lambda:1.0000 ce:2.1872 embed:0.2908 embed_frac:0.117
+step:5400 gamma:2.0000 uniform:-3.9781 emb_norm:640.0000
+step:5600/20000 train_loss:-5.4803 train_time:461210ms step_avg:82.36ms
+step:5600 lambda:1.0000 ce:2.1847 embed:0.2916 embed_frac:0.118
+step:5600 gamma:2.0000 uniform:-3.9781 emb_norm:648.0000
+step:5800/20000 train_loss:-5.5159 train_time:477647ms step_avg:82.35ms
+step:5800 lambda:1.0000 ce:2.1508 embed:0.2897 embed_frac:0.119
+step:5800 gamma:2.0000 uniform:-3.9780 emb_norm:652.0000
+step:6000/20000 train_loss:-5.4343 train_time:494120ms step_avg:82.35ms
+step:6000 lambda:1.0000 ce:2.2263 embed:0.2961 embed_frac:0.117
+step:6000 gamma:2.0000 uniform:-3.9781 emb_norm:660.0000
+step:6000/20000 val_loss:2.1454 val_bpb:1.2706 train_time:494121ms step_avg:82.35ms
+step:6200/20000 train_loss:-5.5862 train_time:510575ms step_avg:82.35ms
+step:6200 lambda:1.0000 ce:2.0898 embed:0.2807 embed_frac:0.118
+step:6200 gamma:2.0000 uniform:-3.9782 emb_norm:668.0000
+step:6400/20000 train_loss:-5.5153 train_time:527019ms step_avg:82.35ms
+step:6400 lambda:1.0000 ce:2.1530 embed:0.2886 embed_frac:0.118
+step:6400 gamma:2.0000 uniform:-3.9783 emb_norm:668.0000
+step:6600/20000 train_loss:-5.5656 train_time:543472ms step_avg:82.34ms
+step:6600 lambda:1.0000 ce:2.1082 embed:0.2834 embed_frac:0.118
+step:6600 gamma:2.0000 uniform:-3.9784 emb_norm:672.0000
+step:6800/20000 train_loss:-5.4950 train_time:559915ms step_avg:82.34ms
+step:6800 lambda:1.0000 ce:2.1708 embed:0.2916 embed_frac:0.118
+step:6800 gamma:2.0000 uniform:-3.9784 emb_norm:672.0000
+step:7000/20000 train_loss:-5.4704 train_time:576347ms step_avg:82.34ms
+step:7000 lambda:1.0000 ce:2.1936 embed:0.2939 embed_frac:0.118
+step:7000 gamma:2.0000 uniform:-3.9785 emb_norm:672.0000
+step:7000/20000 val_loss:2.1014 val_bpb:1.2445 train_time:576347ms step_avg:82.34ms
+step:7200/20000 train_loss:-5.5131 train_time:592772ms step_avg:82.33ms
+step:7200 lambda:1.0000 ce:2.1548 embed:0.2895 embed_frac:0.118
+step:7200 gamma:2.0000 uniform:-3.9785 emb_norm:672.0000
+step:7288/20000 val_loss:2.0909 val_bpb:1.2383 train_time:600046ms step_avg:82.33ms
+stopping_early: wallclock_cap train_time:600046ms step:7288/20000
+peak memory allocated: 10699 MiB reserved: 11210 MiB
+Serialized model: 69322520 bytes
+Code size: 57888 bytes
+Total submission size: 69380408 bytes
+Serialized model int8+zlib: 16253710 bytes (payload:17705248 raw_torch:17750933 payload_ratio:3.91x)
+Total submission size int8+zlib: 16311598 bytes
+final_int8_zlib_roundtrip val_loss:2.0927 val_bpb:1.2394 eval_time:1421ms
+final_int8_zlib_roundtrip_exact val_loss:2.09271301 val_bpb:1.23942252
