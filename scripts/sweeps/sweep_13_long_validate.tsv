@@ -1,0 +1,19 @@
+# Sweep 13 — Full-scale locked-config validation (2026-04-20)
+# Goal: get real quant_bpb for the locked best config at meaningful step counts.
+# All previous TTT runs were 150 steps (probe only) — no quant_bpb produced.
+# This sweep validates whether hyperparameter gains transfer to longer training.
+#
+# Locked config: QK=5.5 + WD=0.64 + TTT_EPOCHS=1 + sliding + EMA=0.995
+#
+# s13_locked_500:  500 iters. Matches prior "long" runs (s9_wd_068_long etc).
+#                  Direct apples-to-apples comparison: does our config beat the
+#                  plain warmdown baseline at quant_bpb? Baseline was 2.099.
+#
+# s13_locked_2000: 2000 iters. ~68 min training + val. Closest thing to a
+#                  converged result achievable on Spark in a reasonable window.
+#                  Will show convergence trend and give a real competitive number.
+#
+# TIMEOUT_SECS: 3600 for 500-step, 9000 for 2000-step (set per-run via OVERRIDES
+# is not supported — set globally in queue script at 9000, both will be fine).
+s13_locked_500	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 ITERATIONS=500
+s13_locked_2000	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 ITERATIONS=2000

@@ -1,0 +1,6 @@
+# Sweep 06 — matrix LR
+# SOTA uses 0.022. Grid around it.
+s6_lr_018	MATRIX_LR=0.018
+s6_lr_020	MATRIX_LR=0.020
+s6_lr_024	MATRIX_LR=0.024
+s6_lr_026	MATRIX_LR=0.026

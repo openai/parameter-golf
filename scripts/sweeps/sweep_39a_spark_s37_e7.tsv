@@ -1,0 +1,11 @@
+# Sweep 39A — Spark: s37 config + EMBED_BITS=7 (exploit int7 headroom)
+# PURPOSE: s37_s42 got 1.35054 BPB with EMBED_BITS=8 (oversize +56KB).
+#   Hypothesis: ultra-low MLR (0.006) produces smoothest weights → minimal int7 quant penalty.
+#   build_alt (mlr=0.012, int7) achieved 1.36952 compliant. If int7 penalty scales with MLR,
+#   mlr=0.006 may achieve ~1.36 or better — a new compliant record.
+# BASELINE: build_alt 1.36952 BPB @ 15,532,706 bytes (-467KB margin)
+# TARGET: quant_bpb < 1.36952 at < 16,000,000 bytes
+# EXPECTED SIZE: ~15.52-15.54MB (int7 saves ~521KB vs int8)
+# ~95 min training + ~20 min eval each. Queue s42 first, s1337 after.
+s39_s37_e7_s42	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.006 SCALAR_LR=0.030 ITERATIONS=3000 EMBED_BITS=7 MAX_WALLCLOCK_SECONDS=5400 TIMEOUT_SECS=6300 FAST_SMOKE=0 SEED=42
+s39_s37_e7_s1337	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.006 SCALAR_LR=0.030 ITERATIONS=3000 EMBED_BITS=7 MAX_WALLCLOCK_SECONDS=5400 TIMEOUT_SECS=6300 FAST_SMOKE=0 SEED=1337

@@ -1,0 +1,20 @@
+# Sweep 18b — Architecture probes RERUN with proper timeout (2026-04-20, AGX)
+# sweep_18 runs 1-3 all timed out on AGX at 1800s. Root cause: layer_loop activates at step 73
+# (frac=0.354) and drops throughput from ~8400 tok/s → ~2800-3700 tok/s. At 2875 tok/s,
+# 150 steps + val takes ~45 min total. 1800s timeout is not enough.
+#
+# Reruns: loops3, wide_recur, par_res5 (loops3_wide ran clean at 8435 tok/s in sweep_18,
+# full_arch will also need to rerun if loops3_wide similarly uses layer_loop at final step)
+#
+# Throughput profile on AGX:
+#   s18_loops3: 2875 tok/s → ~28 min training + ~17 min val = ~45 min total
+#   s18_wide_recur: 2799 tok/s → ~30 min training + ~17 min val = ~47 min total
+#   s18_par_res5: 3119 tok/s → ~26 min training + ~17 min val = ~43 min total
+#
+# TIMEOUT_SECS=3600 gives comfortable 60-min window for all three.
+# All use full locked config. MATRIX_LR left at default (to be updated after sweep_17b).
+#
+# TIMEOUT_SECS=3600
+s18b_loops3		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 NUM_LOOPS=3 TIMEOUT_SECS=3600
+s18b_wide_recur		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 LOOP_START=2 LOOP_END=6 TIMEOUT_SECS=3600
+s18b_par_res5		QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 PARALLEL_RESIDUAL_START=5 TIMEOUT_SECS=3600

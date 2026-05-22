@@ -1,0 +1,6 @@
+# Sweep 02 — variance / noise floor
+# Repeat baseline to measure run-to-run variance. Identical config, different seeds.
+s2_var_seed1337a	SEED=1337
+s2_var_seed1337b	SEED=1337
+s2_var_seed42	SEED=42
+s2_var_seed314	SEED=314

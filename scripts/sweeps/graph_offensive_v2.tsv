@@ -1,0 +1,14 @@
+# Graph offensive v2 — Spark-feasible subset after negative CUDA-graph perf result.
+#
+# Finding: on GB10, mode=reduce-overhead gives <0.2% delta vs default (noise floor).
+# max-autotune crashes ptxas (sm_121a codegen bug). Therefore the relevant questions
+# are NOT "which mode is fastest on Spark" but:
+#   Q1: Does compile=default even beat eager? (All prior Spark runs were eager.)
+#   Q2: Is reduce-overhead correctness-preserving through the full real training
+#       loop (layer-loop toggle, TTT, EMA, GPTQ pipeline)? Needed before blind-bet
+#       on H100 submission.
+#
+# 3 rows, 500 iters, same seed. Interleaved so machine drift is bounded.
+gv2_00_eager	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.042 ITERATIONS=500 MAX_WALLCLOCK_SECONDS=1800 TIMEOUT_SECS=3600 FAST_SMOKE=0 SEED=42 TORCHDYNAMO_DISABLE=1 TORCH_COMPILE_DISABLE=1 NOTES=eager_control
+gv2_01_compile_default	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.042 ITERATIONS=500 MAX_WALLCLOCK_SECONDS=1800 TIMEOUT_SECS=3600 FAST_SMOKE=0 SEED=42 TORCHDYNAMO_DISABLE=0 TORCH_COMPILE_DISABLE=0 NOTES=compile_default
+gv2_02_compile_ro	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.042 ITERATIONS=500 MAX_WALLCLOCK_SECONDS=1800 TIMEOUT_SECS=3600 FAST_SMOKE=0 SEED=42 TORCHDYNAMO_DISABLE=0 TORCH_COMPILE_DISABLE=0 TORCH_COMPILE_MODE=reduce-overhead TORCH_COMPILE_MODE_EVAL=reduce-overhead NOTES=reduce_overhead_correctness

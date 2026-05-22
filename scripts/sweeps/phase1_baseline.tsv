@@ -1,0 +1,3 @@
+# Phase 1 — Baseline: establish smoke-mode reference on this GPU.
+# LABEL<TAB>OVERRIDES (one line, tab-separated)
+p1_baseline	QK_GAIN_INIT=5.0

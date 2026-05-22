@@ -1,0 +1,8 @@
+# Phase 4 — Novel feature gates.
+# N1 (phase2_on / phase2_stack) depends on LOOP_PHASE2_AT being implemented in
+# train_gpt_sota_decoded.py — skipped until the code change lands.
+#
+# For now: TTT tilts only (env-var only, no code change).
+p4_ttt_epochs_2	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=2
+p4_ttt_epochs_5	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=5
+p4_ttt_lr_high	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_LR=0.01

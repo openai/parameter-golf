@@ -1,0 +1,6 @@
+# Phase 2 — Sanity: verify each SOTA feature flag loads/runs without crash.
+# If any of these fail, stop and fix before running later phases.
+p2_ttt_on	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1
+p2_sliding_on	SLIDING_WINDOW_ENABLED=1
+p2_qk525	QK_GAIN_INIT=5.25
+p2_all_sota	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 QK_GAIN_INIT=5.25

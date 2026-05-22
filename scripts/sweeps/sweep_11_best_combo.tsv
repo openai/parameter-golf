@@ -1,0 +1,10 @@
+# Sweep 11 — Best confirmed combo + TTT stack (2026-04-20)
+# Confirmed: QK_GAIN_INIT=5.5 beats 5.0 and 5.25.
+# Confirmed: WARMDOWN_FRAC=0.64 edged out 0.68 in 500-step longs.
+# Now stack both independently-confirmed bests, then layer in TTT.
+# If TTT showed gain in sweep_09, s11_best_ttt is our submission candidate.
+# NOTE: TTT runs use TIMEOUT_SECS=2400 — set in queue script.
+s11_best_qk_wd	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64
+s11_best_full	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 EMA_DECAY=0.995
+s11_best_ttt	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1
+s11_best_ttt_full	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 EMA_DECAY=0.995 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1

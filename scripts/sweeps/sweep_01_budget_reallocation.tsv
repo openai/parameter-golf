@@ -1,0 +1,10 @@
+# Sweep 01 — Budget Reallocation smoke test (5 runs)
+# Baseline (p1_baseline, already in CSV): train_loss=5.1669, val_bpb=1.9640
+# Each row has a predicted direction vs baseline. No effect = null result.
+#
+# LABEL<TAB>overrides
+s1_qk_525	QK_GAIN_INIT=5.25
+s1_qk_55	QK_GAIN_INIT=5.5
+s1_ema_tight	EMA_DECAY=0.998
+s1_ema_loose	EMA_DECAY=0.995
+s1_warmdown_short	WARMDOWN_FRAC=0.68

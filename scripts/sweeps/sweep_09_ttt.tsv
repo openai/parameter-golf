@@ -1,0 +1,14 @@
+# Sweep 09 — TTT first contact (2026-04-20)
+# NEVER TESTED: TTT_ENABLED and SLIDING_WINDOW_ENABLED have 0 runs in history.
+# All top-5 leaderboard entries use TTT — highest-value gap remaining.
+# Leaderboard unexplored range: TTT_LR 0.003-0.007 (they used 0.005 default).
+# sliding_only isolates sliding-window gain for free (no TTT overhead).
+# Highest-value runs first so queue delivers even if we stop early.
+# NOTE: run with TIMEOUT_SECS=2400 — TTT eval adds ~10min vs baseline.
+s9_sliding_only	SLIDING_WINDOW_ENABLED=1
+s9_ttt_base	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1
+s9_ttt_lr_003	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_LR=0.003
+s9_ttt_lr_007	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_LR=0.007
+s9_ttt_lr_010	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_LR=0.010
+s9_ttt_epochs_1	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1
+s9_ttt_epochs_5	TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=5

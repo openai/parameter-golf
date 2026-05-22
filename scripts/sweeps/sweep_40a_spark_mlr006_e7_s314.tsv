@@ -1,0 +1,7 @@
+# Sweep 40A — Spark: winner profile transfer, seed=314 (sequential, solo run)
+# PURPOSE: Re-run s40_spark_mlr006_e7_s314 solo after concurrent launch failure.
+#   Previous attempt ran concurrently with s40_mlr005 → CUDA contention → 16K tok/s → timeout at step 1122, no quant BPB.
+# CONFIG: Identical to s39_s37_e7_s1337 winner (1.35663 BPB) but seed=314
+# BASELINE: s40_squid_mlr006_e7_s314 = 1.35644 BPB (new best as of 2026-04-28)
+# MAX_WALLCLOCK_SECONDS=5400 matches s39 solo runs — do NOT lower to 2400.
+s40_spark_mlr006_e7_s314	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.006 SCALAR_LR=0.030 ITERATIONS=3000 EMBED_BITS=7 MAX_WALLCLOCK_SECONDS=5400 TIMEOUT_SECS=7200 FAST_SMOKE=0 SEED=314

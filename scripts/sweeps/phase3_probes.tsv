@@ -1,0 +1,10 @@
+# Phase 3 — Directional probes: single-axis extremes to detect sign of gradient.
+# Only the SIGN is trustworthy in smoke mode; magnitude gets decided on RunPod.
+p3_loop_early	ENABLE_LOOPING_AT=0.10
+p3_loop_late	ENABLE_LOOPING_AT=0.70
+p3_warmdown_short	WARMDOWN_FRAC=0.40
+p3_warmdown_long	WARMDOWN_FRAC=0.90
+p3_ema_loose	EMA_DECAY=0.990
+p3_ema_tight	EMA_DECAY=0.9995
+p3_clip_tight	MATRIX_CLIP_SIGMAS=9.0
+p3_clip_loose	MATRIX_CLIP_SIGMAS=18.0

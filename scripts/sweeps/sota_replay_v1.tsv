@@ -1,0 +1,33 @@
+# SOTA-Replay v1 — run bigbag's 2026-04-09 record script locally vs ours.
+#
+# WHY: bigbag's record (1.0810 BPB, 8xH100 x 600s) is in records/track_10min_16mb/
+# 2026-04-09_... . Their train_gpt.py is LZMA-obfuscated but our train_gpt_sota_decoded.py
+# is our DECODED version of the same lineage. So their script + our script share
+# architecture; the differences are knob values:
+#
+#   THEIRS: QK=5.25, WARMDOWN=0.72, TTT_EPOCHS=3, EMA=0.9965, LOGIT_SOFTCAP=30 (default)
+#   OURS:   QK=5.5,  WARMDOWN=0.64, TTT_EPOCHS=1, EMA=0.995,  LOGIT_SOFTCAP=20
+#
+# At submission scale they converge to 1.0810 vs our 1.1464 (gap 0.066).
+# At 500 steps on Spark we cannot reach those absolute numbers — we're comparing DIRECTION.
+#
+# Hypotheses this sweep tests:
+#   H1: THEIR_script + THEIR_knobs beats OUR_script + OUR_knobs at equal 500-step budget
+#       → our decoded port has silently broken something
+#   H2: OUR_knobs on THEIR_script beats THEIR_knobs on THEIR_script
+#       → our knob claims (QK=5.5 etc.) actually travel; we should double down
+#   H3: THEIR_knobs on OUR_script beats OUR_knobs on OUR_script
+#       → our knob claims are overfit to our decoding; revert toward their values
+#
+# All rows seed=42 for alignment with their published train_seed42.log trajectory.
+# Their record log shows step 4550 quantized_sliding_window val_bpb=1.08286 — we
+# won't reach that at 500 steps, but the cross-comparison is the signal.
+#
+# Script path uses records/ folder which contains both train_gpt.py (their LZMA)
+# and reference logs.
+#
+# SCRIPT= selects which training file run_experiment.sh invokes.
+sota_replay_00_ours_ourknobs	SCRIPT=train_gpt_sota_decoded.py QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.042 ITERATIONS=500 MAX_WALLCLOCK_SECONDS=1800 TIMEOUT_SECS=3600 FAST_SMOKE=0 SEED=42 NOTES=ours_ourknobs_control
+sota_replay_01_ours_theirknobs	SCRIPT=train_gpt_sota_decoded.py QK_GAIN_INIT=5.25 WARMDOWN_FRAC=0.72 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=3 TTT_LR=0.005 EMA_DECAY=0.9965 LOGIT_SOFTCAP=30 MATRIX_LR=0.022 ITERATIONS=500 MAX_WALLCLOCK_SECONDS=1800 TIMEOUT_SECS=3600 FAST_SMOKE=0 SEED=42 NOTES=H3_theirknobs_on_our_script
+sota_replay_02_theirs_theirknobs	SCRIPT=records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT/train_gpt.py QK_GAIN_INIT=5.25 WARMDOWN_FRAC=0.72 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=3 TTT_LR=0.005 EMA_DECAY=0.9965 MATRIX_LR=0.022 ITERATIONS=500 MAX_WALLCLOCK_SECONDS=1800 TIMEOUT_SECS=3600 FAST_SMOKE=0 SEED=42 NOTES=sota_verbatim_replay
+sota_replay_03_theirs_ourknobs	SCRIPT=records/track_10min_16mb/2026-04-09_SP8192_3LayerRecur_ParResid_QK525_LegalTTT/train_gpt.py QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=20 MATRIX_LR=0.042 ITERATIONS=500 MAX_WALLCLOCK_SECONDS=1800 TIMEOUT_SECS=3600 FAST_SMOKE=0 SEED=42 NOTES=H2_ourknobs_on_sota_script

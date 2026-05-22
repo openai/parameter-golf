@@ -1,0 +1,10 @@
+# Nano Sweep 06 — LOOP_GATE_MODE prototype (natural-selection in-run decisions)
+# Three-way comparison at locked config + nano reduced batch:
+#   - always:   legacy behavior (enable layer_loop at frac >= 0.35)
+#   - never:    disable layer_loop entirely (control)
+#   - adaptive: enable only when val_bpb improvement between evals drops below LOOP_GATE_EPSILON
+# Decisions audit written to logs/decisions_<label>.md for each run.
+# Total ~90 min (3 x ~22 min). Uses locked-config + matrix_040 + scalar_030 (best combo on Nano).
+nano_s06_loop_always	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 SCALAR_LR=0.030 MATRIX_LR=0.040 TRAIN_BATCH_TOKENS=32768 TRAIN_SEQ_LEN=1024 LOOP_GATE_MODE=always DECISIONS_MD_PATH=logs/decisions_nano_s06_loop_always.md
+nano_s06_loop_never	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 SCALAR_LR=0.030 MATRIX_LR=0.040 TRAIN_BATCH_TOKENS=32768 TRAIN_SEQ_LEN=1024 LOOP_GATE_MODE=never DECISIONS_MD_PATH=logs/decisions_nano_s06_loop_never.md
+nano_s06_loop_adaptive	QK_GAIN_INIT=5.5 WARMDOWN_FRAC=0.64 TTT_ENABLED=1 SLIDING_WINDOW_ENABLED=1 TTT_EPOCHS=1 EMA_DECAY=0.995 LOGIT_SOFTCAP=1000 SCALAR_LR=0.030 MATRIX_LR=0.040 TRAIN_BATCH_TOKENS=32768 TRAIN_SEQ_LEN=1024 LOOP_GATE_MODE=adaptive LOOP_GATE_EPSILON=0.002 DECISIONS_MD_PATH=logs/decisions_nano_s06_loop_adaptive.md

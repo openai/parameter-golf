@@ -1,0 +1,7 @@
+# Sweep 07 — weight decay (WIDENED 2026-04-19)
+# SOTA uses 0.095. Seed noise is ~0.009 bpb; ±15% window was invisible.
+# Probe shape with a wide grid first.
+s7_wd_050	MATRIX_WEIGHT_DECAY=0.050
+s7_wd_070	MATRIX_WEIGHT_DECAY=0.070
+s7_wd_120	MATRIX_WEIGHT_DECAY=0.120
+s7_wd_150	MATRIX_WEIGHT_DECAY=0.150
