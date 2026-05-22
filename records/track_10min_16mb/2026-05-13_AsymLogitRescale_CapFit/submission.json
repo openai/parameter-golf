@@ -1,0 +1,33 @@
+{
+    "team": "omat",
+    "description": "PR #2140 fork (SP8192_CaseOps_Progressive3k_ShortDocTTT) ported to ROCm + 3 levers (asym_logit_rescale, gptq_cal=32, gptq_reserve=2.0) + cap-fit env (embed_bits=7, mlp_clip_sigmas=11.5). Recipe validated on 1×A100 SECURE; awaiting 8×H100 SXM production run.",
+    "platform": "8xH100 SXM",
+    "train_script": "train_gpt.py",
+    "val_bpb": 1.0554,
+    "val_bpb_tolerance": 0.003,
+    "val_bpb_postquant": 1.06739,
+    "val_bpb_postquant_tolerance": 0.002,
+    "val_bpb_prequant": 1.058,
+    "val_bpb_prequant_tolerance": 0.002,
+    "artifact_bytes": 15981515,
+    "artifact_bytes_tolerance": 200000,
+    "artifact_bytes_max": 16000000,
+    "train_stop_step": 5067,
+    "train_stop_step_tolerance": 800,
+    "seed": 42,
+    "notes": "Cap-fit corrected vs LUMI 1.05320 (17.20 MB over-cap). The two cap-fit env vars (EMBED_BITS=7, MLP_CLIP_SIGMAS=11.5) diverge from script defaults (8, 10.0) and save 487+574=1061 KB. Validated 2026-05-13 on 1×A100 SECURE with QUANTIZE_ONLY=1: LUMI fp32 + corrected env block → 15,981,515 bytes (under cap by 18,485 bytes). Pre-TTT BPB 1.06739. Projected post-TTT ~1.0554. Status: pending 8×H100 SXM run (RunPod GPU availability constrained as of 2026-05-13 ~00:30). When an 8×H100 pod becomes available, the run's stdout should match the anchor lines in expected_log.txt (val_bpb, 'Total submission size', embed_bits, mlp_clip_sigmas, stopping_early step); the val_bpb/val_bpb_postquant/artifact_bytes fields here will then be replaced with the measured values.",
+    "lineage": {
+        "upstream_pr": 2140,
+        "upstream_recipe": "SP8192_CaseOps_Progressive3k_ShortDocTTT",
+        "upstream_baseline_bpb": 1.05591,
+        "deltas": [
+            {"lever": "ASYM_LOGIT_RESCALE=1", "delta_bpb": -0.00132},
+            {"lever": "GPTQ_CALIBRATION_BATCHES=32", "delta_bpb": -0.00044},
+            {"lever": "GPTQ_RESERVE_SECONDS=2.0", "delta_bpb": -0.00012}
+        ],
+        "lumi_historical_bpb": 1.05320,
+        "lumi_historical_artifact_bytes": 17196199,
+        "lumi_historical_caveat": "Over 16MB cap due to EMBED_BITS=8 (script default) instead of PR #2140 intended 7, and MLP_CLIP_SIGMAS=10.0 instead of intended 11.5.",
+        "cap_fit_correction_bpb_cost": 0.002
+    }
+}
