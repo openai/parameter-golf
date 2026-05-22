@@ -1,0 +1,94 @@
+====================================================================================================
+Hyperparameters:
+  adam_eps: 1e-08
+  adam_wd: 0.02
+  asym_logit_enabled_marker: True
+  attn_clip_sigmas: 13.0
+  awq_lite_bits: 8
+  awq_lite_enabled: True
+  awq_lite_group_size: 64
+  awq_lite_group_top_k: 1
+  beta1: 0.9
+  beta2: 0.99
+  caseops_enabled: True
+  compile_shape_warmup: True
+  compressor: pergroup
+  embed_bits: 7
+  embed_clip_sigmas: 14.0
+  embed_lr: 0.6
+  gate_window: 12
+  gated_attn_quant_gate: True
+  gptq_calibration_batches: 32
+  gptq_reserve_seconds: 2.0
+  grad_accum_steps: 1
+  iterations: 20000
+  leaky_relu_sq_slope: 0.3
+  lqer_asym_enabled: True
+  lqer_enabled: True
+  lqer_factor_bits: 4
+  lqer_rank: 4
+  lqer_top_k: 4
+  matrix_bits: 6
+  matrix_clip_sigmas: 12.85
+  matrix_lr: 0.026
+  max_wallclock_seconds: 540.0
+  min_lr: 0.1
+  mlp_clip_sigmas: 11.5
+  mlp_mult: 4.0
+  model_dim: 512
+  ngram_hint_precompute_outside: False
+  ngram_tilt_enabled: True
+  num_heads: 8
+  num_layers: 11
+  phased_ttt_num_phases: 1
+  phased_ttt_prefix_docs: 2500
+  qk_gain_init: 5.25
+  seed: 42
+  smear_gate_enabled: True
+  sparse_attn_gate_enabled: True
+  token_boost: 2.625
+  token_order: 16
+  train_batch_tokens: 786432
+  ttt_batch_size: 24
+  ttt_beta2: 0.99
+  ttt_chunk_size: 64
+  ttt_enabled: True
+  ttt_local_lr_mult: 0.75
+  ttt_lora_rank: 80
+  ttt_mask: no_qv
+  ttt_short_score_first_enabled: True
+  vocab_size: 8192
+  warmdown_frac: 0.85
+  world_size: 8
+====================================================================================================
+0/20000 val_loss: 9.0076 val_bpb: 4.1161
+500/20000 train_loss: 2.6063 train_time: 0.8m tok/s: 6800000
+1000/20000 train_loss: 2.5907 train_time: 1.6m tok/s: 6800000
+4000/20000 train_loss: 2.3949 train_time: 6.4m tok/s: 6800000
+4000/20000 val_loss: 2.4248 val_bpb: 1.1080
+5000/20000 train_loss: 2.2327 train_time: 8.0m tok/s: 6800000
+stopping_early: wallclock_cap train_time: 540000ms step: 5067/20000
+diagnostic pre-quantization post-ema val_loss:2.31567 val_bpb:1.05817 eval_time:7000ms
+Serialized model: 135418111 bytes
+GPTQ:collecting Hessians from calibration data...
+GPTQ:collected 67 Hessians in 6.0s
+Quantized weights:
+  gptq (int6): blocks.attn.c_k.weight, blocks.attn.c_q.weight, blocks.attn.c_v.weight, blocks.attn.proj.weight, blocks.mlp.fc.weight, blocks.mlp.proj.weight
+  gptq (int6)+awqgrpint8: blocks.mlp.fc.weight
+  gptq (int6)+lqer_asym: blocks.mlp.fc.weight
+  gptq (int7)+lqer_asym: tok_emb.weight
+  passthrough (float16): blocks.attn.q_gain, blocks.attn_scale, blocks.mlp_scale, blocks.resid_mix, parallel_post_lambdas, parallel_resid_lambdas, skip_gates, skip_weights, smear_gate.weight, smear_lambda, softcap_neg, softcap_pos
+per-group lrzip compression: 158 groups
+Serialized model quantized+pergroup: 15927000 bytes
+Total submission size quantized+pergroup: 15981515 bytes
+diagnostic quantized val_loss:2.32953 val_bpb:1.06739 eval_time:25000ms
+ttt_lora:warming up compile (random tokens, no val data)
+ttt_lora:compile warmup done (150.0s)
+ngram_tilt:hints total=47853343 gated=628156 token_gate=628156 within_gate=0 word_gate=0 agree2plus=0
+beginning TTT eval timer
+ttt_phased: total_docs:50000 prefix_docs:2500 suffix_docs:47500 num_phases:1 boundaries:[2500] target_tokens:47853343
+ttp: b2083/2084 bl:2.1361 bb:1.0322 rl:2.1361 rb:1.0322 dl:24255-36432 gd:0 sr:0 sf:0 tr:24/24 wt:0
+ttp: b500/2084 bl:2.3000 bb:1.0500 rl:2.2500 rb:1.0500 dl:1000-1100 gd:1 sr:0 sf:1 tr:24/24 wt:0
+ttp: b8/2084 bl:2.5205 bb:1.1380 rl:2.2890 rb:1.0480 dl:92-93 gd:1 sr:0 sf:1 tr:24/24 wt:0
+quantized_ttt_phased val_loss:2.30410 val_bpb:1.05540 eval_time:540000ms
+total_eval_time:540.0s
