@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MDLM parity test</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 1.5em; }
+      h1 { font-size: 1.4em; }
+      .row { display: flex; gap: 1em; margin: 0.4em 0; align-items: baseline;
+             font-family: 'SF Mono', monospace; font-size: 12px; }
+      .name { width: 30em; color: #444; }
+      .diff { width: 12em; text-align: right; }
+      .ok { color: #16a34a; }
+      .warn { color: #d97706; }
+      .fail { color: #dc2626; font-weight: bold; }
+      #log { max-height: 70vh; overflow: auto; border: 1px solid #ddd; padding: 0.5em; }
+      .controls { margin-bottom: 1em; }
+      button { padding: 0.4em 1em; font-size: 14px; }
+      .summary { font-size: 14px; margin: 1em 0; padding: 1em; background: #f3f4f6; border-radius: 6px; }
+    </style>
+    <script type="module" crossorigin src="./assets/parity-CjiMi0LZ.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/ops-BuS65qTN.js">
+  </head>
+  <body>
+    <h1>MDLM browser ↔ Python parity test</h1>
+    <div class="controls">
+      <button id="run">Run parity test (mask k=0)</button>
+    </div>
+    <div id="status" class="summary">Click "Run" to load the model + golden trace and walk every intermediate.</div>
+    <div id="log"></div>
+  </body>
+</html>

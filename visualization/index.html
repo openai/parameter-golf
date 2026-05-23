@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>16MB Language Model Parameter Golf Visualization</title>
+    <style>
+      :root { --bg:#fff; --fg:#222; --ch:#333; --control:#f3f4f6; --border:#d1d5db; }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg:#0a0a0a; --fg:#e0e0e0; --ch:#d0d0d0; --control:#1a1a1a; --border:#333; }
+      }
+      body { margin: 1.5em; background: var(--bg); color: var(--fg);
+             font-family: system-ui, sans-serif; max-width: 1100px; }
+      h1 { font-size: 1.4em; margin-bottom: 0.3em; }
+      h2 { font-size: 1.05em; margin-top: 1.5em; margin-bottom: 0.4em; }
+      textarea { width: 100%; min-height: 8em; font-family: 'SF Mono', monospace;
+                 font-size: 13px; padding: 0.5em; box-sizing: border-box;
+                 background: var(--control); color: var(--fg); border: 1px solid var(--border);
+                 border-radius: 4px; }
+      .controls { display: flex; gap: 1em; align-items: center; flex-wrap: wrap;
+                  margin: 0.8em 0; padding: 0.6em 1em; background: var(--control);
+                  border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+      .controls label { display: flex; align-items: center; gap: 0.4em; }
+      button { padding: 0.4em 1em; font-size: 13px; cursor: pointer;
+               background: #3b82f6; color: white; border: none; border-radius: 4px; }
+      button:disabled { background: #9ca3af; cursor: wait; }
+      button.secondary { background: transparent; color: var(--fg); border: 1px solid var(--border); }
+      .summary { margin: 1em 0; }
+      .summary table { font-family: monospace; font-size: 13px; border-collapse: collapse; }
+      .summary td { padding: 0.2em 1.2em 0.2em 0; }
+      .legend-swatch { display: inline-block; width: 1em; height: 1em;
+                       border-radius: 3px; vertical-align: middle; margin-right: 0.3em; }
+      .viz { line-height: 1; font-size: 0; margin-top: 1em; }
+      .c { display: inline-block; vertical-align: top; width: 1ch; font-size: 14px; }
+      .ch { display: block; height: 1.35em;
+            font-family: 'SF Mono', monospace; font-size: 14px; line-height: 1.35em;
+            text-align: center; color: var(--ch); }
+      .b { display: block; height: 12px; outline: 1px solid transparent; outline-offset: -1px;
+           box-sizing: border-box; border-left: 1px solid transparent;
+           margin-bottom: 1px; }
+      .b.tok-start { border-left-color: white; }
+      .nl { display: block; width: 100%; height: 8px; font-size: 0; clear: both; }
+      .status { font-size: 12px; color: #6b7280; font-family: monospace; }
+      .intro { font-family: Helvetica, Arial, sans-serif; font-size: 13px;
+               color: var(--fg); line-height: 1.5; margin: 0.4em 0; }
+      .status.busy { color: #d97706; }
+      .status.err { color: #dc2626; }
+      .opacity-slider { display: flex; align-items: center; gap: 0.4em; }
+      input[type="range"] { width: 120px; }
+      .val { font-family: monospace; min-width: 3em; }
+      .toggle { cursor: pointer; }
+      .intro a { color: #3b82f6; text-decoration: none; }
+      .intro a:hover { text-decoration: underline; }
+      hr.section-rule { border: none; border-top: 1px solid var(--border);
+                        margin: 2.5em 0 1.5em; }
+      .gen-row { display: grid; grid-template-columns: 110px 1fr; gap: 0.6em;
+                 align-items: start; padding: 0.6em 0.8em; border: 1px solid var(--border);
+                 border-radius: 6px; margin: 0.4em 0; }
+      .gen-row .label { font-size: 13px; }
+      .gen-row .legend-swatch { margin-right: 0.3em; }
+      .gen-row .body { font-family: 'SF Mono', monospace; font-size: 13px;
+                       white-space: pre-wrap; word-break: break-word;
+                       line-height: 1.45; min-height: 1.45em; }
+      .gen-row .meta { font-size: 11px; color: #6b7280; font-family: monospace;
+                       margin-top: 0.2em; }
+      .gen-row .body .new {
+        outline: 1px solid transparent; outline-offset: -1px;
+        animation: gen-flash 2500ms ease-out forwards;
+        border-radius: 2px;
+      }
+      @keyframes gen-flash {
+        0%   { outline-color: rgba(0,0,0,1);
+               box-shadow: inset 0 0 0 100px rgba(255,0,255,0.85); }
+        45%  { outline-color: rgba(0,0,0,0.5);
+               box-shadow: inset 0 0 0 100px rgba(255,255,0,0.55); }
+        100% { outline-color: rgba(0,0,0,0);
+               box-shadow: inset 0 0 0 100px rgba(255,255,0,0); }
+      }
+      .b { cursor: pointer; }
+      .gen-row .body .tok { cursor: pointer; }
+      /* Top-K popover. Fixed-positioned so it floats over everything; the
+         JS positions it relative to whatever bar/token was hovered/clicked. */
+      .popover {
+        position: fixed; z-index: 1000;
+        background: var(--bg); color: var(--fg);
+        border: 1px solid var(--border); border-radius: 6px;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+        font-family: 'SF Mono', monospace; font-size: 12px;
+        min-width: 240px; max-width: 360px;
+        padding: 8px 10px;
+        display: none;
+      }
+      .popover.pinned { box-shadow: 0 6px 24px rgba(0,0,0,0.32); border-color: #3b82f6; }
+      .popover-header { display: flex; align-items: center; gap: 0.4em;
+                        margin-bottom: 6px; font-weight: bold; }
+      .popover-header .meta { margin-left: auto; font-weight: normal; color: #6b7280; }
+      .popover-pin {
+        display: inline-block; cursor: pointer; user-select: none;
+        font-weight: normal; color: #6b7280; padding: 0 4px;
+      }
+      .popover-pin:hover { color: var(--fg); }
+      .popover-row { display: grid; grid-template-columns: 22px 1fr 60px 48px;
+                     gap: 4px; align-items: center; padding: 1px 0; }
+      .popover-row.chosen { background: rgba(59,130,246,0.16); border-radius: 3px; }
+      .popover-row .rank { color: #6b7280; text-align: right; padding-right: 4px; }
+      .popover-row .piece { white-space: pre; overflow: hidden; text-overflow: ellipsis;
+                            font-family: 'SF Mono', monospace; }
+      .popover-row .pbar { height: 5px; background: var(--border); border-radius: 2px; overflow: hidden; }
+      .popover-row .pbar > span { display: block; height: 100%; background: #3b82f6; }
+      .popover-row .pct { text-align: right; font-variant-numeric: tabular-nums; color: #6b7280; }
+      .popover-footer { margin-top: 6px; padding-top: 6px;
+                        border-top: 1px dashed var(--border); color: #6b7280; }
+      .popover-rank-out { margin: 4px 0 0; color: #b45309; }
+      @media (prefers-color-scheme: dark) {
+        .popover-row.chosen { background: rgba(59,130,246,0.28); }
+        .popover-rank-out { color: #fbbf24; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>16MB Language Model Parameter Golf Visualization</h1>
+    <p class="intro">🏌️‍♀️ Golfer 1: gzip<br>
+       🏌️‍♀️ Golfer 2: Auto-Regressive baseline, 17M parameters / 15.8MB<br>
+       🏌️‍♀️ Golfer 3: Masked Diffusion Language Model, 19M parameters / 15.8MB<br>
+       🏌️‍♀️ Golfer 4: SmolLM2-135M, 79MB.</p>
+    <p class="intro"><a href="#mode-bpb"><b>BPB</b></a> scores each byte (bits-per-byte) as a colored bar; the
+       brighter the bar, the more bits that method spent on that byte.<br>
+       <a href="#mode-generate"><b>Generate</b></a> continues a prompt under each method, with shared temperature /
+       top-p / repetition-penalty knobs.</p>
+    <p class="intro">—Lee Butterman, 2026<br>
+       <a href="https://leebutterman.com/2026/05/01/visualizing-tiny-llms-in-parameter-golf.html">how this was made ⋙</a></p>
+
+    <section id="mode-bpb">
+    <h2>Text to compute bits per byte from</h2>
+    <textarea id="text">The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.
+</textarea>
+
+    <div class="controls">
+      <button id="run">Compute BPB</button>
+      <label class="opacity-slider"
+             title="MDLM diffusion steps. K=N reveals one position per step (pure AOAR). K=1 commits everyone in one parallel pass (zero context). In-between values use MaskGIT-style parallel commit: at step k, ⌈(k+1)·N/K⌉ positions are revealed, picked by descending top-1 confidence. Per-token bits are exact -log2 p_θ(x_i | x_committed_before_this_step).">MDLM diffusion steps:
+        <input type="range" id="kSlider" min="1" max="1024" step="1" value="122">
+        <span class="val" id="kVal">122</span>
+      </label>
+      <label title="At each diffusion step, force-commit the leftmost still-masked position regardless of its confidence. Tests whether a left-to-right bias improves bpb."><input type="checkbox" id="mdlm-force-first" checked> force leftmost</label>
+      <label><input type="checkbox" id="enable-gzip" checked> gzip</label>
+      <label><input type="checkbox" id="enable-ar" checked> AR</label>
+      <label><input type="checkbox" id="enable-mdlm" checked> MDLM</label>
+      <label><input type="checkbox" id="enable-smollm2" checked> SmolLM2</label>
+      <span id="status" class="status"></span>
+    </div>
+
+    <div class="summary" id="summary"></div>
+
+    <h2>Per-byte bits</h2>
+    <div class="controls">
+      <label class="opacity-slider">Min BPB:
+        <input type="range" id="rmin" min="0" max="10" step="0.1" value="0">
+        <span class="val" id="vmin">0.0</span>
+      </label>
+      <label class="opacity-slider">Max BPB:
+        <input type="range" id="rmax" min="0" max="10" step="0.1" value="2">
+        <span class="val" id="vmax">2.0</span>
+      </label>
+    </div>
+    <div class="viz" id="viz"></div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="mode-generate">
+      <h2>Text prompt to generate from</h2>
+      <textarea id="prompt">The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.</textarea>
+
+      <div class="controls">
+        <button id="generate">Generate</button>
+        <label class="opacity-slider">Max new tokens:
+          <input type="range" id="genTokens" min="8" max="256" step="8" value="64">
+          <span class="val" id="genTokensVal">64</span>
+        </label>
+        <label class="opacity-slider"
+               title="0 = greedy (argmax), >0 = stochastic temperature sampling on the categorical.">Temperature:
+          <input type="range" id="genTemp" min="0" max="2" step="0.05" value="0.5">
+          <span class="val" id="genTempVal">0.50</span>
+        </label>
+        <label class="opacity-slider"
+               title="Nucleus sampling: keep the smallest set of tokens whose cumulative probability ≥ p, sample inside that set. 1.0 = no truncation.">Top-p:
+          <input type="range" id="genTopP" min="0.5" max="1" step="0.01" value="0.9">
+          <span class="val" id="genTopPVal">0.90</span>
+        </label>
+        <label class="opacity-slider"
+               title="Rep. penalty: AR/MDLM/SmolLM2 use HF/CTRL token-ID scaling. gzip uses DRY n-gram penalty (mult = slider − 1, base = 1.75, allowed = 2 over the generated portion). 1.0 = off; ~1.8 ≈ llama.cpp default strength.">Rep. penalty:
+          <input type="range" id="genRepPen" min="1" max="2" step="0.01" value="1.20">
+          <span class="val" id="genRepPenVal">1.20</span>
+        </label>
+        <label title="Byte-level compression sampler over /[a-z .]/. P(b) ∝ 2^(-bits gzip spends on byte b)."><input type="checkbox" id="gen-enable-gzip" checked> gzip</label>
+        <label><input type="checkbox" id="gen-enable-ar" checked> AR</label>
+        <label><input type="checkbox" id="gen-enable-mdlm" checked> MDLM</label>
+        <label><input type="checkbox" id="gen-enable-smollm2" checked> SmolLM2</label>
+        <span id="genStatus" class="status"></span>
+      </div>
+
+      <div id="genOutput"></div>
+    </section>
+
+    <div id="popover" class="popover" role="dialog" aria-hidden="true"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

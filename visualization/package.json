@@ -1,0 +1,23 @@
+{
+  "name": "parameter-golf-viz",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "make ort-wasm && vite --host",
+    "build:artifacts": "make all",
+    "build:web": "vite build",
+    "build": "make publish",
+    "verify": "make verify",
+    "clean": "make clean",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "onnxruntime-web": "^1.26.0-dev.20260416-b7804b056c",
+    "sentencepiece-js": "^1.1.0"
+  }
+}

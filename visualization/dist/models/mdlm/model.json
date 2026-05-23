@@ -1,0 +1,17 @@
+{
+  "label": "MDLM 8L-576d",
+  "arch": {
+    "kind": "mdlm",
+    "num_layers": 8,
+    "model_dim": 576,
+    "vocab_size": 1024,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 2,
+    "logit_softcap": 30.0,
+    "rope_base": 10000.0,
+    "qk_gain_init": 1.5,
+    "mask_id": 1024
+  },
+  "weights": "model.safetensors.gz"
+}

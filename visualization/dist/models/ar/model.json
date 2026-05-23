@@ -1,0 +1,17 @@
+{
+  "label": "AR 9L-512d",
+  "arch": {
+    "kind": "ar",
+    "num_layers": 9,
+    "model_dim": 512,
+    "vocab_size": 1024,
+    "num_heads": 8,
+    "num_kv_heads": 4,
+    "mlp_mult": 2,
+    "logit_softcap": 30.0,
+    "rope_base": 10000.0,
+    "qk_gain_init": 1.5,
+    "mask_id": null
+  },
+  "weights": "model.safetensors.gz"
+}

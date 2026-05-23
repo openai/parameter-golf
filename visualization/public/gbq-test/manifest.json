@@ -1,0 +1,45 @@
+{
+  "uint4_zp": {
+    "ok": true,
+    "sample": [
+      -1.0,
+      -0.875,
+      -0.75,
+      -0.625
+    ],
+    "shape": [
+      3,
+      32
+    ]
+  },
+  "uint4_nozp": {
+    "ok": true,
+    "sample": [
+      0.0,
+      0.125,
+      0.25,
+      0.375
+    ],
+    "shape": [
+      3,
+      32
+    ]
+  },
+  "int4_zp": {
+    "ok": true,
+    "sample": [
+      0.0,
+      0.125,
+      0.25,
+      0.375
+    ],
+    "shape": [
+      3,
+      32
+    ]
+  },
+  "uint8_zp": {
+    "ok": false,
+    "err": "[ONNXRuntimeError] : 1 : FAIL : Load model from /Users/lsb/parameter-golf/visualization/public/gbq-test/gbq_uint8_zp.onn"
+  }
+}
