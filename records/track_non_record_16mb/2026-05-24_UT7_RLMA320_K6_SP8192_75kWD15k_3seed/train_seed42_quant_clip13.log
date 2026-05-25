@@ -1,0 +1,78 @@
+====================================================================================================
+Running Python 3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+Running PyTorch 2.9.1+cu128
+Mon May 25 01:25:21 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.195.03             Driver Version: 570.195.03     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA H100 80GB HBM3          On  |   00000000:05:00.0 Off |                    0 |
+| N/A   37C    P0            118W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   1  NVIDIA H100 80GB HBM3          On  |   00000000:06:00.0 Off |                    0 |
+| N/A   31C    P0            114W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   2  NVIDIA H100 80GB HBM3          On  |   00000000:07:00.0 Off |                    0 |
+| N/A   31C    P0            120W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   3  NVIDIA H100 80GB HBM3          On  |   00000000:08:00.0 Off |                    0 |
+| N/A   36C    P0            119W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   4  NVIDIA H100 80GB HBM3          On  |   00000000:09:00.0 Off |                    0 |
+| N/A   35C    P0            117W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   5  NVIDIA H100 80GB HBM3          On  |   00000000:0A:00.0 Off |                    0 |
+| N/A   31C    P0            116W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   6  NVIDIA H100 80GB HBM3          On  |   00000000:0B:00.0 Off |                    0 |
+| N/A   30C    P0            118W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+|   7  NVIDIA H100 80GB HBM3          On  |   00000000:0C:00.0 Off |                    0 |
+| N/A   37C    P0            117W /  700W |    1519MiB /  81559MiB |      0%      Default |
+|                                         |                        |             Disabled |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            1573      C   /usr/local/bin/python                  1510MiB |
+|    1   N/A  N/A            1574      C   /usr/local/bin/python                  1510MiB |
+|    2   N/A  N/A            1575      C   /usr/local/bin/python                  1510MiB |
+|    3   N/A  N/A            1576      C   /usr/local/bin/python                  1510MiB |
+|    4   N/A  N/A            1577      C   /usr/local/bin/python                  1510MiB |
+|    5   N/A  N/A            1578      C   /usr/local/bin/python                  1510MiB |
+|    6   N/A  N/A            1579      C   /usr/local/bin/python                  1510MiB |
+|    7   N/A  N/A            1580      C   /usr/local/bin/python                  1634MiB |
++-----------------------------------------------------------------------------------------+
+
+====================================================================================================
+submission:UT-K6 RLMA(rank=320,on=1) TTT(on=0,iters=(3, 4, 5),chunk=32) vocab=8192 d_model=1024 d_ff=3072 heads=8/4/128 seq=8192 batch_tokens=262144 iter=0
+model_params:23146538
+world_size:8 grad_accum_steps:1
+opt_split:matrix=14745600 scalar=12330 embed=8388608
+residual_scale:0.35355
+loaded_fp_checkpoint:artifacts_submission_3seed_wd15k_20260524/seed_42/fp_final_seed42_step75000.pt
+starting training: iterations=0 warmup=500 warmdown=15000
+peak memory allocated: 179 MiB reserved: 216 MiB
+fp_final_saved step:0 path:artifacts_submission_3seed_wd15k_20260524/seed_42/fp_final_seed42_step75000_quant_clip13_loaded.pt bytes:92608831
+val_tokens:40534017 eval_ctx:8192 eval_stride:8192 val_token_limit:0
+final_fp val_loss:3.1514 val_bpb:1.2200 eval_time:72036ms
+final_fp_exact val_loss:3.15141256 val_bpb:1.22000161
+quant_stats:int6=36 int8=1 passthrough=28 param_count=23146538
+baseline_bytes:92586152 stored_bytes:23229780
+compressed_blob_bytes:15669084 code_bytes:62830 total:15731914
+target_artifact_bytes:16000000 headroom:268086
+final_quant_roundtrip val_loss:3.1886 val_bpb:1.2344 eval_time:71301ms artifact_bytes:15731914
+final_quant_roundtrip_exact val_loss:3.18855169 val_bpb:1.23437923
