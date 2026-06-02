@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import mlx; print\\(mlx.__version__\\)\")",
+      "WebFetch(domain:parameter-golf.github.io)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(chmod +x /Users/sanathbs/03_Dev_Lab/projects/Personal/golf-parameter/parameter-golf/experiments/run_m4_experiments.sh)",
+      "Bash(chmod +x /Users/sanathbs/03_Dev_Lab/projects/Personal/golf-parameter/parameter-golf/experiments/analyze_results.py)",
+      "Bash(python3 experiments/experiment_configs.py)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -m py_compile train_gpt_mlx.py)"
+    ]
+  }
+}

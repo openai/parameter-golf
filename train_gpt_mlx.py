@@ -52,6 +52,7 @@ class Hyperparameters:
     val_loss_every: int = int(os.environ.get("VAL_LOSS_EVERY", 0))
     # Validation always uses the full fineweb_val split.
     val_batch_size: int = int(os.environ.get("VAL_BATCH_SIZE", 524_288))
+    max_val_tokens: int = int(os.environ.get("MAX_VAL_TOKENS", 0))  # 0 = use all; limit for fast M4 iteration
     train_log_every: int = int(os.environ.get("TRAIN_LOG_EVERY", 200))
     train_batch_tokens: int = int(os.environ.get("TRAIN_BATCH_TOKENS", 524_288))
     grad_accum_steps: int = int(os.environ.get("GRAD_ACCUM_STEPS", 8))
@@ -80,6 +81,9 @@ class Hyperparameters:
     logit_softcap: float = float(os.environ.get("LOGIT_SOFTCAP", 30.0))
     rope_base: float = float(os.environ.get("ROPE_BASE", 10000.0))
     qk_gain_init: float = float(os.environ.get("QK_GAIN_INIT", 1.5))
+    focal_gamma: float = float(os.environ.get("FOCAL_GAMMA", 0.0))  # 0 = standard CE, >0 = focal loss
+    eval_temperature: float = float(os.environ.get("EVAL_TEMPERATURE", 1.0))  # temperature scaling in eval
+    eval_sliding_stride: int = int(os.environ.get("EVAL_SLIDING_STRIDE", 0))  # 0 = no sliding, >0 = stride
 
     # Optimizer. We keep the same per-group defaults as train_gpt.py.
     beta1: float = float(os.environ.get("BETA1", 0.9))
@@ -386,12 +390,13 @@ class GPT(nn.Module):
     # - tied embeddings for the LM head (the baseline default setup)
     def __init__(self, vocab_size: int, num_layers: int, dim: int, num_heads: int, num_kv_heads: int, mlp_mult: int,
                  logit_chunk_tokens: int, logit_softcap: float, rope_base: float, tied_embed_init_std: float,
-                 qk_gain_init: float):
+                 qk_gain_init: float, focal_gamma: float = 0.0):
         super().__init__()
         if logit_softcap <= 0.0:
             raise ValueError(f"logit_softcap must be positive, got {logit_softcap}")
         self.logit_chunk_tokens = logit_chunk_tokens
         self.logit_softcap = logit_softcap
+        self.focal_gamma = focal_gamma
 
         self.tok_emb = nn.Embedding(vocab_size, dim)
         self.num_encoder_layers = num_layers // 2
@@ -435,12 +440,28 @@ class GPT(nn.Module):
     def loss(self, input_ids: mx.array, target_ids: mx.array) -> mx.array:
         # Cross-entropy over flattened tokens. We keep optional logit chunking because it is a useful
         # memory knob on Macs, but the common path is chunk_tokens=0 (single matmul + CE).
+        # Optional: focal loss (self.focal_gamma > 0) down-weights easy examples
         x = self(input_ids).reshape(-1, self.tok_emb.weight.shape[1])
         y = target_ids.reshape(-1)
+
         if self.logit_chunk_tokens <= 0 or x.shape[0] <= self.logit_chunk_tokens:
             logits_proj = x @ self.tok_emb.weight.astype(x.dtype).T
             logits = self.softcap(logits_proj)
-            return nn.losses.cross_entropy(logits.astype(mx.float32), y, reduction="mean")
+            logits_f32 = logits.astype(mx.float32)
+
+            # Standard cross-entropy
+            ce = nn.losses.cross_entropy(logits_f32, y, reduction="none")
+
+            # Apply focal loss if gamma > 0
+            if self.focal_gamma > 0.0:
+                probs = mx.softmax(logits_f32, axis=-1)
+                # Gather probability of true class
+                batch_size = probs.shape[0]
+                p_t = probs[mx.arange(batch_size), y.astype(mx.int32)]
+                focal_weight = mx.power(1.0 - p_t, self.focal_gamma)
+                ce = ce * focal_weight
+
+            return mx.mean(ce)
 
         loss_sum = mx.array(0.0, dtype=mx.float32)
         n = int(x.shape[0])
@@ -448,7 +469,20 @@ class GPT(nn.Module):
             e = min(s + self.logit_chunk_tokens, n)
             logits_proj = x[s:e] @ self.tok_emb.weight.astype(x.dtype).T
             logits = self.softcap(logits_proj)
-            loss_sum = loss_sum + nn.losses.cross_entropy(logits.astype(mx.float32), y[s:e], reduction="sum")
+            logits_f32 = logits.astype(mx.float32)
+
+            # Standard cross-entropy
+            ce = nn.losses.cross_entropy(logits_f32, y[s:e], reduction="none")
+
+            # Apply focal loss if gamma > 0
+            if self.focal_gamma > 0.0:
+                probs = mx.softmax(logits_f32, axis=-1)
+                chunk_size = probs.shape[0]
+                p_t = probs[mx.arange(chunk_size), y[s:e].astype(mx.int32)]
+                focal_weight = mx.power(1.0 - p_t, self.focal_gamma)
+                ce = ce * focal_weight
+
+            loss_sum = loss_sum + mx.sum(ce)
         return loss_sum / float(n)
 
 # ==============================================================================
@@ -758,9 +792,42 @@ def loss_and_grad_chunked(
     return loss_value, tree_unflatten(list(grad_accum.items()))
 
 
+def eval_token_nll(
+    model: GPT,
+    input_ids: mx.array,
+    target_ids: mx.array,
+    temperature: float,
+) -> mx.array:
+    # Evaluation always uses standard CE to keep reported val_loss/val_bpb comparable,
+    # even when training uses focal loss.
+    if temperature <= 0.0:
+        raise ValueError(f"EVAL_TEMPERATURE must be positive, got {temperature}")
+    x = model(input_ids).reshape(-1, model.tok_emb.weight.shape[1])
+    y = target_ids.reshape(-1)
+    temp_inv = 1.0 / temperature
+
+    def chunk_ce(x_chunk: mx.array, y_chunk: mx.array) -> mx.array:
+        logits_proj = x_chunk @ model.tok_emb.weight.astype(x_chunk.dtype).T
+        logits = model.softcap(logits_proj)
+        if temperature != 1.0:
+            logits = logits * temp_inv
+        return nn.losses.cross_entropy(logits.astype(mx.float32), y_chunk, reduction="none")
+
+    if model.logit_chunk_tokens <= 0 or x.shape[0] <= model.logit_chunk_tokens:
+        return chunk_ce(x, y)
+
+    n = int(x.shape[0])
+    ce_chunks: list[mx.array] = []
+    for s in range(0, n, model.logit_chunk_tokens):
+        e = min(s + model.logit_chunk_tokens, n)
+        ce_chunks.append(chunk_ce(x[s:e], y[s:e]))
+    return mx.concatenate(ce_chunks, axis=0)
+
+
 def eval_val(
     args: Hyperparameters,
-    compiled_loss,
+    compiled_eval_loss,
+    compiled_eval_token_nll,
     val_tokens: np.ndarray,
     base_bytes_lut: np.ndarray,
     has_leading_space_lut: np.ndarray,
@@ -770,6 +837,16 @@ def eval_val(
     # Validation computes two metrics:
     # - val_loss: token cross-entropy (natural log)
     # - val_bpb: tokenizer-agnostic compression metric used by the challenge
+
+    # Optional: limit eval to a subset of tokens (for fast M4 iteration)
+    if args.max_val_tokens > 0:
+        usable = (args.max_val_tokens // args.train_seq_len) * args.train_seq_len
+        if usable <= 0:
+            raise ValueError(
+                f"MAX_VAL_TOKENS={args.max_val_tokens} is too small for TRAIN_SEQ_LEN={args.train_seq_len}"
+            )
+        val_tokens = val_tokens[:usable + 1]
+
     val_batch_tokens = args.val_batch_size // args.grad_accum_steps
     if val_batch_tokens < args.train_seq_len:
         raise ValueError(
@@ -778,36 +855,95 @@ def eval_val(
             f"TRAIN_SEQ_LEN={args.train_seq_len}"
         )
     val_batch_seqs = val_batch_tokens // args.train_seq_len
-    total_seqs = (val_tokens.size - 1) // args.train_seq_len
-    total_batches = max((total_seqs + val_batch_seqs - 1) // val_batch_seqs, 1)
     total_loss_sum = 0.0
     total_tokens = 0.0
     total_bytes = 0.0
-    for batch_idx, batch_seq_start in enumerate(range(0, total_seqs, val_batch_seqs), start=1):
-        batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
-        raw_start = batch_seq_start * args.train_seq_len
-        raw_end = batch_seq_end * args.train_seq_len + 1
-        chunk = val_tokens[raw_start:raw_end]
-        x_np = chunk[:-1].reshape(-1, args.train_seq_len)
-        y_np = chunk[1:].reshape(-1, args.train_seq_len)
-        x = mx.array(x_np, dtype=mx.int32)
-        y = mx.array(y_np, dtype=mx.int32)
-        chunk_token_count = float(y.size)
-        batch_loss = compiled_loss(x, y).astype(mx.float32)
-        mx.eval(batch_loss)
-        total_loss_sum += float(batch_loss.item()) * chunk_token_count
-        prev_ids = x_np.reshape(-1)
-        tgt_ids = y_np.reshape(-1)
-        bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
-        bytes_np += (
-            has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
-        ).astype(np.int16, copy=False)
-        total_tokens += chunk_token_count
-        total_bytes += float(bytes_np.astype(np.float64).sum())
-        if log_fn is not None and total_batches > 1 and (
-            batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
-        ):
-            log_fn(f"val_progress:{batch_idx}/{total_batches}")
+
+    stride = args.eval_sliding_stride
+    if stride <= 0 or stride >= args.train_seq_len:
+        total_seqs = (val_tokens.size - 1) // args.train_seq_len
+        total_batches = max((total_seqs + val_batch_seqs - 1) // val_batch_seqs, 1)
+        for batch_idx, batch_seq_start in enumerate(range(0, total_seqs, val_batch_seqs), start=1):
+            batch_seq_end = min(batch_seq_start + val_batch_seqs, total_seqs)
+            raw_start = batch_seq_start * args.train_seq_len
+            raw_end = batch_seq_end * args.train_seq_len + 1
+            chunk = val_tokens[raw_start:raw_end]
+            x_np = chunk[:-1].reshape(-1, args.train_seq_len)
+            y_np = chunk[1:].reshape(-1, args.train_seq_len)
+            x = mx.array(x_np, dtype=mx.int32)
+            y = mx.array(y_np, dtype=mx.int32)
+            chunk_token_count = float(y.size)
+            batch_loss = compiled_eval_loss(x, y).astype(mx.float32)
+            mx.eval(batch_loss)
+            total_loss_sum += float(batch_loss.item()) * chunk_token_count
+            prev_ids = x_np.reshape(-1)
+            tgt_ids = y_np.reshape(-1)
+            bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
+            bytes_np += (
+                has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
+            ).astype(np.int16, copy=False)
+            total_tokens += chunk_token_count
+            total_bytes += float(bytes_np.astype(np.float64).sum())
+            if log_fn is not None and total_batches > 1 and (
+                batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
+            ):
+                log_fn(f"val_progress:{batch_idx}/{total_batches}")
+    else:
+        # Sliding-window eval scores each token once with near-max context.
+        # It is much more expensive than non-overlapping eval; cap MAX_VAL_TOKENS for M4 sweeps.
+        total_eval_tokens = val_tokens.size - 1
+        window_starts = [
+            ws
+            for ws in range(0, total_eval_tokens, stride)
+            if min(ws + args.train_seq_len, total_eval_tokens) - ws >= 1
+        ]
+        sliding_batch_seqs = max(1, min(val_batch_seqs, 16))
+        total_batches = max((len(window_starts) + sliding_batch_seqs - 1) // sliding_batch_seqs, 1)
+        for batch_idx, batch_start in enumerate(range(0, len(window_starts), sliding_batch_seqs), start=1):
+            batch_ws = window_starts[batch_start : batch_start + sliding_batch_seqs]
+            bsz = len(batch_ws)
+            x_np = np.zeros((bsz, args.train_seq_len), dtype=np.int32)
+            y_np = np.zeros((bsz, args.train_seq_len), dtype=np.int32)
+            score_start = np.zeros((bsz,), dtype=np.int32)
+            score_end = np.zeros((bsz,), dtype=np.int32)
+
+            for i, ws in enumerate(batch_ws):
+                end = min(ws + args.train_seq_len, total_eval_tokens)
+                wlen = end - ws
+                chunk = val_tokens[ws : end + 1]
+                x_np[i, :wlen] = chunk[:-1]
+                y_np[i, :wlen] = chunk[1:]
+                score_start[i] = 0 if ws == 0 else max(wlen - stride, 0)
+                score_end[i] = wlen
+
+            x = mx.array(x_np, dtype=mx.int32)
+            y = mx.array(y_np, dtype=mx.int32)
+            nll_flat = compiled_eval_token_nll(x, y).astype(mx.float32)
+            mx.eval(nll_flat)
+            nll_np = np.array(nll_flat, dtype=np.float32, copy=False).reshape(bsz, args.train_seq_len)
+
+            for i in range(bsz):
+                s = int(score_start[i])
+                e = int(score_end[i])
+                if e <= s:
+                    continue
+                scored_nll = nll_np[i, s:e]
+                total_loss_sum += float(np.sum(scored_nll, dtype=np.float64))
+                chunk_token_count = float(e - s)
+                total_tokens += chunk_token_count
+                prev_ids = x_np[i, s:e]
+                tgt_ids = y_np[i, s:e]
+                bytes_np = base_bytes_lut[tgt_ids].astype(np.int16, copy=True)
+                bytes_np += (
+                    has_leading_space_lut[tgt_ids] & ~is_boundary_token_lut[prev_ids]
+                ).astype(np.int16, copy=False)
+                total_bytes += float(np.sum(bytes_np, dtype=np.float64))
+
+            if log_fn is not None and total_batches > 1 and (
+                batch_idx == 1 or batch_idx == total_batches or batch_idx % 25 == 0
+            ):
+                log_fn(f"val_progress:{batch_idx}/{total_batches}")
+
     val_loss = total_loss_sum / total_tokens
     bits_per_token = val_loss / math.log(2.0)
     val_bpb = bits_per_token * (total_tokens / total_bytes)
@@ -897,6 +1033,7 @@ def main() -> None:
         rope_base=args.rope_base,
         tied_embed_init_std=args.tied_embed_init_std,
         qk_gain_init=args.qk_gain_init,
+        focal_gamma=args.focal_gamma,
     )
     opt = SplitOptimizers(model, args)
 
@@ -907,7 +1044,16 @@ def main() -> None:
     # inside RoPE modules), so compiling only against trainable parameters throws "uncaptured inputs".
     # Compiling the model-bound functions and capturing the full model state fixes that while still
     # returning gradients only for trainable parameters via nn.value_and_grad(...).
-    compiled_loss = mx.compile(lambda x, y: model.loss(x, y), inputs=model.state, outputs=model.state)
+    compiled_eval_loss = mx.compile(
+        lambda x, y: mx.mean(eval_token_nll(model, x, y, args.eval_temperature)),
+        inputs=model.state,
+        outputs=model.state,
+    )
+    compiled_eval_token_nll = mx.compile(
+        lambda x, y: eval_token_nll(model, x, y, args.eval_temperature),
+        inputs=model.state,
+        outputs=model.state,
+    )
     compiled_loss_and_grad = mx.compile(
         nn.value_and_grad(model, lambda x, y: model.loss(x, y)),
         inputs=model.state,
@@ -941,6 +1087,10 @@ def main() -> None:
         f"microbatch_tokens:{args.microbatch_tokens} microbatch_batch_size:{args.microbatch_tokens // args.train_seq_len} "
         f"val_batch_size:{args.val_batch_size} "
         f"warmup_steps:{args.warmup_steps} max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
+    )
+    log(
+        f"eval_temperature:{args.eval_temperature:.4f} eval_sliding_stride:{args.eval_sliding_stride} "
+        f"max_val_tokens:{args.max_val_tokens}"
     )
     log(f"mlx_max_microbatch_tokens:{args.mlx_max_microbatch_tokens}")
     log(
@@ -989,7 +1139,7 @@ def main() -> None:
         warm_chunk = val_tokens[: warm_val_seqs * args.train_seq_len + 1]
         x_val = mx.array(warm_chunk[:-1].reshape(-1, args.train_seq_len), dtype=mx.int32)
         y_val = mx.array(warm_chunk[1:].reshape(-1, args.train_seq_len), dtype=mx.int32)
-        warm_val_loss = compiled_loss(x_val, y_val)
+        warm_val_loss = compiled_eval_loss(x_val, y_val)
         mx.eval(warm_val_loss)
         mx.synchronize()
 
@@ -1007,7 +1157,8 @@ def main() -> None:
             # Validation always scans the same fixed full validation split.
             val_loss, val_bpb = eval_val(
                 args,
-                compiled_loss,
+                compiled_eval_loss,
+                compiled_eval_token_nll,
                 val_tokens,
                 base_bytes_lut,
                 has_leading_space_lut,
@@ -1088,7 +1239,8 @@ def main() -> None:
     q_t0 = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(
         args,
-        compiled_loss,
+        compiled_eval_loss,
+        compiled_eval_token_nll,
         val_tokens,
         base_bytes_lut,
         has_leading_space_lut,
