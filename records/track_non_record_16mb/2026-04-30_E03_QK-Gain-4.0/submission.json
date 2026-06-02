@@ -1,0 +1,12 @@
+{
+  "name": "Sanath Bhat",
+  "github_id": "Bsanath27",
+  "email": "bssanath27@gmail.com",
+  "val_bpb": 6.7946,
+  "artifact_size_mb": 5.15,
+  "training_steps": 30,
+  "training_time_minutes": 30.8,
+  "approach": "QK-Gain Scaling Experiment (4.0 vs baseline 1.5)",
+  "track": "non_record",
+  "notes": "Local M4 MLX proof-of-concept. Simple hyperparameter sweep of query-key gain initialization from 1.5 to 4.0, showing architecture sensitivity to scaling parameters. Requires H100 validation for leaderboard eligibility."
+}

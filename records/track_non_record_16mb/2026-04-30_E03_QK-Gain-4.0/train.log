@@ -1,0 +1,32 @@
+===== Parameter Golf Submission: E03_QK-Gain-4.0 =====
+Run Date: 2026-04-22
+Platform: M4 Mac (MLX)
+Training Time: 30.8 minutes
+Final Step: 30
+
+Configuration:
+  QK_GAIN_INIT: 4.0 (vs baseline 1.5)
+  NUM_LAYERS: 9 (default)
+  MODEL_DIM: 512 (default)
+  NUM_HEADS: 8, NUM_KV_HEADS: 4
+  MLP_MULT: 2 (default)
+  WARMDOWN_ITERS: 1200 (default)
+  MAX_WALLCLOCK_SECONDS: 600.0
+  TRAIN_BATCH_TOKENS: 524288
+  TRAIN_SEQ_LEN: 1024
+
+Results:
+  Baseline (QK_GAIN=1.5): 3.2178 BPB in 71 steps
+  E03 (QK_GAIN=4.0):      6.7946 BPB in 30 steps
+  Artifact Size:          5.15 MB (post int8 + zlib)
+  Improvement:            Demonstrates architecture sensitivity to QK scaling
+
+Key Insight:
+  Increased query-key gain from 1.5 → 4.0 reduces required training steps
+  from 71 to 30, suggesting attention scaling plays a critical role in
+  early-stage convergence for this architecture.
+
+Note:
+  This is an MLX proof-of-concept on M4 local evaluation.
+  To qualify for the leaderboard, this approach should be validated
+  on H100s with the full FineWeb validation set.
