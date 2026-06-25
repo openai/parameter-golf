@@ -1,0 +1,64 @@
+cff-version: 1.2.0
+message: >-
+  If you use the GOLDEN SUNFLOWERS submission stack (JEPA + Universal
+  Transformer + PhiNTA on a φ-physics substrate), please cite this entry
+  and the underlying TRINITY pipeline.
+title: "GOLDEN SUNFLOWERS — JEPA + Universal Transformer + PhiNTA for openai/parameter-golf"
+type: software
+version: "0.1.0-untrained"
+date-released: "2026-04-30"
+authors:
+  - alias: "gHashTag"
+    name: "TRINITY S³AI"
+    website: "https://github.com/gHashTag"
+abstract: >-
+  Composes three openai/parameter-golf wish-list items (JEPA, Universal
+  Transformer, Non-Trainable Adapters on random linear maps) on a single
+  golden-ratio anchored hyperparameter foundation. PhiNTA reproduces
+  trios-trainer-igla src/phi_ortho_init.rs (gain = 1/φ ≈ 0.618); JEPA
+  uses the Robby Goldberg linear-representation form from openai/parameter
+  -golf#1772; Universal Transformer loops a sub-stack round(φ³) = 4 times.
+keywords:
+  - parameter-golf
+  - JEPA
+  - universal transformer
+  - non-trainable adapters
+  - golden ratio
+  - phi-physics
+  - 16MB
+  - language model
+license: MIT
+repository-code: "https://github.com/gHashTag/parameter-golf-trinity"
+references:
+  - type: software
+    title: "trios-trainer-igla — single source of truth for IGLA RACE training"
+    repository-code: "https://github.com/gHashTag/trios-trainer-igla"
+    authors:
+      - alias: "gHashTag"
+        name: "TRINITY S³AI"
+    notes: "Anchor: phi^2 + phi^-2 = 3. Mirrors src/phi_ortho_init.rs into PyTorch."
+  - type: data
+    title: "Trinity Zenodo bundle B007 — VSA Operations for Ternary"
+    doi: "10.5281/zenodo.19227877"
+    authors:
+      - alias: "gHashTag"
+        name: "TRINITY S³AI"
+    notes: "Cross-reference for VSA / ternary operations (PhD Ch.30, App.G ledger row B007). NOT the trainer-igla codebase."
+  - type: generic
+    title: "TRINITY φ-Physics → Model Hyperparameters (Issue #1742)"
+    url: "https://github.com/openai/parameter-golf/issues/1742"
+    authors:
+      - alias: "gHashTag"
+        name: "TRINITY S³AI"
+  - type: generic
+    title: "Experimental JEPA on Robby's PR #1412 (Issue #1772)"
+    url: "https://github.com/openai/parameter-golf/issues/1772"
+    authors:
+      - alias: "Robby955"
+        name: "Robby Goldberg"
+  - type: generic
+    title: "GOLDEN SUNFLOWERS — Single Source of Truth (gHashTag/trios#372)"
+    url: "https://github.com/gHashTag/trios/issues/372"
+    authors:
+      - alias: "gHashTag"
+        name: "TRINITY S³AI"
