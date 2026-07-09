@@ -10,6 +10,11 @@ data/docs_selected.jsonl
 .venv
 logs/*.pt
 *.ptz
+final_model.pt
+checkpoints/
+keys.txt
+wandb/
+tea_debug.log
 logs/
 .claude/settings.local.json
 STRATEGY.md

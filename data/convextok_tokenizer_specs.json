@@ -1,0 +1,52 @@
+{
+  "tokenizers": [
+    {
+      "name": "convextok_det_1024",
+      "kind": "convextok",
+      "dataset_suffix": "convextok1024_det",
+      "filename": "fineweb_convextok_1024_det.convextok.json",
+      "vocab_size": 1024,
+      "rounding": "det",
+      "tokenizer_train_docs": 512,
+      "max_doc_bytes": 2048,
+      "max_candidates": 1800,
+      "max_len": 24
+    },
+    {
+      "name": "convextok_bias_1024",
+      "kind": "convextok",
+      "dataset_suffix": "convextok1024_bias",
+      "filename": "fineweb_convextok_1024_bias.convextok.json",
+      "vocab_size": 1024,
+      "rounding": "bias",
+      "tokenizer_train_docs": 512,
+      "max_doc_bytes": 2048,
+      "max_candidates": 1800,
+      "max_len": 24
+    },
+    {
+      "name": "convextok_det_2048",
+      "kind": "convextok",
+      "dataset_suffix": "convextok2048_det",
+      "filename": "fineweb_convextok_2048_det.convextok.json",
+      "vocab_size": 2048,
+      "rounding": "det",
+      "tokenizer_train_docs": 512,
+      "max_doc_bytes": 2048,
+      "max_candidates": 2200,
+      "max_len": 24
+    },
+    {
+      "name": "convextok_bias_2048",
+      "kind": "convextok",
+      "dataset_suffix": "convextok2048_bias",
+      "filename": "fineweb_convextok_2048_bias.convextok.json",
+      "vocab_size": 2048,
+      "rounding": "bias",
+      "tokenizer_train_docs": 512,
+      "max_doc_bytes": 2048,
+      "max_candidates": 2200,
+      "max_len": 24
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "tokenizers": [
+    {
+      "name": "convextok_det_8192_biomed_universal_modality",
+      "kind": "convextok",
+      "dataset_suffix": "convextok8192_biomed_det",
+      "filename": "fineweb_convextok_8192_biomed_det.convextok.json",
+      "vocab_size": 8192,
+      "rounding": "det",
+      "tokenizer_train_docs": 384,
+      "max_doc_bytes": 2048,
+      "max_candidates": 8500,
+      "max_len": 32,
+      "extra_tokenizer_seed_jsonl": "convextok_biomed_universal_modality_seed.jsonl",
+      "seed_token_limit": 512,
+      "extra_tokenizer_seed_repeat": 1,
+      "extra_tokenizer_seed_prepend": false
+    }
+  ]
+}

@@ -1,19 +1,22 @@
 """Download docs_selected.jsonl from Hugging Face and tokenize it locally.
 
-This script is standalone. It does not import any local exporter or tokenizer
-helpers. Tokenizer configs are JSON only and currently support the built-in
-pure-byte and SentencePiece tokenizer definitions in `data/tokenizer_specs.json`.
+This script is standalone. Tokenizer configs are JSON only and currently
+support the built-in pure-byte, SentencePiece, and ConvexTok tokenizer
+definitions. ToricGT uses the ConvexTok path for the graphified OAI baseline.
 """
 
 from __future__ import annotations
 
 import argparse
+import glob
 import json
+import multiprocessing as mp
 import os
 import shutil
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Iterable
 
 import numpy as np
 from huggingface_hub import hf_hub_download
@@ -33,6 +36,27 @@ DEFAULT_REMOTE_ROOT = os.environ.get("MATCHED_FINEWEB_REMOTE_ROOT_PREFIX", "data
 DEFAULT_CONFIG = Path(__file__).with_name("tokenizer_specs.json")
 TOKENIZER_THREADS = max(1, int(os.environ.get("MATCHED_FINEWEB_TOKENIZER_THREADS", str(os.cpu_count() or 8))))
 SP_BATCH_SIZE = max(1, int(os.environ.get("MATCHED_FINEWEB_SP_BATCH_SIZE", "1024")))
+CONVEXTOK_ENCODE_WORKERS = max(0, int(os.environ.get("MATCHED_FINEWEB_CONVEXTOK_ENCODE_WORKERS", "0")))
+CONVEXTOK_ENCODE_BATCH_DOCS = max(1, int(os.environ.get("MATCHED_FINEWEB_CONVEXTOK_ENCODE_BATCH_DOCS", "128")))
+
+
+_WORKER_CONVEXTOK: Any | None = None
+
+
+def _init_convextok_worker(tokenizer_path: str) -> None:
+    global _WORKER_CONVEXTOK
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from convextok import ConvexTokTokenizer
+
+    _WORKER_CONVEXTOK = ConvexTokTokenizer.load_json(tokenizer_path)
+
+
+def _convextok_encode_batch_worker(texts: list[str]) -> list[list[int]]:
+    if _WORKER_CONVEXTOK is None:
+        raise RuntimeError("ConvexTok worker tokenizer is not initialized")
+    return [_WORKER_CONVEXTOK.encode(text) for text in texts]
 
 
 @dataclass(frozen=True)
@@ -115,6 +139,81 @@ def iter_docs(path: Path):
             yield json.loads(line)["text"]
 
 
+def clean_source_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).replace("\x00", " ").strip()
+
+
+def resolve_glob_paths(patterns: list[str]) -> list[Path]:
+    paths: list[Path] = []
+    for raw_pattern in patterns:
+        pattern = str(Path(raw_pattern).expanduser())
+        matches = [Path(p).resolve() for p in glob.glob(pattern)]
+        if not matches:
+            raise FileNotFoundError(f"no parquet files matched pattern: {raw_pattern}")
+        paths.extend(matches)
+    unique = sorted({p for p in paths})
+    return unique
+
+
+def split_text_by_utf8_bytes(text: str, max_bytes: int | None):
+    if max_bytes is None or max_bytes <= 0:
+        if text:
+            yield text
+        return
+    data = text.encode("utf-8", errors="replace")
+    if len(data) <= max_bytes:
+        if text:
+            yield text
+        return
+    for start in range(0, len(data), max_bytes):
+        chunk = data[start : start + max_bytes].decode("utf-8", errors="ignore").strip()
+        if chunk:
+            yield chunk
+
+
+def iter_parquet_texts(
+    paths: list[Path],
+    *,
+    text_column: str = "text",
+    max_docs: int | None = None,
+    max_doc_bytes: int | None = None,
+):
+    try:
+        import pyarrow.parquet as pq
+    except ImportError as exc:
+        raise RuntimeError("pyarrow is required for --docs-parquet-* source modes") from exc
+
+    emitted = 0
+    for path in paths:
+        parquet_file = pq.ParquetFile(path)
+        names = set(parquet_file.schema.names)
+        if text_column not in names:
+            raise ValueError(f"{path} does not contain text column {text_column!r}")
+        for batch in parquet_file.iter_batches(batch_size=2048, columns=[text_column]):
+            for value in batch.column(0).to_pylist():
+                text = clean_source_text(value)
+                if not text:
+                    continue
+                for chunk in split_text_by_utf8_bytes(text, max_doc_bytes):
+                    yield chunk
+                    emitted += 1
+                    if max_docs is not None and emitted >= max_docs:
+                        return
+
+
+def count_parquet_rows(paths: list[Path]) -> int:
+    try:
+        import pyarrow.parquet as pq
+    except ImportError as exc:
+        raise RuntimeError("pyarrow is required for --docs-parquet-* source modes") from exc
+    total = 0
+    for path in paths:
+        total += int(pq.ParquetFile(path).metadata.num_rows)
+    return total
+
+
 def count_docs(path: Path) -> int:
     with path.open("r", encoding="utf-8") as f:
         return sum(1 for _ in f)
@@ -195,6 +294,8 @@ def tokenizer_kind(spec: dict[str, Any]) -> str:
         return "byte"
     if kind in {"sentencepiece_bpe", "sentencepiece"}:
         return "sentencepiece_bpe"
+    if kind in {"convextok", "convextok_lp"}:
+        return "convextok"
     builder = str(spec.get("builder", ""))
     builder_name = builder.rsplit(":", 1)[-1]
     if builder_name == "build_pure_byte_tokenizer":
@@ -203,11 +304,13 @@ def tokenizer_kind(spec: dict[str, Any]) -> str:
         return "sentencepiece_bpe"
     if spec.get("dataset_suffix") == "byte260":
         return "byte"
+    if spec.get("dataset_suffix", "").startswith("convextok"):
+        return "convextok"
     if "vocab_size" in spec:
         return "sentencepiece_bpe"
     raise ValueError(
         f"unsupported tokenizer spec {spec.get('name', '<unnamed>')!r}: "
-        "expected a built-in pure-byte or sentencepiece builder"
+        "expected a built-in pure-byte, sentencepiece, or convextok builder"
     )
 
 
@@ -222,9 +325,47 @@ def _iter_sentencepiece_text(docs_jsonl: Path, *, max_docs: int | None = None):
         for i, line in enumerate(f):
             if max_docs is not None and i >= max_docs:
                 break
-            text = json.loads(line)["text"].replace("\x00", " ").strip()
+            text = clean_source_text(json.loads(line)["text"])
             if text:
                 yield text
+
+
+def batched_texts(texts: Iterable[str], batch_size: int):
+    batch: list[str] = []
+    for text in texts:
+        batch.append(text)
+        if len(batch) == batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
+def iter_jsonl_text(path: Path, *, max_docs: int | None = None):
+    with path.open("r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            if max_docs is not None and i >= max_docs:
+                break
+            payload = json.loads(line)
+            text = clean_source_text(payload.get("text", ""))
+            if text:
+                yield text
+
+
+def load_extra_tokenizer_seed_texts(spec: dict[str, Any]) -> list[str]:
+    seed_path_raw = spec.get("extra_tokenizer_seed_jsonl")
+    if not seed_path_raw:
+        return []
+    seed_path = Path(str(seed_path_raw)).expanduser()
+    if not seed_path.is_absolute():
+        seed_path = (Path(__file__).resolve().parent / seed_path).resolve()
+    if not seed_path.is_file():
+        raise FileNotFoundError(seed_path)
+    max_docs_raw = spec.get("extra_tokenizer_seed_docs")
+    max_docs = None if max_docs_raw is None else int(max_docs_raw)
+    repeat = max(1, int(spec.get("extra_tokenizer_seed_repeat", 1)))
+    seed_texts = list(iter_jsonl_text(seed_path, max_docs=max_docs))
+    return seed_texts * repeat
 
 
 def build_pure_byte_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tokenizers_dir: Path) -> dict[str, Any]:
@@ -245,7 +386,13 @@ def build_pure_byte_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tokeniz
     }
 
 
-def build_sentencepiece_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tokenizers_dir: Path) -> dict[str, Any]:
+def build_sentencepiece_tokenizer(
+    *,
+    spec: dict[str, Any],
+    docs_jsonl: Path,
+    tokenizers_dir: Path,
+    text_iter_factory: Callable[[int | None], Iterable[str]] | None = None,
+) -> dict[str, Any]:
     try:
         import sentencepiece as spm
     except ImportError as exc:
@@ -271,9 +418,13 @@ def build_sentencepiece_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tok
             shutil.copy2(reuse_vocab_path, vocab_path)
     else:
         kwargs = {
-            "sentence_iterator": _iter_sentencepiece_text(
-                docs_jsonl,
-                max_docs=None if spec.get("tokenizer_train_docs") is None else int(spec["tokenizer_train_docs"]),
+            "sentence_iterator": (
+                text_iter_factory(None if spec.get("tokenizer_train_docs") is None else int(spec["tokenizer_train_docs"]))
+                if text_iter_factory is not None
+                else _iter_sentencepiece_text(
+                    docs_jsonl,
+                    max_docs=None if spec.get("tokenizer_train_docs") is None else int(spec["tokenizer_train_docs"]),
+                )
             ),
             "model_prefix": str(prefix),
             "model_type": "bpe",
@@ -306,14 +457,110 @@ def build_sentencepiece_tokenizer(*, spec: dict[str, Any], docs_jsonl: Path, tok
     }
 
 
-def export_shards(
+def build_convextok_tokenizer(
+    *,
+    spec: dict[str, Any],
     docs_jsonl: Path,
+    tokenizers_dir: Path,
+    text_iter_factory: Callable[[int | None], Iterable[str]] | None = None,
+) -> dict[str, Any]:
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from convextok import ConvexTokTokenizer, train_convextok
+
+    vocab_size = int(spec.get("vocab_size", 2048))
+    rounding = str(spec.get("rounding", "det")).lower()
+    name = spec.get("name", f"convextok_{rounding}_{vocab_size}")
+    filename = spec.get("filename", f"fineweb_convextok_{vocab_size}_{rounding}.convextok.json")
+    path = tokenizers_dir / filename
+    reuse_tokenizer_path = spec.get("reuse_tokenizer_path")
+    if reuse_tokenizer_path is not None:
+        reuse_path = Path(str(reuse_tokenizer_path)).expanduser().resolve()
+        if not reuse_path.is_file():
+            raise FileNotFoundError(reuse_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if reuse_path != path.resolve():
+            shutil.copy2(reuse_path, path)
+        tok = ConvexTokTokenizer.load_json(path)
+        return {
+            "name": name,
+            "kind": "convextok",
+            "dataset_suffix": spec.get("dataset_suffix", f"convextok{vocab_size}_{rounding}"),
+            "vocab_size": int(tok.vocab_size),
+            "bos_id": int(tok.bos_id),
+            "eos_id": int(tok.eos_id),
+            "encode": tok.encode,
+            "encode_batch": tok.encode_batch,
+            "recommended_bigram_vocab_size": int(spec.get("recommended_bigram_vocab_size", ((int(tok.vocab_size) + 127) // 128) * 128 * 5)),
+            "manifest": {
+                "path": str(path),
+                "rounding": tok.rounding,
+                "reused_tokenizer_path": str(reuse_path),
+                "selected_candidate_count": int(len(tok.priced_tokens())),
+                "candidate_count": None,
+                "sample_doc_count": None,
+                "sample_byte_count": None,
+            },
+        }
+    tokenizer_train_docs = spec.get("tokenizer_train_docs")
+    train_docs = None if tokenizer_train_docs is None else int(tokenizer_train_docs)
+    if text_iter_factory is not None:
+        texts = list(text_iter_factory(train_docs))
+    else:
+        texts = list(_iter_sentencepiece_text(docs_jsonl, max_docs=train_docs))
+    extra_seed_texts = load_extra_tokenizer_seed_texts(spec)
+    if extra_seed_texts:
+        if bool(spec.get("extra_tokenizer_seed_prepend", True)):
+            texts = extra_seed_texts + texts
+        else:
+            texts = texts + extra_seed_texts
+    result = train_convextok(
+        texts,
+        vocab_size=vocab_size,
+        rounding=rounding,
+        min_len=int(spec.get("min_len", 2)),
+        max_len=int(spec.get("max_len", 24)),
+        max_candidates=int(spec.get("max_candidates", 2500)),
+        max_docs=train_docs,
+        max_doc_bytes=int(spec.get("max_doc_bytes", 4096)),
+    )
+    result.tokenizer.save_json(path)
+    tok = ConvexTokTokenizer.load_json(path)
+    return {
+        "name": name,
+        "kind": "convextok",
+        "dataset_suffix": spec.get("dataset_suffix", f"convextok{vocab_size}_{rounding}"),
+        "vocab_size": int(tok.vocab_size),
+        "bos_id": int(tok.bos_id),
+        "eos_id": int(tok.eos_id),
+        "encode": tok.encode,
+        "encode_batch": tok.encode_batch,
+        "recommended_bigram_vocab_size": int(spec.get("recommended_bigram_vocab_size", ((vocab_size + 127) // 128) * 128 * 5)),
+        "manifest": {
+            "path": str(path),
+            "rounding": rounding,
+            "lp_objective": float(result.lp_objective),
+            "lp_status": result.lp_status,
+            "lp_success": bool(result.lp_success),
+            "selected_candidate_count": int(result.selected_candidate_count),
+            "candidate_count": int(result.candidate_count),
+            "sample_doc_count": int(result.sample_doc_count),
+            "sample_byte_count": int(result.sample_byte_count),
+            "extra_tokenizer_seed_jsonl": spec.get("extra_tokenizer_seed_jsonl"),
+            "extra_tokenizer_seed_count": len(extra_seed_texts),
+        },
+    }
+
+
+def export_shards_from_sources(
+    split_source_factory: Callable[[], list[tuple[str, Iterable[str]]]],
     tok: dict[str, Any],
     output_dir: Path,
     *,
-    num_val_docs: int,
     shard_size: int,
-    docs_total: int,
+    docs_total: int | None,
+    strict_docs_total: bool,
 ) -> dict[str, int]:
     output_dir.mkdir(parents=True, exist_ok=True)
     for pattern in ("fineweb_train_*.bin", "fineweb_val_*.bin"):
@@ -352,47 +599,111 @@ def export_shards(
 
     batch_encode = tok.get("encode_batch")
     batch_size = SP_BATCH_SIZE if callable(batch_encode) else 1
-    for texts in batched_docs_jsonl(docs_jsonl, batch_size):
-        encoded_docs = batch_encode(texts) if callable(batch_encode) else [tok["encode"](text) for text in texts]
-        for text, encoded in zip(texts, encoded_docs, strict=True):
-            del text
-            split_for_doc = "val" if stats["docs_total"] < num_val_docs else "train"
-            if split_for_doc != split:
-                flush()
-                split = split_for_doc
+    convextok_parallel_path: str | None = None
+    convextok_workers = 0
+    if str(tok.get("kind")) == "convextok" and CONVEXTOK_ENCODE_WORKERS > 1:
+        manifest = tok.get("manifest") if isinstance(tok.get("manifest"), dict) else {}
+        maybe_path = manifest.get("path") if isinstance(manifest, dict) else None
+        if maybe_path:
+            convextok_parallel_path = str(Path(str(maybe_path)).expanduser().resolve())
+            convextok_workers = int(CONVEXTOK_ENCODE_WORKERS)
+            print(
+                f"{output_dir.name}: parallel ConvexTok encoding with {convextok_workers} workers "
+                f"and batch_docs={CONVEXTOK_ENCODE_BATCH_DOCS}",
+                flush=True,
+            )
 
-            encoded_arr = np.asarray(encoded, dtype=np.int32)
-            toks = np.empty((encoded_arr.size + 1 + int(APPEND_EOS),), dtype=np.int32)
-            toks[0] = tok["bos_id"]
-            toks[1 : 1 + encoded_arr.size] = encoded_arr
-            if APPEND_EOS:
-                toks[-1] = tok["eos_id"]
-            if not ((0 <= toks).all() and (toks < vocab_size).all()):
-                bad = int(toks[(toks < 0) | (toks >= vocab_size)][0])
-                raise ValueError(f"token id {bad} outside declared vocab_size={vocab_size}")
-            toks = toks.astype("<u2", copy=False)
+    def iter_encoded_batches(text_iterable: Iterable[str]):
+        if convextok_parallel_path is not None and convextok_workers > 1:
+            start_method = "fork" if "fork" in mp.get_all_start_methods() else "spawn"
+            ctx = mp.get_context(start_method)
+            with ctx.Pool(
+                processes=convextok_workers,
+                initializer=_init_convextok_worker,
+                initargs=(convextok_parallel_path,),
+                maxtasksperchild=512,
+            ) as pool:
+                for encoded_docs in pool.imap(
+                    _convextok_encode_batch_worker,
+                    batched_texts(text_iterable, CONVEXTOK_ENCODE_BATCH_DOCS),
+                    chunksize=1,
+                ):
+                    yield encoded_docs
+            return
+        for texts in batched_texts(text_iterable, batch_size):
+            yield batch_encode(texts) if callable(batch_encode) else [tok["encode"](text) for text in texts]
 
-            stats["docs_total"] += 1
-            stats[f"docs_{split}"] += 1
-            stats["tokens_total"] += len(toks)
-            stats[f"tokens_{split}"] += len(toks)
+    for split_for_source, text_iterable in split_source_factory():
+        if split_for_source not in {"val", "train"}:
+            raise ValueError(f"split source must be 'val' or 'train', got {split_for_source!r}")
+        if split_for_source != split:
+            flush()
+            split = split_for_source
+        for encoded_docs in iter_encoded_batches(text_iterable):
+            for encoded in encoded_docs:
+                encoded_arr = np.asarray(encoded, dtype=np.int32)
+                toks = np.empty((encoded_arr.size + 1 + int(APPEND_EOS),), dtype=np.int32)
+                toks[0] = tok["bos_id"]
+                toks[1 : 1 + encoded_arr.size] = encoded_arr
+                if APPEND_EOS:
+                    toks[-1] = tok["eos_id"]
+                if not ((0 <= toks).all() and (toks < vocab_size).all()):
+                    bad = int(toks[(toks < 0) | (toks >= vocab_size)][0])
+                    raise ValueError(f"token id {bad} outside declared vocab_size={vocab_size}")
+                toks = toks.astype("<u2", copy=False)
 
-            pos = 0
-            while pos < len(toks):
-                take = min(shard_size - fill, len(toks) - pos)
-                buf[fill : fill + take] = toks[pos : pos + take]
-                fill += take
-                pos += take
-                if fill == shard_size:
-                    flush()
+                stats["docs_total"] += 1
+                stats[f"docs_{split}"] += 1
+                stats["tokens_total"] += len(toks)
+                stats[f"tokens_{split}"] += len(toks)
 
-        if stats["docs_total"] and stats["docs_total"] % 100_000 == 0:
-            print(f"{output_dir.name}: {stats['docs_total']}/{docs_total} docs", flush=True)
+                pos = 0
+                while pos < len(toks):
+                    take = min(shard_size - fill, len(toks) - pos)
+                    buf[fill : fill + take] = toks[pos : pos + take]
+                    fill += take
+                    pos += take
+                    if fill == shard_size:
+                        flush()
+
+            if stats["docs_total"] and stats["docs_total"] % 100_000 == 0:
+                denom = "unknown" if docs_total is None else str(docs_total)
+                print(f"{output_dir.name}: {stats['docs_total']}/{denom} docs", flush=True)
 
     flush()
-    if stats["docs_total"] != docs_total:
+    if strict_docs_total and docs_total is not None and stats["docs_total"] != docs_total:
         raise ValueError(f"expected {docs_total} docs, exported {stats['docs_total']}")
     return stats
+
+
+def export_shards(
+    docs_jsonl: Path,
+    tok: dict[str, Any],
+    output_dir: Path,
+    *,
+    num_val_docs: int,
+    shard_size: int,
+    docs_total: int,
+) -> dict[str, int]:
+    def factory() -> list[tuple[str, Iterable[str]]]:
+        def iter_split(start: int, stop: int | None):
+            for i, text in enumerate(iter_docs(docs_jsonl)):
+                if i < start:
+                    continue
+                if stop is not None and i >= stop:
+                    break
+                yield text
+
+        return [("val", iter_split(0, num_val_docs)), ("train", iter_split(num_val_docs, None))]
+
+    return export_shards_from_sources(
+        factory,
+        tok,
+        output_dir,
+        shard_size=shard_size,
+        docs_total=docs_total,
+        strict_docs_total=True,
+    )
 
 
 def build_tokenizers(
@@ -403,6 +714,7 @@ def build_tokenizers(
     tokenizer_train_docs: int | None,
     skip_byte: bool,
     reuse_sp_models: dict[int, Path],
+    text_iter_factory: Callable[[int | None], Iterable[str]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     tokenizers: list[dict[str, Any]] = []
     selected_specs: list[dict[str, Any]] = []
@@ -414,19 +726,33 @@ def build_tokenizers(
         kind = tokenizer_kind(spec)
         if skip_byte and kind == "byte":
             continue
-        if kind == "sentencepiece_bpe":
+        if kind in {"sentencepiece_bpe", "convextok"}:
             if tokenizer_train_docs is not None:
                 spec["tokenizer_train_docs"] = int(tokenizer_train_docs)
+        if kind == "sentencepiece_bpe":
             vocab_size = int(spec["vocab_size"])
             if vocab_size in reuse_sp_models:
                 spec["reuse_model_path"] = str(reuse_sp_models[vocab_size])
 
         selected_specs.append(spec)
-        built = (
-            build_pure_byte_tokenizer(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
-            if kind == "byte"
-            else build_sentencepiece_tokenizer(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
-        )
+        if kind == "byte":
+            built = build_pure_byte_tokenizer(spec=spec, docs_jsonl=docs_jsonl, tokenizers_dir=tokenizers_dir)
+        elif kind == "sentencepiece_bpe":
+            built = build_sentencepiece_tokenizer(
+                spec=spec,
+                docs_jsonl=docs_jsonl,
+                tokenizers_dir=tokenizers_dir,
+                text_iter_factory=text_iter_factory,
+            )
+        elif kind == "convextok":
+            built = build_convextok_tokenizer(
+                spec=spec,
+                docs_jsonl=docs_jsonl,
+                tokenizers_dir=tokenizers_dir,
+                text_iter_factory=text_iter_factory,
+            )
+        else:
+            raise ValueError(f"unsupported tokenizer kind: {kind}")
         name = str(built["name"])
         dataset_suffix = built.get("dataset_suffix")
         dataset_name = str(built.get("dataset_name", f"fineweb{VERSION}_{dataset_suffix}"))
@@ -484,6 +810,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-root", required=True, help="Directory where docs, tokenizers, shards, and manifest are written")
     parser.add_argument(
+        "--docs-jsonl-local",
+        default="",
+        help="Optional local docs_selected.jsonl-compatible file. When set, use it instead of downloading from Hugging Face.",
+    )
+    parser.add_argument(
+        "--docs-parquet-train-glob-local",
+        action="append",
+        default=[],
+        help="Local Parquet glob for training text shards. May be repeated. Uses --parquet-text-column.",
+    )
+    parser.add_argument(
+        "--docs-parquet-val-glob-local",
+        action="append",
+        default=[],
+        help="Local Parquet glob for validation text shards. May be repeated. Uses --parquet-text-column.",
+    )
+    parser.add_argument(
+        "--docs-parquet-glob-local",
+        action="append",
+        default=[],
+        help="Single-corpus local Parquet glob. The first --num-val-docs records become validation.",
+    )
+    parser.add_argument(
+        "--parquet-text-column",
+        default="text",
+        help="Text column to read from local Parquet source modes.",
+    )
+    parser.add_argument(
         "--tokenizer-config",
         default=str(DEFAULT_CONFIG),
         help="Local tokenizer config JSON. Defaults to data/tokenizer_specs.json.",
@@ -493,6 +847,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Validation document count. Defaults to the downloaded sidecar when present, otherwise 50000.",
+    )
+    parser.add_argument(
+        "--max-train-docs",
+        type=int,
+        default=None,
+        help="Optional cap on training documents exported from local Parquet sources.",
+    )
+    parser.add_argument(
+        "--max-export-doc-bytes",
+        type=int,
+        default=8192,
+        help="For local Parquet sources, split long text rows into UTF-8 chunks of at most this many bytes. Use <=0 to disable.",
     )
     parser.add_argument("--chunk-tokens", type=int, default=SHARD_SIZE, help="Shard size in tokens.")
     parser.add_argument(
@@ -516,6 +882,20 @@ def main() -> None:
     args = build_parser().parse_args()
     if args.chunk_tokens <= 0:
         raise ValueError(f"--chunk_tokens must be positive, got {args.chunk_tokens}")
+    if args.max_train_docs is not None and int(args.max_train_docs) <= 0:
+        raise ValueError(f"--max-train-docs must be positive when provided, got {args.max_train_docs}")
+    max_export_doc_bytes = None if int(args.max_export_doc_bytes) <= 0 else int(args.max_export_doc_bytes)
+    parquet_split_mode = bool(args.docs_parquet_train_glob_local or args.docs_parquet_val_glob_local)
+    parquet_single_mode = bool(args.docs_parquet_glob_local)
+    jsonl_local_mode = bool(str(args.docs_jsonl_local).strip())
+    selected_source_modes = sum([parquet_split_mode, parquet_single_mode, jsonl_local_mode])
+    if selected_source_modes > 1:
+        raise ValueError(
+            "choose only one local source mode: --docs-jsonl-local, "
+            "--docs-parquet-glob-local, or --docs-parquet-{train,val}-glob-local"
+        )
+    if parquet_split_mode and not (args.docs_parquet_train_glob_local and args.docs_parquet_val_glob_local):
+        raise ValueError("--docs-parquet-train-glob-local and --docs-parquet-val-glob-local must be provided together")
 
     output_root = Path(args.output_root).expanduser().resolve()
     output_root.mkdir(parents=True, exist_ok=True)
@@ -526,30 +906,159 @@ def main() -> None:
 
     docs_jsonl = output_root / DOCS_FILENAME
     sidecar = output_root / SIDECAR_FILENAME
-    if not copy_from_hf_cache(
-        repo_id=args.repo_id,
-        remote_root=args.remote_root,
-        filename=DOCS_FILENAME,
-        destination=docs_jsonl,
-    ):
-        remote = f"{args.remote_root}/{DOCS_FILENAME}" if args.remote_root else DOCS_FILENAME
-        raise FileNotFoundError(f"{remote} not found in Hugging Face dataset repo {args.repo_id}")
-    if not copy_from_hf_cache(
-        repo_id=args.repo_id,
-        remote_root=args.remote_root,
-        filename=SIDECAR_FILENAME,
-        destination=sidecar,
-    ):
-        sidecar.unlink(missing_ok=True)
+    text_iter_factory: Callable[[int | None], Iterable[str]] | None = None
+    split_source_factory: Callable[[], list[tuple[str, Iterable[str]]]] | None = None
+    strict_docs_total = True
+    docs_sidecar: dict[str, Any] | None = None
+    docs_source_description: dict[str, Any]
 
-    docs_sidecar = maybe_load_docs_sidecar_meta(docs_jsonl)
-    docs_total = int(docs_sidecar["num_docs"]) if docs_sidecar is not None and docs_sidecar.get("num_docs") is not None else count_docs(docs_jsonl)
-    if args.num_val_docs is not None:
-        num_val_docs = int(args.num_val_docs)
-    elif docs_sidecar is not None and docs_sidecar.get("docs_val") is not None:
-        num_val_docs = int(docs_sidecar["docs_val"])
+    if parquet_split_mode:
+        train_paths = resolve_glob_paths(args.docs_parquet_train_glob_local)
+        val_paths = resolve_glob_paths(args.docs_parquet_val_glob_local)
+        train_rows = count_parquet_rows(train_paths)
+        val_rows = count_parquet_rows(val_paths)
+        max_train_docs = None if args.max_train_docs is None else int(args.max_train_docs)
+        docs_total = min(train_rows, max_train_docs) + val_rows if max_train_docs is not None else train_rows + val_rows
+        val_limit = None if args.num_val_docs is None else int(args.num_val_docs)
+        num_val_docs = val_rows if val_limit is None else min(val_rows, val_limit)
+        docs_total = docs_total - val_rows + num_val_docs
+        text_column = str(args.parquet_text_column)
+
+        def text_iter_factory(max_docs: int | None, paths=train_paths, column=text_column):
+            return iter_parquet_texts(paths, text_column=column, max_docs=max_docs, max_doc_bytes=max_export_doc_bytes)
+
+        def split_source_factory(
+            paths_train=train_paths,
+            paths_val=val_paths,
+            column=text_column,
+            val_limit=val_limit,
+            train_limit=max_train_docs,
+        ):
+            return [
+                ("val", iter_parquet_texts(paths_val, text_column=column, max_docs=val_limit, max_doc_bytes=max_export_doc_bytes)),
+                (
+                    "train",
+                    iter_parquet_texts(paths_train, text_column=column, max_docs=train_limit, max_doc_bytes=max_export_doc_bytes),
+                ),
+            ]
+
+        strict_docs_total = False
+        sidecar.unlink(missing_ok=True)
+        docs_source_description = {
+            "source_mode": "local_parquet_split",
+            "train_globs": list(args.docs_parquet_train_glob_local),
+            "val_globs": list(args.docs_parquet_val_glob_local),
+            "train_file_count": len(train_paths),
+            "val_file_count": len(val_paths),
+            "parquet_text_column": text_column,
+            "train_rows_metadata": train_rows,
+            "val_rows_metadata": val_rows,
+            "max_train_docs": max_train_docs,
+            "max_val_docs": num_val_docs,
+            "max_export_doc_bytes": max_export_doc_bytes,
+        }
+    elif parquet_single_mode:
+        parquet_paths = resolve_glob_paths(args.docs_parquet_glob_local)
+        all_rows = count_parquet_rows(parquet_paths)
+        num_val_docs = NUM_VAL_DOCS if args.num_val_docs is None else int(args.num_val_docs)
+        max_train_docs = None if args.max_train_docs is None else int(args.max_train_docs)
+        train_total = max(0, all_rows - num_val_docs)
+        docs_total = min(train_total, max_train_docs) + num_val_docs if max_train_docs is not None else all_rows
+        text_column = str(args.parquet_text_column)
+
+        def text_iter_factory(max_docs: int | None, paths=parquet_paths, column=text_column):
+            return iter_parquet_texts(paths, text_column=column, max_docs=max_docs, max_doc_bytes=max_export_doc_bytes)
+
+        def iter_parquet_range(start: int, stop: int | None, paths=parquet_paths, column=text_column):
+            for i, text in enumerate(iter_parquet_texts(paths, text_column=column, max_docs=None, max_doc_bytes=max_export_doc_bytes)):
+                if i < start:
+                    continue
+                if stop is not None and i >= stop:
+                    break
+                yield text
+
+        def split_source_factory(val_limit=num_val_docs, train_limit=max_train_docs):
+            train_stop = None if train_limit is None else val_limit + train_limit
+            return [("val", iter_parquet_range(0, val_limit)), ("train", iter_parquet_range(val_limit, train_stop))]
+
+        strict_docs_total = False
+        sidecar.unlink(missing_ok=True)
+        docs_source_description = {
+            "source_mode": "local_parquet_single",
+            "globs": list(args.docs_parquet_glob_local),
+            "file_count": len(parquet_paths),
+            "parquet_text_column": text_column,
+            "rows_metadata": all_rows,
+            "max_train_docs": max_train_docs,
+            "max_val_docs": num_val_docs,
+            "max_export_doc_bytes": max_export_doc_bytes,
+        }
+    elif jsonl_local_mode:
+        local_docs = Path(args.docs_jsonl_local).expanduser().resolve()
+        if not local_docs.is_file():
+            raise FileNotFoundError(local_docs)
+        if docs_jsonl.exists():
+            docs_jsonl.unlink()
+        try:
+            os.link(local_docs, docs_jsonl)
+        except OSError:
+            shutil.copy2(local_docs, docs_jsonl)
+        local_sidecar = docs_sidecar_path(local_docs)
+        if local_sidecar.is_file():
+            shutil.copy2(local_sidecar, sidecar)
+        else:
+            sidecar.unlink(missing_ok=True)
+        docs_sidecar = maybe_load_docs_sidecar_meta(docs_jsonl)
+        docs_total = (
+            int(docs_sidecar["num_docs"])
+            if docs_sidecar is not None and docs_sidecar.get("num_docs") is not None
+            else count_docs(docs_jsonl)
+        )
+        if args.num_val_docs is not None:
+            num_val_docs = int(args.num_val_docs)
+        elif docs_sidecar is not None and docs_sidecar.get("docs_val") is not None:
+            num_val_docs = int(docs_sidecar["docs_val"])
+        else:
+            num_val_docs = NUM_VAL_DOCS
+        docs_source_description = {
+            "source_mode": "local_jsonl",
+            "path": str(local_docs),
+            "linked_or_copied_to": str(docs_jsonl),
+        }
     else:
-        num_val_docs = NUM_VAL_DOCS
+        if not copy_from_hf_cache(
+            repo_id=args.repo_id,
+            remote_root=args.remote_root,
+            filename=DOCS_FILENAME,
+            destination=docs_jsonl,
+        ):
+            remote = f"{args.remote_root}/{DOCS_FILENAME}" if args.remote_root else DOCS_FILENAME
+            raise FileNotFoundError(f"{remote} not found in Hugging Face dataset repo {args.repo_id}")
+        if not copy_from_hf_cache(
+            repo_id=args.repo_id,
+            remote_root=args.remote_root,
+            filename=SIDECAR_FILENAME,
+            destination=sidecar,
+        ):
+            sidecar.unlink(missing_ok=True)
+        docs_sidecar = maybe_load_docs_sidecar_meta(docs_jsonl)
+        docs_total = (
+            int(docs_sidecar["num_docs"])
+            if docs_sidecar is not None and docs_sidecar.get("num_docs") is not None
+            else count_docs(docs_jsonl)
+        )
+        if args.num_val_docs is not None:
+            num_val_docs = int(args.num_val_docs)
+        elif docs_sidecar is not None and docs_sidecar.get("docs_val") is not None:
+            num_val_docs = int(docs_sidecar["docs_val"])
+        else:
+            num_val_docs = NUM_VAL_DOCS
+        docs_source_description = {
+            "source_mode": "huggingface_jsonl",
+            "remote_repo_id": args.repo_id,
+            "remote_root": args.remote_root,
+            "linked_or_copied_to": str(docs_jsonl),
+        }
     if not (0 <= num_val_docs <= docs_total):
         raise ValueError(f"num_val_docs must be in [0, {docs_total}], got {num_val_docs}")
 
@@ -562,6 +1071,7 @@ def main() -> None:
         tokenizer_train_docs=args.tokenizer_train_docs,
         skip_byte=args.skip_byte,
         reuse_sp_models=reuse_sp_models,
+        text_iter_factory=text_iter_factory,
     )
     write_tokenizer_config_export(output_root, selected_specs)
 
@@ -571,6 +1081,7 @@ def main() -> None:
         "num_docs": docs_total,
         "docs_sha256": None if docs_sidecar is None else docs_sidecar.get("docs_sha256"),
         "source_manifest": str(docs_sidecar_path(docs_jsonl)) if docs_sidecar is not None else None,
+        **docs_source_description,
     }
     if docs_sidecar is not None:
         docs_meta["source_sidecar"] = docs_sidecar
@@ -582,7 +1093,7 @@ def main() -> None:
         "shuffle_seed": None if docs_sidecar is None else docs_sidecar.get("shuffle_seed"),
         "shard_size": int(args.chunk_tokens),
         "append_eos": APPEND_EOS,
-        "docs_jsonl": str(docs_jsonl),
+        "docs_jsonl": str(docs_jsonl) if docs_jsonl.exists() else None,
         "docs_meta": docs_meta,
         "tokenizer_specs": selected_specs,
         "tokenizers": [],
@@ -592,14 +1103,24 @@ def main() -> None:
     for tok in tokenizers:
         output_dir = datasets_dir / tok["dataset_name"]
         print(f"Exporting dataset: {tok['dataset_name']}", flush=True)
-        stats = export_shards(
-            docs_jsonl,
-            tok,
-            output_dir,
-            num_val_docs=num_val_docs,
-            shard_size=int(args.chunk_tokens),
-            docs_total=docs_total,
-        )
+        if split_source_factory is not None:
+            stats = export_shards_from_sources(
+                split_source_factory,
+                tok,
+                output_dir,
+                shard_size=int(args.chunk_tokens),
+                docs_total=docs_total,
+                strict_docs_total=strict_docs_total,
+            )
+        else:
+            stats = export_shards(
+                docs_jsonl,
+                tok,
+                output_dir,
+                num_val_docs=num_val_docs,
+                shard_size=int(args.chunk_tokens),
+                docs_total=docs_total,
+            )
         manifest["tokenizers"].append(tok["manifest"])
         manifest["datasets"].append(
             {

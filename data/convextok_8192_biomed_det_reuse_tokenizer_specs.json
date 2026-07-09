@@ -1,0 +1,13 @@
+{
+  "tokenizers": [
+    {
+      "name": "convextok_det_8192_biomed_universal_modality",
+      "kind": "convextok",
+      "dataset_suffix": "convextok8192_biomed_det",
+      "filename": "fineweb_convextok_8192_biomed_det.convextok.json",
+      "vocab_size": 8192,
+      "rounding": "det",
+      "reuse_tokenizer_path": "/home/iska/Documents/amelie/bio/TropicalGT/TropicalGT-I/data/toricgt/parameter_golf_convextok8192_biomed_det_full/tokenizers/fineweb_convextok_8192_biomed_det.convextok.json"
+    }
+  ]
+}

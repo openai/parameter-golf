@@ -1,0 +1,16 @@
+{
+  "tokenizers": [
+    {
+      "name": "convextok_det_2048",
+      "kind": "convextok",
+      "dataset_suffix": "convextok2048_det",
+      "filename": "fineweb_convextok_2048_det.convextok.json",
+      "vocab_size": 2048,
+      "rounding": "det",
+      "tokenizer_train_docs": 512,
+      "max_doc_bytes": 2048,
+      "max_candidates": 2200,
+      "max_len": 24
+    }
+  ]
+}

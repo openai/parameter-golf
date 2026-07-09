@@ -52,6 +52,41 @@ python3 data/download_hf_docs_and_tokenize.py \
 
 The sidecar `docs_selected.source_manifest.json` includes `docs_sha256`, so users can verify they are rebuilding from the exact same document list and order as the baseline export.
 
+## Rebuilding ConvexTok Shards
+
+ConvexTok tokenizers are trained from the same matched document order. The
+training sample is solved with an exact sparse LP relaxation; the rounded
+vocabulary is then used to retokenize the full document stream into ordinary
+`fineweb_train_*.bin` and `fineweb_val_*.bin` shards.
+
+Build the first ToricGT BPB experiment tokenizer, ConvexTok-2048 Det, with:
+
+```bash
+python3 data/download_hf_docs_and_tokenize.py \
+  --output-root ./data \
+  --tokenizer-config ./data/convextok_2048_det_tokenizer_specs.json \
+  --skip-byte
+```
+
+The broader sweep config is `data/convextok_tokenizer_specs.json` and contains
+1024/2048 Det/Bias variants. Use it only when you intend to retokenize multiple
+datasets in one pass.
+
+For local tests without downloading the matched docs cache, pass a
+`docs_selected.jsonl`-compatible file:
+
+```bash
+python3 data/download_hf_docs_and_tokenize.py \
+  --docs-jsonl-local /tmp/docs_selected.jsonl \
+  --output-root /tmp/convextok_smoke \
+  --tokenizer-config ./data/convextok_2048_det_tokenizer_specs.json \
+  --num-val-docs 16
+```
+
+ConvexTok artifacts have the `.convextok.json` suffix and are loaded directly
+by `train_gpt.py`. Byte accounting is exact from token byte lengths, so no
+SentencePiece metaspace correction is used.
+
 ## Useful Knobs
 
 For CPU-heavy exports, useful knobs are:
