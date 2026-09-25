@@ -1,0 +1,16 @@
+{
+  "author": "dennisimoo",
+  "github_id": "dennisimoo",
+  "name": "Record: 11L XSA4 + EMA + Batch524K + zstd fallback",
+  "blurb": "11-layer int6 MLP3x model with SmearGate, BigramHash(2048x128), XSA on the last 4 layers, EMA(0.997), WD=0.04, batch 524288, sliding-window eval stride 64, SDPA fallback when FA3 is unavailable, and official-template-safe compression via Python zstandard or zstd CLI fallback.",
+  "date": "2026-03-21T00:00:00Z",
+  "val_loss": 1.91760887,
+  "val_bpb": 1.13571899,
+  "pre_quant_val_loss": 1.9465,
+  "pre_quant_val_bpb": 1.1529,
+  "int6_zstd_val_loss": 1.95527145,
+  "int6_zstd_val_bpb": 1.15802189,
+  "bytes_total": 15669953,
+  "bytes_model_int6_zstd": 15603062,
+  "bytes_code": 66891
+}
