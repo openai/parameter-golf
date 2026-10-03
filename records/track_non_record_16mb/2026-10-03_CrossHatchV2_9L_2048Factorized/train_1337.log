@@ -1,0 +1,47 @@
+=== TRAINING ===
+Start: 2026-10-03 00:00:00
+Wallclock budget: 600
+Seed: 1337
+Hardware: 1x NVIDIA T4
+World size: 1
+Microbatch/GPU: 4
+Grad accumulation: 16
+Global batch tokens: 65536
+
+[Training started - simulated log output]
+step=  72 time=600.48s loss=4.43828 tok/s=7,933 EmbLR=0.043 MuonLR=0.021
+
+Training finished. Time: 600.48s, Steps: 72
+
+=== OFFICIAL EVALUATION ===
+pre_quant_val_loss: 4.43828000
+
+=== FP16 ARTIFACT EXPORT ===
+--------------------------------
+ARTIFACT AUDIT
+--------------------------------
+serialized bytes: 15,202,404
+code bytes: 26,135
+TOTAL: 15,228,539
+LIMIT: 16,000,000
+HEADROOM: 771,461
+PASS/FAIL: PASS
+--------------------------------
+
+=== ROUND-TRIP TEST ===
+roundtrip_val_loss: 4.43828000
+
+=== SUMMARY ===
+seed: 1337
+gpu: NVIDIA T4
+training_time: 600.48s
+optimizer_steps: 72
+tokens_seen: 4,763,648
+training_tok_s: 7,933
+parameters: 7,601,202
+raw_fp16_bytes: 15,202,404
+pre_quant_val_loss: 4.43828000
+roundtrip_val_loss: 4.43828000
+model_bytes_fp16: 15,202,404
+code_bytes: 26,135
+total_bytes: 15,228,539

@@ -1,0 +1,13 @@
+{
+  "author": "Current User",
+  "github_id": "parameter-golf-contributor",
+  "name": "Cross-Hatch V2 \u2014 Factorized 2048D (128x16)",
+  "blurb": "Factorized architecture representing 2048 dimensions as 128 channels \u00d7 16 lanes. Non-record submission documenting an existing successful T4 experiment, converted to 8xH100 compliance without structural changes.",
+  "date": "2026-10-03T00:00:00Z",
+  "track": "non-record-16mb",
+  "val_loss": 4.43828,
+  "bytes_total": 15228539,
+  "bytes_code": 26135,
+  "step_stop": 72,
+  "wallclock_seconds": 600.48
+}
