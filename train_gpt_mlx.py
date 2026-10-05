@@ -579,8 +579,14 @@ def quantize_float_array(arr: mx.array) -> tuple[np.ndarray, np.ndarray]:
         # ranges much better than a single tensor-wide scale.
         clip_abs = np.quantile(np.abs(f32), INT8_CLIP_Q, axis=1) if f32.size else np.empty((f32.shape[0],), dtype=np.float32)
         clipped = np.clip(f32, -clip_abs[:, None], clip_abs[:, None])
-        scale = np.maximum(clip_abs / 127.0, 1.0 / 127.0).astype(np.float32, copy=False)
-        q = np.clip(np.round(clipped / scale[:, None]), -127, 127).astype(np.int8, copy=False)
+        # Use the row's range, with only a representable positive scale floor.
+        info = np.finfo(INT8_PER_ROW_SCALE_DTYPE)
+        raw_scale = np.maximum(clip_abs / 127.0, info.smallest_subnormal)
+        scale = raw_scale.astype(INT8_PER_ROW_SCALE_DTYPE)
+        # Round upward when needed so the largest clipped value still fits int8.
+        scale = np.where(scale.astype(np.float32) < raw_scale, np.nextafter(scale, np.full_like(scale, np.inf)), scale)
+        # Quantize against the same rounded scale that will be stored and decoded.
+        q = np.clip(np.round(clipped / scale.astype(np.float32)[:, None]), -127, 127).astype(np.int8, copy=False)
         return np.ascontiguousarray(q), np.ascontiguousarray(scale.astype(INT8_PER_ROW_SCALE_DTYPE, copy=False))
 
     # Vectors / scalars use a simpler per-tensor scale.
