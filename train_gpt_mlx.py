@@ -685,7 +685,7 @@ def build_sentencepiece_luts(
         if piece.startswith("▁"):
             has_leading_space_lut[token_id] = True
             piece = piece[1:]
-        base_bytes_lut[token_id] = len(piece.encode("utf-8"))
+        base_bytes_lut[token_id] = len(piece.replace("▁", " ").encode("utf-8"))
     return base_bytes_lut, has_leading_space_lut, is_boundary_token_lut
 
 
