@@ -329,8 +329,14 @@ def quantize_float_tensor(t: Tensor) -> tuple[Tensor, Tensor]:
             else torch.empty((t32.shape[0],), dtype=torch.float32)
         )
         clipped = torch.maximum(torch.minimum(t32, clip_abs[:, None]), -clip_abs[:, None])
-        scale = (clip_abs / 127.0).clamp_min(1.0 / 127.0)
-        q = torch.clamp(torch.round(clipped / scale[:, None]), -127, 127).to(torch.int8).contiguous()
+        # Use the row's range, with only a representable positive scale floor.
+        info = torch.finfo(INT8_PER_ROW_SCALE_DTYPE)
+        raw_scale = (clip_abs / 127.0).clamp_min(info.tiny * info.eps)
+        scale = raw_scale.to(INT8_PER_ROW_SCALE_DTYPE)
+        # Round upward when needed so the largest clipped value still fits int8.
+        scale = torch.where(scale.float() < raw_scale, torch.nextafter(scale, torch.full_like(scale, float("inf"))), scale)
+        # Quantize against the same rounded scale that will be stored and decoded.
+        q = torch.clamp(torch.round(clipped / scale.float()[:, None]), -127, 127).to(torch.int8).contiguous()
         return q, scale.to(dtype=INT8_PER_ROW_SCALE_DTYPE).contiguous()
 
     # Vectors / scalars use a simpler per-tensor scale.
