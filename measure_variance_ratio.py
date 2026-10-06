@@ -16,6 +16,8 @@ import numpy as np
 import sentencepiece as spm
 from pathlib import Path
 
+from train_gpt import load_data_shard
+
 
 def load_module_from_path(script_path: str, module_name: str = "train_mod"):
     """Dynamically import a train_gpt.py so we can reuse its model classes."""
@@ -183,12 +185,12 @@ def main():
     val_files = sorted(glob.glob(f"{args.data_dir}/fineweb_val_*.bin"))
     if not val_files:
         raise FileNotFoundError(f"No val files in {args.data_dir}")
-    data = np.fromfile(val_files[0], dtype=np.uint16).astype(np.int32)
-    # Use first 8192 tokens, clamp to vocab size
-    data = data[:8192]
+    # Use the training shard reader so header metadata never becomes input tokens.
+    data = load_data_shard(Path(val_files[0])).numpy().astype(np.int32, copy=False)[:8192]
     vocab_size = mod.Hyperparameters.vocab_size
-    data = np.clip(data, 0, vocab_size - 1)
-    print(f"Loaded {len(data)} tokens from {val_files[0]} (clamped to vocab_size={vocab_size})")
+    if np.any(data >= vocab_size):
+        raise ValueError(f"Validation token IDs exceed vocab_size={vocab_size}")
+    print(f"Loaded {len(data)} tokens from {val_files[0]}")
 
     # Measure
     results = measure_variance_ratio(model, data, args.seq_len, device, args.model_type)
