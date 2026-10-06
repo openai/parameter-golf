@@ -823,7 +823,8 @@ def clip_grad_tree(grads_tree: dict, max_norm: float) -> dict:
     flat = dict(tree_flatten(grads_tree))
     total_sq = 0.0
     for grad in flat.values():
-        total_sq += float(np.sum(np.square(_np_float32(grad)), dtype=np.float64))
+        # Promote before squaring; a float64 sum cannot undo float32 overflow.
+        total_sq += float(np.sum(np.square(_np_float32(grad), dtype=np.float64)))
     if total_sq <= 0.0:
         return grads_tree
     total_norm = math.sqrt(total_sq)
