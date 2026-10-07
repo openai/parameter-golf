@@ -30,14 +30,17 @@ def load_module_from_path(script_path: str, module_name: str = "train_mod"):
 def build_model(mod, device, model_type):
     """Build a model using the module's Hyperparameters and GPT class.
 
-    Inspects the GPT constructor to pass any extra kwargs the script version
-    accepts (e.g. attn_variant, bigram_vocab_size, latent_kv_dim).
+    Inspects the GPT constructor and only passes the kwargs it actually
+    accepts, so this works against both the current train_gpt.py and older
+    script snapshots (e.g. under records/...) whose GPT signature may not
+    yet have every hyperparameter (tied_embed_init_std, qk_gain_init,
+    bigram_*, latent_kv_dim, etc.). Filtering only the "extra" kwargs and
+    not these would raise TypeError against an older script.
     """
     import inspect
     args = mod.Hyperparameters
 
-    # Base kwargs every GPT version needs
-    kwargs = dict(
+    candidate_kwargs = dict(
         vocab_size=args.vocab_size,
         num_layers=args.num_layers,
         model_dim=args.model_dim,
@@ -49,19 +52,15 @@ def build_model(mod, device, model_type):
         logit_softcap=args.logit_softcap,
         rope_base=args.rope_base,
         qk_gain_init=getattr(args, 'qk_gain_init', 1.5),
+        attn_variant=model_type,
+        bigram_vocab_size=getattr(args, 'bigram_vocab_size', 0),
+        bigram_dim=getattr(args, 'bigram_dim', 128),
+        latent_kv_dim=getattr(args, 'latent_kv_dim', 64),
     )
 
-    # Check what extra params the GPT constructor accepts and pass them
     sig = inspect.signature(mod.GPT.__init__)
-    extra_params = {
-        'attn_variant': model_type if model_type == 'dg' else 'standard',
-        'bigram_vocab_size': getattr(args, 'bigram_vocab_size', 0),
-        'bigram_dim': getattr(args, 'bigram_dim', 128),
-        'latent_kv_dim': getattr(args, 'latent_kv_dim', 64),
-    }
-    for name, value in extra_params.items():
-        if name in sig.parameters:
-            kwargs[name] = value
+    kwargs = {name: value for name, value in candidate_kwargs.items()
+              if name in sig.parameters}
 
     model = mod.GPT(**kwargs).to(device)
     return model
@@ -77,13 +76,10 @@ def measure_variance_ratio(model, data_tokens, seq_len, device, model_type):
     # Collect projection outputs per layer
     projections = {}
 
-    def make_hook(layer_idx, proj_name):
+    def make_hook(layer_idx):
         def hook_fn(module, input, output):
             # output shape: (batch, seq_len, kv_dim)
-            key = layer_idx
-            if key not in projections:
-                projections[key] = []
-            projections[key].append(output.detach().float())
+            projections.setdefault(layer_idx, []).append(output.detach().float())
         return hook_fn
 
     # Register hooks on the value/payload projection in each block
@@ -97,7 +93,7 @@ def measure_variance_ratio(model, data_tokens, seq_len, device, model_type):
             proj = attn.c_v
         else:
             raise AttributeError(f"Block {i} attention has neither c_payload nor c_v")
-        h = proj.register_forward_hook(make_hook(i, type(attn).__name__))
+        h = proj.register_forward_hook(make_hook(i))
         hooks.append(h)
 
     # Forward pass over data in chunks
