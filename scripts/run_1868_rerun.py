@@ -73,7 +73,12 @@ def build_seed_cmd(seeds):
     parts = []
     parts.append("cd /root/rehearsal_src")
     parts.append(
-        "pip install --break-system-packages -r requirements.txt brotli python-minifier 2>&1 | tail -5"
+        "pip install --break-system-packages -r requirements.txt python-minifier 2>&1 | tail -5"
+    )
+    # The fixed source still reports 1.2.0; replace an older installed wheel.
+    parts.append(
+        "pip install --break-system-packages --no-deps --force-reinstall "
+        "'brotli @ https://github.com/google/brotli/archive/0ed4268a4401abcb4472096340477cf4af7d1a2b.tar.gz#sha256=3a9431345e0a18dec1b7b38b59709849183030fe5aab22a28fea4123ca73eeba'"
     )
     parts.append("hash -r && which pyminify")
     # Preflight: verify critical imports
@@ -198,3 +203,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

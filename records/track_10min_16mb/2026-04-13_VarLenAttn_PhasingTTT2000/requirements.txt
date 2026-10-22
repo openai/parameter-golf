@@ -12,5 +12,6 @@ datasets
 tiktoken
 sentencepiece
 zstandard
-brotli
+brotli @ https://github.com/google/brotli/archive/0ed4268a4401abcb4472096340477cf4af7d1a2b.tar.gz#sha256=3a9431345e0a18dec1b7b38b59709849183030fe5aab22a28fea4123ca73eeba
 python-minifier
+

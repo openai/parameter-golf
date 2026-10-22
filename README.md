@@ -204,6 +204,24 @@ For dataset export, tokenizer export, and docs-cache rebuild instructions, see [
 
 Evaluation will be in the RunPod environment with all packages installed. `requirements.txt` is provided as a reference if you want to self-setup.
 
+### Brotli dependency for record reproduction
+
+Some records and rerun helpers use the native Python Brotli decoder. Before
+reproducing one of those records, install its requirements in a fresh environment.
+The requirements now select the immutable upstream block-switch fix instead of
+an index wheel. Building it requires a C/C++ compiler and Python development
+headers. To refresh an existing environment or follow older record instructions,
+run this after installing the other dependencies:
+
+```sh
+python -m pip install --no-deps --force-reinstall \
+  "brotli @ https://github.com/google/brotli/archive/0ed4268a4401abcb4472096340477cf4af7d1a2b.tar.gz#sha256=3a9431345e0a18dec1b7b38b59709849183030fe5aab22a28fea4123ca73eeba"
+```
+
+The fixed upstream source still reports version 1.2.0, so a version check alone
+does not establish that the fix is installed. Existing environments must be
+refreshed; historical logs and submitted training code are unchanged.
+
 ## FAQ
 
 **What exactly counts toward the 16MB artifact size?**
@@ -273,3 +291,4 @@ The `train_gpt.py` and `train_gpt_mlx.py` scripts are intended as good launching
 Join the [OpenAI Discord server](https://discord.com/invite/openai) and visit the Parameter Golf channels (#parameter-golf-discussions, #parameter-golf-announcements) and ask questions.
 
 This repository adapts code from `modded-nanogpt`, see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution.
+
