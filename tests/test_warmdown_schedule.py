@@ -15,13 +15,19 @@ for mod in ["mlx", "mlx.core", "mlx.nn", "mlx.optimizers", "mlx.utils"]:
         except ImportError:
             sys.modules[mod] = MagicMock()
 
-# noqa: E402
-from train_gpt_mlx import Hyperparameters  # noqa: E402
+from train_gpt import Hyperparameters as PyTorchHyperparameters  # noqa: E402
+from train_gpt_mlx import Hyperparameters as MLXHyperparameters  # noqa: E402
+
+ALL_HYPERPARAMETERS = [
+    pytest.param(PyTorchHyperparameters, id="pytorch"),
+    pytest.param(MLXHyperparameters, id="mlx"),
+]
 
 
-def test_train_gpt_mlx_warmdown_iteration_boundary():
+@pytest.mark.parametrize("hyperparameters_cls", ALL_HYPERPARAMETERS)
+def test_warmdown_iteration_boundary(hyperparameters_cls):
     # Case 1: Standard warmdown window (iterations=1000, warmdown_iters=200)
-    args = Hyperparameters()
+    args = hyperparameters_cls()
     args.iterations = 1000
     args.warmdown_iters = 200
     args.max_wallclock_seconds = 0
@@ -47,8 +53,9 @@ def test_train_gpt_mlx_warmdown_iteration_boundary():
     assert args.lr_mul(1500, 0.0) == pytest.approx(0.0)
 
 
-def test_train_gpt_mlx_warmdown_disabled():
-    args = Hyperparameters()
+@pytest.mark.parametrize("hyperparameters_cls", ALL_HYPERPARAMETERS)
+def test_warmdown_disabled(hyperparameters_cls):
+    args = hyperparameters_cls()
     args.iterations = 1000
     args.warmdown_iters = 0
     args.max_wallclock_seconds = 0
@@ -56,9 +63,10 @@ def test_train_gpt_mlx_warmdown_disabled():
         assert args.lr_mul(step, 0.0) == 1.0
 
 
-def test_train_gpt_mlx_warmdown_exceeds_iterations():
+@pytest.mark.parametrize("hyperparameters_cls", ALL_HYPERPARAMETERS)
+def test_warmdown_exceeds_iterations(hyperparameters_cls):
     # Warmdown equals or exceeds total iterations: decays from step 0
-    args = Hyperparameters()
+    args = hyperparameters_cls()
     args.iterations = 500
     args.warmdown_iters = 500
     args.max_wallclock_seconds = 0
@@ -68,8 +76,9 @@ def test_train_gpt_mlx_warmdown_exceeds_iterations():
     assert args.lr_mul(550, 0.0) == pytest.approx(0.0)
 
 
-def test_train_gpt_mlx_wallclock_expiration():
-    args = Hyperparameters()
+@pytest.mark.parametrize("hyperparameters_cls", ALL_HYPERPARAMETERS)
+def test_wallclock_expiration(hyperparameters_cls):
+    args = hyperparameters_cls()
     args.iterations = 10000
     args.warmdown_iters = 200
     args.max_wallclock_seconds = 600
@@ -81,36 +90,3 @@ def test_train_gpt_mlx_wallclock_expiration():
     # Wallclock expired: remaining_ms = 0
     assert args.lr_mul(120, 600_000.0) == pytest.approx(0.0)
     assert args.lr_mul(125, 650_000.0) == pytest.approx(0.0)
-
-
-def test_train_gpt_step_schedule_logic():
-    # Helper replicating train_gpt.py lr_mul closure
-    def make_lr_mul(iterations: int, warmdown_iters: int, max_wallclock: float = 0.0):
-        max_wallclock_ms = 1000.0 * max_wallclock if max_wallclock > 0 else None
-
-        def lr_mul(step: int, elapsed_ms: float) -> float:
-            if warmdown_iters <= 0:
-                return 1.0
-            if max_wallclock_ms is None:
-                warmdown_start = max(iterations - warmdown_iters, 0)
-                if step < warmdown_start:
-                    return 1.0
-                return max((iterations - step) / max(warmdown_iters, 1), 0.0)
-            step_ms = elapsed_ms / max(step, 1)
-            warmdown_ms = warmdown_iters * step_ms
-            remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
-            if remaining_ms <= warmdown_ms:
-                return remaining_ms / max(warmdown_ms, 1e-9)
-            return 1.0
-
-        return lr_mul
-
-    lr_mul = make_lr_mul(iterations=1000, warmdown_iters=200)
-    assert lr_mul(0, 0.0) == 1.0
-    assert lr_mul(799, 0.0) == 1.0
-    assert lr_mul(800, 0.0) == pytest.approx(1.0)
-    assert lr_mul(900, 0.0) == pytest.approx(0.5)
-    assert lr_mul(999, 0.0) == pytest.approx(0.005)
-    assert lr_mul(1000, 0.0) == pytest.approx(0.0)
-    assert lr_mul(1001, 0.0) == pytest.approx(0.0)
-    assert lr_mul(1100, 0.0) == pytest.approx(0.0)
